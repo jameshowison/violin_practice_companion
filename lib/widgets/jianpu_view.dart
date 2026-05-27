@@ -142,7 +142,6 @@ class _JianpuMeasurePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
-    const cellW = NotationLayout.cellWidth;
     const baseY = 28.0;
 
     final linePaint = Paint()
@@ -150,13 +149,14 @@ class _JianpuMeasurePainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    for (int i = 0; i < notes.length; i++) {
-      final note = notes[i];
-      final x = i * cellW;
-      final centerX = x + cellW / 2;
+    double x = 0.0;
+    for (final note in notes) {
+      final nw = NotationLayout.noteWidth(note);
+      final centerX = x + nw / 2;
 
       if (note.isRest) {
         _drawText(canvas, textPainter, '0', centerX, baseY, fontSize: 18);
+        x += nw;
         continue;
       }
 
@@ -185,13 +185,21 @@ class _JianpuMeasurePainter extends CustomPainter {
       final underlineCount = _underlineCount(note.noteValue);
       for (int u = 0; u < underlineCount; u++) {
         final y = baseY + 12 + u * 4;
-        canvas.drawLine(Offset(x + 4, y), Offset(x + cellW - 4, y), linePaint);
+        canvas.drawLine(Offset(x + 4, y), Offset(x + nw - 4, y), linePaint);
       }
 
       if (note.dotted) {
         canvas.drawCircle(
           Offset(centerX + 10, baseY + 2), 2, Paint()..color = Colors.black);
       }
+
+      final dashCount = _dashCount(note.noteValue, note.dotted);
+      for (int d = 1; d <= dashCount; d++) {
+        final dashCX = x + d * NotationLayout.cellWidth + NotationLayout.cellWidth / 2;
+        _drawText(canvas, textPainter, '—', dashCX, baseY, fontSize: 18);
+      }
+
+      x += nw;
     }
   }
 
@@ -199,6 +207,14 @@ class _JianpuMeasurePainter extends CustomPainter {
     switch (v) {
       case NoteValue.eighth: return 1;
       case NoteValue.sixteenth: return 2;
+      default: return 0;
+    }
+  }
+
+  int _dashCount(NoteValue v, bool dotted) {
+    switch (v) {
+      case NoteValue.whole: return 3;
+      case NoteValue.half:  return dotted ? 2 : 1;
       default: return 0;
     }
   }

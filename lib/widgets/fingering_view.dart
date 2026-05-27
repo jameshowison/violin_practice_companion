@@ -160,12 +160,12 @@ class _FingeringMeasurePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final tp = TextPainter(textDirection: TextDirection.ltr);
-    const cellW = NotationLayout.cellWidth;
     const baseY = 28.0;
 
-    for (int i = 0; i < notes.length; i++) {
-      final note = notes[i];
-      final centerX = i * cellW + cellW / 2;
+    double x = 0.0;
+    for (final note in notes) {
+      final nw = NotationLayout.noteWidth(note);
+      final centerX = x + nw / 2;
 
       if (combined) {
         final num = note.isRest ? '0' : '${note.jianpuNumber ?? "?"}';
@@ -181,6 +181,7 @@ class _FingeringMeasurePainter extends CustomPainter {
         _drawFingeringLabel(canvas, tp, fs, fn, centerX,
             combined ? baseY + 10 : baseY);
       }
+      x += nw;
     }
   }
 

@@ -4,7 +4,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { margin: 0; padding: 0; background: white; }
-    #osmd-container { width: 75%; }
+    #osmd-container { width: 75%; margin: 0 auto; }
     #error-msg { color: red; font-family: sans-serif; padding: 8px; display: none; }
   </style>
 </head>
@@ -25,6 +25,8 @@
   // System breaks are baked into the MusicXML by PieceLayout.injectSystemBreaks()
   // before this function is called, so OSMD respects the same row layout as
   // the jianpu and fingering views.
+  osmd.EngravingRules.RenderClefsAtBeginningOfStaffline = false;
+
   window.loadScore = async function(xml) {
     try {
       await osmd.load(xml);
