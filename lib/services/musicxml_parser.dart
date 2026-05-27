@@ -19,6 +19,7 @@ class MusicXmlParser {
       final notes = <NoteEvent>[];
 
       for (final noteEl in measureEl.findElements('note')) {
+        if (noteEl.getAttribute('print-object') == 'no') continue;
         final isRest = noteEl.findElements('rest').isNotEmpty;
         final dotted = noteEl.findElements('dot').isNotEmpty;
         final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
