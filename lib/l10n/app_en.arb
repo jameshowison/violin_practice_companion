@@ -1,0 +1,15 @@
+{
+  "@@locale": "en",
+  "appTitle": "Violin Practice Companion",
+  "@appTitle": { "description": "App title" },
+  "piecesTitle": "Pieces",
+  "@piecesTitle": { "description": "Piece list screen title" },
+  "settings": "Settings",
+  "@settings": { "description": "Settings label" },
+  "openStrings": "Open strings",
+  "@openStrings": { "description": "Open string preference label" },
+  "fingered": "Fingered",
+  "@fingered": { "description": "Fingered preference label" },
+  "stringPreference": "String preference",
+  "@stringPreference": { "description": "Setting heading for open vs fingered" }
+}

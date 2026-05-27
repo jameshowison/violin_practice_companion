@@ -1,0 +1,9 @@
+{
+  "@@locale": "zh",
+  "appTitle": "小提琴练习助手",
+  "piecesTitle": "曲目",
+  "settings": "设置",
+  "openStrings": "空弦优先",
+  "fingered": "按弦优先",
+  "stringPreference": "弦偏好"
+}

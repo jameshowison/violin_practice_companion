@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; padding: 0; background: white; }
+    #osmd-container { width: 75%; }
+    #error-msg { color: red; font-family: sans-serif; padding: 8px; display: none; }
+  </style>
+</head>
+<body>
+<div id="error-msg"></div>
+<div id="osmd-container"></div>
+<script src="opensheetmusicdisplay.min.js"></script>
+<script>
+  var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
+    autoResize: true,
+    drawTitle: true,
+    drawSubtitle: false,
+    drawPartNames: false,
+    newSystemFromXML: true,
+    stretchLastSystemLine: false,
+  });
+
+  // System breaks are baked into the MusicXML by PieceLayout.injectSystemBreaks()
+  // before this function is called, so OSMD respects the same row layout as
+  // the jianpu and fingering views.
+  window.loadScore = async function(xml) {
+    try {
+      await osmd.load(xml);
+      osmd.render();
+    } catch(e) {
+      showError('Load failed: ' + e.message);
+      if (window.OsmdBridge) {
+        OsmdBridge.postMessage(JSON.stringify({ type: 'error', message: e.message }));
+      }
+    }
+  };
+
+  window.highlightMeasure = function(n) {
+    try {
+      if (!osmd.cursor) return;
+      osmd.cursor.show();
+      osmd.cursor.reset();
+      var measures = osmd.Sheet ? osmd.Sheet.SourceMeasures : [];
+      var targetBeat = 0;
+      for (var i = 0; i < Math.min(n - 1, measures.length); i++) {
+        targetBeat += measures[i].Duration.RealValue;
+      }
+      while (!osmd.cursor.Iterator.EndReached &&
+             osmd.cursor.Iterator.currentTimeStamp.RealValue < targetBeat) {
+        osmd.cursor.next();
+      }
+    } catch(e) {}
+  };
+
+  window.clearHighlight = function() {
+    try { osmd.cursor.hide(); } catch(e) {}
+  };
+
+  function showError(msg) {
+    var el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  // Flutter web communicates via postMessage instead of runJavaScript
+  window.addEventListener('message', async function(event) {
+    var data = event.data;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch(e) { return; }
+    }
+    if (!data || !data.type) return;
+    if (data.type === 'loadScore') {
+      await window.loadScore(data.xml);
+    } else if (data.type === 'highlightMeasure') {
+      window.highlightMeasure(data.n);
+    } else if (data.type === 'clearHighlight') {
+      window.clearHighlight();
+    }
+  });
+</script>
+</body>
+</html>

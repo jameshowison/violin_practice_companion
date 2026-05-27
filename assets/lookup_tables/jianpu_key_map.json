@@ -1,0 +1,14 @@
+{
+  "comment": "Maps MusicXML key fifths to tonic and scale degrees (chromatic pitch classes 0-11, C=0)",
+  "keys": {
+    "-4": { "tonic": "Ab", "tonicPc": 8,  "scale": [8,10,0,1,3,5,7] },
+    "-3": { "tonic": "Eb", "tonicPc": 3,  "scale": [3,5,7,8,10,0,2] },
+    "-2": { "tonic": "Bb", "tonicPc": 10, "scale": [10,0,2,3,5,7,9] },
+    "-1": { "tonic": "F",  "tonicPc": 5,  "scale": [5,7,9,10,0,2,4] },
+    "0":  { "tonic": "C",  "tonicPc": 0,  "scale": [0,2,4,5,7,9,11] },
+    "1":  { "tonic": "G",  "tonicPc": 7,  "scale": [7,9,11,0,2,4,6] },
+    "2":  { "tonic": "D",  "tonicPc": 2,  "scale": [2,4,6,7,9,11,1] },
+    "3":  { "tonic": "A",  "tonicPc": 9,  "scale": [9,11,1,2,4,6,8] },
+    "4":  { "tonic": "E",  "tonicPc": 4,  "scale": [4,6,8,9,11,1,3] }
+  }
+}

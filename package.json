@@ -1,0 +1,13 @@
+{
+  "name": "violin-practice-companion-assets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JS dependencies bundled as Flutter assets",
+  "scripts": {
+    "copy-osmd": "cp node_modules/opensheetmusicdisplay/build/opensheetmusicdisplay.min.js assets/osmd/opensheetmusicdisplay.min.js",
+    "postinstall": "npm run copy-osmd"
+  },
+  "dependencies": {
+    "opensheetmusicdisplay": "^1.9.9"
+  }
+}

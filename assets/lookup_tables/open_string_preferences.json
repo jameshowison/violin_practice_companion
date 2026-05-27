@@ -1,0 +1,4 @@
+{
+  "comment": "When a note can be played as an open string or a fingered note on a lower string, which is preferred? 'open' = prefer open string; 'fingered' = prefer fingered (richer tone, typical for advancing students).",
+  "default": "fingered"
+}
