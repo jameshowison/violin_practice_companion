@@ -17,9 +17,30 @@ class MusicXmlParser {
       final numberStr = measureEl.getAttribute('number') ?? '1';
       final number = int.tryParse(numberStr) ?? measures.length + 1;
       final notes = <NoteEvent>[];
+      final hiddenLeadNotes = <NoteEvent>[];
+      bool seenVisibleNote = false;
 
       for (final noteEl in measureEl.findElements('note')) {
-        if (noteEl.getAttribute('print-object') == 'no') continue;
+        final isHidden = noteEl.getAttribute('print-object') == 'no';
+        if (isHidden && !seenVisibleNote) {
+          // Collect hidden notes that precede the first visible note so the
+          // generator can advance timing past them (e.g. pickup measure rests).
+          final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
+          final dotted = noteEl.findElements('dot').isNotEmpty;
+          final isRest = noteEl.findElements('rest').isNotEmpty;
+          hiddenLeadNotes.add(NoteEvent(
+            pitch: 'R',
+            midiNumber: 0,
+            octave: 4,
+            noteValue: _parseNoteValue(typeStr),
+            dotted: dotted,
+            isRest: isRest,
+            scoreFinger: null,
+          ));
+          continue;
+        }
+        if (isHidden) continue;
+        seenVisibleNote = true;
         final isRest = noteEl.findElements('rest').isNotEmpty;
         final dotted = noteEl.findElements('dot').isNotEmpty;
         final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
@@ -60,7 +81,7 @@ class MusicXmlParser {
         ));
       }
 
-      measures.add(Measure(number: number, notes: notes));
+      measures.add(Measure(number: number, notes: notes, hiddenLeadNotes: hiddenLeadNotes));
     }
 
     return ParsedPiece(

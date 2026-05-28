@@ -56,6 +56,22 @@
     } catch(e) {}
   };
 
+  window.positionCursor = function(beatPosition, isLong) {
+    try {
+      if (!osmd.cursor) return;
+      // Backward seek (e.g. loop restart): reset to beginning first
+      if (osmd.cursor.Iterator.currentTimeStamp.RealValue > beatPosition + 0.001) {
+        osmd.cursor.reset();
+      }
+      while (!osmd.cursor.Iterator.EndReached &&
+             osmd.cursor.Iterator.currentTimeStamp.RealValue < beatPosition) {
+        osmd.cursor.next();
+      }
+      osmd.cursor.show();
+      if (!isLong) osmd.cursor.hide();
+    } catch(e) {}
+  };
+
   window.clearHighlight = function() {
     try { osmd.cursor.hide(); } catch(e) {}
   };
@@ -75,8 +91,8 @@
     if (!data || !data.type) return;
     if (data.type === 'loadScore') {
       await window.loadScore(data.xml);
-    } else if (data.type === 'highlightMeasure') {
-      window.highlightMeasure(data.n);
+    } else if (data.type === 'positionCursor') {
+      window.positionCursor(data.beat, data.isLong);
     } else if (data.type === 'clearHighlight') {
       window.clearHighlight();
     }

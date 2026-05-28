@@ -145,8 +145,3 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
   return ref.watch(playbackServiceProvider).state;
 });
-
-// Emits the 1-indexed measure currently playing, or null when stopped.
-final playbackMeasureProvider = StreamProvider<int?>((ref) {
-  return ref.watch(playbackServiceProvider).currentMeasure;
-});
