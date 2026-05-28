@@ -5,9 +5,12 @@ import '../models/piece.dart';
 import '../models/piece_layout.dart';
 import 'fingering_mapper.dart';
 import 'jianpu_converter.dart';
+import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
 import 'piece_repository.dart';
+import 'playback_service.dart';
+import 'playback_service_base.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -128,3 +131,22 @@ class MeasureSelection {
 
 final measureSelectionProvider =
     StateProvider<MeasureSelection?>((_) => null);
+
+// ── Playback ──────────────────────────────────────────────────────────────────
+
+final midiGeneratorProvider = Provider<MidiGenerator>((_) => MidiGenerator());
+
+final playbackServiceProvider = Provider<PlaybackService>((ref) {
+  final service = PlaybackService(ref.watch(midiGeneratorProvider));
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
+  return ref.watch(playbackServiceProvider).state;
+});
+
+// Emits the 1-indexed measure currently playing, or null when stopped.
+final playbackMeasureProvider = StreamProvider<int?>((ref) {
+  return ref.watch(playbackServiceProvider).currentMeasure;
+});

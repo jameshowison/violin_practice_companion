@@ -1,0 +1,178 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/services/midi_generator.dart';
+import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/parsed_piece.dart';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+NoteEvent _note(NoteValue v, {bool dotted = false, int midi = 69}) =>
+    NoteEvent(
+      pitch: 'A4',
+      midiNumber: midi,
+      octave: 4,
+      noteValue: v,
+      dotted: dotted,
+      isRest: false,
+    );
+
+NoteEvent _rest(NoteValue v, {bool dotted = false}) => NoteEvent(
+      pitch: '',
+      midiNumber: 0,
+      octave: 4,
+      noteValue: v,
+      dotted: dotted,
+      isRest: true,
+    );
+
+ParsedPiece _piece(List<List<NoteEvent>> measureNotes) {
+  final measures = measureNotes
+      .asMap()
+      .entries
+      .map((e) => Measure(number: e.key + 1, notes: e.value))
+      .toList();
+  return ParsedPiece(
+    keySignature: 'G',
+    keyFifths: 1,
+    keyMode: KeyMode.major,
+    measures: measures,
+  );
+}
+
+double _dur(ScheduledNote n) => n.offsetSeconds - n.onsetSeconds;
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+void main() {
+  late MidiGenerator gen;
+
+  setUp(() {
+    // forTest() bypasses asset loading; uses 480 tpb (standard MIDI default).
+    gen = MidiGenerator.forTest(ticksPerBeat: 480);
+  });
+
+  group('Note durations at 60 BPM (1 quarter note = 1 second)', () {
+    const bpm = 60;
+
+    test('whole note = 4 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.whole)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(4.0, 0.001));
+    });
+
+    test('half note = 2 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.half)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(2.0, 0.001));
+    });
+
+    test('quarter note = 1 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.quarter)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(1.0, 0.001));
+    });
+
+    test('eighth note = 0.5 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.eighth)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(0.5, 0.001));
+    });
+
+    test('sixteenth note = 0.25 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.sixteenth)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(0.25, 0.001));
+    });
+  });
+
+  group('Dotted note durations at 60 BPM', () {
+    const bpm = 60;
+
+    test('dotted half = 3 s', () {
+      final d =
+          gen.generate(_piece([[_note(NoteValue.half, dotted: true)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(3.0, 0.001));
+    });
+
+    test('dotted quarter = 1.5 s', () {
+      final d = gen
+          .generate(_piece([[_note(NoteValue.quarter, dotted: true)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(1.5, 0.001));
+    });
+
+    test('dotted eighth = 0.75 s', () {
+      final d =
+          gen.generate(_piece([[_note(NoteValue.eighth, dotted: true)]]), bpm);
+      expect(_dur(d.notes.single), closeTo(0.75, 0.001));
+    });
+  });
+
+  group('measureOnsetSeconds accumulation at 60 BPM', () {
+    const bpm = 60;
+
+    test('single measure starts at 0', () {
+      final d = gen.generate(_piece([[_note(NoteValue.quarter)]]), bpm);
+      expect(d.measureOnsetSeconds, [closeTo(0.0, 0.001)]);
+    });
+
+    test('second measure (4 quarters each) starts at 4 s', () {
+      final bar = List.filled(4, _note(NoteValue.quarter));
+      final d = gen.generate(_piece([bar, bar]), bpm);
+      expect(d.measureOnsetSeconds[0], closeTo(0.0, 0.001));
+      expect(d.measureOnsetSeconds[1], closeTo(4.0, 0.001));
+    });
+
+    test('three measures accumulate correctly', () {
+      final bar1 = [_note(NoteValue.half), _note(NoteValue.half)]; // 4 s
+      final bar2 = [_note(NoteValue.whole)]; // 4 s
+      final bar3 = [
+        _note(NoteValue.quarter),
+        _rest(NoteValue.quarter),
+        _note(NoteValue.quarter),
+        _note(NoteValue.quarter),
+      ]; // 4 s
+      final d = gen.generate(_piece([bar1, bar2, bar3]), bpm);
+      expect(d.measureOnsetSeconds[0], closeTo(0.0, 0.001));
+      expect(d.measureOnsetSeconds[1], closeTo(4.0, 0.001));
+      expect(d.measureOnsetSeconds[2], closeTo(8.0, 0.001));
+    });
+
+    test('totalDurationSeconds = sum of all note/rest durations', () {
+      final bar = [
+        _note(NoteValue.quarter),
+        _rest(NoteValue.quarter),
+        _note(NoteValue.half),
+      ];
+      final d = gen.generate(_piece([bar]), bpm);
+      expect(d.totalDurationSeconds, closeTo(4.0, 0.001));
+    });
+  });
+
+  group('Rests are excluded from notes list but advance cursor', () {
+    test('rest produces no ScheduledNote', () {
+      final d = gen.generate(_piece([[_rest(NoteValue.whole)]]), 60);
+      expect(d.notes, isEmpty);
+      expect(d.totalDurationSeconds, closeTo(4.0, 0.001));
+    });
+
+    test('note after rest has correct onset', () {
+      final d = gen.generate(
+          _piece([[_rest(NoteValue.quarter), _note(NoteValue.quarter)]]), 60);
+      expect(d.notes.single.onsetSeconds, closeTo(1.0, 0.001));
+    });
+  });
+
+  group('Tempo scaling', () {
+    test('120 BPM quarter note = 0.5 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.quarter)]]), 120);
+      expect(_dur(d.notes.single), closeTo(0.5, 0.001));
+    });
+
+    test('40 BPM quarter note = 1.5 s', () {
+      final d = gen.generate(_piece([[_note(NoteValue.quarter)]]), 40);
+      expect(_dur(d.notes.single), closeTo(1.5, 0.001));
+    });
+  });
+
+  group('MIDI note numbers are preserved', () {
+    test('note with midiNumber 60 schedules key 60', () {
+      final d =
+          gen.generate(_piece([[_note(NoteValue.quarter, midi: 60)]]), 60);
+      expect(d.notes.single.midiNote, 60);
+    });
+  });
+}

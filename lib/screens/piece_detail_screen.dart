@@ -9,6 +9,7 @@ import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/measure_selector.dart';
 import '../widgets/notation_switcher.dart';
+import '../widgets/playback_controls.dart';
 import '../widgets/section_bar.dart';
 import '../widgets/staff_view.dart';
 
@@ -26,6 +27,16 @@ class PieceDetailScreen extends ConsumerWidget {
     final displayMode = ref.watch(displayModeProvider);
     final selection = ref.watch(measureSelectionProvider);
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
+    final activeMeasure = ref.watch(playbackMeasureProvider).valueOrNull;
+
+    // Load piece into PlaybackService whenever parsedPiece changes
+    ref.listen(parsedPieceProvider, (_, next) {
+      next.whenData((parsed) {
+        if (parsed != null) {
+          ref.read(playbackServiceProvider).loadPiece(parsed);
+        }
+      });
+    });
 
     if (piece == null) {
       return const Scaffold(body: Center(child: Text('No piece selected')));
@@ -116,6 +127,7 @@ class PieceDetailScreen extends ConsumerWidget {
                   sectionLabels,
                   piece,
                   parsedPiece: parsedPiece,
+                  activeMeasure: activeMeasure,
                 ),
               ),
               SectionBar(
@@ -130,8 +142,9 @@ class PieceDetailScreen extends ConsumerWidget {
                 selection: selection,
                 onSelectionChanged: (sel) =>
                     ref.read(measureSelectionProvider.notifier).state = sel,
+                activeMeasure: activeMeasure,
               ),
-              const SizedBox(height: 8),
+              const PlaybackControls(),
             ],
           );
         },
@@ -150,6 +163,7 @@ class PieceDetailScreen extends ConsumerWidget {
     Map<int, String> sectionLabels,
     Piece piece, {
     ParsedPiece? parsedPiece,
+    int? activeMeasure,
   }) {
     final keySignature = parsedPiece?.keySignature;
 
@@ -159,7 +173,9 @@ class PieceDetailScreen extends ConsumerWidget {
           data: (xml) => xml != null
               ? Column(children: [
                   _KeyHeader(keySignature: keySignature),
-                  Expanded(child: StaffView(musicXml: xml)),
+                  Expanded(
+                      child: StaffView(
+                          musicXml: xml, activeMeasure: activeMeasure)),
                 ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -172,7 +188,9 @@ class PieceDetailScreen extends ConsumerWidget {
           data: (xml) => xml != null
               ? Column(children: [
                   _KeyHeader(keySignature: keySignature, fingerLegend: legend),
-                  Expanded(child: StaffView(musicXml: xml)),
+                  Expanded(
+                      child: StaffView(
+                          musicXml: xml, activeMeasure: activeMeasure)),
                 ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -186,6 +204,7 @@ class PieceDetailScreen extends ConsumerWidget {
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           keySignature: keySignature,
+          activeMeasure: activeMeasure,
         );
 
       case DisplayMode.fingering:
@@ -194,6 +213,7 @@ class PieceDetailScreen extends ConsumerWidget {
           selectedMeasures: selectedMeasures,
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
+          activeMeasure: activeMeasure,
         );
 
       case DisplayMode.combined:
@@ -203,6 +223,7 @@ class PieceDetailScreen extends ConsumerWidget {
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           combined: true,
+          activeMeasure: activeMeasure,
         );
     }
   }

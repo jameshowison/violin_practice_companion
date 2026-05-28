@@ -3,8 +3,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 class StaffView extends StatefulWidget {
   final String musicXml;
+  final int? activeMeasure;
 
-  const StaffView({super.key, required this.musicXml});
+  const StaffView({super.key, required this.musicXml, this.activeMeasure});
 
   @override
   State<StaffView> createState() => _StaffViewState();
@@ -39,6 +40,14 @@ class _StaffViewState extends State<StaffView> {
   void didUpdateWidget(StaffView old) {
     super.didUpdateWidget(old);
     if (old.musicXml != widget.musicXml && _osmdReady) _loadScore();
+    if (old.activeMeasure != widget.activeMeasure && _osmdReady) {
+      final n = widget.activeMeasure;
+      if (n != null) {
+        _controller.runJavaScript('window.highlightMeasure($n)');
+      } else {
+        _controller.runJavaScript('window.clearHighlight()');
+      }
+    }
   }
 
   Future<void> _loadScore() async {

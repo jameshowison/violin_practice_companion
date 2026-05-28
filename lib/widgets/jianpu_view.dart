@@ -10,6 +10,7 @@ class JianpuView extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final String? keySignature;
+  final int? activeMeasure;
 
   const JianpuView({
     super.key,
@@ -18,6 +19,7 @@ class JianpuView extends StatelessWidget {
     required this.sectionLabels,
     this.onMeasureTap,
     this.keySignature,
+    this.activeMeasure,
   });
 
   @override
@@ -42,6 +44,7 @@ class JianpuView extends StatelessWidget {
                 selectedMeasures: selectedMeasures,
                 sectionLabels: sectionLabels,
                 onMeasureTap: onMeasureTap,
+                activeMeasure: activeMeasure,
               )),
         ],
       ),
@@ -54,12 +57,14 @@ class _JianpuRow extends StatelessWidget {
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
+  final int? activeMeasure;
 
   const _JianpuRow({
     required this.measures,
     required this.selectedMeasures,
     required this.sectionLabels,
     this.onMeasureTap,
+    this.activeMeasure,
   });
 
   @override
@@ -75,6 +80,7 @@ class _JianpuRow extends StatelessWidget {
               _JianpuMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
+                isActive: activeMeasure == measures[i].number,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
               ),
@@ -96,12 +102,14 @@ class _JianpuRow extends StatelessWidget {
 class _JianpuMeasure extends StatelessWidget {
   final Measure measure;
   final bool isSelected;
+  final bool isActive;
   final String? sectionLabel;
   final VoidCallback? onTap;
 
   const _JianpuMeasure({
     required this.measure,
     required this.isSelected,
+    required this.isActive,
     this.sectionLabel,
     this.onTap,
   });
@@ -114,9 +122,11 @@ class _JianpuMeasure extends StatelessWidget {
       child: Container(
         width: width,
         decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
-              : null,
+          color: isActive
+              ? Colors.amber.withAlpha(140)
+              : isSelected
+                  ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
+                  : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

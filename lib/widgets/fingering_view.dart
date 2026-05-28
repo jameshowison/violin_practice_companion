@@ -10,6 +10,7 @@ class FingeringView extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final bool combined;
+  final int? activeMeasure;
 
   const FingeringView({
     super.key,
@@ -18,6 +19,7 @@ class FingeringView extends StatelessWidget {
     required this.sectionLabels,
     this.onMeasureTap,
     this.combined = false,
+    this.activeMeasure,
   });
 
   @override
@@ -31,6 +33,7 @@ class FingeringView extends StatelessWidget {
             sectionLabels: sectionLabels,
             onMeasureTap: onMeasureTap,
             combined: combined,
+            activeMeasure: activeMeasure,
           );
         }).toList(),
       ),
@@ -44,6 +47,7 @@ class _FingeringRow extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final bool combined;
+  final int? activeMeasure;
 
   const _FingeringRow({
     required this.measures,
@@ -51,6 +55,7 @@ class _FingeringRow extends StatelessWidget {
     required this.sectionLabels,
     this.onMeasureTap,
     required this.combined,
+    this.activeMeasure,
   });
 
   @override
@@ -69,6 +74,7 @@ class _FingeringRow extends StatelessWidget {
               _FingeringMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
+                isActive: activeMeasure == measures[i].number,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
                 combined: combined,
@@ -92,6 +98,7 @@ class _FingeringRow extends StatelessWidget {
 class _FingeringMeasure extends StatelessWidget {
   final Measure measure;
   final bool isSelected;
+  final bool isActive;
   final String? sectionLabel;
   final VoidCallback? onTap;
   final bool combined;
@@ -100,6 +107,7 @@ class _FingeringMeasure extends StatelessWidget {
   const _FingeringMeasure({
     required this.measure,
     required this.isSelected,
+    required this.isActive,
     this.sectionLabel,
     this.onTap,
     required this.combined,
@@ -114,9 +122,11 @@ class _FingeringMeasure extends StatelessWidget {
       child: Container(
         width: width,
         decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
-              : null,
+          color: isActive
+              ? Colors.amber.withAlpha(140)
+              : isSelected
+                  ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
+                  : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

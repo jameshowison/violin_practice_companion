@@ -7,8 +7,9 @@ import 'package:web/web.dart' as web;
 
 class StaffView extends StatefulWidget {
   final String musicXml;
+  final int? activeMeasure;
 
-  const StaffView({super.key, required this.musicXml});
+  const StaffView({super.key, required this.musicXml, this.activeMeasure});
 
   @override
   State<StaffView> createState() => _StaffViewState();
@@ -52,6 +53,14 @@ class _StaffViewState extends State<StaffView> {
     super.didUpdateWidget(old);
     if (old.musicXml != widget.musicXml && _frameLoaded) {
       _postScore(widget.musicXml);
+    }
+    if (old.activeMeasure != widget.activeMeasure && _frameLoaded) {
+      final n = widget.activeMeasure;
+      if (n != null) {
+        highlightMeasure(n);
+      } else {
+        clearHighlight();
+      }
     }
   }
 

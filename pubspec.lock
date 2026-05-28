@@ -259,6 +259,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_midi_pro:
+    dependency: "direct main"
+    description:
+      name: flutter_midi_pro
+      sha256: "774cd928e9478a3dbf5d037170772fb83fd4a1a64d306d9271b0c1464ca486ab"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.6"
   flutter_riverpod:
     dependency: "direct main"
     description:
