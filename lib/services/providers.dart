@@ -3,6 +3,7 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart';
+import '../models/string_label_style.dart';
 import 'fingering_mapper.dart';
 import 'jianpu_converter.dart';
 import 'midi_generator.dart';
@@ -83,6 +84,18 @@ class OpenStringPreferenceNotifier extends StateNotifier<String> {
   void set(String value) => state = value;
 }
 
+// ── String-label style preference ─────────────────────────────────────────────
+
+final stringLabelStyleProvider =
+    StateNotifierProvider<StringLabelStyleNotifier, StringLabelStyle>(
+  (_) => StringLabelStyleNotifier(),
+);
+
+class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
+  StringLabelStyleNotifier() : super(StringLabelStyle.always);
+  void set(StringLabelStyle v) => state = v;
+}
+
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
 final staffXmlProvider = FutureProvider<String?>((ref) async {
@@ -100,11 +113,12 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   if (piece == null) return null;
   final layout = await ref.watch(pieceLayoutProvider.future);
   if (layout == null) return null;
+  final style = ref.watch(stringLabelStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.injectSystemBreaks(xml);
   final parsed = await ref.watch(parsedPieceProvider.future);
-  if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed);
+  if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
   return xml;
 });
 

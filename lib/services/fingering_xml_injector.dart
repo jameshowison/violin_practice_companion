@@ -1,12 +1,14 @@
 import 'package:xml/xml.dart';
 import '../models/parsed_piece.dart';
+import '../models/string_label_style.dart';
 
 class FingeringXmlInjector {
-  static String inject(String musicXml, ParsedPiece parsed) {
+  static String inject(String musicXml, ParsedPiece parsed, StringLabelStyle style) {
     final doc = XmlDocument.parse(musicXml);
     final noteEvents = parsed.measures.expand((m) => m.notes).toList();
 
     int idx = 0;
+    String? prevString;
     for (final noteEl in doc.findAllElements('note')) {
       if (noteEl.getAttribute('print-object') == 'no') continue;
       if (idx >= noteEvents.length) break;
@@ -14,9 +16,13 @@ class FingeringXmlInjector {
 
       if (ne.isRest || ne.fingerString == null || ne.fingerNumber == null) continue;
 
-      final isLow = ne.fingerNumber!.endsWith('low');
-      final base = isLow ? ne.fingerNumber!.replaceAll('low', '') : ne.fingerNumber!;
-      final label = '${ne.fingerString}$base${isLow ? "♭" : ""}';
+      final strPart = switch (style) {
+        StringLabelStyle.always   => ne.fingerString!,
+        StringLabelStyle.onChange => ne.fingerString != prevString ? ne.fingerString! : '',
+        StringLabelStyle.never    => '',
+      };
+      final label = '$strPart${ne.fingerNumber}';
+      prevString = ne.fingerString;
 
       _setFingering(noteEl, label);
     }

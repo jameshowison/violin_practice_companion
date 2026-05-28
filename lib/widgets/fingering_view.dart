@@ -213,11 +213,14 @@ class _FingeringMeasurePainter extends CustomPainter {
 
   void _drawFingeringLabel(Canvas canvas, TextPainter tp, String str,
       String finger, double cx, double cy) {
-    final isLow = finger.endsWith('low');
-    final baseFinger = isLow ? finger.replaceAll('low', '') : finger;
-    _drawText(canvas, tp, '$str$baseFinger', cx, cy, fontSize: 15);
+    final isLow = finger.endsWith('L');
+    final isHigh = finger.endsWith('H');
+    final base = (isLow || isHigh) ? finger.substring(0, finger.length - 1) : finger;
+    _drawText(canvas, tp, '$str$base', cx, cy, fontSize: 15);
     if (isLow) {
-      _drawText(canvas, tp, 'b', cx + 10, cy + 4, fontSize: 9);
+      _drawText(canvas, tp, '♭', cx + 10, cy + 4, fontSize: 9);
+    } else if (isHigh) {
+      _drawText(canvas, tp, '♯', cx + 10, cy - 4, fontSize: 9);
     }
   }
 
