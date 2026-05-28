@@ -7,6 +7,7 @@ class MeasureSelector extends StatefulWidget {
   final List<Section> sections;
   final MeasureSelection? selection;
   final ValueChanged<MeasureSelection?> onSelectionChanged;
+  final int? activeMeasure;
 
   const MeasureSelector({
     super.key,
@@ -14,6 +15,7 @@ class MeasureSelector extends StatefulWidget {
     required this.sections,
     required this.selection,
     required this.onSelectionChanged,
+    this.activeMeasure,
   });
 
   @override
@@ -65,6 +67,7 @@ class _MeasureSelectorState extends State<MeasureSelector> {
         itemBuilder: (context, index) {
           final measure = index + 1;
           final isSelected = widget.selection?.contains(measure) ?? false;
+          final isActive = widget.activeMeasure == measure;
           final label = sectionLabels[measure];
 
           return GestureDetector(
@@ -74,7 +77,7 @@ class _MeasureSelectorState extends State<MeasureSelector> {
               final box = context.findRenderObject() as RenderBox?;
               if (box == null) return;
               final local = box.globalToLocal(details.globalPosition);
-              final itemWidth = 32.0;
+              const itemWidth = 32.0;
               final idx = (local.dx / itemWidth).floor();
               final clamped = idx.clamp(0, widget.measureCount - 1);
               _handleDragUpdate(clamped + 1);
@@ -83,9 +86,11 @@ class _MeasureSelectorState extends State<MeasureSelector> {
               width: 32,
               margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.surfaceContainerHighest,
+                color: isActive
+                    ? Colors.amber
+                    : isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Column(
@@ -97,7 +102,7 @@ class _MeasureSelectorState extends State<MeasureSelector> {
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: isSelected
+                        color: isActive || isSelected
                             ? theme.colorScheme.onPrimary
                             : Colors.blueGrey,
                       ),
@@ -106,7 +111,7 @@ class _MeasureSelectorState extends State<MeasureSelector> {
                     '$measure',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isSelected
+                      color: isActive || isSelected
                           ? theme.colorScheme.onPrimary
                           : theme.colorScheme.onSurface,
                     ),

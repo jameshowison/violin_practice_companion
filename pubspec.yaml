@@ -21,6 +21,7 @@ dependencies:
   webview_flutter_web: ^0.2.3+4
   web: ^1.1.1
   path_provider: ^2.1.5
+  flutter_midi_pro: ^3.1.6
 
 dev_dependencies:
   flutter_test:
@@ -38,3 +39,4 @@ flutter:
     - assets/fixtures/sections/
     - assets/lookup_tables/
     - assets/osmd/
+    - assets/soundfonts/

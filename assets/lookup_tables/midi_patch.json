@@ -1,0 +1,7 @@
+{
+  "comment": "General MIDI patch assignments. Violin = program 40 (0-indexed). ticksPerQuarterNote controls timing resolution. soundfontAsset is the Flutter asset path to the .sf2 file used on mobile/desktop; download GeneralUser GS (free) and place at that path.",
+  "violin": 40,
+  "ticksPerQuarterNote": 480,
+  "soundfontAsset": "assets/soundfonts/generaluser_gs.sf2",
+  "noteVelocity": 90
+}
