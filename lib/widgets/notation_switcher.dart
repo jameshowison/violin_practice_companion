@@ -21,6 +21,11 @@ class NotationSwitcher extends StatelessWidget {
           icon: Icon(Icons.music_note),
         ),
         ButtonSegment(
+          value: DisplayMode.staffFingering,
+          label: Text('Ann.'),
+          icon: Icon(Icons.queue_music),
+        ),
+        ButtonSegment(
           value: DisplayMode.jianpu,
           label: Text('Jianpu'),
           icon: Icon(Icons.format_list_numbered),
