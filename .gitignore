@@ -47,3 +47,7 @@ app.*.map.json
 # npm
 node_modules/
 package-lock.json
+
+# Large binary assets (obtain separately — source: GeneralUser GS SF2)
+assets/soundfonts/*.sf2
+assets/soundfonts/*.sf3
