@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/note_event.dart';
+import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
 import '../services/providers.dart';
@@ -24,6 +25,7 @@ class PieceDetailScreen extends ConsumerWidget {
     final layoutAsync = ref.watch(pieceLayoutProvider);
     final displayMode = ref.watch(displayModeProvider);
     final selection = ref.watch(measureSelectionProvider);
+    final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
 
     if (piece == null) {
       return const Scaffold(body: Center(child: Text('No piece selected')));
@@ -113,8 +115,8 @@ class PieceDetailScreen extends ConsumerWidget {
                   selectedMeasureNumbers,
                   sectionLabels,
                   piece,
+                  parsedPiece: parsedPiece,
                 ),
-
               ),
               SectionBar(
                 sections: piece.sections,
@@ -146,22 +148,32 @@ class PieceDetailScreen extends ConsumerWidget {
     PieceLayout layout,
     Set<int> selectedMeasures,
     Map<int, String> sectionLabels,
-    Piece piece,
-  ) {
+    Piece piece, {
+    ParsedPiece? parsedPiece,
+  }) {
+    final keySignature = parsedPiece?.keySignature;
+
     switch (mode) {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
           data: (xml) => xml != null
-              ? StaffView(musicXml: xml)
+              ? Column(children: [
+                  _KeyHeader(keySignature: keySignature),
+                  Expanded(child: StaffView(musicXml: xml)),
+                ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
         );
 
       case DisplayMode.staffFingering:
+        final legend = parsedPiece != null ? _fingerLegend(parsedPiece) : null;
         return ref.watch(staffFingeringXmlProvider).when(
           data: (xml) => xml != null
-              ? StaffView(musicXml: xml)
+              ? Column(children: [
+                  _KeyHeader(keySignature: keySignature, fingerLegend: legend),
+                  Expanded(child: StaffView(musicXml: xml)),
+                ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
@@ -173,6 +185,7 @@ class PieceDetailScreen extends ConsumerWidget {
           selectedMeasures: selectedMeasures,
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
+          keySignature: keySignature,
         );
 
       case DisplayMode.fingering:
@@ -194,6 +207,48 @@ class PieceDetailScreen extends ConsumerWidget {
     }
   }
 
+  // "Am" → "A minor", "Bb" → "B♭ major", "G" → "G major"
+  static String _formatKey(String sig) {
+    final isMinor = sig.endsWith('m');
+    final root = isMinor ? sig.substring(0, sig.length - 1) : sig;
+    return '${root.replaceAll('b', '♭')} ${isMinor ? 'minor' : 'major'}';
+  }
+
+  // Scan all notes to build "G: 1=A, 2=B, 3♭=C | D: 1=E, 2=F# | ..."
+  static String? _fingerLegend(ParsedPiece parsed) {
+    final data = <String, Map<String, ({String note, bool isLow})>>{};
+
+    for (final n in parsed.allNotes) {
+      if (n.isRest || n.fingerString == null || n.fingerNumber == null) continue;
+      final fn = n.fingerNumber!;
+      final isLow = fn.endsWith('low');
+      final base = fn.replaceAll('low', '');
+      if (base == '0') continue;
+      final noteName = n.pitch
+          .replaceAll(RegExp(r'\d+$'), '')
+          .replaceAll(RegExp(r'b$'), '♭');
+      (data[n.fingerString!] ??= {})[base] = (note: noteName, isLow: isLow);
+    }
+
+    if (data.isEmpty) return null;
+
+    const stringOrder = ['G', 'D', 'A', 'E'];
+    final parts = <String>[];
+    for (final s in stringOrder) {
+      final fingers = data[s];
+      if (fingers == null) continue;
+      final fParts = ['1', '2', '3', '4']
+          .where(fingers.containsKey)
+          .map((f) {
+            final info = fingers[f]!;
+            return info.isLow ? '$f♭=${info.note}' : '$f=${info.note}';
+          })
+          .join(', ');
+      if (fParts.isNotEmpty) parts.add('$s: $fParts');
+    }
+    return parts.isEmpty ? null : parts.join(' | ');
+  }
+
   void _toggleMeasure(WidgetRef ref, int measure) {
     final current = ref.read(measureSelectionProvider);
     if (current != null &&
@@ -204,5 +259,44 @@ class PieceDetailScreen extends ConsumerWidget {
       ref.read(measureSelectionProvider.notifier).state =
           MeasureSelection(measure, measure);
     }
+  }
+}
+
+class _KeyHeader extends StatelessWidget {
+  final String? keySignature;
+  final String? fingerLegend;
+
+  const _KeyHeader({this.keySignature, this.fingerLegend});
+
+  @override
+  Widget build(BuildContext context) {
+    if (keySignature == null) return const SizedBox.shrink();
+    final keyDisplay = PieceDetailScreen._formatKey(keySignature!);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      color: Colors.grey.shade50,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            keyDisplay,
+            style: const TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: Colors.black87),
+          ),
+          if (fingerLegend != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                fingerLegend!,
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
