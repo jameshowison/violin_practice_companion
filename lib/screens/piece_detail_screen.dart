@@ -24,7 +24,6 @@ class PieceDetailScreen extends ConsumerWidget {
     final layoutAsync = ref.watch(pieceLayoutProvider);
     final displayMode = ref.watch(displayModeProvider);
     final selection = ref.watch(measureSelectionProvider);
-    final preference = ref.watch(openStringPreferenceProvider);
 
     if (piece == null) {
       return const Scaffold(body: Center(child: Text('No piece selected')));
@@ -54,20 +53,25 @@ class PieceDetailScreen extends ConsumerWidget {
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 const Text('String preference'),
-                Row(
-                  children: [
-                    const Text('Open strings'),
-                    Switch(
-                      value: preference == 'fingered',
-                      onChanged: (v) {
-                        ref
-                            .read(openStringPreferenceProvider.notifier)
-                            .set(v ? 'fingered' : 'open');
-                        ref.invalidate(parsedPieceProvider);
-                      },
-                    ),
-                    const Text('Fingered'),
-                  ],
+                Consumer(
+                  builder: (context, ref, _) {
+                    final pref = ref.watch(openStringPreferenceProvider);
+                    return Row(
+                      children: [
+                        const Text('Open strings'),
+                        Switch(
+                          value: pref == 'fingered',
+                          onChanged: (v) {
+                            ref
+                                .read(openStringPreferenceProvider.notifier)
+                                .set(v ? 'fingered' : 'open');
+                            ref.invalidate(parsedPieceProvider);
+                          },
+                        ),
+                        const Text('Fingered'),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -110,6 +114,7 @@ class PieceDetailScreen extends ConsumerWidget {
                   sectionLabels,
                   piece,
                 ),
+
               ),
               SectionBar(
                 sections: piece.sections,
@@ -145,17 +150,21 @@ class PieceDetailScreen extends ConsumerWidget {
   ) {
     switch (mode) {
       case DisplayMode.staff:
-        return FutureBuilder<String>(
-          future: ref
-              .read(pieceRepositoryProvider)
-              .loadMusicXml(piece)
-              .then(layout.injectSystemBreaks),
-          builder: (ctx, snap) {
-            if (snap.hasData) {
-              return StaffView(musicXml: snap.data!);
-            }
-            return const Center(child: CircularProgressIndicator());
-          },
+        return ref.watch(staffXmlProvider).when(
+          data: (xml) => xml != null
+              ? StaffView(musicXml: xml)
+              : const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        );
+
+      case DisplayMode.staffFingering:
+        return ref.watch(staffFingeringXmlProvider).when(
+          data: (xml) => xml != null
+              ? StaffView(musicXml: xml)
+              : const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
         );
 
       case DisplayMode.jianpu:

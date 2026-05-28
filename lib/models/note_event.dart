@@ -2,7 +2,7 @@ enum NoteValue { whole, half, quarter, eighth, sixteenth }
 
 enum KeyMode { major, minor }
 
-enum DisplayMode { staff, jianpu, fingering, combined }
+enum DisplayMode { staff, staffFingering, jianpu, fingering, combined }
 
 class NoteEvent {
   final String pitch;

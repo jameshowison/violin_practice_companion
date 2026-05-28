@@ -6,6 +6,7 @@ import '../models/piece_layout.dart';
 import 'fingering_mapper.dart';
 import 'jianpu_converter.dart';
 import 'musicxml_parser.dart';
+import 'fingering_xml_injector.dart';
 import 'piece_repository.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
@@ -78,6 +79,31 @@ class OpenStringPreferenceNotifier extends StateNotifier<String> {
 
   void set(String value) => state = value;
 }
+
+// ── Processed staff XML providers ─────────────────────────────────────────────
+
+final staffXmlProvider = FutureProvider<String?>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return null;
+  final layout = await ref.watch(pieceLayoutProvider.future);
+  if (layout == null) return null;
+  final repo = ref.watch(pieceRepositoryProvider);
+  String xml = await repo.loadMusicXml(piece);
+  return layout.injectSystemBreaks(xml);
+});
+
+final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return null;
+  final layout = await ref.watch(pieceLayoutProvider.future);
+  if (layout == null) return null;
+  final repo = ref.watch(pieceRepositoryProvider);
+  String xml = await repo.loadMusicXml(piece);
+  xml = layout.injectSystemBreaks(xml);
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed);
+  return xml;
+});
 
 // ── Measure selection ─────────────────────────────────────────────────────────
 
