@@ -9,6 +9,7 @@ class JianpuView extends StatelessWidget {
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
+  final String? keySignature;
 
   const JianpuView({
     super.key,
@@ -16,20 +17,33 @@ class JianpuView extends StatelessWidget {
     required this.selectedMeasures,
     required this.sectionLabels,
     this.onMeasureTap,
+    this.keySignature,
   });
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Column(
-        children: layout.rows.map((row) {
-          return _JianpuRow(
-            measures: row,
-            selectedMeasures: selectedMeasures,
-            sectionLabels: sectionLabels,
-            onMeasureTap: onMeasureTap,
-          );
-        }).toList(),
+        children: [
+          if (keySignature != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              child: Text(
+                '1 = $keySignature',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ...layout.rows.map((row) => _JianpuRow(
+                measures: row,
+                selectedMeasures: selectedMeasures,
+                sectionLabels: sectionLabels,
+                onMeasureTap: onMeasureTap,
+              )),
+        ],
       ),
     );
   }
