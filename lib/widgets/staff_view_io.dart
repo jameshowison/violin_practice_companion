@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../services/midi_generator.dart';
+
 class StaffView extends StatefulWidget {
   final String musicXml;
-  final int? activeMeasure;
+  final ValueNotifier<HighlightEvent?> highlightNotifier;
 
-  const StaffView({super.key, required this.musicXml, this.activeMeasure});
+  const StaffView({super.key, required this.musicXml, required this.highlightNotifier});
 
   @override
   State<StaffView> createState() => _StaffViewState();
@@ -19,6 +21,7 @@ class _StaffViewState extends State<StaffView> {
   @override
   void initState() {
     super.initState();
+    widget.highlightNotifier.addListener(_onHighlight);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
@@ -31,6 +34,7 @@ class _StaffViewState extends State<StaffView> {
         onPageFinished: (_) {
           _osmdReady = true;
           _loadScore();
+          _onHighlight();
         },
       ))
       ..loadFlutterAsset('assets/osmd/osmd_bridge.html');
@@ -39,15 +43,29 @@ class _StaffViewState extends State<StaffView> {
   @override
   void didUpdateWidget(StaffView old) {
     super.didUpdateWidget(old);
-    if (old.musicXml != widget.musicXml && _osmdReady) _loadScore();
-    if (old.activeMeasure != widget.activeMeasure && _osmdReady) {
-      final n = widget.activeMeasure;
-      if (n != null) {
-        _controller.runJavaScript('window.highlightMeasure($n)');
-      } else {
-        _controller.runJavaScript('window.clearHighlight()');
-      }
+    if (old.highlightNotifier != widget.highlightNotifier) {
+      old.highlightNotifier.removeListener(_onHighlight);
+      widget.highlightNotifier.addListener(_onHighlight);
+      _onHighlight();
     }
+    if (old.musicXml != widget.musicXml && _osmdReady) _loadScore();
+  }
+
+  @override
+  void dispose() {
+    widget.highlightNotifier.removeListener(_onHighlight);
+    super.dispose();
+  }
+
+  void _onHighlight() {
+    if (!_osmdReady) return;
+    final ev = widget.highlightNotifier.value;
+    if (ev == null) {
+      _controller.runJavaScript('window.clearHighlight()');
+      return;
+    }
+    _controller.runJavaScript(
+        'window.positionCursor(${ev.beatPosition}, ${ev.isLong || ev.noteIndex == 0})');
   }
 
   Future<void> _loadScore() async {

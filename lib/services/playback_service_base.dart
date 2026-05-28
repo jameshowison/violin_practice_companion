@@ -1,39 +1,48 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../models/parsed_piece.dart';
 import 'midi_generator.dart';
 
 enum PlaybackState { playing, paused, stopped }
 
-/// Shared timing and measure-tracking logic for both platform implementations.
+/// Shared timing and highlight-tracking logic for both platform implementations.
 /// Subclasses handle the actual audio output.
 abstract class PlaybackServiceBase {
   final MidiGenerator generator;
 
   MidiData? _data;
   ParsedPiece? _piece;
-  int _bpm = 60;
+  int _bpm = 115;
 
   bool loopEnabled = false;
   PlaybackState _state = PlaybackState.stopped;
-  int _currentMeasure = 1;
   int _fromMeasure = 1;
   int? _toMeasure;
   DateTime? _t0;
   double _startOffset = 0.0;
   Timer? _timer;
 
-  final _measureCtrl = StreamController<int?>.broadcast();
+  int _hlPointer = 0;
+  int _lastEmittedMeasure = 0;
+
+  final Map<int, ValueNotifier<int?>> _measureNotifiers = {};
+  final ValueNotifier<int?> currentMeasureNotifier = ValueNotifier(null);
+  final ValueNotifier<HighlightEvent?> currentHighlightNotifier = ValueNotifier(null);
+
   final _stateCtrl = StreamController<PlaybackState>.broadcast();
 
-  Stream<int?> get currentMeasure => _measureCtrl.stream;
   Stream<PlaybackState> get state => _stateCtrl.stream;
   PlaybackState get playbackState => _state;
   int get currentBpm => _bpm;
 
   PlaybackServiceBase(this.generator);
 
+  ValueNotifier<int?> notifierForMeasure(int n) =>
+      _measureNotifiers.putIfAbsent(n, () => ValueNotifier(null));
+
   Future<void> loadPiece(ParsedPiece piece) async {
     _stopInternal();
+    _disposeAndClearNotifiers();
     await generator.init();
     _piece = piece;
     _data = generator.generate(piece, _bpm);
@@ -45,9 +54,18 @@ abstract class PlaybackServiceBase {
     _stopInternal(silent: true);
     _fromMeasure = fromMeasure;
     _toMeasure = toMeasure;
-    _currentMeasure = fromMeasure;
     _startOffset = d.measureOnsetSeconds[fromMeasure - 1];
     _t0 = DateTime.now();
+
+    final events = d.highlightEvents;
+    if (events.isNotEmpty) {
+      _hlPointer = _findPointer(events, _startOffset);
+      _lastEmittedMeasure = events[_hlPointer].measureNumber;
+      currentMeasureNotifier.value = _lastEmittedMeasure;
+      notifierForMeasure(_lastEmittedMeasure).value = events[_hlPointer].noteIndex;
+      currentHighlightNotifier.value = events[_hlPointer];
+    }
+
     _emitState(PlaybackState.playing);
     _timer = Timer.periodic(const Duration(milliseconds: 40), _tick);
     onPlayStarted(d, _startOffset);
@@ -65,7 +83,7 @@ abstract class PlaybackServiceBase {
 
   void setTempo(int bpm) {
     final wasPlaying = _state == PlaybackState.playing;
-    final savedMeasure = _currentMeasure;
+    final savedMeasure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;
     final savedTo = _toMeasure;
     _stopInternal(silent: true);
     _bpm = bpm;
@@ -79,7 +97,7 @@ abstract class PlaybackServiceBase {
     _t0 = null;
     if (!silent || _state != PlaybackState.stopped) {
       _emitState(PlaybackState.stopped);
-      _measureCtrl.add(null); // clear active measure highlight
+      _clearNotifiers();
     }
     onStopped();
   }
@@ -91,22 +109,25 @@ abstract class PlaybackServiceBase {
     final elapsed = DateTime.now().difference(_t0!).inMicroseconds / 1e6;
     final pt = _startOffset + elapsed;
 
-    // Advance current measure pointer
-    final onsets = d.measureOnsetSeconds;
-    int newMeasure = _fromMeasure;
-    for (int i = _fromMeasure - 1; i < onsets.length; i++) {
-      if (onsets[i] <= pt) {
-        newMeasure = i + 1;
-      } else {
-        break;
+    // Advance highlight pointer forward
+    final events = d.highlightEvents;
+    if (events.isNotEmpty) {
+      while (_hlPointer + 1 < events.length &&
+             events[_hlPointer + 1].onsetSeconds <= pt) {
+        _hlPointer++;
       }
-    }
-    if (newMeasure != _currentMeasure) {
-      _currentMeasure = newMeasure;
-      _measureCtrl.add(newMeasure);
+      final ev = events[_hlPointer];
+      if (ev.measureNumber != _lastEmittedMeasure) {
+        notifierForMeasure(_lastEmittedMeasure).value = null;
+        _lastEmittedMeasure = ev.measureNumber;
+        currentMeasureNotifier.value = ev.measureNumber;
+      }
+      notifierForMeasure(ev.measureNumber).value = ev.noteIndex;
+      currentHighlightNotifier.value = ev;
     }
 
     // Check loop / end
+    final onsets = d.measureOnsetSeconds;
     final endM = _toMeasure ?? onsets.length;
     final endT = endM < onsets.length ? onsets[endM] : d.totalDurationSeconds;
     if (pt >= endT) {
@@ -119,6 +140,34 @@ abstract class PlaybackServiceBase {
     }
 
     onTick(pt, d);
+  }
+
+  int _findPointer(List<HighlightEvent> events, double fromSeconds) {
+    int lo = 0, hi = events.length - 1;
+    int result = 0;
+    while (lo <= hi) {
+      final mid = (lo + hi) ~/ 2;
+      if (events[mid].onsetSeconds <= fromSeconds) {
+        result = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return result;
+  }
+
+  void _clearNotifiers() {
+    for (final n in _measureNotifiers.values) n.value = null;
+    currentMeasureNotifier.value = null;
+    currentHighlightNotifier.value = null;
+  }
+
+  void _disposeAndClearNotifiers() {
+    for (final n in _measureNotifiers.values) n.dispose();
+    _measureNotifiers.clear();
+    currentMeasureNotifier.value = null;
+    currentHighlightNotifier.value = null;
   }
 
   void _emitState(PlaybackState s) {
@@ -141,7 +190,9 @@ abstract class PlaybackServiceBase {
 
   void dispose() {
     _timer?.cancel();
-    _measureCtrl.close();
+    for (final n in _measureNotifiers.values) n.dispose();
+    currentMeasureNotifier.dispose();
+    currentHighlightNotifier.dispose();
     _stateCtrl.close();
   }
 }

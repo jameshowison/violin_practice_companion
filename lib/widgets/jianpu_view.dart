@@ -10,16 +10,16 @@ class JianpuView extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final String? keySignature;
-  final int? activeMeasure;
+  final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
 
   const JianpuView({
     super.key,
     required this.layout,
     required this.selectedMeasures,
     required this.sectionLabels,
+    required this.notifierForMeasure,
     this.onMeasureTap,
     this.keySignature,
-    this.activeMeasure,
   });
 
   @override
@@ -44,7 +44,7 @@ class JianpuView extends StatelessWidget {
                 selectedMeasures: selectedMeasures,
                 sectionLabels: sectionLabels,
                 onMeasureTap: onMeasureTap,
-                activeMeasure: activeMeasure,
+                notifierForMeasure: notifierForMeasure,
               )),
         ],
       ),
@@ -57,14 +57,14 @@ class _JianpuRow extends StatelessWidget {
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
-  final int? activeMeasure;
+  final ValueNotifier<int?> Function(int) notifierForMeasure;
 
   const _JianpuRow({
     required this.measures,
     required this.selectedMeasures,
     required this.sectionLabels,
+    required this.notifierForMeasure,
     this.onMeasureTap,
-    this.activeMeasure,
   });
 
   @override
@@ -80,7 +80,7 @@ class _JianpuRow extends StatelessWidget {
               _JianpuMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
-                isActive: activeMeasure == measures[i].number,
+                notifierForMeasure: notifierForMeasure,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
               ),
@@ -102,14 +102,14 @@ class _JianpuRow extends StatelessWidget {
 class _JianpuMeasure extends StatelessWidget {
   final Measure measure;
   final bool isSelected;
-  final bool isActive;
+  final ValueNotifier<int?> Function(int) notifierForMeasure;
   final String? sectionLabel;
   final VoidCallback? onTap;
 
   const _JianpuMeasure({
     required this.measure,
     required this.isSelected,
-    required this.isActive,
+    required this.notifierForMeasure,
     this.sectionLabel,
     this.onTap,
   });
@@ -122,11 +122,9 @@ class _JianpuMeasure extends StatelessWidget {
       child: Container(
         width: width,
         decoration: BoxDecoration(
-          color: isActive
-              ? Colors.amber.withAlpha(140)
-              : isSelected
-                  ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
-                  : null,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,9 +144,15 @@ class _JianpuMeasure extends StatelessWidget {
             ),
             SizedBox(
               height: NotationLayout.rowHeight,
-              child: CustomPaint(
-                size: Size(width, NotationLayout.rowHeight),
-                painter: _JianpuMeasurePainter(notes: measure.notes),
+              child: ValueListenableBuilder<int?>(
+                valueListenable: notifierForMeasure(measure.number),
+                builder: (_, noteIndex, _) => CustomPaint(
+                  size: Size(width, NotationLayout.rowHeight),
+                  painter: _JianpuMeasurePainter(
+                    notes: measure.notes,
+                    activeNoteIndex: noteIndex,
+                  ),
+                ),
               ),
             ),
           ],
@@ -160,11 +164,25 @@ class _JianpuMeasure extends StatelessWidget {
 
 class _JianpuMeasurePainter extends CustomPainter {
   final List<NoteEvent> notes;
+  final int? activeNoteIndex;
 
-  _JianpuMeasurePainter({required this.notes});
+  _JianpuMeasurePainter({required this.notes, this.activeNoteIndex});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final idx = activeNoteIndex;
+    if (idx != null && idx < notes.length) {
+      final note = notes[idx];
+      if (!note.isRest && (_isLongerThanQuarter(note) || idx == 0)) {
+        double x = 0;
+        for (int i = 0; i < idx; i++) x += NotationLayout.noteWidth(notes[i]);
+        canvas.drawRect(
+          Rect.fromLTWH(x, 0, NotationLayout.noteWidth(note), size.height),
+          Paint()..color = Colors.amber.withAlpha(140),
+        );
+      }
+    }
+
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
     const baseY = 28.0;
 
@@ -253,6 +271,13 @@ class _JianpuMeasurePainter extends CustomPainter {
     tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
   }
 
+  static bool _isLongerThanQuarter(NoteEvent note) {
+    if (note.noteValue == NoteValue.whole || note.noteValue == NoteValue.half) return true;
+    if (note.noteValue == NoteValue.quarter && note.dotted) return true;
+    return false;
+  }
+
   @override
-  bool shouldRepaint(covariant _JianpuMeasurePainter old) => old.notes != notes;
+  bool shouldRepaint(covariant _JianpuMeasurePainter old) =>
+      old.notes != notes || old.activeNoteIndex != activeNoteIndex;
 }

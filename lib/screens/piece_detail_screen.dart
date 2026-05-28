@@ -4,6 +4,7 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
+import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
@@ -27,7 +28,7 @@ class PieceDetailScreen extends ConsumerWidget {
     final displayMode = ref.watch(displayModeProvider);
     final selection = ref.watch(measureSelectionProvider);
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
-    final activeMeasure = ref.watch(playbackMeasureProvider).valueOrNull;
+    final service = ref.watch(playbackServiceProvider);
 
     // Load piece into PlaybackService whenever parsedPiece changes
     ref.listen(parsedPieceProvider, (_, next) {
@@ -126,8 +127,8 @@ class PieceDetailScreen extends ConsumerWidget {
                   selectedMeasureNumbers,
                   sectionLabels,
                   piece,
+                  service: service,
                   parsedPiece: parsedPiece,
-                  activeMeasure: activeMeasure,
                 ),
               ),
               SectionBar(
@@ -136,13 +137,16 @@ class PieceDetailScreen extends ConsumerWidget {
                 onSectionTap: (sel) =>
                     ref.read(measureSelectionProvider.notifier).state = sel,
               ),
-              MeasureSelector(
-                measureCount: layout.measureCount,
-                sections: piece.sections,
-                selection: selection,
-                onSelectionChanged: (sel) =>
-                    ref.read(measureSelectionProvider.notifier).state = sel,
-                activeMeasure: activeMeasure,
+              ValueListenableBuilder<int?>(
+                valueListenable: service.currentMeasureNotifier,
+                builder: (_, activeMeasure, _) => MeasureSelector(
+                  measureCount: layout.measureCount,
+                  sections: piece.sections,
+                  selection: selection,
+                  onSelectionChanged: (sel) =>
+                      ref.read(measureSelectionProvider.notifier).state = sel,
+                  activeMeasure: activeMeasure,
+                ),
               ),
               const PlaybackControls(),
             ],
@@ -162,8 +166,8 @@ class PieceDetailScreen extends ConsumerWidget {
     Set<int> selectedMeasures,
     Map<int, String> sectionLabels,
     Piece piece, {
+    required PlaybackServiceBase service,
     ParsedPiece? parsedPiece,
-    int? activeMeasure,
   }) {
     final keySignature = parsedPiece?.keySignature;
 
@@ -175,7 +179,8 @@ class PieceDetailScreen extends ConsumerWidget {
                   _KeyHeader(keySignature: keySignature),
                   Expanded(
                       child: StaffView(
-                          musicXml: xml, activeMeasure: activeMeasure)),
+                          musicXml: xml,
+                          highlightNotifier: service.currentHighlightNotifier)),
                 ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -190,7 +195,8 @@ class PieceDetailScreen extends ConsumerWidget {
                   _KeyHeader(keySignature: keySignature, fingerLegend: legend),
                   Expanded(
                       child: StaffView(
-                          musicXml: xml, activeMeasure: activeMeasure)),
+                          musicXml: xml,
+                          highlightNotifier: service.currentHighlightNotifier)),
                 ])
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -204,7 +210,7 @@ class PieceDetailScreen extends ConsumerWidget {
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           keySignature: keySignature,
-          activeMeasure: activeMeasure,
+          notifierForMeasure: service.notifierForMeasure,
         );
 
       case DisplayMode.fingering:
@@ -213,7 +219,7 @@ class PieceDetailScreen extends ConsumerWidget {
           selectedMeasures: selectedMeasures,
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
-          activeMeasure: activeMeasure,
+          notifierForMeasure: service.notifierForMeasure,
         );
 
       case DisplayMode.combined:
@@ -223,7 +229,7 @@ class PieceDetailScreen extends ConsumerWidget {
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           combined: true,
-          activeMeasure: activeMeasure,
+          notifierForMeasure: service.notifierForMeasure,
         );
     }
   }

@@ -10,16 +10,16 @@ class FingeringView extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final bool combined;
-  final int? activeMeasure;
+  final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
 
   const FingeringView({
     super.key,
     required this.layout,
     required this.selectedMeasures,
     required this.sectionLabels,
+    required this.notifierForMeasure,
     this.onMeasureTap,
     this.combined = false,
-    this.activeMeasure,
   });
 
   @override
@@ -33,7 +33,7 @@ class FingeringView extends StatelessWidget {
             sectionLabels: sectionLabels,
             onMeasureTap: onMeasureTap,
             combined: combined,
-            activeMeasure: activeMeasure,
+            notifierForMeasure: notifierForMeasure,
           );
         }).toList(),
       ),
@@ -47,15 +47,15 @@ class _FingeringRow extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final bool combined;
-  final int? activeMeasure;
+  final ValueNotifier<int?> Function(int) notifierForMeasure;
 
   const _FingeringRow({
     required this.measures,
     required this.selectedMeasures,
     required this.sectionLabels,
-    this.onMeasureTap,
     required this.combined,
-    this.activeMeasure,
+    required this.notifierForMeasure,
+    this.onMeasureTap,
   });
 
   @override
@@ -74,7 +74,7 @@ class _FingeringRow extends StatelessWidget {
               _FingeringMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
-                isActive: activeMeasure == measures[i].number,
+                notifierForMeasure: notifierForMeasure,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
                 combined: combined,
@@ -98,7 +98,7 @@ class _FingeringRow extends StatelessWidget {
 class _FingeringMeasure extends StatelessWidget {
   final Measure measure;
   final bool isSelected;
-  final bool isActive;
+  final ValueNotifier<int?> Function(int) notifierForMeasure;
   final String? sectionLabel;
   final VoidCallback? onTap;
   final bool combined;
@@ -107,7 +107,7 @@ class _FingeringMeasure extends StatelessWidget {
   const _FingeringMeasure({
     required this.measure,
     required this.isSelected,
-    required this.isActive,
+    required this.notifierForMeasure,
     this.sectionLabel,
     this.onTap,
     required this.combined,
@@ -122,11 +122,9 @@ class _FingeringMeasure extends StatelessWidget {
       child: Container(
         width: width,
         decoration: BoxDecoration(
-          color: isActive
-              ? Colors.amber.withAlpha(140)
-              : isSelected
-                  ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
-                  : null,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,11 +144,15 @@ class _FingeringMeasure extends StatelessWidget {
             ),
             SizedBox(
               height: rowHeight,
-              child: CustomPaint(
-                size: Size(width, rowHeight),
-                painter: _FingeringMeasurePainter(
-                  notes: measure.notes,
-                  combined: combined,
+              child: ValueListenableBuilder<int?>(
+                valueListenable: notifierForMeasure(measure.number),
+                builder: (_, noteIndex, _) => CustomPaint(
+                  size: Size(width, rowHeight),
+                  painter: _FingeringMeasurePainter(
+                    notes: measure.notes,
+                    combined: combined,
+                    activeNoteIndex: noteIndex,
+                  ),
                 ),
               ),
             ),
@@ -164,11 +166,25 @@ class _FingeringMeasure extends StatelessWidget {
 class _FingeringMeasurePainter extends CustomPainter {
   final List<NoteEvent> notes;
   final bool combined;
+  final int? activeNoteIndex;
 
-  _FingeringMeasurePainter({required this.notes, required this.combined});
+  _FingeringMeasurePainter({required this.notes, required this.combined, this.activeNoteIndex});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final idx = activeNoteIndex;
+    if (idx != null && idx < notes.length) {
+      final note = notes[idx];
+      if (!note.isRest && (_isLongerThanQuarter(note) || idx == 0)) {
+        double x = 0;
+        for (int i = 0; i < idx; i++) x += NotationLayout.noteWidth(notes[i]);
+        canvas.drawRect(
+          Rect.fromLTWH(x, 0, NotationLayout.noteWidth(note), size.height),
+          Paint()..color = Colors.amber.withAlpha(140),
+        );
+      }
+    }
+
     final tp = TextPainter(textDirection: TextDirection.ltr);
     const baseY = 28.0;
 
@@ -215,7 +231,13 @@ class _FingeringMeasurePainter extends CustomPainter {
     tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
   }
 
+  static bool _isLongerThanQuarter(NoteEvent note) {
+    if (note.noteValue == NoteValue.whole || note.noteValue == NoteValue.half) return true;
+    if (note.noteValue == NoteValue.quarter && note.dotted) return true;
+    return false;
+  }
+
   @override
   bool shouldRepaint(covariant _FingeringMeasurePainter old) =>
-      old.notes != notes || old.combined != combined;
+      old.notes != notes || old.combined != combined || old.activeNoteIndex != activeNoteIndex;
 }

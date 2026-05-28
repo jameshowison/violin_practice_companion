@@ -3,11 +3,12 @@ import 'note_event.dart';
 class Measure {
   final int number;
   final List<NoteEvent> notes;
+  final List<NoteEvent> hiddenLeadNotes;
 
-  const Measure({required this.number, required this.notes});
+  const Measure({required this.number, required this.notes, this.hiddenLeadNotes = const []});
 
   Measure copyWithNotes(List<NoteEvent> notes) =>
-      Measure(number: number, notes: notes);
+      Measure(number: number, notes: notes, hiddenLeadNotes: hiddenLeadNotes);
 }
 
 class ParsedPiece {

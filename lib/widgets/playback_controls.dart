@@ -11,7 +11,7 @@ class PlaybackControls extends ConsumerStatefulWidget {
 }
 
 class _PlaybackControlsState extends ConsumerState<PlaybackControls> {
-  double _tempo = 60.0;
+  double _tempo = 115.0;
 
   @override
   Widget build(BuildContext context) {
