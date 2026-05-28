@@ -4,6 +4,7 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
+import '../models/string_label_style.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../widgets/fingering_view.dart';
@@ -118,6 +119,8 @@ class PieceDetailScreen extends ConsumerWidget {
                       ref.read(displayModeProvider.notifier).state = mode,
                 ),
               ),
+              if (displayMode == DisplayMode.staffFingering)
+                _StringLabelPicker(ref: ref),
               Expanded(
                 child: _buildNotationView(
                   context,
@@ -241,34 +244,36 @@ class PieceDetailScreen extends ConsumerWidget {
     return '${root.replaceAll('b', '♭')} ${isMinor ? 'minor' : 'major'}';
   }
 
-  // Scan all notes to build "G: 1=A, 2=B, 3♭=C | D: 1=E, 2=F# | ..."
+  // Scan all notes to build "G: 1♭=G#, 1=A, 2=B | D: ..."
   static String? _fingerLegend(ParsedPiece parsed) {
-    final data = <String, Map<String, ({String note, bool isLow})>>{};
+    final data = <String, Map<String, String>>{};
 
     for (final n in parsed.allNotes) {
       if (n.isRest || n.fingerString == null || n.fingerNumber == null) continue;
       final fn = n.fingerNumber!;
-      final isLow = fn.endsWith('low');
-      final base = fn.replaceAll('low', '');
-      if (base == '0') continue;
+      if (fn == '0') continue;
       final noteName = n.pitch
           .replaceAll(RegExp(r'\d+$'), '')
           .replaceAll(RegExp(r'b$'), '♭');
-      (data[n.fingerString!] ??= {})[base] = (note: noteName, isLow: isLow);
+      (data[n.fingerString!] ??= {})[fn] = noteName;
     }
 
     if (data.isEmpty) return null;
 
     const stringOrder = ['G', 'D', 'A', 'E'];
+    const fingerOrder = ['1L', '1', '2L', '2', '3', '3H', '4', '4H'];
     final parts = <String>[];
     for (final s in stringOrder) {
       final fingers = data[s];
       if (fingers == null) continue;
-      final fParts = ['1', '2', '3', '4']
+      final fParts = fingerOrder
           .where(fingers.containsKey)
           .map((f) {
-            final info = fingers[f]!;
-            return info.isLow ? '$f♭=${info.note}' : '$f=${info.note}';
+            final isLow = f.endsWith('L');
+            final isHigh = f.endsWith('H');
+            final base = (isLow || isHigh) ? f.substring(0, f.length - 1) : f;
+            final suffix = isLow ? '♭' : isHigh ? '♯' : '';
+            return '$base$suffix=${fingers[f]}';
           })
           .join(', ');
       if (fParts.isNotEmpty) parts.add('$s: $fParts');
@@ -286,6 +291,49 @@ class PieceDetailScreen extends ConsumerWidget {
       ref.read(measureSelectionProvider.notifier).state =
           MeasureSelection(measure, measure);
     }
+  }
+}
+
+class _StringLabelPicker extends StatelessWidget {
+  final WidgetRef ref;
+  const _StringLabelPicker({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = ref.watch(stringLabelStyleProvider);
+    void pick(StringLabelStyle v) =>
+        ref.read(stringLabelStyleProvider.notifier).set(v);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('String labels:', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 12),
+          for (final (value, label, example) in [
+            (StringLabelStyle.always,   'Always',    'A1 A2'),
+            (StringLabelStyle.onChange, 'On change', 'A1 2'),
+            (StringLabelStyle.never,    'Never',     '1 2'),
+          ]) ...[
+            Radio<StringLabelStyle>(
+              value: value,
+              groupValue: style,
+              onChanged: (v) => pick(v!),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            GestureDetector(
+              onTap: () => pick(value),
+              child: Text(
+                '$label ($example)',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ],
+      ),
+    );
   }
 }
 
