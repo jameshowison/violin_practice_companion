@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
@@ -73,71 +74,100 @@ class PieceDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: layoutAsync.when(
-        data: (layout) {
-          if (layout == null) {
-            return const Center(child: Text('No piece loaded'));
-          }
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final n = measuresPerRowForWidth(constraints.maxWidth);
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (ref.read(measuresPerRowProvider) != n) {
+              ref.read(measuresPerRowProvider.notifier).state = n;
+            }
+          });
+          // Phone in any orientation: short side < 600pt. iPad min is 768pt.
+          final useCompact =
+              constraints.maxWidth < 600 || constraints.maxHeight < 600;
 
-          final selectedMeasureNumbers = selection != null
-              ? Set<int>.from(layout.rows
-                  .expand((r) => r)
-                  .where((m) => selection.contains(m.number))
-                  .map((m) => m.number))
-              : <int>{};
+          return layoutAsync.when(
+            data: (layout) {
+              if (layout == null) {
+                return const Center(child: Text('No piece loaded'));
+              }
 
-          final sectionLabels = _sectionLabels(piece);
+              final selectedMeasureNumbers = selection != null
+                  ? Set<int>.from(layout.rows
+                      .expand((r) => r)
+                      .where((m) => selection.contains(m.number))
+                      .map((m) => m.number))
+                  : <int>{};
 
-          return Column(
-            children: [
-              const _PalettePanel(),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: NotationSwitcher(
-                  current: displayMode,
-                  onChanged: (mode) =>
-                      ref.read(displayModeProvider.notifier).state = mode,
-                ),
-              ),
-              if (displayMode == DisplayMode.staffFingering)
-                _StringLabelPicker(ref: ref),
-              Expanded(
-                child: _buildNotationView(
-                  context,
-                  ref,
-                  displayMode,
-                  layout,
-                  selectedMeasureNumbers,
-                  sectionLabels,
-                  piece,
+              final sectionLabels = _sectionLabels(piece);
+
+              final notationView = _buildNotationView(
+                context,
+                ref,
+                displayMode,
+                layout,
+                selectedMeasureNumbers,
+                sectionLabels,
+                piece,
+                service: service,
+                parsedPiece: parsedPiece,
+              );
+
+              if (useCompact) {
+                return _CompactPieceLayout(
+                  notationView: notationView,
+                  layout: layout,
+                  piece: piece,
                   service: service,
-                  parsedPiece: parsedPiece,
-                ),
-              ),
-              SectionBar(
-                sections: piece.sections,
-                selection: selection,
-                onSectionTap: (sel) =>
-                    ref.read(measureSelectionProvider.notifier).state = sel,
-              ),
-              ValueListenableBuilder<int?>(
-                valueListenable: service.currentMeasureNotifier,
-                builder: (_, activeMeasure, _) => MeasureSelector(
-                  measureCount: layout.measureCount,
-                  sections: piece.sections,
+                  displayMode: displayMode,
                   selection: selection,
-                  onSelectionChanged: (sel) =>
-                      ref.read(measureSelectionProvider.notifier).state = sel,
-                  activeMeasure: activeMeasure,
-                ),
-              ),
-              const PlaybackControls(),
-            ],
+                );
+              }
+
+              return Column(
+                children: [
+                  const _PalettePanel(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    child: NotationSwitcher(
+                      current: displayMode,
+                      onChanged: (mode) =>
+                          ref.read(displayModeProvider.notifier).state = mode,
+                    ),
+                  ),
+                  if (displayMode == DisplayMode.staffFingering)
+                    _StringLabelPicker(ref: ref),
+                  Expanded(
+                    child: notationView,
+                  ),
+                  SectionBar(
+                    sections: piece.sections,
+                    selection: selection,
+                    onSectionTap: (sel) =>
+                        ref.read(measureSelectionProvider.notifier).state =
+                            sel,
+                  ),
+                  ValueListenableBuilder<int?>(
+                    valueListenable: service.currentMeasureNotifier,
+                    builder: (_, activeMeasure, _) => MeasureSelector(
+                      measureCount: layout.measureCount,
+                      sections: piece.sections,
+                      selection: selection,
+                      onSelectionChanged: (sel) =>
+                          ref.read(measureSelectionProvider.notifier).state =
+                              sel,
+                      activeMeasure: activeMeasure,
+                    ),
+                  ),
+                  const PlaybackControls(),
+                ],
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, st) => Center(child: Text('Error: $e')),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
       ),
     );
   }
@@ -272,6 +302,333 @@ class _StringLabelPicker extends StatelessWidget {
   }
 }
 
+// ── Compact (phone) layout: music fills screen, controls slide up ─────────────
+
+class _CompactPieceLayout extends ConsumerStatefulWidget {
+  final Widget notationView;
+  final PieceLayout layout;
+  final Piece piece;
+  final PlaybackServiceBase service;
+  final DisplayMode displayMode;
+  final MeasureSelection? selection;
+
+  const _CompactPieceLayout({
+    required this.notationView,
+    required this.layout,
+    required this.piece,
+    required this.service,
+    required this.displayMode,
+    required this.selection,
+  });
+
+  @override
+  ConsumerState<_CompactPieceLayout> createState() =>
+      _CompactPieceLayoutState();
+}
+
+class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
+  // One-time peek survives hot reload but resets on cold restart.
+  static bool _hasPeeked = false;
+  bool _sheetOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_hasPeeked) {
+      _hasPeeked = true;
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) setState(() => _sheetOpen = true);
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (mounted) setState(() => _sheetOpen = false);
+        });
+      });
+    }
+  }
+
+  String _sectionLabel(MeasureSelection? selection) {
+    if (selection == null) return 'Whole piece';
+    for (final s in widget.piece.sections) {
+      if (s.startMeasure == selection.startMeasure &&
+          s.endMeasure == selection.endMeasure) {
+        return s.label;
+      }
+    }
+    return 'm. ${selection.startMeasure}–${selection.endMeasure}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selection = widget.selection;
+    final displayMode = widget.displayMode;
+    final isPlaying = ref.watch(playbackStateProvider).valueOrNull ==
+        PlaybackState.playing;
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        // ── always-visible mode switcher ─────────────────────────
+        _CompactModeSwitcher(
+          current: displayMode,
+          onChanged: (mode) =>
+              ref.read(displayModeProvider.notifier).state = mode,
+        ),
+        // String-label picker sits right under the mode bar when relevant.
+        if (displayMode == DisplayMode.staffFingering)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: _StringLabelPicker(ref: ref),
+          ),
+        // ── music + bottom sheet overlay ─────────────────────────
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(child: widget.notationView),
+              // Controls sheet anchored to the bottom.
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Material(
+                  elevation: 10,
+                  color: theme.colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ── drag handle + mini bar (drag target) ─────
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragUpdate: (d) {
+                          if (d.delta.dy < -6 && !_sheetOpen) {
+                            setState(() => _sheetOpen = true);
+                          } else if (d.delta.dy > 6 && _sheetOpen) {
+                            setState(() => _sheetOpen = false);
+                          }
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 8),
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade400,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            SizedBox(
+                              height: 44,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow),
+                                    iconSize: 26,
+                                    tooltip: isPlaying ? 'Pause' : 'Play',
+                                    onPressed: () {
+                                      if (isPlaying) {
+                                        widget.service.pause();
+                                      } else {
+                                        widget.service.play(
+                                          fromMeasure:
+                                              selection?.startMeasure ?? 1,
+                                          toMeasure: selection?.endMeasure,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      _sectionLabel(selection),
+                                      style:
+                                          const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => setState(
+                                        () => _sheetOpen = !_sheetOpen),
+                                    icon: Icon(
+                                      _sheetOpen
+                                          ? Icons.expand_more
+                                          : Icons.expand_less,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      _sheetOpen ? 'Hide' : 'Controls',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // ── collapsible controls (no gesture override) ─
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        child: _sheetOpen
+                            ? ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxHeight: 280),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Divider(height: 1),
+                                      SectionBar(
+                                        sections: widget.piece.sections,
+                                        selection: selection,
+                                        onSectionTap: (sel) => ref
+                                            .read(measureSelectionProvider
+                                                .notifier)
+                                            .state = sel,
+                                      ),
+                                      ValueListenableBuilder<int?>(
+                                        valueListenable: widget
+                                            .service.currentMeasureNotifier,
+                                        builder: (_, activeMeasure, _) =>
+                                            MeasureSelector(
+                                          measureCount:
+                                              widget.layout.measureCount,
+                                          sections: widget.piece.sections,
+                                          selection: selection,
+                                          onSelectionChanged: (sel) => ref
+                                              .read(measureSelectionProvider
+                                                  .notifier)
+                                              .state = sel,
+                                          activeMeasure: activeMeasure,
+                                        ),
+                                      ),
+                                      const PlaybackControls(),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Compact mode switcher (always-visible icon bar at top of compact layout) ──
+
+class _CompactModeSwitcher extends StatelessWidget {
+  final DisplayMode current;
+  final ValueChanged<DisplayMode> onChanged;
+
+  const _CompactModeSwitcher({
+    required this.current,
+    required this.onChanged,
+  });
+
+  static const _modes = [
+    (DisplayMode.staff, Icons.music_note, 'Staff'),
+    (DisplayMode.staffFingering, Icons.queue_music, 'Ann.'),
+    (DisplayMode.jianpu, Icons.format_list_numbered, 'Jianpu'),
+    (DisplayMode.fingering, Icons.back_hand, 'Finger'),
+    (DisplayMode.combined, Icons.layers, '+'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final showLabels = constraints.maxWidth >= 500;
+        return Container(
+          height: 36,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+          child: Row(
+            children: [
+              for (final (mode, icon, label) in _modes)
+                Expanded(
+                  child: _ModeTab(
+                    icon: icon,
+                    label: showLabels ? label : null,
+                    isSelected: current == mode,
+                    onTap: () => onChanged(mode),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  final IconData icon;
+  final String? label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ModeTab({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  Widget _buildTabContent(IconData icon, String? label, Color color) {
+    final l = label;
+    if (l != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(l, style: TextStyle(fontSize: 12, color: color)),
+        ],
+      );
+    }
+    return Icon(icon, size: 18, color: color);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: isSelected
+            ? BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                      color: theme.colorScheme.primary, width: 2.5),
+                ),
+              )
+            : null,
+        alignment: Alignment.center,
+        child: _buildTabContent(icon, label, color),
+      ),
+    );
+  }
+}
+
 // ── Note palette panel (staff view of all unique notes in the piece) ──────────
 
 class _PalettePanel extends ConsumerStatefulWidget {
@@ -284,11 +641,22 @@ class _PalettePanel extends ConsumerStatefulWidget {
 class _PalettePanelState extends ConsumerState<_PalettePanel> {
   late final ValueNotifier<HighlightEvent?> _noHighlight;
   bool _expanded = true;
+  bool _expandedInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _noHighlight = ValueNotifier(null);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_expandedInitialized) {
+      // Auto-collapse on short screens (landscape phone) to avoid overflow.
+      _expanded = MediaQuery.of(context).size.height > 500;
+      _expandedInitialized = true;
+    }
   }
 
   @override
