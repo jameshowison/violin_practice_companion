@@ -48,7 +48,10 @@ class PieceDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(piece.title),
+        toolbarHeight: 36,
+        title: Text(piece.title,
+            style: const TextStyle(fontSize: 14),
+            overflow: TextOverflow.ellipsis),
         actions: [
           Builder(
             builder: (ctx) => IconButton(
