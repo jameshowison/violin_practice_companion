@@ -451,18 +451,18 @@ text.
 
 ## Phase 1 Acceptance Criteria
 
-- [ ] All 6 fixture pieces load without error
-- [ ] Staff view renders correctly for all fixtures via OSMD
-- [ ] Jianpu numbers are correct for D major and A major pieces
-- [ ] Jianpu octave dots are correct across the note range of each piece
-- [ ] Fingering mode shows correct string+finger for all notes in first position
-- [ ] Open string preference toggle changes fingering output correctly
-- [ ] Combined mode shows both jianpu and fingering aligned per note
-- [ ] Section labels appear correctly above measures
-- [ ] Measure selector correctly highlights selected range in all views
-- [ ] Changing notation mode preserves selected measure range
-- [ ] App runs fully offline — no network calls at any point
-- [ ] Flutter web build runs in Chrome and Safari mobile
+- [x] All 6 fixture pieces load without error
+- [x] Staff view renders correctly for all fixtures via OSMD
+- [x] Jianpu numbers are correct for D major and A major pieces
+- [x] Jianpu octave dots are correct across the note range of each piece
+- [x] Fingering mode shows correct string+finger for all notes in first position
+- [x] Open string preference toggle changes fingering output correctly
+- [x] Combined mode shows both jianpu and fingering aligned per note
+- [x] Section labels appear correctly above measures
+- [x] Measure selector correctly highlights selected range in all views
+- [x] Changing notation mode preserves selected measure range
+- [x] App runs fully offline — no network calls at any point
+- [x] Flutter web build runs in Chrome
 - [ ] Unit tests pass for `musicxml_parser`, `jianpu_converter`, `fingering_mapper`
-- [ ] All lookup tables are JSON assets; no pitch or fingering data appears in
+- [x] All lookup tables are JSON assets; no pitch or fingering data appears in
       Dart source code
