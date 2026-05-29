@@ -29,7 +29,8 @@ per piece. Speed is not a goal; correctness and uncertainty signalling are.
 | Concern | Choice |
 |---------|--------|
 | OMR engine | ~~Oemer~~ → **Homr ([liebharc/homr](https://github.com/liebharc/homr))** — see evaluation below |
-| Mobile inference | ONNX Runtime Mobile (C++ library via Dart FFI) |
+| Web inference | Local Homr HTTP server (Python subprocess on the host machine; Chrome sandbox blocks in-process subprocess calls) |
+| Mobile inference | ONNX Runtime Mobile + C++ orchestration layer (see Stage B notes below) |
 | Camera / file picker | `image_picker` Flutter plugin |
 | File I/O | `path_provider` (already used) |
 
@@ -181,22 +182,67 @@ No `dart:html` in `omr_service_io.dart`.
 
 ## ONNX Model Bundle
 
-Oemer's ONNX models are exported from the Python package and bundled as assets:
+Homr's models are **already in ONNX format** — no export step required. They
+ship inside the `homr` Python package and are downloaded on first run:
 
 ```
 assets/omr_models/
-  staffline_detector.onnx
-  notehead_detector.onnx
-  symbol_classifier.onnx
-  (other Oemer pipeline stages as needed)
+  segnet_*.onnx          (55 MB) — CNN pixel segmentation, 320×320 sliding window
+  encoder_*.onnx         (50 MB) — ConvNext encoder: image strip → context vector
+  decoder_*.onnx         (45 MB) — Autoregressive transformer decoder: context → note tokens
 ```
 
-`omr_service_io.dart` loads these via `rootBundle` into a temp file at startup,
-then passes the paths to the ONNX Runtime C API.
+Total: **~150 MB**. Acceptable as bundled assets; document in build notes for
+APK/IPA size impact.
 
-Model size: expect 80–150 MB total across all stages. Acceptable as a bundled
-asset; document it in the build notes so future contributors know the APK size
-increase.
+The models use `onnxruntime` directly (no PyTorch at runtime). FP32 variants
+are used for CPU inference (mobile); FP16 variants exist for CUDA/GPU and are
+not needed on mobile.
+
+One item to verify before Stage B commit: the decoder uses a dynamic KV-cache
+(`cache_in0..N` / `cache_out0..N`, growing each autoregressive step up to
+`max_seq_len=608`). ONNX Runtime Mobile supports dynamic shapes in principle;
+test with a real staff-strip image before assuming compatibility.
+
+### Two-layer architecture
+
+Homr's pipeline has two distinct layers:
+
+**Layer 1 — ONNX inference** (the three models above): fully portable via
+ONNX Runtime Mobile.
+
+**Layer 2 — Orchestration** (~15 Python modules using OpenCV + NumPy):
+image preprocessing (autocrop, CLAHE), sliding-window tiling, contour/bounding-
+box detection, staff line detection and dewarping, barline detection, per-staff
+encoder+decoder calls, token-sequence → note-position mapping, and MusicXML
+generation. None of this is in ONNX.
+
+For mobile embedding, the orchestration must be ported. Two realistic options:
+
+| Option | Approach | Notes |
+|--------|----------|-------|
+| **C++ wrapper** | Rewrite orchestration in C++; link OpenCV for mobile + ONNX RT; expose one FFI function `run_homr(image_path) → xml_string` | Mechanical but substantial; algorithms already debugged in OpenCV terms |
+| **Dart port** | Rewrite orchestration in Dart using the `image` package + an ONNX RT Dart binding | Purest approach; avoids native toolchain; more re-implementation risk |
+
+Decision deferred to Stage B. A third option (subprocess) is not viable on iOS
+(see below).
+
+### Web (Chrome): no subprocess — use a local HTTP server instead
+
+Chrome's sandbox blocks all OS subprocess calls. Flutter web running in Chrome
+**cannot** call `Process.run()` or any equivalent. The workaround for the
+web-only dev workflow:
+
+1. Run Homr as a minimal local HTTP server on the host machine (e.g. a 20-line
+   FastAPI endpoint that accepts a multipart image upload and returns MusicXML).
+2. Flutter web POSTs the image to `http://localhost:PORT/recognise` and reads
+   the MusicXML response.
+3. `omr_service_web.dart` implements this HTTP call; no native code needed for
+   the web build.
+
+This keeps the web build useful during feature development without requiring
+mobile embedding to be done first. The server must be running locally — this
+is a developer/parent-on-desktop workflow, not a hosted web app.
 
 ---
 
@@ -269,13 +315,14 @@ services). The MusicXML and a piece metadata JSON are written to:
 
 ## Multi-Platform Notes
 
-- **Web**: `OmrService.isSupported` is false; the "Scan a piece" button is
-  replaced with an "Import MusicXML" file picker (for users who run Oemer
-  separately and export MusicXML). This keeps the web build useful without
-  camera access.
-- **macOS desktop**: `omr_service_io.dart` is used; camera access may not be
-  available; fall back to file picker gracefully.
-- **iOS/Android**: Full camera + inference path.
+- **Web (Chrome)**: `omr_service_web.dart` POSTs the image to a local Homr
+  HTTP server (`http://localhost:PORT/recognise`). If the server is unreachable,
+  show a friendly error: "Start the local OMR server — see README." Also expose
+  an "Import MusicXML" file picker as a fallback for users who already have XML.
+- **macOS desktop**: `omr_service_io.dart` is used; can call a subprocess
+  directly (no iOS sandbox restriction). Camera access may not be available;
+  fall back to file picker gracefully.
+- **iOS/Android**: Full camera + native inference path (ONNX RT Mobile).
 
 ---
 
@@ -289,11 +336,17 @@ services). The MusicXML and a piece metadata JSON are written to:
 - [x] Homr produces ≥90% note accuracy (positional) on `gossec_gavotte.HEIC` — **100% ✓** (additional benchmark, full-page photo, 193 notes)
 - [x] Homr Stage A results documented in `docs/omr_evaluation/homr/results.md`
 
-**Stage B (mobile embedding):**
+**Stage B (web HTTP server — implement first):**
+- [ ] FastAPI (or equivalent) local server wraps `homr` CLI; accepts multipart image, returns MusicXML
+- [ ] `omr_service_web.dart` POSTs to `http://localhost:PORT/recognise` and parses response
+- [ ] Web build compiles clean; fallback "Import MusicXML" picker present
+- [ ] No `dart:io` or `dart:html` in shared code (multi-platform smell check)
+
+**Stage B (mobile embedding — deferred):**
+- [ ] Choose orchestration strategy: C++ wrapper or Dart port (see ONNX Model Bundle section)
 - [ ] `OmrService.recognise()` runs end-to-end on Android and iOS without crashing
 - [ ] Inference completes (no timeout); progress spinner shows stage label
-- [ ] `omr_service_web.dart` returns `UnsupportedError`; web build compiles clean
-- [ ] No `dart:io` or `dart:html` in shared code (multi-platform smell check)
+- [ ] Decoder KV-cache dynamic shapes verified on ONNX Runtime Mobile
 
 **Stage C (correction UX):**
 - [ ] Uncertain notes (below `omr_params.json` threshold) appear amber in OSMD

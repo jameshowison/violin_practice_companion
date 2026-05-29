@@ -96,7 +96,7 @@ positioning feedback.
 
 ---
 
-## Deferred to Phase 4
+## Deferred to Phase 5
 
 The teacher video pipeline originally planned as Phase 2B:
 
@@ -106,3 +106,5 @@ The teacher video pipeline originally planned as Phase 2B:
 - Video playback with score following (`video_player`)
 - Measure-to-timestamp map (`AlignmentMap`)
 - Lookup tables: `chroma_params.json`, `dtw_params.json`
+
+Phase 4 is OMR scanning (camera → MusicXML). See `docs/PHASE4.md`.
