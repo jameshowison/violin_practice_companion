@@ -21,6 +21,7 @@ class MusicXmlParser {
       bool seenVisibleNote = false;
 
       for (final noteEl in measureEl.findElements('note')) {
+        if (noteEl.findElements('grace').isNotEmpty) continue;
         final isHidden = noteEl.getAttribute('print-object') == 'no';
         if (isHidden && !seenVisibleNote) {
           // Collect hidden notes that precede the first visible note so the

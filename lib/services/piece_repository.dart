@@ -17,6 +17,12 @@ class PieceRepository {
       xml: 'assets/fixtures/happy_farmer_musescore.xml',
       sections: 'assets/fixtures/sections/happy_farmer_musescore_sections.json',
     ),
+    (
+      id: 'gossec_gavotte',
+      title: 'Gavotte (Gossec)',
+      xml: 'assets/fixtures/gossec_gavotte.xml',
+      sections: 'assets/fixtures/sections/gossec_gavotte_sections.json',
+    ),
   ];
 
   Future<List<Piece>> loadAll() async {
