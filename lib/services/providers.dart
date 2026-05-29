@@ -69,22 +69,6 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
 
 final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.jianpu);
 
-// ── Open-string preference ────────────────────────────────────────────────────
-
-final openStringPreferenceProvider = StateNotifierProvider<OpenStringPreferenceNotifier, String>(
-  (_) => OpenStringPreferenceNotifier(),
-);
-
-class OpenStringPreferenceNotifier extends StateNotifier<String> {
-  OpenStringPreferenceNotifier() : super('fingered');
-
-  void toggle() {
-    state = state == 'fingered' ? 'open' : 'fingered';
-  }
-
-  void set(String value) => state = value;
-}
-
 // ── String-label style preference ─────────────────────────────────────────────
 
 final stringLabelStyleProvider =
@@ -106,7 +90,8 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   if (layout == null) return null;
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
-  return layout.injectSystemBreaks(xml);
+  xml = layout.injectSystemBreaks(xml);
+  return FingeringXmlInjector.stripFingerings(xml);
 });
 
 final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {

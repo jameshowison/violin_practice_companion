@@ -68,27 +68,6 @@ class PieceDetailScreen extends ConsumerWidget {
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
-                const Text('String preference'),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final pref = ref.watch(openStringPreferenceProvider);
-                    return Row(
-                      children: [
-                        const Text('Open strings'),
-                        Switch(
-                          value: pref == 'fingered',
-                          onChanged: (v) {
-                            ref
-                                .read(openStringPreferenceProvider.notifier)
-                                .set(v ? 'fingered' : 'open');
-                            ref.invalidate(parsedPieceProvider);
-                          },
-                        ),
-                        const Text('Fingered'),
-                      ],
-                    );
-                  },
-                ),
               ],
             ),
           ),
@@ -180,29 +159,20 @@ class PieceDetailScreen extends ConsumerWidget {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
           data: (xml) => xml != null
-              ? Column(children: [
-                  _KeyHeader(keySignature: keySignature),
-                  Expanded(
-                      child: StaffView(
-                          musicXml: xml,
-                          highlightNotifier: service.currentHighlightNotifier)),
-                ])
+              ? StaffView(
+                  musicXml: xml,
+                  highlightNotifier: service.currentHighlightNotifier)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
         );
 
       case DisplayMode.staffFingering:
-        final legend = parsedPiece != null ? _fingerLegend(parsedPiece) : null;
         return ref.watch(staffFingeringXmlProvider).when(
           data: (xml) => xml != null
-              ? Column(children: [
-                  _KeyHeader(keySignature: keySignature, fingerLegend: legend),
-                  Expanded(
-                      child: StaffView(
-                          musicXml: xml,
-                          highlightNotifier: service.currentHighlightNotifier)),
-                ])
+              ? StaffView(
+                  musicXml: xml,
+                  highlightNotifier: service.currentHighlightNotifier)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
@@ -244,43 +214,6 @@ class PieceDetailScreen extends ConsumerWidget {
     final isMinor = sig.endsWith('m');
     final root = isMinor ? sig.substring(0, sig.length - 1) : sig;
     return '${root.replaceAll('b', '♭')} ${isMinor ? 'minor' : 'major'}';
-  }
-
-  // Scan all notes to build "G: 1♭=G#, 1=A, 2=B | D: ..."
-  static String? _fingerLegend(ParsedPiece parsed) {
-    final data = <String, Map<String, String>>{};
-
-    for (final n in parsed.allNotes) {
-      if (n.isRest || n.fingerString == null || n.fingerNumber == null) continue;
-      final fn = n.fingerNumber!;
-      if (fn == '0') continue;
-      final noteName = n.pitch
-          .replaceAll(RegExp(r'\d+$'), '')
-          .replaceAll(RegExp(r'b$'), '♭');
-      (data[n.fingerString!] ??= {})[fn] = noteName;
-    }
-
-    if (data.isEmpty) return null;
-
-    const stringOrder = ['G', 'D', 'A', 'E'];
-    const fingerOrder = ['1L', '1', '2L', '2', '3', '3H', '4', '4H'];
-    final parts = <String>[];
-    for (final s in stringOrder) {
-      final fingers = data[s];
-      if (fingers == null) continue;
-      final fParts = fingerOrder
-          .where(fingers.containsKey)
-          .map((f) {
-            final isLow = f.endsWith('L');
-            final isHigh = f.endsWith('H');
-            final base = (isLow || isHigh) ? f.substring(0, f.length - 1) : f;
-            final suffix = isLow ? '♭' : isHigh ? '♯' : '';
-            return '$base$suffix=${fingers[f]}';
-          })
-          .join(', ');
-      if (fParts.isNotEmpty) parts.add('$s: $fParts');
-    }
-    return parts.isEmpty ? null : parts.join(' | ');
   }
 
   void _toggleMeasure(WidgetRef ref, int measure) {
@@ -423,41 +356,3 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
   }
 }
 
-class _KeyHeader extends StatelessWidget {
-  final String? keySignature;
-  final String? fingerLegend;
-
-  const _KeyHeader({this.keySignature, this.fingerLegend});
-
-  @override
-  Widget build(BuildContext context) {
-    if (keySignature == null) return const SizedBox.shrink();
-    final keyDisplay = PieceDetailScreen._formatKey(keySignature!);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: Colors.grey.shade50,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            keyDisplay,
-            style: const TextStyle(
-                fontSize: 13,
-                fontStyle: FontStyle.italic,
-                color: Colors.black87),
-          ),
-          if (fingerLegend != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                fingerLegend!,
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
