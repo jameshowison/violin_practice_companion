@@ -5,8 +5,7 @@ import 'section.dart';
 /// Returns the number of measures per row appropriate for a given screen width.
 /// Breakpoints are in logical pixels.
 int measuresPerRowForWidth(double widthPx) {
-  if (widthPx >= 1000) return 4;
-  if (widthPx >= 700) return 3;
+  if (widthPx >= 600) return 4;
   return 2;
 }
 
