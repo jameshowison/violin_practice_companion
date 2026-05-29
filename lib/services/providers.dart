@@ -55,6 +55,10 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   return withFingering;
 });
 
+// ── Measures per row (updated at runtime from screen width) ──────────────────
+
+final measuresPerRowProvider = StateProvider<int>((_) => 4);
+
 // ── Piece layout (single source of truth for all notation views) ──────────────
 
 final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
@@ -62,7 +66,9 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
   if (parsed == null) return null;
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
-  return PieceLayout.compute(parsed.measures, piece.sections);
+  final measuresPerRow = ref.watch(measuresPerRowProvider);
+  return PieceLayout.compute(parsed.measures, piece.sections,
+      measuresPerRow: measuresPerRow);
 });
 
 // ── Display mode ──────────────────────────────────────────────────────────────

@@ -2,10 +2,13 @@ import 'package:xml/xml.dart';
 import 'parsed_piece.dart';
 import 'section.dart';
 
-/// How many measures appear on each row of notation.
-/// All views (jianpu, fingering, staff) derive their layout from this constant
-/// via [PieceLayout], so they stay in sync automatically.
-const int kMeasuresPerRow = 4;
+/// Returns the number of measures per row appropriate for a given screen width.
+/// Breakpoints are in logical pixels.
+int measuresPerRowForWidth(double widthPx) {
+  if (widthPx >= 1000) return 4;
+  if (widthPx >= 700) return 3;
+  return 2;
+}
 
 /// Pre-computed row layout for a piece. A single instance is derived once
 /// (in [pieceLayoutProvider]) and shared by all notation views.
@@ -14,19 +17,20 @@ class PieceLayout {
 
   const PieceLayout(this.rows);
 
-  /// Computes rows: [kMeasuresPerRow] measures per row, with section
+  /// Computes rows: [measuresPerRow] measures per row, with section
   /// boundaries always forcing a new row.
   factory PieceLayout.compute(
     List<Measure> measures,
-    List<Section> sections,
-  ) {
+    List<Section> sections, {
+    int measuresPerRow = 4,
+  }) {
     final sectionStarts = {for (final s in sections) s.startMeasure};
     final rows = <List<Measure>>[];
     var row = <Measure>[];
 
     for (final m in measures) {
       final breakForSection = sectionStarts.contains(m.number) && row.isNotEmpty;
-      final rowFull = row.length >= kMeasuresPerRow;
+      final rowFull = row.length >= measuresPerRow;
 
       if (breakForSection || rowFull) {
         rows.add(List.unmodifiable(row));
