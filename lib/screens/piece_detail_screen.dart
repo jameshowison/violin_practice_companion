@@ -220,6 +220,7 @@ class PieceDetailScreen extends ConsumerWidget {
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           keySignature: keySignature,
           notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
         );
 
       case DisplayMode.fingering:
@@ -229,6 +230,7 @@ class PieceDetailScreen extends ConsumerWidget {
           sectionLabels: sectionLabels,
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
         );
 
       case DisplayMode.combined:
@@ -239,6 +241,7 @@ class PieceDetailScreen extends ConsumerWidget {
           onMeasureTap: (m) => _toggleMeasure(ref, m),
           combined: true,
           notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
         );
     }
   }
