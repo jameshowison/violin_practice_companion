@@ -74,7 +74,7 @@ Common or Cut-common time produces unreliable note durations. Lightly Row scored
 30% positional accuracy; Happy Farmer was 0% positional (95% after removing one
 spurious note). Engine rejected.
 
-### Homr: TODO — next agent starts here
+### Homr: EVALUATED — system-boundary artefact on Happy Farmer
 
 Run [liebharc/homr](https://github.com/liebharc/homr) against the same benchmark.
 
@@ -283,10 +283,10 @@ services). The MusicXML and a piece metadata JSON are written to:
 
 **Stage A (must pass before Stage B begins):**
 - [x] Oemer evaluated — **FAILED** (time signature not parsed; see `docs/omr_evaluation/oemer/results.md`)
-- [ ] Homr produces ≥90% note accuracy (positional, no offset) on `lightly_row_from_book_crop_no_title.heic`
-- [ ] Homr produces ≥90% note accuracy (positional, no offset) on `happy_farmer_from_book_crop_no_title.heic`
-- [ ] Homr confidence scores assessed; amber-flag design updated if not available
-- [ ] Homr Stage A results documented in `docs/omr_evaluation/homr/results.md`
+- [x] Homr produces ≥90% note accuracy (positional, no offset) on `lightly_row_from_book_crop_no_title.heic` — **100% ✓**
+- [ ] Homr produces ≥90% note accuracy (positional, no offset) on `happy_farmer_from_book_crop_no_title.heic` — **24.1% ✗ (2 spurious measures at system boundary; see results.md)**
+- [x] Homr confidence scores assessed; amber-flag design updated — **no confidence scores; see results.md §Key Questions**
+- [x] Homr Stage A results documented in `docs/omr_evaluation/homr/results.md`
 
 **Stage B (mobile embedding):**
 - [ ] `OmrService.recognise()` runs end-to-end on Android and iOS without crashing

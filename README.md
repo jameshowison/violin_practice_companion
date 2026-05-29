@@ -92,7 +92,18 @@ Contributions welcome. The most useful contributions right now:
 - Language translations (the UI targets English and Simplified Chinese)
 - Testing the OMR pipeline against real book photos
 
-See `PHASE1.md` and `PHASE2.md` for the implementation roadmap.
+See `docs/PHASE1.md` through `docs/PHASE4.md` for the implementation roadmap.
+
+## OMR Engine Status
+
+Phase 4 (scan pipeline) is evaluating OMR engines before mobile embedding:
+
+| Engine | Lightly Row | Happy Farmer | Status |
+|--------|-------------|--------------|--------|
+| [Oemer](https://github.com/BreezeWhite/oemer) | 30.4% | 0% | **Rejected** — time signatures not parsed |
+| [Homr](https://github.com/liebharc/homr) | **100%** | 24.1% | Under investigation — 2 spurious measures at system boundary on Happy Farmer |
+
+Full findings in `docs/omr_evaluation/`.
 
 ## Licence
 
