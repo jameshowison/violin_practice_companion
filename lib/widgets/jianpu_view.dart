@@ -1,18 +1,20 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart';
 import 'notation_layout_engine.dart';
 
-class JianpuView extends StatelessWidget {
+class JianpuView extends StatefulWidget {
   final PieceLayout layout;
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final String? keySignature;
   final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
+  final ValueListenable<int?>? currentMeasureNotifier;
 
   const JianpuView({
     super.key,
@@ -22,25 +24,100 @@ class JianpuView extends StatelessWidget {
     required this.notifierForMeasure,
     this.onMeasureTap,
     this.keySignature,
+    this.currentMeasureNotifier,
   });
+
+  @override
+  State<JianpuView> createState() => _JianpuViewState();
+}
+
+class _JianpuViewState extends State<JianpuView> {
+  final _scrollController = ScrollController();
+  // Updated by LayoutBuilder each build; used by the scroll listener.
+  double _scale = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.currentMeasureNotifier?.addListener(_onMeasureChanged);
+  }
+
+  @override
+  void didUpdateWidget(JianpuView old) {
+    super.didUpdateWidget(old);
+    if (old.currentMeasureNotifier != widget.currentMeasureNotifier) {
+      old.currentMeasureNotifier?.removeListener(_onMeasureChanged);
+      widget.currentMeasureNotifier?.addListener(_onMeasureChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.currentMeasureNotifier?.removeListener(_onMeasureChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onMeasureChanged() {
+    final m = widget.currentMeasureNotifier?.value;
+    if (m == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToMeasure(m));
+  }
+
+  void _scrollToMeasure(int measureNumber) {
+    if (!_scrollController.hasClients) return;
+    final rowIndex = widget.layout.rows
+        .indexWhere((row) => row.any((m) => m.number == measureNumber));
+    if (rowIndex < 0) return;
+
+    // Header height: Padding(top:6,bottom:2) + Text(fontSize:14) ≈ 28pt
+    final headerH = widget.keySignature != null ? 28.0 : 0.0;
+    // Each row: label + note area, both scaled, plus symmetric vertical padding (2×2=4 each side → 8).
+    const rowPad = 8.0;
+    final rowH =
+        (_JianpuMeasure.labelHeight + NotationLayout.rowHeight) * _scale +
+            rowPad;
+
+    final rowTop = headerH + rowIndex * rowH;
+    final rowBottom = rowTop + rowH;
+
+    final pos = _scrollController.position;
+    final viewTop = pos.pixels;
+    final viewBottom = pos.pixels + pos.viewportDimension;
+
+    if (rowBottom > viewBottom) {
+      _scrollController.animateTo(
+        (rowBottom - pos.viewportDimension + 8).clamp(0.0, pos.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else if (rowTop < viewTop) {
+      _scrollController.animateTo(
+        (rowTop - 8).clamp(0.0, pos.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final availableWidth = constraints.maxWidth;
-      final maxRowW = layout.rows.isEmpty
+      final maxRowW = widget.layout.rows.isEmpty
           ? 1.0
-          : layout.rows.map(NotationLayout.rowWidth).reduce(math.max);
-      final scale = (availableWidth / maxRowW).clamp(0.0, 1.0);
+          : widget.layout.rows.map(NotationLayout.rowWidth).reduce(math.max);
+      _scale = (availableWidth / maxRowW).clamp(0.0, 1.0);
 
       return SingleChildScrollView(
+        controller: _scrollController,
         child: Column(
           children: [
-            if (keySignature != null)
+            if (widget.keySignature != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6, bottom: 2),
                 child: Text(
-                  '1 = $keySignature',
+                  '1 = ${widget.keySignature}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontStyle: FontStyle.italic,
@@ -48,13 +125,13 @@ class JianpuView extends StatelessWidget {
                   ),
                 ),
               ),
-            ...layout.rows.map((row) => _JianpuRow(
+            ...widget.layout.rows.map((row) => _JianpuRow(
                   measures: row,
-                  selectedMeasures: selectedMeasures,
-                  sectionLabels: sectionLabels,
-                  onMeasureTap: onMeasureTap,
-                  notifierForMeasure: notifierForMeasure,
-                  scale: scale,
+                  selectedMeasures: widget.selectedMeasures,
+                  sectionLabels: widget.sectionLabels,
+                  onMeasureTap: widget.onMeasureTap,
+                  notifierForMeasure: widget.notifierForMeasure,
+                  scale: _scale,
                 )),
           ],
         ),
