@@ -5,6 +5,7 @@ import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
 import '../models/string_label_style.dart';
+import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../widgets/fingering_view.dart';
@@ -110,6 +111,7 @@ class PieceDetailScreen extends ConsumerWidget {
 
           return Column(
             children: [
+              const _PalettePanel(),
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -331,6 +333,90 @@ class _StringLabelPicker extends StatelessWidget {
             ),
             const SizedBox(width: 12),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Note palette panel (staff view of all unique notes in the piece) ──────────
+
+class _PalettePanel extends ConsumerStatefulWidget {
+  const _PalettePanel();
+
+  @override
+  ConsumerState<_PalettePanel> createState() => _PalettePanelState();
+}
+
+class _PalettePanelState extends ConsumerState<_PalettePanel> {
+  late final ValueNotifier<HighlightEvent?> _noHighlight;
+  bool _expanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _noHighlight = ValueNotifier(null);
+  }
+
+  @override
+  void dispose() {
+    _noHighlight.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+    if (parsed == null) return const SizedBox.shrink();
+
+    // Watch unconditionally so the data is ready when _expanded becomes true.
+    final paletteXml = ref.watch(paletteMusicXmlProvider).valueOrNull;
+
+    final keyTitle = PieceDetailScreen._formatKey(parsed.keySignature);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header: fixed-width spacer on left balances the button on the right
+          // so the title is truly centred.
+          Row(
+            children: [
+              const SizedBox(width: 48),
+              Expanded(
+                child: Text(
+                  keyTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 13, fontStyle: FontStyle.italic),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 20),
+                tooltip: _expanded ? 'Hide palette' : 'Show palette',
+                onPressed: () => setState(() => _expanded = !_expanded),
+              ),
+            ],
+          ),
+          if (_expanded && paletteXml != null)
+            SizedBox(
+              height: 140,
+              child: StaffView(
+                musicXml: paletteXml,
+                highlightNotifier: _noHighlight,
+                bridgeAsset: 'assets/osmd/palette_bridge.html',
+              ),
+            ),
+          if (_expanded && paletteXml == null)
+            const SizedBox(
+                height: 140,
+                child: Center(child: CircularProgressIndicator())),
         ],
       ),
     );

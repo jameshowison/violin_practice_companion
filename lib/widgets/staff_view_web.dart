@@ -10,8 +10,14 @@ import '../services/midi_generator.dart';
 class StaffView extends StatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
+  final String bridgeAsset;
 
-  const StaffView({super.key, required this.musicXml, required this.highlightNotifier});
+  const StaffView({
+    super.key,
+    required this.musicXml,
+    required this.highlightNotifier,
+    this.bridgeAsset = 'assets/osmd/osmd_bridge.html',
+  });
 
   @override
   State<StaffView> createState() => _StaffViewState();
@@ -32,7 +38,7 @@ class _StaffViewState extends State<StaffView> {
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame =
           web.document.createElement('iframe') as web.HTMLIFrameElement
-            ..src = 'assets/osmd/osmd_bridge.html'
+            ..src = widget.bridgeAsset
             ..style.border = 'none'
             ..style.width = '100%'
             ..style.height = '100%';

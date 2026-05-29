@@ -6,8 +6,14 @@ import '../services/midi_generator.dart';
 class StaffView extends StatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
+  final String bridgeAsset;
 
-  const StaffView({super.key, required this.musicXml, required this.highlightNotifier});
+  const StaffView({
+    super.key,
+    required this.musicXml,
+    required this.highlightNotifier,
+    this.bridgeAsset = 'assets/osmd/osmd_bridge.html',
+  });
 
   @override
   State<StaffView> createState() => _StaffViewState();
@@ -37,7 +43,7 @@ class _StaffViewState extends State<StaffView> {
           _onHighlight();
         },
       ))
-      ..loadFlutterAsset('assets/osmd/osmd_bridge.html');
+      ..loadFlutterAsset(widget.bridgeAsset);
   }
 
   @override
