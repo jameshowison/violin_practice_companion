@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
@@ -24,31 +26,40 @@ class JianpuView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          if (keySignature != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: Text(
-                '1 = $keySignature',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.black87,
+    return LayoutBuilder(builder: (context, constraints) {
+      final availableWidth = constraints.maxWidth;
+      final maxRowW = layout.rows.isEmpty
+          ? 1.0
+          : layout.rows.map(NotationLayout.rowWidth).reduce(math.max);
+      final scale = (availableWidth / maxRowW).clamp(0.0, 1.0);
+
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            if (keySignature != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 2),
+                child: Text(
+                  '1 = $keySignature',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
-            ),
-          ...layout.rows.map((row) => _JianpuRow(
-                measures: row,
-                selectedMeasures: selectedMeasures,
-                sectionLabels: sectionLabels,
-                onMeasureTap: onMeasureTap,
-                notifierForMeasure: notifierForMeasure,
-              )),
-        ],
-      ),
-    );
+            ...layout.rows.map((row) => _JianpuRow(
+                  measures: row,
+                  selectedMeasures: selectedMeasures,
+                  sectionLabels: sectionLabels,
+                  onMeasureTap: onMeasureTap,
+                  notifierForMeasure: notifierForMeasure,
+                  scale: scale,
+                )),
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -58,17 +69,21 @@ class _JianpuRow extends StatelessWidget {
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final ValueNotifier<int?> Function(int) notifierForMeasure;
+  final double scale;
 
   const _JianpuRow({
     required this.measures,
     required this.selectedMeasures,
     required this.sectionLabels,
     required this.notifierForMeasure,
+    required this.scale,
     this.onMeasureTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final barlineH =
+        (NotationLayout.rowHeight + _JianpuMeasure.labelHeight) * scale;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Center(
@@ -83,14 +98,15 @@ class _JianpuRow extends StatelessWidget {
                 notifierForMeasure: notifierForMeasure,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
+                scale: scale,
               ),
               if (i < measures.length - 1)
                 Container(
-                  width: NotationLayout.barlineWidth,
-                  height: NotationLayout.rowHeight + _JianpuMeasure.labelHeight,
+                  width: NotationLayout.barlineWidth * scale,
+                  height: barlineH,
                   color: Colors.black87,
-                  margin: const EdgeInsets.only(
-                      top: _JianpuMeasure.labelHeight),
+                  margin: EdgeInsets.only(
+                      top: _JianpuMeasure.labelHeight * scale),
                 ),
             ],
           ],
@@ -108,22 +124,25 @@ class _JianpuMeasure extends StatelessWidget {
   final ValueNotifier<int?> Function(int) notifierForMeasure;
   final String? sectionLabel;
   final VoidCallback? onTap;
+  final double scale;
 
   const _JianpuMeasure({
     required this.measure,
     required this.isSelected,
     required this.notifierForMeasure,
+    required this.scale,
     this.sectionLabel,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final width = NotationLayout.measureWidth(measure);
+    final naturalWidth = NotationLayout.measureWidth(measure);
+    final scaledWidth = naturalWidth * scale;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: width,
+        width: scaledWidth,
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primaryContainer.withAlpha(180)
@@ -133,12 +152,12 @@ class _JianpuMeasure extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: labelHeight,
+              height: labelHeight * scale,
               child: sectionLabel != null
                   ? Text(
                       sectionLabel!,
-                      style: const TextStyle(
-                        fontSize: 9,
+                      style: TextStyle(
+                        fontSize: 9 * scale,
                         fontWeight: FontWeight.bold,
                         color: Colors.blueGrey,
                       ),
@@ -146,14 +165,15 @@ class _JianpuMeasure extends StatelessWidget {
                   : null,
             ),
             SizedBox(
-              height: NotationLayout.rowHeight,
+              height: NotationLayout.rowHeight * scale,
               child: ValueListenableBuilder<int?>(
                 valueListenable: notifierForMeasure(measure.number),
                 builder: (_, noteIndex, _) => CustomPaint(
-                  size: Size(width, NotationLayout.rowHeight),
+                  size: Size(scaledWidth, NotationLayout.rowHeight * scale),
                   painter: _JianpuMeasurePainter(
                     notes: measure.notes,
                     activeNoteIndex: noteIndex,
+                    scale: scale,
                   ),
                 ),
               ),
@@ -168,11 +188,16 @@ class _JianpuMeasure extends StatelessWidget {
 class _JianpuMeasurePainter extends CustomPainter {
   final List<NoteEvent> notes;
   final int? activeNoteIndex;
+  final double scale;
 
-  _JianpuMeasurePainter({required this.notes, this.activeNoteIndex});
+  _JianpuMeasurePainter(
+      {required this.notes, this.activeNoteIndex, required this.scale});
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(scale, scale);
+
     final idx = activeNoteIndex;
     if (idx != null && idx < notes.length) {
       final note = notes[idx];
@@ -180,7 +205,8 @@ class _JianpuMeasurePainter extends CustomPainter {
         double x = 0;
         for (int i = 0; i < idx; i++) x += NotationLayout.noteWidth(notes[i]);
         canvas.drawRect(
-          Rect.fromLTWH(x, 0, NotationLayout.noteWidth(note), size.height),
+          Rect.fromLTWH(x, 0, NotationLayout.noteWidth(note),
+              NotationLayout.rowHeight),
           Paint()..color = Colors.amber.withAlpha(140),
         );
       }
@@ -210,57 +236,68 @@ class _JianpuMeasurePainter extends CustomPainter {
       final sharp = note.jianpuAccidentalSharp ?? false;
 
       if (sharp) {
-        _drawText(canvas, textPainter, '#', centerX - 10, baseY - 8, fontSize: 10);
+        _drawText(canvas, textPainter, '#', centerX - 10, baseY - 8,
+            fontSize: 10);
       }
 
       _drawText(canvas, textPainter, '$num', centerX, baseY, fontSize: 18);
 
       if (octaveDots > 0) {
         for (int d = 0; d < octaveDots; d++) {
-          canvas.drawCircle(
-            Offset(centerX, baseY - 16 - d * 6), 2, Paint()..color = Colors.black);
+          canvas.drawCircle(Offset(centerX, baseY - 16 - d * 6), 2,
+              Paint()..color = Colors.black);
         }
       } else if (octaveDots < 0) {
         for (int d = 0; d < -octaveDots; d++) {
-          canvas.drawCircle(
-            Offset(centerX, baseY + 14 + d * 6), 2, Paint()..color = Colors.black);
+          canvas.drawCircle(Offset(centerX, baseY + 14 + d * 6), 2,
+              Paint()..color = Colors.black);
         }
       }
 
       final underlineCount = _underlineCount(note.noteValue);
       for (int u = 0; u < underlineCount; u++) {
         final y = baseY + 12 + u * 4;
-        canvas.drawLine(Offset(x + 4, y), Offset(x + nw - 4, y), linePaint);
+        canvas.drawLine(
+            Offset(x + 4, y), Offset(x + nw - 4, y), linePaint);
       }
 
       if (note.dotted) {
-        canvas.drawCircle(
-          Offset(centerX + 10, baseY + 2), 2, Paint()..color = Colors.black);
+        canvas.drawCircle(Offset(centerX + 10, baseY + 2), 2,
+            Paint()..color = Colors.black);
       }
 
       final dashCount = _dashCount(note.noteValue, note.dotted);
       for (int d = 1; d <= dashCount; d++) {
-        final dashCX = x + d * NotationLayout.cellWidth + NotationLayout.cellWidth / 2;
+        final dashCX =
+            x + d * NotationLayout.cellWidth + NotationLayout.cellWidth / 2;
         _drawText(canvas, textPainter, '—', dashCX, baseY, fontSize: 18);
       }
 
       x += nw;
     }
+
+    canvas.restore();
   }
 
   int _underlineCount(NoteValue v) {
     switch (v) {
-      case NoteValue.eighth: return 1;
-      case NoteValue.sixteenth: return 2;
-      default: return 0;
+      case NoteValue.eighth:
+        return 1;
+      case NoteValue.sixteenth:
+        return 2;
+      default:
+        return 0;
     }
   }
 
   int _dashCount(NoteValue v, bool dotted) {
     switch (v) {
-      case NoteValue.whole: return 3;
-      case NoteValue.half:  return dotted ? 2 : 1;
-      default: return 0;
+      case NoteValue.whole:
+        return 3;
+      case NoteValue.half:
+        return dotted ? 2 : 1;
+      default:
+        return 0;
     }
   }
 
@@ -275,12 +312,15 @@ class _JianpuMeasurePainter extends CustomPainter {
   }
 
   static bool _isLongerThanQuarter(NoteEvent note) {
-    if (note.noteValue == NoteValue.whole || note.noteValue == NoteValue.half) return true;
+    if (note.noteValue == NoteValue.whole ||
+        note.noteValue == NoteValue.half) return true;
     if (note.noteValue == NoteValue.quarter && note.dotted) return true;
     return false;
   }
 
   @override
   bool shouldRepaint(covariant _JianpuMeasurePainter old) =>
-      old.notes != notes || old.activeNoteIndex != activeNoteIndex;
+      old.notes != notes ||
+      old.activeNoteIndex != activeNoteIndex ||
+      old.scale != scale;
 }
