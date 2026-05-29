@@ -69,6 +69,11 @@
         osmd.cursor.next();
       }
       osmd.cursor.show();
+      // Scroll to cursor while it is visible, then hide for short notes
+      try {
+        var el = osmd.cursor.cursorElement;
+        if (el) el.scrollIntoView({ block: 'start' });
+      } catch(e) {}
       if (!isLong) osmd.cursor.hide();
     } catch(e) {}
   };
