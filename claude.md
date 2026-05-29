@@ -27,3 +27,7 @@ tail -n 50 flutter_run.log
 **Never spawn a new `flutter run` without killing the existing one first.**
 
 To avoid multiple user chrome, instruct user to open chrome manually and provide URL.
+
+## Fingering Label Format
+
+Fingering labels are defined canonically in the piece asset files (e.g., `A1`, `A2L`, `E2H`). The L/H suffix indicates low/high finger position and is meaningful data — **never strip, transform, or replace it with ♭/♯ symbols**. Both the staff annotation view and the fingering view must render the full label verbatim as stored in `NoteEvent.fingerNumber`.

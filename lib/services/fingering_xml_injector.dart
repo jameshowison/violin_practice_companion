@@ -30,6 +30,16 @@ class FingeringXmlInjector {
     return doc.toXmlString();
   }
 
+  static String stripFingerings(String musicXml) {
+    final doc = XmlDocument.parse(musicXml);
+    for (final technical in doc.findAllElements('technical').toList()) {
+      for (final f in technical.findElements('fingering').toList()) {
+        technical.children.remove(f);
+      }
+    }
+    return doc.toXmlString();
+  }
+
   static void _setFingering(XmlElement noteEl, String label) {
     var notations = noteEl.findElements('notations').firstOrNull;
     if (notations == null) {
