@@ -53,7 +53,7 @@ below.
 
 ---
 
-## Accuracy Results (with 60% binarization)
+## Accuracy Results (with 50% binarization)
 
 ### Lightly Row
 
@@ -71,7 +71,7 @@ Extra/missing notes:    0
 Key = 3 sharps (A major), time = 2/2 (cut time) — both correct for Suzuki
 Lightly Row. Every note including C#5 half notes is recognised correctly.
 
-### Happy Farmer (with 60% binarization)
+### Happy Farmer (with 50% binarization)
 
 ```
 Gold notes:    112
@@ -95,6 +95,24 @@ Remaining 4 mismatches (all in the final system):
 
 These are minor rhythm/pitch errors in the last few bars and are well within
 the range expected for a real-world photograph.
+
+### Gossec Gavotte (with 50% binarization)
+
+```
+Gold notes:    193
+Homr notes:    193
+Pitch accuracy:         193/193 = 100.0%
+Duration accuracy:      193/193 = 100.0%
+Both correct:           193/193 = 100.0%
+Extra/missing notes:    0
+```
+
+**100% positional accuracy. PASS ✓**
+
+A full-page photo (no pre-cropping) with title heading, decorative border,
+8 staves, repeat signs, D.C. al Fine structure, rests, and 16th notes. The
+most complex benchmark tested. Homr found the title ("Gavotte"), detected all
+8 staffs correctly, and produced a perfect score.
 
 ---
 
@@ -147,6 +165,7 @@ spinner is sufficient — no per-stage progress needed.
 |-----------|--------|
 | Lightly Row ≥90% (pitch+duration, positional) | **PASS ✓ 100%** |
 | Happy Farmer ≥90% (pitch+duration, positional) | **PASS ✓ 96.4%** |
+| Gossec Gavotte ≥90% (pitch+duration, positional) | **PASS ✓ 100%** |
 | Time signature parsing (Common/Cut-common) | **YES** |
 | Confidence scores | **NO** |
 | MusicXML output | **YES** |
@@ -178,3 +197,7 @@ Stage B (mobile ONNX embedding) can now begin.
 | `happy_farmer_bw_50.png` | BW pre-processed input (50% threshold) |
 | `lightly_row_no_title.png` | Input PNG |
 | `happy_farmer_no_title.png` | Input PNG |
+| `gossec_gavotte_bw.musicxml` | Homr output (BW PNG) — 100% |
+| `gossec_gavotte_bw.png` | BW pre-processed input |
+| `gossec_gavotte_bw_teaser.png` | Staff detection overlay (8 rows) |
+| `gossec_gavotte.png` | Input PNG (colour) |
