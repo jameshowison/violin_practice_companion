@@ -51,3 +51,7 @@ package-lock.json
 # Large binary assets (obtain separately — source: GeneralUser GS SF2)
 assets/soundfonts/*.sf2
 assets/soundfonts/*.sf3
+
+# Saved reference material (Suzuki teacher's guide page + its assets)
+docs/Volume One B*.html
+docs/Volume One B*_files/
