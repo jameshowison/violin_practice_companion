@@ -74,17 +74,10 @@ class PieceDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: Builder(builder: (context) {
-        // Only pad the pill side. Whichever horizontal inset is larger is
-        // the Dynamic Island; the other side gets nothing.
-        final p = MediaQuery.of(context).padding;
-        final pillInset = EdgeInsets.only(
-          left:  p.left  > p.right ? p.left  : 0.0,
-          right: p.right > p.left  ? p.right : 0.0,
-        );
-        return Padding(
-          padding: pillInset,
-          child: LayoutBuilder(
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: LayoutBuilder(
           builder: (context, constraints) {
           final n = measuresPerRowForWidth(constraints.maxWidth);
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -179,8 +172,7 @@ class PieceDetailScreen extends ConsumerWidget {
           );
         },
         ),
-        );
-      }),
+      ),
     );
   }
 
