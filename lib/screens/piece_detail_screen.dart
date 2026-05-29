@@ -443,18 +443,15 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                           activeMeasure: activeMeasure,
                                         ),
                                       ),
-                                      const PlaybackControls(),
                                     ],
                                   ),
                                 ),
                               )
                             : const SizedBox.shrink(),
                       ),
-                      // ── always-visible play bar (drag handle + controls)
+                      // ── always-visible: pill + full playback controls ──
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () =>
-                            setState(() => _sheetOpen = !_sheetOpen),
                         onVerticalDragUpdate: (d) {
                           if (d.delta.dy < -6 && !_sheetOpen) {
                             setState(() => _sheetOpen = true);
@@ -465,60 +462,23 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 5),
-                              child: Container(
-                                width: 40,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade400,
-                                  borderRadius: BorderRadius.circular(2),
+                            GestureDetector(
+                              onTap: () =>
+                                  setState(() => _sheetOpen = !_sheetOpen),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 5),
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade400,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
                                 ),
                               ),
                             ),
-                            SizedBox(
-                              height: 40,
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow),
-                                    iconSize: 26,
-                                    tooltip:
-                                        isPlaying ? 'Pause' : 'Play',
-                                    onPressed: () {
-                                      if (isPlaying) {
-                                        widget.service.pause();
-                                      } else {
-                                        widget.service.play(
-                                          fromMeasure:
-                                              selection?.startMeasure ?? 1,
-                                          toMeasure: selection?.endMeasure,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      _sectionLabel(selection),
-                                      style:
-                                          const TextStyle(fontSize: 13),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Icon(
-                                    _sheetOpen
-                                        ? Icons.expand_more
-                                        : Icons.expand_less,
-                                    size: 18,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  const SizedBox(width: 12),
-                                ],
-                              ),
-                            ),
+                            const PlaybackControls(),
                           ],
                         ),
                       ),
