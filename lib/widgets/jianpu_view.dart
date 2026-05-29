@@ -70,7 +70,7 @@ class _JianpuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Center(
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -87,9 +87,10 @@ class _JianpuRow extends StatelessWidget {
               if (i < measures.length - 1)
                 Container(
                   width: NotationLayout.barlineWidth,
-                  height: NotationLayout.rowHeight + 16,
+                  height: NotationLayout.rowHeight + _JianpuMeasure.labelHeight,
                   color: Colors.black87,
-                  margin: const EdgeInsets.only(top: 16),
+                  margin: const EdgeInsets.only(
+                      top: _JianpuMeasure.labelHeight),
                 ),
             ],
           ],
@@ -100,6 +101,8 @@ class _JianpuRow extends StatelessWidget {
 }
 
 class _JianpuMeasure extends StatelessWidget {
+  static const double labelHeight = 10;
+
   final Measure measure;
   final bool isSelected;
   final ValueNotifier<int?> Function(int) notifierForMeasure;
@@ -130,12 +133,12 @@ class _JianpuMeasure extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 16,
+              height: labelHeight,
               child: sectionLabel != null
                   ? Text(
                       sectionLabel!,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                         color: Colors.blueGrey,
                       ),
