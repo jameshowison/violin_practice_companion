@@ -73,7 +73,7 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
 
 // ── Display mode ──────────────────────────────────────────────────────────────
 
-final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.jianpu);
+final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff);
 
 // ── String-label style preference ─────────────────────────────────────────────
 
