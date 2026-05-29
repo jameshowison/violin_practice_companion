@@ -376,13 +376,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
 
     return Column(
       children: [
-        // ── always-visible mode switcher ─────────────────────────
-        _CompactModeSwitcher(
-          current: displayMode,
-          onChanged: (mode) =>
-              ref.read(displayModeProvider.notifier).state = mode,
-        ),
-        // String-label picker sits right under the mode bar when relevant.
+        // String-label picker only when needed (staffFingering mode).
         if (displayMode == DisplayMode.staffFingering)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -406,9 +400,11 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── drag handle + mini bar (drag target) ─────
+                      // ── pill handle — tap or drag to open/close ──
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            setState(() => _sheetOpen = !_sheetOpen),
                         onVerticalDragUpdate: (d) {
                           if (d.delta.dy < -6 && !_sheetOpen) {
                             setState(() => _sheetOpen = true);
@@ -416,81 +412,85 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                             setState(() => _sheetOpen = false);
                           }
                         },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(height: 8),
-                            Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade400,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade400,
+                              borderRadius: BorderRadius.circular(2),
                             ),
-                            const SizedBox(height: 2),
-                            SizedBox(
-                              height: 44,
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow),
-                                    iconSize: 26,
-                                    tooltip: isPlaying ? 'Pause' : 'Play',
-                                    onPressed: () {
-                                      if (isPlaying) {
-                                        widget.service.pause();
-                                      } else {
-                                        widget.service.play(
-                                          fromMeasure:
-                                              selection?.startMeasure ?? 1,
-                                          toMeasure: selection?.endMeasure,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      _sectionLabel(selection),
-                                      style:
-                                          const TextStyle(fontSize: 13),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: () => setState(
-                                        () => _sheetOpen = !_sheetOpen),
-                                    icon: Icon(
-                                      _sheetOpen
-                                          ? Icons.expand_more
-                                          : Icons.expand_less,
-                                      size: 16,
-                                    ),
-                                    label: Text(
-                                      _sheetOpen ? 'Hide' : 'Controls',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                      // ── collapsible controls (no gesture override) ─
+                      // ── expanded: mode switcher + controls ────────
                       AnimatedSize(
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOut,
                         child: _sheetOpen
                             ? ConstrainedBox(
                                 constraints:
-                                    const BoxConstraints(maxHeight: 280),
+                                    const BoxConstraints(maxHeight: 320),
                                 child: SingleChildScrollView(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      // Viz selector moved here from top
+                                      _CompactModeSwitcher(
+                                        current: displayMode,
+                                        onChanged: (mode) => ref
+                                            .read(displayModeProvider.notifier)
+                                            .state = mode,
+                                      ),
+                                      const Divider(height: 1),
+                                      // Mini play bar
+                                      SizedBox(
+                                        height: 44,
+                                        child: Row(
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(isPlaying
+                                                  ? Icons.pause
+                                                  : Icons.play_arrow),
+                                              iconSize: 26,
+                                              tooltip: isPlaying
+                                                  ? 'Pause'
+                                                  : 'Play',
+                                              onPressed: () {
+                                                if (isPlaying) {
+                                                  widget.service.pause();
+                                                } else {
+                                                  widget.service.play(
+                                                    fromMeasure: selection
+                                                            ?.startMeasure ??
+                                                        1,
+                                                    toMeasure:
+                                                        selection?.endMeasure,
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                            Expanded(
+                                              child: Text(
+                                                _sectionLabel(selection),
+                                                style: const TextStyle(
+                                                    fontSize: 13),
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                  Icons.expand_more,
+                                                  size: 20),
+                                              tooltip: 'Hide controls',
+                                              onPressed: () => setState(
+                                                  () => _sheetOpen = false),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                       const Divider(height: 1),
                                       SectionBar(
                                         sections: widget.piece.sections,
