@@ -74,7 +74,10 @@ class PieceDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: LayoutBuilder(
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final n = measuresPerRowForWidth(constraints.maxWidth);
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -168,6 +171,7 @@ class PieceDetailScreen extends ConsumerWidget {
             error: (e, st) => Center(child: Text('Error: $e')),
           );
         },
+      ),
       ),
     );
   }
