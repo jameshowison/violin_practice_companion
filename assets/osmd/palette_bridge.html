@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; padding: 0; background: white; overflow: hidden; }
+    #osmd-container { width: 100%; }
+  </style>
+</head>
+<body>
+<div id="osmd-container"></div>
+<script src="opensheetmusicdisplay.min.js"></script>
+<script>
+  var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
+    autoResize: false,
+    drawTitle: false,
+    drawSubtitle: false,
+    drawPartNames: false,
+    drawMeasureNumbers: false,
+    drawTimeSignatures: false,
+    newSystemFromXML: false,
+    stretchLastSystemLine: false,
+  });
+
+  // Clef IS shown (no RenderClefsAtBeginningOfStaffline override).
+
+  // After render: shift the SVG right via CSS transform so the note content
+  // is horizontally centred. We measure the rightmost drawn primitive to find
+  // actual content width, then offset by half the remaining whitespace.
+  // Using transform (not container-width change) avoids triggering autoResize.
+  function centerContent() {
+    requestAnimationFrame(function() {
+      var container = document.getElementById('osmd-container');
+      var svg = container.querySelector('svg');
+      if (!svg) return;
+
+      var svgRect = svg.getBoundingClientRect();
+      var maxRight = 0;
+      svg.querySelectorAll('path, line, polyline, polygon, rect, ellipse, text, use')
+        .forEach(function(el) {
+          var r = el.getBoundingClientRect();
+          if (r.width > 0.5 && r.height > 0.5 && r.right > maxRight) maxRight = r.right;
+        });
+
+      if (maxRight === 0) return;
+      var contentWidth = maxRight - svgRect.left;
+      var shift = Math.floor((svgRect.width - contentWidth) / 2);
+      if (shift > 5) svg.style.transform = 'translateX(' + shift + 'px)';
+    });
+  }
+
+  window.loadScore = async function(xml) {
+    try {
+      await osmd.load(xml);
+      osmd.render();
+      centerContent();
+    } catch(e) {}
+  };
+
+  window.addEventListener('message', async function(event) {
+    var data = event.data;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch(e) { return; }
+    }
+    if (!data || data.type !== 'loadScore') return;
+    await window.loadScore(data.xml);
+  });
+</script>
+</body>
+</html>

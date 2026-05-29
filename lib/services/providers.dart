@@ -9,6 +9,7 @@ import 'jianpu_converter.dart';
 import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
+import 'palette_xml_generator.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
@@ -120,6 +121,13 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
   return xml;
+});
+
+final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (parsed == null) return null;
+  final xml = PaletteXmlGenerator.generate(parsed);
+  return xml.isEmpty ? null : xml;
 });
 
 // ── Measure selection ─────────────────────────────────────────────────────────
