@@ -101,7 +101,7 @@ Phase 4 (scan pipeline) is evaluating OMR engines before mobile embedding:
 | Engine | Lightly Row | Happy Farmer | Status |
 |--------|-------------|--------------|--------|
 | [Oemer](https://github.com/BreezeWhite/oemer) | 30.4% | 0% | **Rejected** — time signatures not parsed |
-| [Homr](https://github.com/liebharc/homr) | **100%** | 24.1% | Under investigation — 2 spurious measures at system boundary on Happy Farmer |
+| [Homr](https://github.com/liebharc/homr) | **100%** | **96.4%** | **Selected** — requires 60% binarization pre-processing to eliminate bleed-through |
 
 Full findings in `docs/omr_evaluation/`.
 
