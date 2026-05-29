@@ -79,25 +79,12 @@ class _JianpuViewState extends State<JianpuView> {
             rowPad;
 
     final rowTop = headerH + rowIndex * rowH;
-    final rowBottom = rowTop + rowH;
-
-    final pos = _scrollController.position;
-    final viewTop = pos.pixels;
-    final viewBottom = pos.pixels + pos.viewportDimension;
-
-    if (rowBottom > viewBottom) {
-      _scrollController.animateTo(
-        (rowBottom - pos.viewportDimension + 8).clamp(0.0, pos.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    } else if (rowTop < viewTop) {
-      _scrollController.animateTo(
-        (rowTop - 8).clamp(0.0, pos.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    }
+    final target = (rowTop - 8).clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
   }
 
   @override

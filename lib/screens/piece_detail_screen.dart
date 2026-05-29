@@ -400,96 +400,23 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── pill handle — tap or drag to open/close ──
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () =>
-                            setState(() => _sheetOpen = !_sheetOpen),
-                        onVerticalDragUpdate: (d) {
-                          if (d.delta.dy < -6 && !_sheetOpen) {
-                            setState(() => _sheetOpen = true);
-                          } else if (d.delta.dy > 6 && _sheetOpen) {
-                            setState(() => _sheetOpen = false);
-                          }
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade400,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // ── expanded: mode switcher + controls ────────
+                      // ── drawer contents (slides up above play bar) ─
                       AnimatedSize(
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOut,
                         child: _sheetOpen
                             ? ConstrainedBox(
                                 constraints:
-                                    const BoxConstraints(maxHeight: 320),
+                                    const BoxConstraints(maxHeight: 280),
                                 child: SingleChildScrollView(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Viz selector moved here from top
                                       _CompactModeSwitcher(
                                         current: displayMode,
                                         onChanged: (mode) => ref
                                             .read(displayModeProvider.notifier)
                                             .state = mode,
-                                      ),
-                                      const Divider(height: 1),
-                                      // Mini play bar
-                                      SizedBox(
-                                        height: 44,
-                                        child: Row(
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(isPlaying
-                                                  ? Icons.pause
-                                                  : Icons.play_arrow),
-                                              iconSize: 26,
-                                              tooltip: isPlaying
-                                                  ? 'Pause'
-                                                  : 'Play',
-                                              onPressed: () {
-                                                if (isPlaying) {
-                                                  widget.service.pause();
-                                                } else {
-                                                  widget.service.play(
-                                                    fromMeasure: selection
-                                                            ?.startMeasure ??
-                                                        1,
-                                                    toMeasure:
-                                                        selection?.endMeasure,
-                                                  );
-                                                }
-                                              },
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                _sectionLabel(selection),
-                                                style: const TextStyle(
-                                                    fontSize: 13),
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(
-                                                  Icons.expand_more,
-                                                  size: 20),
-                                              tooltip: 'Hide controls',
-                                              onPressed: () => setState(
-                                                  () => _sheetOpen = false),
-                                            ),
-                                          ],
-                                        ),
                                       ),
                                       const Divider(height: 1),
                                       SectionBar(
@@ -522,6 +449,78 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                 ),
                               )
                             : const SizedBox.shrink(),
+                      ),
+                      // ── always-visible play bar (drag handle + controls)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            setState(() => _sheetOpen = !_sheetOpen),
+                        onVerticalDragUpdate: (d) {
+                          if (d.delta.dy < -6 && !_sheetOpen) {
+                            setState(() => _sheetOpen = true);
+                          } else if (d.delta.dy > 6 && _sheetOpen) {
+                            setState(() => _sheetOpen = false);
+                          }
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 5),
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade400,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: 40,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow),
+                                    iconSize: 26,
+                                    tooltip:
+                                        isPlaying ? 'Pause' : 'Play',
+                                    onPressed: () {
+                                      if (isPlaying) {
+                                        widget.service.pause();
+                                      } else {
+                                        widget.service.play(
+                                          fromMeasure:
+                                              selection?.startMeasure ?? 1,
+                                          toMeasure: selection?.endMeasure,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      _sectionLabel(selection),
+                                      style:
+                                          const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(
+                                    _sheetOpen
+                                        ? Icons.expand_more
+                                        : Icons.expand_less,
+                                    size: 18,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(width: 12),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
