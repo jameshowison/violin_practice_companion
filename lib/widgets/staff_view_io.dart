@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/midi_generator.dart';
+import '../services/providers.dart';
 
-class StaffView extends StatefulWidget {
+class StaffView extends ConsumerStatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
   final String bridgeAsset;
@@ -16,13 +18,18 @@ class StaffView extends StatefulWidget {
   });
 
   @override
-  State<StaffView> createState() => _StaffViewState();
+  ConsumerState<StaffView> createState() => _StaffViewState();
 }
 
-class _StaffViewState extends State<StaffView> {
+class _StaffViewState extends ConsumerState<StaffView> {
   late final WebViewController _controller;
   bool _osmdReady = false;
   String? _errorMessage;
+
+  void _sendBottomInset(double px) {
+    if (!_osmdReady) return;
+    _controller.runJavaScript('window.setBottomInset($px)');
+  }
 
   @override
   void initState() {
@@ -41,6 +48,7 @@ class _StaffViewState extends State<StaffView> {
           _osmdReady = true;
           _loadScore();
           _onHighlight();
+          _sendBottomInset(ref.read(staffViewBottomInsetProvider));
         },
       ))
       ..loadFlutterAsset(widget.bridgeAsset);
@@ -85,6 +93,7 @@ class _StaffViewState extends State<StaffView> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(staffViewBottomInsetProvider, (_, px) => _sendBottomInset(px));
     if (_errorMessage != null) {
       return Center(
         child: Text('Staff view error: $_errorMessage',

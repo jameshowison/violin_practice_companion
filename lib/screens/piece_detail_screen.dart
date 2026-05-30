@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../build_info.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
@@ -48,10 +50,21 @@ class PieceDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 36,
-        title: Text(piece.title,
-            style: const TextStyle(fontSize: 14),
-            overflow: TextOverflow.ellipsis),
+        toolbarHeight: kDebugMode ? 44 : 36,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(piece.title,
+                style: const TextStyle(fontSize: 14),
+                overflow: TextOverflow.ellipsis),
+            if (kDebugMode)
+              Text(kBuildRef,
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+          ],
+        ),
         actions: [
           Builder(
             builder: (ctx) => IconButton(
@@ -337,19 +350,33 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
 }
 
 class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
-  // One-time peek survives hot reload but resets on cold restart.
   static bool _hasPeeked = false;
+  final _trayKey = GlobalKey();
   bool _sheetOpen = false;
+
+  void _measureTray() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _trayKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        ref.read(staffViewBottomInsetProvider.notifier).state = box.size.height;
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    // Seed a conservative estimate immediately so the WebView doesn't render
+    // behind the tray on the first frame while the real measurement is pending.
+    ref.read(staffViewBottomInsetProvider.notifier).state = 72;
+    _measureTray();
     if (!_hasPeeked) {
       _hasPeeked = true;
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) setState(() => _sheetOpen = true);
+        if (mounted) setState(() { _sheetOpen = true; _measureTray(); });
         Future.delayed(const Duration(milliseconds: 2500), () {
-          if (mounted) setState(() => _sheetOpen = false);
+          if (mounted) setState(() { _sheetOpen = false; _measureTray(); });
         });
       });
     }
@@ -386,13 +413,18 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
         Expanded(
           child: Stack(
             children: [
-              Positioned.fill(child: widget.notationView),
-              // Controls sheet anchored to the bottom.
+              // Leave bottom clearance equal to the tray height so the last
+              // staff row is never hidden behind the controls overlay.
+              Positioned.fill(
+                bottom: ref.watch(staffViewBottomInsetProvider),
+                child: widget.notationView,
+              ),
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
                 child: Material(
+                  key: _trayKey,
                   elevation: 10,
                   color: theme.colorScheme.surface,
                   borderRadius: const BorderRadius.vertical(
@@ -455,16 +487,20 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         onVerticalDragUpdate: (d) {
                           if (d.delta.dy < -6 && !_sheetOpen) {
                             setState(() => _sheetOpen = true);
+                            _measureTray();
                           } else if (d.delta.dy > 6 && _sheetOpen) {
                             setState(() => _sheetOpen = false);
+                            _measureTray();
                           }
                         },
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             GestureDetector(
-                              onTap: () =>
-                                  setState(() => _sheetOpen = !_sheetOpen),
+                              onTap: () {
+                                setState(() => _sheetOpen = !_sheetOpen);
+                                _measureTray();
+                              },
                               child: Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 5),
@@ -479,6 +515,11 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                               ),
                             ),
                             const PlaybackControls(),
+                            // Spacer so interactive content sits above the
+                            // home-indicator zone; Material background fills
+                            // the safe area gap visually.
+                            SizedBox(
+                                height: MediaQuery.of(context).padding.bottom),
                           ],
                         ),
                       ),

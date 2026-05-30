@@ -3,11 +3,13 @@ import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
 
 import '../services/midi_generator.dart';
+import '../services/providers.dart';
 
-class StaffView extends StatefulWidget {
+class StaffView extends ConsumerStatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
   final String bridgeAsset;
@@ -20,10 +22,10 @@ class StaffView extends StatefulWidget {
   });
 
   @override
-  State<StaffView> createState() => _StaffViewState();
+  ConsumerState<StaffView> createState() => _StaffViewState();
 }
 
-class _StaffViewState extends State<StaffView> {
+class _StaffViewState extends ConsumerState<StaffView> {
   static int _counter = 0;
   late final String _viewType;
   web.HTMLIFrameElement? _frame;
@@ -114,8 +116,18 @@ class _StaffViewState extends State<StaffView> {
     );
   }
 
+  void _sendBottomInset(double px) {
+    final cw = _frame?.contentWindow;
+    if (!_frameLoaded || cw == null) return;
+    cw.postMessage(
+      jsonEncode({'type': 'setBottomInset', 'px': px}).toJS,
+      '*'.toJS,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(staffViewBottomInsetProvider, (_, px) => _sendBottomInset(px));
     return HtmlElementView(viewType: _viewType);
   }
 }
