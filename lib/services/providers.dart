@@ -55,6 +55,10 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   return withFingering;
 });
 
+// ── Staff view bottom inset (height in logical px obscured by the bottom tray) ─
+// Updated by _CompactPieceLayoutState; read by StaffView to inform scroll logic.
+final staffViewBottomInsetProvider = StateProvider<double>((_) => 0);
+
 // ── Measures per row (updated at runtime from screen width) ──────────────────
 
 final measuresPerRowProvider = StateProvider<int>((_) => 4);

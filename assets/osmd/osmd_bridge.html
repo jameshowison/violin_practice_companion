@@ -13,6 +13,48 @@
 <div id="osmd-container"></div>
 <script src="opensheetmusicdisplay.min.js"></script>
 <script>
+  // Pixels at the bottom of the WebView obscured by the Flutter tray overlay.
+  // Updated via setBottomInset() called from Dart whenever the tray resizes.
+  var _bottomInset = 0;
+
+  window.setBottomInset = function(px) { _bottomInset = px || 0; };
+
+  // Scroll the staff view using a "page turn" metaphor:
+  //   • While the cursor is on any row except the last visible one → no scroll.
+  //   • When the cursor enters the last visible row → jump so that row sits at
+  //     position 2 (the row above it anchors to the viewport top).
+  //
+  // Row height is estimated from the cursor element's own height — OSMD sizes
+  // the cursor to exactly span the staff system, so it's a reliable proxy.
+  function scrollWithPageTurn(el) {
+    var rect = el.getBoundingClientRect();
+    // Subtract tray overlay height so the last "visible" row is truly visible.
+    var vh   = (window.innerHeight || document.documentElement.clientHeight) - _bottomInset;
+    var st   = window.scrollY    || document.documentElement.scrollTop;
+
+    // Cursor off-screen above (e.g. after loop restart) — snap to it.
+    if (rect.bottom < 0) {
+      window.scrollTo({ top: st + rect.top, behavior: 'instant' });
+      return;
+    }
+    // Cursor off-screen below — snap to it.
+    if (rect.top > vh) {
+      window.scrollTo({ top: st + rect.top - vh * 0.15, behavior: 'instant' });
+      return;
+    }
+
+    // Row-height estimate: cursor element height, with a sane fallback.
+    var rowH = el.offsetHeight;
+    if (!rowH || rowH < 10) rowH = Math.round(vh / 5);
+
+    // Page turn: cursor has entered the last visible row band.
+    if (rect.top >= vh - rowH) {
+      var newTop = st + rect.top - rowH;
+      window.scrollTo({ top: Math.max(0, newTop), behavior: 'instant' });
+    }
+    // Cursor is comfortably visible — no scroll.
+  }
+
   var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
     autoResize: true,
     drawTitle: false,
@@ -69,10 +111,11 @@
         osmd.cursor.next();
       }
       osmd.cursor.show();
-      // Scroll to cursor while it is visible, then hide for short notes
+      // Page-turn scroll: hold still until cursor hits the last visible row,
+      // then jump so the cursor row becomes the 2nd visible row.
       try {
         var el = osmd.cursor.cursorElement;
-        if (el) el.scrollIntoView({ block: 'start' });
+        if (el) scrollWithPageTurn(el);
       } catch(e) {}
       if (!isLong) osmd.cursor.hide();
     } catch(e) {}
@@ -101,6 +144,8 @@
       window.positionCursor(data.beat, data.isLong);
     } else if (data.type === 'clearHighlight') {
       window.clearHighlight();
+    } else if (data.type === 'setBottomInset') {
+      window.setBottomInset(data.px);
     }
   });
 </script>
