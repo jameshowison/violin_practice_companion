@@ -21,7 +21,20 @@ echo "R" > /tmp/flutter_ctl   # hot restart (resets all state)
 tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 ```
 
-**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, new assets. Kill with `pkill -f flutter_tools.snapshot` before relaunching, and recreate the fifo.
+**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, or **any file under `assets/`** (HTML, JS, JSON, images). Kill with `pkill -f flutter_tools.snapshot` before relaunching, and recreate the fifo.
+
+> **Why assets need a full restart on iOS:** Hot restart only re-executes the Dart VM — it does NOT rebuild or reinstall the native `.app` bundle. Static assets (including `osmd_bridge.html` and any JS files) are bundled into the `.app` at `flutter run` time and read from there by WKWebView. A hot restart will always serve the old asset. Always do a full restart after editing anything in `assets/`.
+
+**Before a full restart, regenerate build info:**
+```bash
+bash scripts/gen_build_info.sh   # writes lib/build_info.dart (gitignored)
+pkill -f flutter_tools.snapshot
+rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
+flutter run -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
+exec 3>/tmp/flutter_ctl
+```
+
+The running git hash + timestamp is shown in the AppBar (debug builds only), so you can confirm which build is live without committing.
 
 **Never spawn a new `flutter run` without killing the existing one first.**
 
