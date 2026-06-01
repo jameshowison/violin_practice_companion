@@ -4,9 +4,9 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
+import '../models/section.dart';
 import '../models/string_label_style.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
@@ -81,9 +81,7 @@ class PieceDetailScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Settings',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Settings', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 16),
               ],
             ),
@@ -120,16 +118,13 @@ class PieceDetailScreen extends ConsumerWidget {
 
               final sectionLabels = _sectionLabels(piece);
 
-              final notationView = _buildNotationView(
-                context,
-                ref,
-                displayMode,
-                layout,
-                selectedMeasureNumbers,
-                sectionLabels,
-                piece,
+              final notationView = _NotationView(
+                mode: displayMode,
+                layout: layout,
+                selectedMeasures: selectedMeasureNumbers,
+                sectionLabels: sectionLabels,
                 service: service,
-                parsedPiece: parsedPiece,
+                keySignature: parsedPiece?.keySignature,
               );
 
               if (useCompact) {
@@ -167,17 +162,11 @@ class PieceDetailScreen extends ConsumerWidget {
                         ref.read(measureSelectionProvider.notifier).state =
                             sel,
                   ),
-                  ValueListenableBuilder<int?>(
-                    valueListenable: service.currentMeasureNotifier,
-                    builder: (_, activeMeasure, _) => MeasureSelector(
-                      measureCount: layout.measureCount,
-                      sections: piece.sections,
-                      selection: selection,
-                      onSelectionChanged: (sel) =>
-                          ref.read(measureSelectionProvider.notifier).state =
-                              sel,
-                      activeMeasure: activeMeasure,
-                    ),
+                  _ActiveMeasureSelector(
+                    measureCount: layout.measureCount,
+                    sections: piece.sections,
+                    selection: selection,
+                    currentMeasureNotifier: service.currentMeasureNotifier,
                   ),
                   const PlaybackControls(),
                 ],
@@ -192,93 +181,11 @@ class PieceDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildNotationView(
-    BuildContext context,
-    WidgetRef ref,
-    DisplayMode mode,
-    PieceLayout layout,
-    Set<int> selectedMeasures,
-    Map<int, String> sectionLabels,
-    Piece piece, {
-    required PlaybackServiceBase service,
-    ParsedPiece? parsedPiece,
-  }) {
-    final keySignature = parsedPiece?.keySignature;
-
-    switch (mode) {
-      case DisplayMode.staff:
-        return ref.watch(staffXmlProvider).when(
-          data: (xml) => xml != null
-              ? StaffView(
-                  musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier)
-              : const Center(child: CircularProgressIndicator()),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-        );
-
-      case DisplayMode.staffFingering:
-        return ref.watch(staffFingeringXmlProvider).when(
-          data: (xml) => xml != null
-              ? StaffView(
-                  musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier)
-              : const Center(child: CircularProgressIndicator()),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-        );
-
-      case DisplayMode.jianpu:
-        return JianpuView(
-          layout: layout,
-          selectedMeasures: selectedMeasures,
-          sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
-          keySignature: keySignature,
-          notifierForMeasure: service.notifierForMeasure,
-          currentMeasureNotifier: service.currentMeasureNotifier,
-        );
-
-      case DisplayMode.fingering:
-        return FingeringView(
-          layout: layout,
-          selectedMeasures: selectedMeasures,
-          sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
-          notifierForMeasure: service.notifierForMeasure,
-          currentMeasureNotifier: service.currentMeasureNotifier,
-        );
-
-      case DisplayMode.combined:
-        return FingeringView(
-          layout: layout,
-          selectedMeasures: selectedMeasures,
-          sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
-          combined: true,
-          notifierForMeasure: service.notifierForMeasure,
-          currentMeasureNotifier: service.currentMeasureNotifier,
-        );
-    }
-  }
-
   // "Am" → "A minor", "Bb" → "B♭ major", "G" → "G major"
   static String _formatKey(String sig) {
     final isMinor = sig.endsWith('m');
     final root = isMinor ? sig.substring(0, sig.length - 1) : sig;
     return '${root.replaceAll('b', '♭')} ${isMinor ? 'minor' : 'major'}';
-  }
-
-  void _toggleMeasure(WidgetRef ref, int measure) {
-    final current = ref.read(measureSelectionProvider);
-    if (current != null &&
-        current.startMeasure == measure &&
-        current.endMeasure == measure) {
-      ref.read(measureSelectionProvider.notifier).state = null;
-    } else {
-      ref.read(measureSelectionProvider.notifier).state =
-          MeasureSelection(measure, measure);
-    }
   }
 }
 
@@ -289,36 +196,36 @@ class _StringLabelPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = ref.watch(stringLabelStyleProvider);
-    void pick(StringLabelStyle v) =>
-        ref.read(stringLabelStyleProvider.notifier).set(v);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text('String labels:', style: TextStyle(fontSize: 13)),
           const SizedBox(width: 12),
-          for (final (value, label, example) in [
-            (StringLabelStyle.always,   'Always',    'A1 A2'),
-            (StringLabelStyle.onChange, 'On change', 'A1 2'),
-            (StringLabelStyle.never,    'Never',     '1 2'),
-          ]) ...[
-            Radio<StringLabelStyle>(
-              value: value,
-              groupValue: style,
-              onChanged: (v) => pick(v!),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-            GestureDetector(
-              onTap: () => pick(value),
-              child: Text(
-                '$label ($example)',
-                style: const TextStyle(fontSize: 13),
+          SegmentedButton<StringLabelStyle>(
+            segments: const [
+              ButtonSegment(
+                value: StringLabelStyle.always,
+                label: Text('Always (A1 A2)'),
               ),
+              ButtonSegment(
+                value: StringLabelStyle.onChange,
+                label: Text('On change (A1 2)'),
+              ),
+              ButtonSegment(
+                value: StringLabelStyle.never,
+                label: Text('Never (1 2)'),
+              ),
+            ],
+            selected: {style},
+            onSelectionChanged: (s) =>
+                ref.read(stringLabelStyleProvider.notifier).set(s.first),
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            const SizedBox(width: 12),
-          ],
+          ),
         ],
       ),
     );
@@ -367,9 +274,12 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   @override
   void initState() {
     super.initState();
-    // Seed a conservative estimate immediately so the WebView doesn't render
-    // behind the tray on the first frame while the real measurement is pending.
-    ref.read(staffViewBottomInsetProvider.notifier).state = 72;
+    // Seed a conservative estimate before the first frame so the WebView
+    // doesn't render behind the tray while the real measurement is pending.
+    // Must be post-frame to avoid mutating a provider during tree build.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(staffViewBottomInsetProvider.notifier).state = 72;
+    });
     _measureTray();
     if (!_hasPeeked) {
       _hasPeeked = true;
@@ -400,6 +310,13 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     final isPlaying = ref.watch(playbackStateProvider).valueOrNull ==
         PlaybackState.playing;
     final theme = Theme.of(context);
+
+    ref.listen(playbackStateProvider, (_, next) {
+      if (next.valueOrNull == PlaybackState.playing && _sheetOpen) {
+        setState(() => _sheetOpen = false);
+        _measureTray();
+      }
+    });
 
     return Column(
       children: [
@@ -459,21 +376,11 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                                 .notifier)
                                             .state = sel,
                                       ),
-                                      ValueListenableBuilder<int?>(
-                                        valueListenable: widget
-                                            .service.currentMeasureNotifier,
-                                        builder: (_, activeMeasure, _) =>
-                                            MeasureSelector(
-                                          measureCount:
-                                              widget.layout.measureCount,
-                                          sections: widget.piece.sections,
-                                          selection: selection,
-                                          onSelectionChanged: (sel) => ref
-                                              .read(measureSelectionProvider
-                                                  .notifier)
-                                              .state = sel,
-                                          activeMeasure: activeMeasure,
-                                        ),
+                                      _ActiveMeasureSelector(
+                                        measureCount: widget.layout.measureCount,
+                                        sections: widget.piece.sections,
+                                        selection: selection,
+                                        currentMeasureNotifier: widget.service.currentMeasureNotifier,
                                       ),
                                     ],
                                   ),
@@ -537,7 +444,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
 
 // ── Compact mode switcher (always-visible icon bar at top of compact layout) ──
 
-class _CompactModeSwitcher extends StatelessWidget {
+class _CompactModeSwitcher extends StatefulWidget {
   final DisplayMode current;
   final ValueChanged<DisplayMode> onChanged;
 
@@ -555,86 +462,73 @@ class _CompactModeSwitcher extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final showLabels = constraints.maxWidth >= 500;
-        return Container(
-          height: 36,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
-          ),
-          child: Row(
-            children: [
-              for (final (mode, icon, label) in _modes)
-                Expanded(
-                  child: _ModeTab(
-                    icon: icon,
-                    label: showLabels ? label : null,
-                    isSelected: current == mode,
-                    onTap: () => onChanged(mode),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  State<_CompactModeSwitcher> createState() => _CompactModeSwitcherState();
 }
 
-class _ModeTab extends StatelessWidget {
-  final IconData icon;
-  final String? label;
-  final bool isSelected;
-  final VoidCallback onTap;
+class _CompactModeSwitcherState extends State<_CompactModeSwitcher>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  const _ModeTab({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
+  int _indexForMode(DisplayMode mode) =>
+      _CompactModeSwitcher._modes.indexWhere((m) => m.$1 == mode);
 
-  Widget _buildTabContent(IconData icon, String? label, Color color) {
-    final l = label;
-    if (l != null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(l, style: TextStyle(fontSize: 12, color: color)),
-        ],
-      );
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: _CompactModeSwitcher._modes.length,
+      vsync: this,
+      initialIndex: _indexForMode(widget.current),
+    );
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        widget.onChanged(_CompactModeSwitcher._modes[_tabController.index].$1);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_CompactModeSwitcher old) {
+    super.didUpdateWidget(old);
+    if (old.current != widget.current) {
+      final idx = _indexForMode(widget.current);
+      if (idx != _tabController.index) {
+        _tabController.animateTo(idx);
+      }
     }
-    return Icon(icon, size: 18, color: color);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = isSelected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        decoration: isSelected
-            ? BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                      color: theme.colorScheme.primary, width: 2.5),
-                ),
-              )
-            : null,
-        alignment: Alignment.center,
-        child: _buildTabContent(icon, label, color),
-      ),
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final showLabels = constraints.maxWidth >= 500;
+        return TabBar(
+          controller: _tabController,
+          tabs: [
+            for (final (_, icon, label) in _CompactModeSwitcher._modes)
+              Tab(
+                height: 36,
+                child: showLabels
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 14),
+                          const SizedBox(width: 4),
+                          Text(label, style: const TextStyle(fontSize: 12)),
+                        ],
+                      )
+                    : Icon(icon, size: 18),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -729,6 +623,128 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
                 height: 140,
                 child: Center(child: CircularProgressIndicator())),
         ],
+      ),
+    );
+  }
+}
+
+// ── Notation view ─────────────────────────────────────────────────────────────
+
+class _NotationView extends ConsumerWidget {
+  final DisplayMode mode;
+  final PieceLayout layout;
+  final Set<int> selectedMeasures;
+  final Map<int, String> sectionLabels;
+  final PlaybackServiceBase service;
+  final String? keySignature;
+
+  const _NotationView({
+    required this.mode,
+    required this.layout,
+    required this.selectedMeasures,
+    required this.sectionLabels,
+    required this.service,
+    this.keySignature,
+  });
+
+  void _toggleMeasure(WidgetRef ref, int measure) {
+    final current = ref.read(measureSelectionProvider);
+    if (current != null &&
+        current.startMeasure == measure &&
+        current.endMeasure == measure) {
+      ref.read(measureSelectionProvider.notifier).state = null;
+    } else {
+      ref.read(measureSelectionProvider.notifier).state =
+          MeasureSelection(measure, measure);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    switch (mode) {
+      case DisplayMode.staff:
+        return ref.watch(staffXmlProvider).when(
+          data: (xml) => xml != null
+              ? StaffView(
+                  musicXml: xml,
+                  highlightNotifier: service.currentHighlightNotifier)
+              : const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        );
+
+      case DisplayMode.staffFingering:
+        return ref.watch(staffFingeringXmlProvider).when(
+          data: (xml) => xml != null
+              ? StaffView(
+                  musicXml: xml,
+                  highlightNotifier: service.currentHighlightNotifier)
+              : const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        );
+
+      case DisplayMode.jianpu:
+        return JianpuView(
+          layout: layout,
+          selectedMeasures: selectedMeasures,
+          sectionLabels: sectionLabels,
+          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          keySignature: keySignature,
+          notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
+        );
+
+      case DisplayMode.fingering:
+        return FingeringView(
+          layout: layout,
+          selectedMeasures: selectedMeasures,
+          sectionLabels: sectionLabels,
+          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
+        );
+
+      case DisplayMode.combined:
+        return FingeringView(
+          layout: layout,
+          selectedMeasures: selectedMeasures,
+          sectionLabels: sectionLabels,
+          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          combined: true,
+          notifierForMeasure: service.notifierForMeasure,
+          currentMeasureNotifier: service.currentMeasureNotifier,
+        );
+    }
+  }
+}
+
+// ── MeasureSelector wired to the playback active-measure notifier ─────────────
+
+class _ActiveMeasureSelector extends ConsumerWidget {
+  final int measureCount;
+  final List<Section> sections;
+  final MeasureSelection? selection;
+  final ValueListenable<int?> currentMeasureNotifier;
+
+  const _ActiveMeasureSelector({
+    required this.measureCount,
+    required this.sections,
+    required this.selection,
+    required this.currentMeasureNotifier,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: currentMeasureNotifier,
+      builder: (_, activeMeasure, _) => MeasureSelector(
+        measureCount: measureCount,
+        sections: sections,
+        selection: selection,
+        onSelectionChanged: (sel) =>
+            ref.read(measureSelectionProvider.notifier).state = sel,
+        activeMeasure: activeMeasure,
       ),
     );
   }
