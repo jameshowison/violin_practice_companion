@@ -1,5 +1,7 @@
 ## Flutter iOS Simulator Dev Server Pattern
 
+Do not use flutter-all:flutter-device-orchestrator to launch the app; it doesn't know the fifo pattern.
+
 Treat `flutter run` as a persistent dev server for the session, not a one-shot command.
 The primary dev target is the **iPhone 17 simulator** (device ID `AE8AEC05-B7AE-4A80-873E-426EF51146F1`).
 
@@ -64,6 +66,13 @@ mcp__marionette__tap(coordinates: {x, y})   # tap by screen coords
 mcp__marionette__get_logs()                  # app stdout/flutter: logs
 mcp__marionette__hot_reload()                # trigger reload via MCP
 ```
+
+**Known limitation — WebView (platform views) are always blank in screenshots:**
+`webview_flutter` on iOS uses a native `WKWebView`, which is a Flutter "platform view" — it renders outside Flutter's own rendering pipeline. Marionette's `take_screenshots` calls `RepaintBoundary.toImage()` internally, which captures platform views as solid white/blank. This is a Flutter engine limitation ([flutter#25306](https://github.com/flutter/flutter/issues/25306), [flutter#163639](https://github.com/flutter/flutter/issues/163639)) with no workaround in the Flutter SDK as of 2026.
+
+Practically: any screen that contains a `StaffView` (the OSMD WebView) will show a blank white rectangle in Marionette screenshots. Use screenshots to verify the surrounding Flutter UI (AppBar, playback controls, tray layout) but **not** to verify staff notation rendering. To verify staff content, look at the simulator window directly or use the iOS Simulator's own screenshot tool.
+
+The main Marionette-visible alternatives would be `verovio_flutter` (FFI, outputs SVG rendered via `flutter_svg`) or exporting OSMD's SVG and displaying it with `flutter_svg` instead of a WebView. Both lose live cursor animation and require significant rework. We're staying with OSMD/WebView for rendering quality; accept the blank-screenshot limitation.
 
 **Troubleshooting:**
 - `Unknown method "ext.flutter.marionette.getVersion"` → version mismatch; ensure `marionette_flutter` in `pubspec.yaml` matches `marionette_mcp` (both should be `^0.5.0`).
