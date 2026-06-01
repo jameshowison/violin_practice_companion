@@ -6,5 +6,8 @@
       "Bash(/opt/homebrew/bin/flutter test *)",
       "Bash(/opt/homebrew/Caskroom/flutter/3.44.0/flutter/bin/cache/dart-sdk/bin/dart analyze *)"
     ]
+  },
+  "enabledPlugins": {
+    "flutter-all@flutter-claude-code": true
   }
 }
