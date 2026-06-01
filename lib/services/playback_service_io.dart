@@ -74,21 +74,21 @@ class PlaybackService extends PlaybackServiceBase {
   void onTick(double playbackTime, MidiData data) {
     if (!_midiReady || _sfId == null) return;
 
-    // Trigger note-ons
+    // Note-offs before note-ons: prevents outgoing same-pitch note from
+    // immediately silencing the newly started note in the same tick.
+    while (_nextOffIdx < _sortedByOffset.length &&
+        _sortedByOffset[_nextOffIdx].offsetSeconds <= playbackTime) {
+      final n = _sortedByOffset[_nextOffIdx];
+      _midi.stopNote(sfId: _sfId!, channel: _channel, key: n.midiNote);
+      _nextOffIdx++;
+    }
+
     while (_nextOnIdx < data.notes.length &&
         data.notes[_nextOnIdx].onsetSeconds <= playbackTime) {
       final n = data.notes[_nextOnIdx];
       _midi.playNote(
           sfId: _sfId!, channel: _channel, key: n.midiNote, velocity: _velocity);
       _nextOnIdx++;
-    }
-
-    // Trigger note-offs
-    while (_nextOffIdx < _sortedByOffset.length &&
-        _sortedByOffset[_nextOffIdx].offsetSeconds <= playbackTime) {
-      final n = _sortedByOffset[_nextOffIdx];
-      _midi.stopNote(sfId: _sfId!, channel: _channel, key: n.midiNote);
-      _nextOffIdx++;
     }
   }
 }
