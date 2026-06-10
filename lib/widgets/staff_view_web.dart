@@ -86,7 +86,7 @@ class _StaffViewState extends ConsumerState<StaffView> {
       clearHighlight();
       return;
     }
-    _postPositionCursor(ev.beatPosition, ev.isLong || ev.noteIndex == 0);
+    _postPositionCursor(ev.beatPosition);
   }
 
   void _postScore(String xml) {
@@ -98,11 +98,11 @@ class _StaffViewState extends ConsumerState<StaffView> {
     );
   }
 
-  void _postPositionCursor(double beatPosition, bool isLong) {
+  void _postPositionCursor(double beatPosition) {
     final cw = _frame?.contentWindow;
     if (!_frameLoaded || cw == null) return;
     cw.postMessage(
-      jsonEncode({'type': 'positionCursor', 'beat': beatPosition, 'isLong': isLong}).toJS,
+      jsonEncode({'type': 'positionCursor', 'beat': beatPosition}).toJS,
       '*'.toJS,
     );
   }
@@ -125,9 +125,19 @@ class _StaffViewState extends ConsumerState<StaffView> {
     );
   }
 
+  void _sendSpacing(double val) {
+    final cw = _frame?.contentWindow;
+    if (!_frameLoaded || cw == null) return;
+    cw.postMessage(
+      jsonEncode({'type': 'setSpacing', 'val': val}).toJS,
+      '*'.toJS,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(staffViewBottomInsetProvider, (_, px) => _sendBottomInset(px));
+    ref.listen(staffSpacingProvider, (_, val) => _sendSpacing(val));
     return HtmlElementView(viewType: _viewType);
   }
 }

@@ -59,6 +59,14 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
 // Updated by _CompactPieceLayoutState; read by StaffView to inform scroll logic.
 final staffViewBottomInsetProvider = StateProvider<double>((_) => 0);
 
+// ── Staff spacing (MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10) ──
+// Exposed as constants so tests can assert min < max (a zero-range slider
+// cannot claim drag gestures and they leak to parent handlers like Drawer close).
+const staffSpacingMin = 0.1;
+const staffSpacingMax = 1.5;
+const staffSpacingDefault = 0.5;
+final staffSpacingProvider = StateProvider<double>((_) => staffSpacingDefault);
+
 // ── Measures per row (updated at runtime from screen width) ──────────────────
 
 final measuresPerRowProvider = StateProvider<int>((_) => 4);
@@ -100,7 +108,7 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   if (layout == null) return null;
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
-  xml = layout.injectSystemBreaks(xml);
+  xml = layout.stripLayoutHints(xml);
   return FingeringXmlInjector.stripFingerings(xml);
 });
 
@@ -112,7 +120,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final style = ref.watch(stringLabelStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
-  xml = layout.injectSystemBreaks(xml);
+  xml = layout.stripLayoutHints(xml);
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
   return xml;

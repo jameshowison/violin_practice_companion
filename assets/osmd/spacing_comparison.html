@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>OSMD Spacing Comparison</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #f0f0f0; }
+    h1 { text-align: center; font-size: 16px; padding: 12px; margin: 0; background: #222; color: white; }
+    .cols { display: flex; gap: 2px; height: calc(100vh - 41px); }
+    .col { flex: 1; background: white; overflow-y: auto; display: flex; flex-direction: column; }
+    .col-header { padding: 8px 12px; background: #444; color: white; font-size: 13px; font-weight: bold; position: sticky; top: 0; z-index: 1; }
+    .col-header span { font-weight: normal; opacity: 0.7; }
+    .col-body { flex: 1; padding: 0; }
+    .col-body div { width: 100%; }
+  </style>
+</head>
+<body>
+<h1>OSMD Inter-Staff Spacing — Before vs After</h1>
+<div class="cols">
+  <div class="col">
+    <div class="col-header">Before <span>(default — MinSkyBottomDistBetweenSystems unset)</span></div>
+    <div class="col-body"><div id="before"></div></div>
+  </div>
+  <div class="col">
+    <div class="col-header">After <span>(MinSkyBottomDistBetweenSystems = 1.0)</span></div>
+    <div class="col-body"><div id="after"></div></div>
+  </div>
+</div>
+<script src="https://unpkg.com/opensheetmusicdisplay@1.9.9/build/opensheetmusicdisplay.min.js"></script>
+<script>
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise>
+  <identification><encoding><software>MuseScore 1.3</software><encoding-date>2015-04-13</encoding-date></encoding></identification>
+  <defaults>
+    <scaling><millimeters>13.456</millimeters><tenths>40</tenths></scaling>
+    <page-layout>
+      <page-height>882.878</page-height><page-width>624.257</page-width>
+      <page-margins type="both">
+        <left-margin>29.7265</left-margin><right-margin>29.7265</right-margin>
+        <top-margin>29.7265</top-margin><bottom-margin>59.4531</bottom-margin>
+      </page-margins>
+    </page-layout>
+  </defaults>
+  <part-list>
+    <score-part id="P1">
+      <part-name></part-name>
+      <score-instrument id="P1-I3"><instrument-name></instrument-name></score-instrument>
+      <midi-instrument id="P1-I3"><midi-channel>1</midi-channel><midi-program>41</midi-program><volume>78.7402</volume><pan>0</pan></midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1" width="201.69">
+      <print><system-layout><system-margins><left-margin>2.50</left-margin><right-margin>-0.00</right-margin></system-margins><top-system-distance>206.55</top-system-distance></system-layout></print>
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>3</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="3">
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>up</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="4">
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="5">
+      <print new-system="yes"><system-layout><system-margins><left-margin>2.50</left-margin><right-margin>0.00</right-margin></system-margins><system-distance>119.05</system-distance></system-layout></print>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="6">
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="7">
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>up</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="8">
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="9">
+      <print new-system="yes"><system-layout><system-margins><left-margin>2.50</left-margin><right-margin>0.00</right-margin></system-margins><system-distance>119.05</system-distance></system-layout></print>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="10">
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="11">
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="12">
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+    </measure>
+    <measure number="13">
+      <print new-system="yes"><system-layout><system-margins><left-margin>2.50</left-margin><right-margin>-0.00</right-margin></system-margins><system-distance>119.05</system-distance></system-layout></print>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="14">
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="15">
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>up</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+    </measure>
+    <measure number="16">
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><stem>down</stem></note>
+      <note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type><stem>down</stem></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>`;
+
+async function render(containerId, applyTight) {
+  const opts = {
+    autoResize: false,
+    drawTitle: false,
+    drawSubtitle: false,
+    drawPartNames: false,
+    drawMeasureNumbers: false,
+    newSystemFromXML: true,
+    stretchLastSystemLine: true,
+  };
+  const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(containerId, opts);
+  osmd.EngravingRules.RenderClefsAtBeginningOfStaffline = false;
+  if (applyTight) {
+    osmd.EngravingRules.MinSkyBottomDistBetweenSystems = 1.0;
+  }
+  await osmd.load(xml);
+  osmd.render();
+}
+
+render('before', false);
+render('after', true);
+</script>
+</body>
+</html>

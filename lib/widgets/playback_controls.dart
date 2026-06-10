@@ -93,8 +93,8 @@ class _PlaybackControlsState extends ConsumerState<PlaybackControls> {
               child: Slider(
                 value: _tempo,
                 min: 40,
-                max: 120,
-                divisions: 80,
+                max: 200,
+                divisions: 160,
                 label: '${_tempo.round()} BPM',
                 onChanged: (v) => setState(() => _tempo = v),
                 onChangeEnd: (v) {

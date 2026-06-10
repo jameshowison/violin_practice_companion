@@ -31,6 +31,11 @@ class _StaffViewState extends ConsumerState<StaffView> {
     _controller.runJavaScript('window.setBottomInset($px)');
   }
 
+  void _sendSpacing(double val) {
+    if (!_osmdReady) return;
+    _controller.runJavaScript('window.setSpacing($val)');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +51,7 @@ class _StaffViewState extends ConsumerState<StaffView> {
       ..setNavigationDelegate(NavigationDelegate(
         onPageFinished: (_) {
           _osmdReady = true;
+          _sendSpacing(ref.read(staffSpacingProvider));
           _loadScore();
           _onHighlight();
           _sendBottomInset(ref.read(staffViewBottomInsetProvider));
@@ -78,8 +84,7 @@ class _StaffViewState extends ConsumerState<StaffView> {
       _controller.runJavaScript('window.clearHighlight()');
       return;
     }
-    _controller.runJavaScript(
-        'window.positionCursor(${ev.beatPosition}, ${ev.isLong || ev.noteIndex == 0})');
+    _controller.runJavaScript('window.positionCursor(${ev.beatPosition})');
   }
 
   Future<void> _loadScore() async {
@@ -94,6 +99,7 @@ class _StaffViewState extends ConsumerState<StaffView> {
   @override
   Widget build(BuildContext context) {
     ref.listen(staffViewBottomInsetProvider, (_, px) => _sendBottomInset(px));
+    ref.listen(staffSpacingProvider, (_, val) => _sendSpacing(val));
     if (_errorMessage != null) {
       return Center(
         child: Text('Staff view error: $_errorMessage',
