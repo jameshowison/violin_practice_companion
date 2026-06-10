@@ -1,0 +1,28 @@
+PODS:
+  - flutter_doc_scanner (0.0.1):
+    - FlutterMacOS
+  - flutter_midi_pro (0.0.1):
+    - FlutterMacOS
+  - FlutterMacOS (1.0.0)
+
+DEPENDENCIES:
+  - flutter_doc_scanner (from `Flutter/ephemeral/.symlinks/plugins/flutter_doc_scanner/macos`)
+  - flutter_midi_pro (from `Flutter/ephemeral/.symlinks/plugins/flutter_midi_pro/macos`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+
+EXTERNAL SOURCES:
+  flutter_doc_scanner:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_doc_scanner/macos
+  flutter_midi_pro:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_midi_pro/macos
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+
+SPEC CHECKSUMS:
+  flutter_doc_scanner: 308ccc1072ebacea74171f50989501f884e72f83
+  flutter_midi_pro: 4c5d8ef49905c7d72d7dc94f5f110a0137d95252
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+
+PODFILE CHECKSUM: 15441f2a97841b1ca6c829d8df4fb11454111c4b
+
+COCOAPODS: 1.16.2

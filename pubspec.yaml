@@ -24,6 +24,13 @@ dependencies:
   flutter_midi_pro: ^3.1.6
   marionette_flutter: ^0.5.0
 
+  # OMR scan-to-MusicXML pipeline (mobile/desktop only — see
+  # lib/services/omr_service*.dart for the web conditional-import split).
+  homr_omr:
+    path: ../homr_flutter/packages/homr_omr
+  flutter_doc_scanner: ^0.0.20
+  image_cropper: ^12.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
