@@ -71,11 +71,17 @@ Association or any other method organisation.*
 flutter pub get
 flutter run                  # development
 flutter build apk            # Android
+flutter build ios --no-codesign  # iOS
+flutter build macos          # macOS
 flutter build web            # Web / PWA
 ```
 
 iOS requires an Apple developer account for device installation. The web build
 works on iPhone Safari as a PWA with no account required.
+
+The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
+its ONNX models — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml) below. It
+is not available on the web build.
 
 ## Distribution
 
@@ -94,16 +100,42 @@ Contributions welcome. The most useful contributions right now:
 
 See `docs/PHASE1.md` through `docs/PHASE4.md` for the implementation roadmap.
 
-## OMR Engine Status
+## OMR (Scan-to-MusicXML)
 
-Phase 4 (scan pipeline) is evaluating OMR engines before mobile embedding:
+The "scan a page" feature is powered by [`homr`](https://github.com/liebharc/homr),
+ported to a self-contained on-device Flutter package (`homr_omr`) and consumed
+as a sibling path dependency:
 
-| Engine | Lightly Row | Happy Farmer | Status |
-|--------|-------------|--------------|--------|
-| [Oemer](https://github.com/BreezeWhite/oemer) | 30.4% | 0% | **Rejected** — time signatures not parsed |
-| [Homr](https://github.com/liebharc/homr) | **100%** | **96.4%** | **Selected** — requires 50% binarization pre-processing; also 100% on Gossec Gavotte (193 notes) |
+```yaml
+homr_omr:
+  path: ../homr_flutter/packages/homr_omr
+```
 
-Full findings in `docs/omr_evaluation/`.
+This means **the `homr_flutter` repo must be checked out next to this one**
+(as a sibling directory) for `flutter pub get` to resolve.
+
+Pipeline (`lib/services/omr_service*.dart`): document scan
+(`flutter_doc_scanner`) → binarize (`preprocessImage`) → crop to the music
+region (`image_cropper`) → on-device ONNX inference (segmentation +
+transformer recognition) → assembled MusicXML, parsed by `MusicXmlParser` into
+a `ParsedPiece`.
+
+**Mobile/desktop only.** `flutter_onnxruntime` and `flutter_doc_scanner` don't
+support web, so `omr_service.dart` conditional-imports a stub on web
+(`omr_service_web.dart`) that throws `UnsupportedError`. A server-side `homr`
+(Python) backend for a future web/laptop-camera path is planned but not built.
+
+**Platform requirements** (set by `flutter_onnxruntime`):
+- iOS deployment target 16.0+
+- macOS deployment target 14.0+
+
+**Models** (~147MB of FP16 ONNX weights, AGPL-licensed via `liebharc/homr`) are
+fetched by `homr_flutter/tools/fetch_models.py` into
+`homr_flutter/packages/homr_omr/assets/models/` and bundled as package assets —
+run that script once in the sibling `homr_flutter` checkout before building.
+
+OMR accuracy on Suzuki Book 1 (homr_flutter, 2026-06-09): **17/18 perfect**
+(SER=0%). Full findings in `homr_flutter/docs/omr_evaluation/`.
 
 ## Licence
 
