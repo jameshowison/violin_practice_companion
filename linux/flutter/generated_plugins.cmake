@@ -3,6 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter_doc_scanner
+  flutter_onnxruntime
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
