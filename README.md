@@ -98,7 +98,8 @@ Contributions welcome. The most useful contributions right now:
 - Language translations (the UI targets English and Simplified Chinese)
 - Testing the OMR pipeline against real book photos
 
-See `docs/PHASE1.md` through `docs/PHASE4.md` for the implementation roadmap.
+See `docs/explore.md` for the development history and decisions made so far,
+and `docs/plan.md` for the remaining roadmap.
 
 ## OMR (Scan-to-MusicXML)
 
