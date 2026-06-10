@@ -1,0 +1,6 @@
+{
+  "sections": [
+    { "label": "A", "startMeasure": 1, "endMeasure": 16 },
+    { "label": "B", "startMeasure": 17, "endMeasure": 32 }
+  ]
+}

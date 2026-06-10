@@ -82,6 +82,28 @@ class PieceDetailScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Settings', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Staff spacing'),
+                    Text(ref.watch(staffSpacingProvider).toStringAsFixed(1),
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+                Slider(
+                  value: ref.watch(staffSpacingProvider),
+                  min: staffSpacingMin,
+                  max: staffSpacingMax,
+                  divisions: ((staffSpacingMax - staffSpacingMin) / 0.05).round(),
+                  onChanged: (v) =>
+                      ref.read(staffSpacingProvider.notifier).state = v,
+                ),
+                if (displayMode == DisplayMode.staffFingering) ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const _StringLabelPicker(),
+                ],
                 const SizedBox(height: 16),
               ],
             ),
@@ -150,8 +172,6 @@ class PieceDetailScreen extends ConsumerWidget {
                           ref.read(displayModeProvider.notifier).state = mode,
                     ),
                   ),
-                  if (displayMode == DisplayMode.staffFingering)
-                    _StringLabelPicker(ref: ref),
                   Expanded(
                     child: notationView,
                   ),
@@ -189,45 +209,32 @@ class PieceDetailScreen extends ConsumerWidget {
   }
 }
 
-class _StringLabelPicker extends StatelessWidget {
-  final WidgetRef ref;
-  const _StringLabelPicker({required this.ref});
+class _StringLabelPicker extends ConsumerWidget {
+  const _StringLabelPicker();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(stringLabelStyleProvider);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('String labels:', style: TextStyle(fontSize: 13)),
-          const SizedBox(width: 12),
-          SegmentedButton<StringLabelStyle>(
-            segments: const [
-              ButtonSegment(
-                value: StringLabelStyle.always,
-                label: Text('Always (A1 A2)'),
-              ),
-              ButtonSegment(
-                value: StringLabelStyle.onChange,
-                label: Text('On change (A1 2)'),
-              ),
-              ButtonSegment(
-                value: StringLabelStyle.never,
-                label: Text('Never (1 2)'),
-              ),
-            ],
-            selected: {style},
-            onSelectionChanged: (s) =>
-                ref.read(stringLabelStyleProvider.notifier).set(s.first),
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('String labels'),
+        const SizedBox(height: 8),
+        SegmentedButton<StringLabelStyle>(
+          segments: const [
+            ButtonSegment(value: StringLabelStyle.always,   label: Text('Always')),
+            ButtonSegment(value: StringLabelStyle.onChange, label: Text('On change')),
+            ButtonSegment(value: StringLabelStyle.never,    label: Text('Never')),
+          ],
+          selected: {style},
+          onSelectionChanged: (s) =>
+              ref.read(stringLabelStyleProvider.notifier).set(s.first),
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -271,6 +278,17 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     });
   }
 
+  // Closes the sheet and re-measures the tray AFTER the AnimatedSize animation
+  // (250 ms) finishes. Measuring immediately captures the pre-collapse height,
+  // leaving a grey gap between the content and the compact tray.
+  void _closeSheet() {
+    if (!_sheetOpen) return;
+    setState(() => _sheetOpen = false);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _measureTray();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -286,7 +304,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
       Future.delayed(const Duration(milliseconds: 600), () {
         if (mounted) setState(() { _sheetOpen = true; _measureTray(); });
         Future.delayed(const Duration(milliseconds: 2500), () {
-          if (mounted) setState(() { _sheetOpen = false; _measureTray(); });
+          if (mounted) _closeSheet();
         });
       });
     }
@@ -307,25 +325,14 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   Widget build(BuildContext context) {
     final selection = widget.selection;
     final displayMode = widget.displayMode;
-    final isPlaying = ref.watch(playbackStateProvider).valueOrNull ==
-        PlaybackState.playing;
     final theme = Theme.of(context);
 
     ref.listen(playbackStateProvider, (_, next) {
-      if (next.valueOrNull == PlaybackState.playing && _sheetOpen) {
-        setState(() => _sheetOpen = false);
-        _measureTray();
-      }
+      if (next.valueOrNull == PlaybackState.playing) _closeSheet();
     });
 
     return Column(
       children: [
-        // String-label picker only when needed (staffFingering mode).
-        if (displayMode == DisplayMode.staffFingering)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: _StringLabelPicker(ref: ref),
-          ),
         // ── music + bottom sheet overlay ─────────────────────────
         Expanded(
           child: Stack(
@@ -396,8 +403,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                             setState(() => _sheetOpen = true);
                             _measureTray();
                           } else if (d.delta.dy > 6 && _sheetOpen) {
-                            setState(() => _sheetOpen = false);
-                            _measureTray();
+                            _closeSheet();
                           }
                         },
                         child: Column(
@@ -405,8 +411,12 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                           children: [
                             GestureDetector(
                               onTap: () {
-                                setState(() => _sheetOpen = !_sheetOpen);
-                                _measureTray();
+                                if (_sheetOpen) {
+                                  _closeSheet();
+                                } else {
+                                  setState(() => _sheetOpen = true);
+                                  _measureTray();
+                                }
                               },
                               child: Padding(
                                 padding:

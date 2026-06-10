@@ -9,5 +9,9 @@
   },
   "dependencies": {
     "opensheetmusicdisplay": "^1.9.9"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.3",
+    "jsdom": "^29.1.1"
   }
 }
