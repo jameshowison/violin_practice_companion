@@ -5,10 +5,18 @@ iteration, etc.) see `docs/explore.md`.
 
 ## Next step
 
-Start **§1.1 Data model changes** below — `Piece` needs file-path fields
-before `PieceRepository.savePiece()` (§1.2) or the scan UI (§1.3) can be
-built. This is the active feature; everything else in this file is
-lower-priority and can wait.
+§1.1–1.3 are done (data model, repository persistence, scan UI), and the
+scan-to-save round trip has been verified on a physical iPhone (profile mode,
+USB-tethered — see §1.3's permissions note for the `Info.plist` fix that was
+required). Playback of a scanned piece from the piece list has also been
+confirmed working. What remains of **§1.4 Verification**: matches the
+gold-standard note count, and survives an app restart (`index.json`
+round-trip). Also confirm cancel-at-scan/cancel-at-crop return cleanly with no
+orphaned files.
+
+The "ready for next scan" review-screen UX (single-page-only scans) was
+investigated and the standard `VNDocumentCameraViewController` flow was kept
+as-is — see `docs/explore.md` §9.
 
 ---
 
@@ -32,82 +40,67 @@ Everything downstream of `MusicXmlParser.parse` already works for bundled
 fixtures — this work is entirely about getting a scanned MusicXML string into
 a `Piece` the existing playback/notation UI can consume.
 
-### 1.1 Data model changes
+### 1.1 Data model changes — done
 
-`lib/models/piece.dart` currently:
-```dart
-class Piece {
-  final String id;
-  final String title;
-  final String musicXmlAssetPath;
-  final String sectionsAssetPath;
-  final List<Section> sections;
-}
-```
+`lib/models/piece.dart`: `musicXmlAssetPath` and `sectionsAssetPath` are now
+nullable; added `musicXmlFilePath` (nullable). A constructor assert enforces
+exactly one of `musicXmlAssetPath`/`musicXmlFilePath` is set. `copyWith`
+passes the new field through unchanged.
 
-Both path fields assume `rootBundle` assets. Scanned pieces are written to the
-app's documents directory at runtime, so they need a non-asset path.
+### 1.2 PieceRepository changes — done
 
-**Recommendation:** add `musicXmlFilePath` (nullable) alongside the existing
-`musicXmlAssetPath` (also made nullable); exactly one is set per piece. Same
-pattern for sections, but sections are optional anyway (user-scanned pieces
-start with `sections: const []`). The existing `copyWith` for `sections`
-needs no change beyond whatever new fields are added.
+Added a `piece_storage` module following the existing
+`omr_service_io.dart`/`omr_service_web.dart` conditional-import pattern
+(`dart:io` isn't available on web):
+- `lib/services/piece_storage_io.dart`: `loadScannedPieces()`,
+  `saveScannedPiece(title, musicXml)`, `readScannedMusicXml(path)`. Writes
+  `<docs>/scanned_pieces/<slug>_<timestamp>.musicxml` +
+  `<docs>/scanned_pieces/index.json` (`{id, title, musicXmlFilePath}` list).
+  ID = slugified title + `DateTime.now().millisecondsSinceEpoch` (no new
+  `uuid` dependency needed).
+- `lib/services/piece_storage_web.dart`: stub — `loadScannedPieces()` returns
+  `[]`, `saveScannedPiece`/`readScannedMusicXml` throw `UnsupportedError`
+  (matches `omr_service_web.dart`'s stance that scanning is unavailable on
+  web).
+- `lib/services/piece_storage.dart`: conditional export.
 
-### 1.2 PieceRepository changes
+`PieceRepository.loadAll()` appends `loadScannedPieces()` to the fixture
+list; `loadMusicXml()` branches on which path field is set;
+`savePiece(title, musicXml)` delegates to `saveScannedPiece`. Section
+persistence skipped for v1 (scanned pieces have `sections: const []`), as
+planned.
 
-`lib/services/piece_repository.dart` currently has:
-- `_fixtures`: static list of bundled demo pieces (3 core + 10 `abc_*`/`homr_*`
-  OMR-comparison pairs, songs 05/10/14/15/17 — see §3 for their fate).
-- `loadAll()` and `loadMusicXml()`: both `rootBundle.loadString` only.
+### 1.3 Scan UI flow — done
 
-Needed additions:
-- `savePiece(String title, String musicXml) → Future<Piece>`:
-  - Get app documents dir (`path_provider`'s `getApplicationDocumentsDirectory()`).
-  - Write `<docs>/scanned_pieces/<id>.musicxml` (id = slug of title + uuid/timestamp
-    to avoid collisions).
-  - Construct and return a `Piece` with `musicXmlFilePath` set,
-    `musicXmlAssetPath: null`, `sections: const []`.
-  - Persist `<docs>/scanned_pieces/index.json` (list of
-    `{id, title, musicXmlFilePath}`) — the only new "database" needed; no
-    sqlite/hive at this scale.
-- `loadAll()`: after building the fixture list, read `index.json` (if present)
-  and append user-scanned pieces.
-- `loadMusicXml(Piece piece)`: branch on which path field is set —
-  `rootBundle.loadString(musicXmlAssetPath)` vs.
-  `File(musicXmlFilePath).readAsString()`.
-- Section persistence for scanned pieces: skip for v1 (empty `sections`). If
-  the app already has section-editing UI, hook a `saveSections()` writing
-  `<docs>/scanned_pieces/<id>_sections.json` against an in-memory `Section`
-  list — only build this if that UI already exists.
+`lib/screens/scan_screen.dart`: title field (defaults to
+`Untitled <ISO timestamp>` if empty) → "Scan" button →
+`OmrService().scan(onProgress: ..., title: ...)`, with a progress label
+driven by `OmrScanStage`. `null` result (user cancel) pops back with no
+error. On success, `PieceRepository.savePiece()` + `ref.invalidate(piecesProvider)`,
+then navigates to `PieceDetailScreen`. Errors are caught generically (covers
+`OmrException` plus other pipeline failures) and shown in an AlertDialog with
+Cancel/Retry.
 
-### 1.3 Scan UI flow
+Entry point: `FloatingActionButton.extended` ("Scan a page") on
+`PieceListScreen`.
 
-New screen, e.g. `lib/screens/scan_screen.dart`:
-
-1. Title entry (text field, optional — defaults to "Untitled" or a timestamp).
-2. "Scan" button → `OmrService().scan(onProgress: ..., title: ...)`.
-3. Progress UI driven by `OmrScanStage` (`capturing` → `preprocessing` →
-   `cropping` → `segmenting` → `detecting` → `recognising` → `assembling`) —
-   a simple stepper or progress label is enough. The on-device pipeline takes
-   up to ~15s, so a progress indicator matters.
-4. On `null` result (user cancelled scan or crop): pop back, no error.
-5. On success: `PieceRepository.savePiece(title, musicXml)`, then navigate to
-   the piece detail/practice screen (reuse existing fixture-piece navigation).
-6. On `OmrException`: error dialog with retry — don't crash. The on-device
-   pipeline can fail on poor scans (known failure modes documented in
-   `homr_flutter`'s `docs/omr_evaluation/remaining_issues.md`, e.g.
-   spine-fold clef clipping).
-
-Entry point: add a "Scan a page" action to the piece list / home screen
-(FAB or app-bar action).
+**iOS permissions (required for physical-device builds):** `ios/Runner/Info.plist`
+needed `NSCameraUsageDescription` (for `flutter_doc_scanner`'s
+`VNDocumentCameraViewController`) and `NSPhotoLibraryUsageDescription` (for
+`image_cropper`). Without these, iOS hard-aborts the process the instant the
+camera is requested — the UI appears to "hang" on the scanner's placeholder
+screen with no camera feed, then the whole app dies (`abort with payload`).
+Both keys are now in `Info.plist`. This doesn't affect the simulator (which
+fails earlier, before touching the camera permission system).
 
 ### 1.4 Verification
 
-- Manual end-to-end test on a physical device: scan a known Suzuki Book 1 page
-  (Lightly Row — the cleanest 0%-SER case), confirm the imported piece plays
-  back correctly (staff view + jianpu/fingering + MIDI playback) and matches
-  the gold-standard note count.
+- ✅ Scan-to-save round trip verified end-to-end on a physical device
+  (iPhone, profile mode, tethered via USB): scan completed without errors,
+  `PieceRepository.savePiece()` succeeded.
+- Remaining: confirm the imported piece plays back correctly from the piece
+  list (staff view + jianpu/fingering + MIDI playback) and matches the
+  gold-standard note count for the scanned page.
 - Confirm cancel-at-scan and cancel-at-crop both return cleanly with no
   orphaned files.
 - Confirm a second app launch still shows the scanned piece (`index.json`
