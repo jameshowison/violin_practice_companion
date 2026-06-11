@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/piece.dart';
 import '../models/section.dart';
+import 'piece_storage.dart';
 
 class PieceRepository {
   static const _fixtures = [
@@ -103,10 +104,20 @@ class PieceRepository {
         sections: sections,
       ));
     }
+    pieces.addAll(await loadScannedPieces());
     return pieces;
   }
 
   Future<String> loadMusicXml(Piece piece) async {
-    return rootBundle.loadString(piece.musicXmlAssetPath);
+    final assetPath = piece.musicXmlAssetPath;
+    if (assetPath != null) return rootBundle.loadString(assetPath);
+    return readScannedMusicXml(piece.musicXmlFilePath!);
+  }
+
+  /// Persists a scanned piece's MusicXML and returns the resulting [Piece].
+  /// The returned piece has empty `sections` — section editing for scanned
+  /// pieces is a future enhancement.
+  Future<Piece> savePiece(String title, String musicXml) {
+    return saveScannedPiece(title, musicXml);
   }
 }

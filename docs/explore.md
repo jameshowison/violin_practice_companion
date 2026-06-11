@@ -288,3 +288,31 @@ first mobile build doesn't surprise. This discipline was established in Phase
 milestone — no retrofitting was needed for either. The "smell check after
 every commit" checklist in `CLAUDE.md` is the enforcement mechanism going
 forward.
+
+---
+
+## 9. Document scanner mode — keep VNDocumentCameraViewController (2026-06-11)
+
+After getting the standard scan flow working end-to-end on a physical device
+(§1.3 in `docs/plan.md`), the multi-page "ready for next scan"/save review
+screen seemed like unnecessary friction for an app that only ever scans one
+page. `flutter_doc_scanner` offers
+`useAutomaticSinglePictureProcessing: true`, which swaps iOS's standard
+`VNDocumentCameraViewController` for the plugin's own `AutoScanViewController`
+(single capture button, Vision-based rectangle detection/perspective crop, no
+review step).
+
+**Tried and reverted.** On a real page of sheet music, `AutoScanViewController`'s
+rectangle detection/crop was poor and its output had bad contrast — both of
+which `VNDocumentCameraViewController`'s built-in document-scan mode handles
+well (it does significant enhancement: edge detection, perspective correction,
+and contrast/B&W cleanup tuned for documents). The standard scanner is "doing a
+lot for us" that the auto-single-picture path doesn't replicate.
+
+**Decision:** keep `getScannedDocumentAsImages(page: 1, imageFormat:
+ImageFormat.jpeg)` without `useAutomaticSinglePictureProcessing`. The
+multi-page review UI's "ready for next scan" framing is mildly confusing for
+single-page use, but that's a copy/UX nit, not worth trading away VisionKit's
+detection and contrast quality. If this is revisited, look for a way to
+configure/relabel the existing `VNDocumentCameraViewController` review screen
+rather than switching scanner implementations.

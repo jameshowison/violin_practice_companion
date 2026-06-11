@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/providers.dart';
 import 'piece_detail_screen.dart';
+import 'scan_screen.dart';
 
 class PieceListScreen extends ConsumerWidget {
   const PieceListScreen({super.key});
@@ -38,6 +39,16 @@ class PieceListScreen extends ConsumerWidget {
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error loading pieces: $e')),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const ValueKey('scan_page_fab'),
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ScanScreen()),
+          );
+        },
+        icon: const Icon(Icons.document_scanner),
+        label: const Text('Scan a page'),
       ),
     );
   }
