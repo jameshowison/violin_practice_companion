@@ -12,6 +12,14 @@ class MusicXmlParser {
     final keyMode = modeStr == 'minor' ? KeyMode.minor : KeyMode.major;
     final keySignature = _fifthsToKeyName(fifths, keyMode);
 
+    final divisions =
+        int.tryParse(doc.findAllElements('divisions').firstOrNull?.innerText ?? '') ?? 1;
+    final timeEl = doc.findAllElements('time').firstOrNull;
+    final beatsPerMeasure =
+        int.tryParse(timeEl?.findElements('beats').firstOrNull?.innerText ?? '') ?? 4;
+    final beatType =
+        int.tryParse(timeEl?.findElements('beat-type').firstOrNull?.innerText ?? '') ?? 4;
+
     final measures = <Measure>[];
     for (final measureEl in doc.findAllElements('measure')) {
       final numberStr = measureEl.getAttribute('number') ?? '1';
@@ -71,6 +79,16 @@ class MusicXmlParser {
           scoreFinger = int.tryParse(fingerEl.innerText);
         }
 
+        // The visible accidental sign (may be redundant with the key sig, e.g.
+        // a courtesy natural). Kept separate from the sounding alter so the
+        // editor can render and clear it. Empty/whitespace → null.
+        final accidentalText =
+            noteEl.findElements('accidental').firstOrNull?.innerText.trim();
+        final displayAccidental =
+            (accidentalText == null || accidentalText.isEmpty)
+                ? null
+                : accidentalText;
+
         notes.add(NoteEvent(
           pitch: pitch,
           midiNumber: midiNumber,
@@ -79,6 +97,7 @@ class MusicXmlParser {
           dotted: dotted,
           isRest: isRest,
           scoreFinger: scoreFinger,
+          displayAccidental: displayAccidental,
         ));
       }
 
@@ -90,6 +109,9 @@ class MusicXmlParser {
       keyFifths: fifths,
       keyMode: keyMode,
       measures: measures,
+      divisions: divisions,
+      beatsPerMeasure: beatsPerMeasure,
+      beatType: beatType,
     );
   }
 

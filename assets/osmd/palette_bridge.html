@@ -3,7 +3,13 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { margin: 0; padding: 0; background: white; overflow: hidden; }
+    html, body { height: 100%; }
+    /* Flex-centre vertically so the staff sits in the middle of the preview
+       area instead of floating low. */
+    body {
+      margin: 0; padding: 0; background: white; overflow: hidden;
+      display: flex; align-items: center;
+    }
     #osmd-container { width: 100%; }
   </style>
 </head>
@@ -20,9 +26,15 @@
     drawTimeSignatures: false,
     newSystemFromXML: false,
     stretchLastSystemLine: false,
+    // The edit preview's synthesized XML carries no <beam> elements, so OSMD
+    // would flag every eighth/16th separately. autoBeam groups them by beat.
+    // (Only beams un-beamed notes — see osmd_bridge.html note.)
+    autoBeam: true,
   });
 
-  // Clef IS shown (no RenderClefsAtBeginningOfStaffline override).
+  // Trim OSMD's large default top margin so the staff isn't pushed down inside
+  // the preview (matches osmd_bridge.html). Clef IS shown (no override).
+  osmd.EngravingRules.PageTopMargin = 2;
 
   // After render: shift the SVG right via CSS transform so the note content
   // is horizontally centred. We measure the rightmost drawn primitive to find
@@ -56,6 +68,15 @@
       centerContent();
     } catch(e) {}
   };
+
+  // No-op stubs: StaffView calls these against every bridge, but the palette /
+  // edit-preview doesn't need spacing, cursor, or bottom-inset behavior.
+  // Without them these calls throw a JS ReferenceError, surfacing as unhandled
+  // FWFEvaluateJavaScriptError exceptions. (osmd_bridge.html implements them.)
+  window.setSpacing = function() {};
+  window.setBottomInset = function() {};
+  window.positionCursor = function() {};
+  window.clearHighlight = function() {};
 
   window.addEventListener('message', async function(event) {
     var data = event.data;

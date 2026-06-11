@@ -26,14 +26,21 @@ class _StaffViewState extends ConsumerState<StaffView> {
   bool _osmdReady = false;
   String? _errorMessage;
 
+  // Fire-and-forget JS. Swallows failures (e.g. a transient WKWebView error
+  // during navigation/dispose, or a function a given bridge doesn't define) so
+  // they don't surface as unhandled async exceptions.
+  void _runJs(String js) {
+    _controller.runJavaScript(js).catchError((_) {});
+  }
+
   void _sendBottomInset(double px) {
     if (!_osmdReady) return;
-    _controller.runJavaScript('window.setBottomInset($px)');
+    _runJs('window.setBottomInset($px)');
   }
 
   void _sendSpacing(double val) {
     if (!_osmdReady) return;
-    _controller.runJavaScript('window.setSpacing($val)');
+    _runJs('window.setSpacing($val)');
   }
 
   @override
@@ -81,19 +88,19 @@ class _StaffViewState extends ConsumerState<StaffView> {
     if (!_osmdReady) return;
     final ev = widget.highlightNotifier.value;
     if (ev == null) {
-      _controller.runJavaScript('window.clearHighlight()');
+      _runJs('window.clearHighlight()');
       return;
     }
-    _controller.runJavaScript('window.positionCursor(${ev.beatPosition})');
+    _runJs('window.positionCursor(${ev.beatPosition})');
   }
 
-  Future<void> _loadScore() async {
+  void _loadScore() {
     if (!_osmdReady) return;
     final escaped = widget.musicXml
         .replaceAll('\\', '\\\\')
         .replaceAll('`', '\\`')
         .replaceAll('\$', '\\\$');
-    await _controller.runJavaScript('window.loadScore(`$escaped`)');
+    _runJs('window.loadScore(`$escaped`)');
   }
 
   @override

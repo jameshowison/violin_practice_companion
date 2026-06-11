@@ -87,6 +87,9 @@ class PieceRepository {
     ),
   ];
 
+  /// Whether the current platform supports editing (writable file storage).
+  bool get supportsEditing => storageSupportsEditing;
+
   Future<List<Piece>> loadAll() async {
     final pieces = <Piece>[];
     for (final f in _fixtures) {
@@ -96,10 +99,15 @@ class PieceRepository {
           .cast<Map<String, dynamic>>()
           .map(Section.fromJson)
           .toList();
+      // Once a fixture has been edited, a writable copy exists — load that
+      // (file-backed, editable) instead of the read-only asset. Until then the
+      // asset is the source of truth, so un-edited fixtures track asset updates.
+      final editedPath = await fixtureFilePathIfExists(f.id);
       pieces.add(Piece(
         id: f.id,
         title: f.title,
-        musicXmlAssetPath: f.xml,
+        musicXmlAssetPath: editedPath == null ? f.xml : null,
+        musicXmlFilePath: editedPath,
         sectionsAssetPath: f.sections,
         sections: sections,
       ));
@@ -119,5 +127,18 @@ class PieceRepository {
   /// pieces is a future enhancement.
   Future<Piece> savePiece(String title, String musicXml) {
     return saveScannedPiece(title, musicXml);
+  }
+
+  /// Overwrites a scanned piece's MusicXML file with [newMusicXml] (used by the
+  /// measure editor). Mirrors the [savePiece] → `saveScannedPiece` passthrough.
+  Future<void> updateScannedPiece(String musicXmlFilePath, String newMusicXml) {
+    return updateScannedPieceFile(musicXmlFilePath, newMusicXml);
+  }
+
+  /// Materializes a writable copy of fixture [id] containing [musicXml] and
+  /// returns its file path. Used the first time a bundled fixture is edited, so
+  /// it becomes file-backed and editable thereafter.
+  Future<String> createEditableFixtureFile(String id, String musicXml) {
+    return writeFixtureFile(id, musicXml);
   }
 }

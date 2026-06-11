@@ -34,6 +34,13 @@ void main() {
     expect(piece.keySignature, 'D');
   });
 
+  test('parses divisions and time signature', () {
+    final piece = parser.parse(simpleXml);
+    expect(piece.divisions, 4);
+    expect(piece.beatsPerMeasure, 4);
+    expect(piece.beatType, 4);
+  });
+
   test('parses measure count', () {
     final piece = parser.parse(simpleXml);
     expect(piece.measures.length, 3);

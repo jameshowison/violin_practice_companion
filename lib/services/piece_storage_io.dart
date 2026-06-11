@@ -5,6 +5,11 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/piece.dart';
 
+/// Whether this platform can write MusicXML files (and therefore supports
+/// editing). True on mobile/desktop; the web stub sets it false. Read via the
+/// conditional-import seam so shared code needn't branch on `kIsWeb`.
+const bool storageSupportsEditing = true;
+
 /// Mobile/desktop persistence for scanned pieces: each piece's MusicXML is
 /// written to `<docs>/scanned_pieces/<id>.musicxml`, and an `index.json` in
 /// the same directory tracks `{id, title, musicXmlFilePath}` for [loadScannedPieces].
@@ -60,6 +65,41 @@ Future<Piece> saveScannedPiece(String title, String musicXml) async {
 
 Future<String> readScannedMusicXml(String musicXmlFilePath) {
   return File(musicXmlFilePath).readAsString();
+}
+
+/// Overwrites an existing scanned piece's MusicXML file in place (e.g. after a
+/// note-editing correction). The `index.json` entry is unchanged — only the
+/// file contents differ.
+Future<void> updateScannedPieceFile(String musicXmlFilePath, String newMusicXml) {
+  return File(musicXmlFilePath).writeAsString(newMusicXml);
+}
+
+/// Editable fixtures: a bundled fixture becomes editable by materializing a
+/// writable copy at `<docs>/editable_fixtures/<id>.musicxml`. Once present, the
+/// repository loads the piece from this file instead of the read-only asset, so
+/// edits persist across launches.
+Future<Directory> _editableFixturesDir() async {
+  final docs = await getApplicationDocumentsDirectory();
+  final dir = Directory('${docs.path}/editable_fixtures');
+  if (!await dir.exists()) await dir.create(recursive: true);
+  return dir;
+}
+
+/// Path to the materialized copy of fixture [id], or null if it hasn't been
+/// edited yet (still asset-backed).
+Future<String?> fixtureFilePathIfExists(String id) async {
+  final docs = await getApplicationDocumentsDirectory();
+  final file = File('${docs.path}/editable_fixtures/$id.musicxml');
+  return await file.exists() ? file.path : null;
+}
+
+/// Writes [xml] to fixture [id]'s editable file (creating it on first edit) and
+/// returns the path.
+Future<String> writeFixtureFile(String id, String xml) async {
+  final dir = await _editableFixturesDir();
+  final file = File('${dir.path}/$id.musicxml');
+  await file.writeAsString(xml);
+  return file.path;
 }
 
 String _slugify(String title) {
