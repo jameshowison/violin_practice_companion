@@ -70,7 +70,14 @@ mcp__marionette__hot_reload()                # trigger reload via MCP
 **Known limitation — WebView (platform views) are always blank in screenshots:**
 `webview_flutter` on iOS uses a native `WKWebView`, which is a Flutter "platform view" — it renders outside Flutter's own rendering pipeline. Marionette's `take_screenshots` calls `RepaintBoundary.toImage()` internally, which captures platform views as solid white/blank. This is a Flutter engine limitation ([flutter#25306](https://github.com/flutter/flutter/issues/25306), [flutter#163639](https://github.com/flutter/flutter/issues/163639)) with no workaround in the Flutter SDK as of 2026.
 
-Practically: any screen that contains a `StaffView` (the OSMD WebView) will show a blank white rectangle in Marionette screenshots. Use screenshots to verify the surrounding Flutter UI (AppBar, playback controls, tray layout) but **not** to verify staff notation rendering. To verify staff content, look at the simulator window directly or use the iOS Simulator's own screenshot tool.
+Practically: any screen that contains a `StaffView` (the OSMD WebView) will show a blank white rectangle in Marionette screenshots. Use screenshots to verify the surrounding Flutter UI (AppBar, playback controls, tray layout) but **not** to verify staff notation rendering. To verify staff content, screenshot the simulator framebuffer directly — this captures the WebView:
+
+```bash
+xcrun simctl io booted screenshot /tmp/staff.png   # or use the device UDID instead of `booted`
+sips -r 90 /tmp/staff.png                            # raw capture is portrait; rotate if the app is landscape
+```
+
+Then read `/tmp/staff.png`. (See the README "Screenshots & UI debugging" section.)
 
 The main Marionette-visible alternatives would be `verovio_flutter` (FFI, outputs SVG rendered via `flutter_svg`) or exporting OSMD's SVG and displaying it with `flutter_svg` instead of a WebView. Both lose live cursor animation and require significant rework. We're staying with OSMD/WebView for rendering quality; accept the blank-screenshot limitation.
 

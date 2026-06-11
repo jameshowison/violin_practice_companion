@@ -83,6 +83,37 @@ The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
 its ONNX models — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml) below. It
 is not available on the web build.
 
+## Screenshots & UI debugging (iOS Simulator)
+
+The staff is rendered by OSMD inside a `WKWebView` (a Flutter "platform view").
+Tools that screenshot via Flutter's `RepaintBoundary.toImage()` — including the
+Marionette MCP used for agent-driven UI inspection — capture platform views as
+**blank white** (a Flutter engine limitation; see `CLAUDE.md`). So they can
+verify the surrounding Flutter chrome but **not** the notation itself.
+
+To capture what's actually on screen, including the WebView, screenshot the
+simulator's framebuffer directly:
+
+```bash
+xcrun simctl io booted screenshot screenshot.png        # the running sim
+# or target a specific device by UDID:
+xcrun simctl io <device-udid> screenshot screenshot.png
+```
+
+The raw image is in the device's native (portrait) orientation, so if the app
+is running in landscape the PNG comes out rotated 90°. Correct it with the
+built-in macOS tool:
+
+```bash
+sips -r 90 screenshot.png
+```
+
+For a quick manual capture you can also use Simulator.app → **File ▸ Save
+Screen** (⌘S), which writes a PNG to the Desktop.
+
+This is the only reliable way to verify staff/notation rendering — beaming,
+accidentals, the playback cursor — that the WebView draws.
+
 ## Distribution
 
 - **Android**: F-Droid (pending submission) or direct APK
