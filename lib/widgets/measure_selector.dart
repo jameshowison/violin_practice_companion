@@ -9,6 +9,10 @@ class MeasureSelector extends StatefulWidget {
   final ValueChanged<MeasureSelection?> onSelectionChanged;
   final int? activeMeasure;
 
+  /// Measure numbers whose beat total doesn't match the time signature
+  /// (likely an OMR error). Flagged tiles get a small warning glyph.
+  final Set<int>? flaggedMeasures;
+
   const MeasureSelector({
     super.key,
     required this.measureCount,
@@ -16,6 +20,7 @@ class MeasureSelector extends StatefulWidget {
     required this.selection,
     required this.onSelectionChanged,
     this.activeMeasure,
+    this.flaggedMeasures,
   });
 
   @override
@@ -23,8 +28,6 @@ class MeasureSelector extends StatefulWidget {
 }
 
 class _MeasureSelectorState extends State<MeasureSelector> {
-  int? _dragStart;
-
   void _handleTap(int measure) {
     final sel = widget.selection;
     if (sel != null && sel.startMeasure == measure && sel.endMeasure == measure) {
@@ -32,17 +35,6 @@ class _MeasureSelectorState extends State<MeasureSelector> {
     } else {
       widget.onSelectionChanged(MeasureSelection(measure, measure));
     }
-  }
-
-  void _handleDragStart(int measure) {
-    _dragStart = measure;
-  }
-
-  void _handleDragUpdate(int measure) {
-    if (_dragStart == null) return;
-    final start = _dragStart! < measure ? _dragStart! : measure;
-    final end = _dragStart! < measure ? measure : _dragStart!;
-    widget.onSelectionChanged(MeasureSelection(start, end));
   }
 
   Map<int, String> _sectionLabelForMeasure() {
@@ -68,56 +60,58 @@ class _MeasureSelectorState extends State<MeasureSelector> {
           final measure = index + 1;
           final isSelected = widget.selection?.contains(measure) ?? false;
           final isActive = widget.activeMeasure == measure;
+          final isFlagged = widget.flaggedMeasures?.contains(measure) ?? false;
           final label = sectionLabels[measure];
 
           return GestureDetector(
             onTap: () => _handleTap(measure),
-            onHorizontalDragStart: (_) => _handleDragStart(measure),
-            onHorizontalDragUpdate: (details) {
-              final box = context.findRenderObject() as RenderBox?;
-              if (box == null) return;
-              final local = box.globalToLocal(details.globalPosition);
-              const itemWidth = 32.0;
-              final idx = (local.dx / itemWidth).floor();
-              final clamped = idx.clamp(0, widget.measureCount - 1);
-              _handleDragUpdate(clamped + 1);
-            },
-            child: Container(
-              width: 32,
-              margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? Colors.amber
-                    : isSelected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (label != null)
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: isActive || isSelected
-                            ? theme.colorScheme.onPrimary
-                            : Colors.blueGrey,
-                      ),
-                    ),
-                  Text(
-                    '$measure',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isActive || isSelected
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurface,
-                    ),
+            child: Stack(
+              children: [
+                Container(
+                  width: 32,
+                  margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? Colors.amber
+                        : isSelected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                ],
-              ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (label != null)
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: isActive || isSelected
+                                ? theme.colorScheme.onPrimary
+                                : Colors.blueGrey,
+                          ),
+                        ),
+                      Text(
+                        '$measure',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isActive || isSelected
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isFlagged)
+                  const Positioned(
+                    top: 0,
+                    right: 1,
+                    child: Icon(Icons.warning_amber_rounded,
+                        size: 12, color: Colors.deepOrange),
+                  ),
+              ],
             ),
           );
         },

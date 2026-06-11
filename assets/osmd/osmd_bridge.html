@@ -78,6 +78,11 @@
     drawMeasureNumbers: false,
     newSystemFromXML: true,
     stretchLastSystemLine: true,
+    // Beam notes that lack explicit <beam> elements. OSMD's autoBeamNotes skips
+    // any note already beamed from the XML (it checks the explicitly-beamed
+    // set), so existing pieces are untouched — this only beams measures we
+    // re-serialize on save (MeasureXmlEditor drops original beams).
+    autoBeam: true,
   });
 
   osmd.EngravingRules.PageTopMargin = 2;

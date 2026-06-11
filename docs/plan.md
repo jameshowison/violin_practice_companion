@@ -18,6 +18,20 @@ The "ready for next scan" review-screen UX (single-page-only scans) was
 investigated and the standard `VNDocumentCameraViewController` flow was kept
 as-is — see `docs/explore.md` §9.
 
+**§6 Note editing for scan corrections** is now implemented (6.1–6.8): the
+data model (`DurationStep`, `KeySignature`, extended `NoteEvent.copyWith`,
+`ParsedPiece` timing fields + `Measure.isDurationMismatch` +
+`flaggedMeasureNumbers`), MusicXML mutation (`MeasureXmlEditor`), storage
+passthrough (`updateScannedPiece`), beat-count flagging glyph in
+`MeasureSelector`, the `MeasureEditRow` widget, the `EditMeasureScreen`, and
+the "Edit" button wired into both `_ActiveMeasureSelector` call sites. Unit
+tests pass (duration/key-signature/round-trip/flagging) and the app compiles
+and runs on the iPhone 17 simulator with the Edit button correctly gated off
+for read-only fixture pieces. **Remaining (device-only, needs a scanned
+piece):** exercise the full edit flow on a real scanned piece — live OSMD
+preview updates, the flag banner re-evaluating as notes change, and that a
+saved edit survives an app restart. See §6 Verification below.
+
 ---
 
 ## 1. Scan-to-practice flow (active)
@@ -172,3 +186,268 @@ place before range selection lands.
   (`docs/omr_evaluation/abc_bug_{10,14,15}*.patch`,
   `abc_music_upstream_issue.md`), not yet filed at
   `gitlab.com/chrisspen/abc-music`. User-owned, not blocking.
+
+---
+
+## 6. Note editing for scan corrections (implemented — device verification pending)
+
+OMR (homr) gets scanned pieces close to perfect (17/18 perfect on the Suzuki
+Book 1 evaluation set, see `docs/explore.md` §4.4), but "close" still means a
+user occasionally needs to fix one or two notes — a wrong pitch, a wrong
+duration, a missing/extra accidental, or (less often) a measure that was
+rhythmically mis-segmented so it has the wrong number of notes. Right now
+there's no way to correct a scanned piece short of re-scanning, which doesn't
+fix systematic misreadings.
+
+This adds an in-app note editor reachable from the existing single-measure
+selection (the same selection already used to set the playback range), scoped
+to one measure at a time, with a live single-measure staff preview so
+duration/pitch changes are seen as real engraved notation rather than text.
+Editing only applies to scanned pieces (`Piece.musicXmlFilePath != null`);
+bundled fixture pieces remain read-only.
+
+**Explicitly out of scope for v1**: cross-measure ties, multi-voice/chords/
+repeats, and beam regeneration (edited eighth/sixteenth notes render
+unbeamed/flagged — cosmetically different but musically correct). Measures
+with the wrong total duration are auto-flagged but not auto-fixed.
+
+### Proposed UI
+
+**Entry point — reuse existing measure selection.** `_toggleMeasure` /
+`MeasureSelector` already produce a single-measure `MeasureSelection(m, m)`
+used for playback range. When exactly one measure is selected **and** the
+piece is editable (`musicXmlFilePath != null`), an "Edit measure" button
+appears next to the measure selector in the bottom tray
+(`_ActiveMeasureSelector` in `piece_detail_screen.dart`). Flagged measures
+(wrong total duration) get a small warning glyph on their tile.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Staff │ Staff+Finger │ Jianpu │ Fingering        ← mode tabs      │
+├──────────────────────────────────────────────────────────────────┤
+│  ── Section A ──────────────────────────────────                  │
+├──────────────────────────────────────────────────────────────────┤
+│ ┌──┐┌──┐┌──┐┏━━━━┓┌──┐┌──┐┌──┐┌──┐┌──┐┌──┐        ┌─────────────┐ │
+│ │1 ││2 ││3 │┃ 4 ⚠┃│5 ││6 ││7 ││8 ││9 ││10│        │ ✎ Edit m. 4 │ │
+│ └──┘└──┘└──┘┗━━━━┛└──┘└──┘└──┘└──┘└──┘└──┘        └─────────────┘ │
+│              ▲ selected + flagged (5 beats found, expected 4)     │
+├──────────────────────────────────────────────────────────────────┤
+│              ▶  (existing playback controls)                      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Edit screen — single measure, landscape-oriented.** Pushed full-screen via
+`Navigator.push`. Designed for landscape (rotate phone) to give the note row
+breathing room.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ ✕ Cancel                  Edit Measure 4 of 12                  Save ✓    │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│                  ♩    ♪♪    ♩.    ♩       ← live OSMD preview              │
+│                  D5   E5 F#5 G5.   A5        (this measure only,           │
+│                                               re-rendered after each edit)  │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ ⚠  Measure totals 5 beats — expected 4                                     │  (only if flagged)
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────┐   ┌──────┐   ┏━━━━━━┓   ┌──────┐   ┌──────┐                    │
+│   │  D5  │   │  E5  │   ┃ F♯5  ┃   │ G5 •  │   │ rest │                    │
+│   │  ♩   │   │  ♩   │   ┃  ♩   ┃   │  ♩    │   │  ♩   │                    │
+│   │  A2  │   │  A3  │   ┃  A4  ┃   │  A0   │   │      │                    │
+│   └──────┘   └──────┘   ┗━━━━━━┛   └──────┘   └──────┘                    │
+│                            ▲ selected note                                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  PITCH        ACCIDENTAL        DURATION                NOTE / MEASURE     │
+│  ┌─────┐      ┌───┬───┬───┐     ┌──────┬──────┐         ┌────────────┐    │
+│  │  ▲  │      │ ♭ │ ♮ │ ♯ │     │  ◀   │  ▶   │         │  ⇄ rest    │    │
+│  ├─────┤      └───┴───┴───┘     │shorter│longer│         ├────────────┤    │
+│  │  ▼  │                        └──────┴──────┘         │ + insert   │    │
+│  └─────┘                          "quarter note"        │ − delete   │    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Interaction model:**
+
+- **Tap a note card** to select it (highlight border, like `F♯5` above).
+  Controls are disabled until a note is selected.
+- **Pitch ▲ / ▼** — moves the note one *staff position* (diatonic step:
+  C-D-E-F-G-A-B, wrapping octave on B↔C). The new note's accidental resets to
+  the key signature's default for that letter (e.g. in D major, F defaults to
+  F♯). This matches "shift location on staff" — the user dials the notehead
+  to the line/space that matches the printed page.
+- **Accidental ♭ / ♮ / ♯** — overrides `alter` to −1/0/+1 for the selected
+  note regardless of the key-signature default (handles "extra/missing
+  accidental" errors). Resets to the key default whenever pitch ▲/▼ is
+  pressed again.
+- **Duration ◀ / ▶** — cycles through a single ordered list combining note
+  value *and* dot, from shortest to longest: `16th, 16th•, 8th, 8th•,
+  quarter, quarter•, half, half•, whole, whole•`. ◀ = shorter, ▶ = longer —
+  directly matches "left/right for longer/shorter" without a separate dot
+  toggle.
+- **⇄ rest** — toggles the selected note between a pitched note and a rest
+  (preserving its duration).
+- **+ insert** — inserts a copy of the selected note immediately after it
+  (default: same pitch, quarter note); user then adjusts pitch/duration.
+  Handles "OMR merged two notes into one."
+- **− delete** — removes the selected note from the measure. Handles "OMR
+  split one note into two" or any extra note.
+- The flagged-measure banner re-evaluates live as notes are edited, so the
+  user gets immediate feedback on whether the measure now totals correctly.
+- **Save** re-serializes just this measure back into the piece's MusicXML
+  file and returns to the piece detail screen (which re-parses and
+  re-renders all views). **Cancel** discards in-screen edits.
+
+### Implementation plan
+
+**6.1 Data model**
+
+- `lib/models/note_event.dart`
+  - Extend `copyWith()` to also accept `pitch`, `octave`, `midiNumber`,
+    `noteValue`, `dotted`, `isRest` (currently only jianpu*/finger* fields are
+    covered).
+  - Add a `lib/models/duration_step.dart` with the ordered
+    `(NoteValue, dotted)` list above and `next()`/`previous()` helpers
+    (clamped at the ends, not wrapping). Shared by the duration control and
+    by serialization (`<duration>` = divisions × beat-length).
+  - Add a key-signature accidental-default helper (e.g. static method on
+    `ParsedPiece` or `lib/models/key_signature.dart`): given `keyFifths` and
+    a step letter, return the default alter using the standard sharp order
+    `F C G D A E B` / flat order `B E A D G C F`.
+
+- `lib/models/parsed_piece.dart`
+  - Add `divisions`, `beatsPerMeasure`, `beatType` to `ParsedPiece`
+    (currently absent — needed for `<duration>` generation and beat-count
+    validation). Thread through `copyWithMeasures`.
+  - Add `Measure.isDurationMismatch(beatsPerMeasure, beatType)` — sums
+    `notes` (excluding `hiddenLeadNotes`) in beat units and compares to
+    expected; always `false` for measure 0 (pickup).
+  - Add `ParsedPiece.flaggedMeasureNumbers` (`Set<int>`) convenience getter.
+
+- `lib/services/musicxml_parser.dart`
+  - Read `<divisions>` and `<time><beats>/<beat-type>` from the first
+    `<attributes>` block (same `findAllElements` pattern already used for
+    `<key>`), populate the new `ParsedPiece` fields.
+
+**6.2 MusicXML mutation/serialization**
+
+New file `lib/services/measure_xml_editor.dart` (sibling to
+`fingering_xml_injector.dart`, same parse/mutate/`toXmlString()` pattern —
+not extended from the injector since it rewrites note lists rather than
+annotating existing ones):
+
+- `buildNoteElement(NoteEvent note, int divisions)` → `<note>` XML: `<pitch>`
+  (reuse the step/alter/octave regex already in
+  `palette_xml_generator.dart`'s `_parsePitch`) or `<rest/>`, `<duration>`
+  from `noteValue`/`dotted`/`divisions`, `<type>`, optional `<dot/>`,
+  `<fingering>` if `scoreFinger` set.
+- `replaceMeasureNotes(String musicXml, int measureNumber, List<NoteEvent> notes, int divisions)`
+  → parse, find `<measure number="$measureNumber">`, remove only its
+  `<note>` children (preserving `<attributes>`/`<print>`/`<barline>` etc.),
+  insert newly-built `<note>` elements, re-serialize.
+- `buildSingleMeasurePreviewXml(String originalMusicXml, int measureNumber, List<NoteEvent> notes, ParsedPiece parsed)`
+  → minimal `<score-partwise>` with one `<part>`/`<measure number="1">`
+  containing a synthesized `<attributes>` (divisions/key/time/clef from
+  `parsed`) followed by the edited notes. **This exact shape
+  (`<part-list><score-part id="P1"><part-name/></score-part></part-list>` +
+  one part/measure with `<attributes>`) is already proven to work with
+  `StaffView`/OSMD** — `palette_xml_generator.dart` generates the same
+  structure and is rendered live today via the `_PalettePanel`'s `StaffView`
+  with `bridgeAsset: 'assets/osmd/palette_bridge.html'`. Low risk.
+
+**6.3 Storage**
+
+- `lib/services/piece_storage_io.dart`: add
+  `Future<void> updateScannedPiece(String musicXmlFilePath, String newMusicXml) => File(musicXmlFilePath).writeAsString(newMusicXml)`.
+- `lib/services/piece_storage_web.dart`: stub throwing `UnsupportedError`
+  (consistent with the existing OMR-unavailable-on-web stance).
+- `lib/services/piece_repository.dart`: add a passthrough
+  `updateScannedPiece(...)` (mirrors the existing `savePiece` →
+  `saveScannedPiece` passthrough).
+
+**6.4 Beat-count flagging**
+
+- `MeasureSelector` (`lib/widgets/measure_selector.dart`): add an optional
+  `Set<int>? flaggedMeasures` param; render a small warning glyph on flagged
+  tiles.
+- `piece_detail_screen.dart`: pass `parsedPiece?.flaggedMeasureNumbers` into
+  both `_ActiveMeasureSelector` instances (full layout and compact tray).
+
+**6.5 New edit-row widget**
+
+New `lib/widgets/measure_edit_row.dart`:
+- `MeasureEditRow` — horizontal row of `_NoteEditCard`s for the single
+  measure being edited (no scrolling needed in landscape for
+  Suzuki-Book-1-length measures).
+- `_NoteEditCard` — shows pitch+accidental, a duration glyph/label, and the
+  fingering label if present (rendered verbatim per the fingering-label
+  rule). ~72×96pt cards — generous touch targets, distinct from the
+  jianpu/fingering views' 36px playback-tuned cells. Selected state uses a
+  bold border (visually distinct from the amber playback-highlight
+  convention, since this is an edit-time selection, not a playback position).
+
+**6.6 Edit screen**
+
+New `lib/screens/edit_measure_screen.dart`:
+- `EditMeasureScreen` (`ConsumerStatefulWidget`), takes a `measureNumber`.
+  Local state: `List<NoteEvent> _notes` (seeded from
+  `parsedPiece.measures[measureNumber - 1].notes`), `int? _selectedIndex`.
+  No new Riverpod provider — edit-in-progress state is ephemeral and
+  screen-local.
+- Layout (landscape `Scaffold`): `AppBar` (Cancel / title / Save) →
+  `SizedBox(height: ~120)` with `StaffView(musicXml: _previewXml, bridgeAsset: 'assets/osmd/palette_bridge.html')`
+  → conditional warning banner → `MeasureEditRow` → control panel row.
+- `_previewXml` recomputed via `buildSingleMeasurePreviewXml` in `setState`
+  after every edit; `StaffView` already re-posts `loadScore` when `musicXml`
+  changes (used today for mode/spacing changes), so live updates are "free."
+- **Save**: `MeasureXmlEditor.replaceMeasureNotes(originalXml, measureNumber, _notes, parsed.divisions)`
+  → `pieceRepository.updateScannedPiece(piece.musicXmlFilePath!, newXml)` →
+  `ref.invalidate(parsedPieceProvider)` → `Navigator.pop()`.
+
+**6.7 Integration into `piece_detail_screen.dart`**
+
+- Add the "Edit measure" button next to `_ActiveMeasureSelector` in both the
+  full layout and compact tray. Gating condition:
+  `selection != null && selection.startMeasure == selection.endMeasure && piece.musicXmlFilePath != null`
+  — no `kIsWeb` check needed, since `musicXmlFilePath` is only ever non-null
+  on platforms where scanning/editing is supported (clean per the
+  multi-platform smell-check).
+- `onPressed: () => Navigator.push(..., EditMeasureScreen(measureNumber: selection.startMeasure))`.
+
+**6.8 Testing**
+
+- Extend `test/musicxml_parser_test.dart`: assert new `divisions` /
+  `beatsPerMeasure` / `beatType` fields parse correctly from the existing
+  `simpleXml` fixture.
+- New `test/measure_xml_editor_test.dart`: round-trip — build `NoteEvent`s →
+  `buildNoteElement`/`replaceMeasureNotes` → re-parse with
+  `MusicXmlParser` → assert pitch/octave/duration/dot/rest/fingering survive.
+  Also assert `buildSingleMeasurePreviewXml` output is valid XML
+  (`XmlDocument.parse` doesn't throw) with the expected `<attributes>`.
+- New `test/duration_step_test.dart`: cycling order and clamping at both
+  ends.
+- New `test/key_signature_test.dart`: default-accidental lookups for a couple
+  of keys (e.g., D major → F defaults sharp; C major → no defaults).
+- New test for `Measure.isDurationMismatch`: true/false cases, and confirm
+  measure 0 (pickup) is never flagged.
+
+### Verification
+
+1. Run the new unit tests (`flutter test`).
+2. On the iPhone 17 simulator, open a scanned piece, select a single
+   measure, confirm the "Edit measure" button appears (and does *not* appear
+   for bundled fixture pieces).
+3. Open the edit screen in landscape; confirm the live OSMD preview renders
+   the single measure and updates after a pitch/duration/accidental/insert/
+   delete edit.
+4. Deliberately edit a measure to have the wrong number of beats; confirm the
+   warning banner appears/disappears live as edits change the total.
+5. Save an edit, confirm the piece detail screen's staff/jianpu/fingering
+   views all reflect the change, and that the change survives an app
+   restart (re-reads the rewritten `.musicxml` file via `index.json`).
+6. Use Marionette to screenshot the surrounding edit-screen chrome (note: the
+   live OSMD preview itself will render blank in Marionette screenshots per
+   the known WebView limitation — verify the preview visually in the
+   simulator window directly).

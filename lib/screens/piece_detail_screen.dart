@@ -11,6 +11,7 @@ import '../models/string_label_style.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import 'edit_measure_screen.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/measure_selector.dart';
@@ -187,6 +188,9 @@ class PieceDetailScreen extends ConsumerWidget {
                     sections: piece.sections,
                     selection: selection,
                     currentMeasureNotifier: service.currentMeasureNotifier,
+                    piece: piece,
+                    flaggedMeasures:
+                        parsedPiece?.flaggedMeasureNumbers ?? const {},
                   ),
                   const PlaybackControls(),
                 ],
@@ -388,6 +392,12 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                         sections: widget.piece.sections,
                                         selection: selection,
                                         currentMeasureNotifier: widget.service.currentMeasureNotifier,
+                                        piece: widget.piece,
+                                        flaggedMeasures: ref
+                                                .watch(parsedPieceProvider)
+                                                .valueOrNull
+                                                ?.flaggedMeasureNumbers ??
+                                            const {},
                                       ),
                                     ],
                                   ),
@@ -736,25 +746,63 @@ class _ActiveMeasureSelector extends ConsumerWidget {
   final List<Section> sections;
   final MeasureSelection? selection;
   final ValueListenable<int?> currentMeasureNotifier;
+  final Piece piece;
+  final Set<int> flaggedMeasures;
 
   const _ActiveMeasureSelector({
     required this.measureCount,
     required this.sections,
     required this.selection,
     required this.currentMeasureNotifier,
+    required this.piece,
+    this.flaggedMeasures = const {},
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Editing is reachable for any single-measure selection on a platform with
+    // writable storage. Fixtures are materialized to an editable file on first
+    // save (see EditMeasureScreen._save); web has no file storage so editing is
+    // disabled there via `supportsEditing` — no `kIsWeb` needed in shared code.
+    final sel = selection;
+    final canEdit = sel != null &&
+        sel.startMeasure == sel.endMeasure &&
+        ref.watch(pieceRepositoryProvider).supportsEditing;
+
     return ValueListenableBuilder<int?>(
       valueListenable: currentMeasureNotifier,
-      builder: (_, activeMeasure, _) => MeasureSelector(
-        measureCount: measureCount,
-        sections: sections,
-        selection: selection,
-        onSelectionChanged: (sel) =>
-            ref.read(measureSelectionProvider.notifier).state = sel,
-        activeMeasure: activeMeasure,
+      builder: (_, activeMeasure, _) => Row(
+        children: [
+          Expanded(
+            child: MeasureSelector(
+              measureCount: measureCount,
+              sections: sections,
+              selection: selection,
+              onSelectionChanged: (sel) =>
+                  ref.read(measureSelectionProvider.notifier).state = sel,
+              activeMeasure: activeMeasure,
+              flaggedMeasures: flaggedMeasures,
+            ),
+          ),
+          if (canEdit)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 8),
+              child: FilledButton.tonalIcon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        EditMeasureScreen(measureNumber: sel.startMeasure),
+                  ),
+                ),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Edit'),
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
