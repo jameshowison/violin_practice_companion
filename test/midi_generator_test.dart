@@ -142,6 +142,41 @@ void main() {
     });
   });
 
+  group('measureNumbers / indexOfMeasure (pickup mapping)', () {
+    // Piece with a pickup (number 0) followed by full bars 1, 2.
+    ParsedPiece pickupPiece() => ParsedPiece(
+          keySignature: 'G',
+          keyFifths: 1,
+          keyMode: KeyMode.major,
+          measures: [
+            Measure(number: 0, notes: [_note(NoteValue.quarter)]), // pickup, 1 s
+            Measure(number: 1, notes: List.filled(4, _note(NoteValue.quarter))),
+            Measure(number: 2, notes: List.filled(4, _note(NoteValue.quarter))),
+          ],
+        );
+
+    test('measureNumbers is in document order, pickup first (0)', () {
+      final d = gen.generate(pickupPiece(), 60);
+      expect(d.measureNumbers, [0, 1, 2]);
+    });
+
+    test('indexOfMeasure maps number → array index (not number-1)', () {
+      final d = gen.generate(pickupPiece(), 60);
+      expect(d.indexOfMeasure(0), 0); // pickup
+      expect(d.indexOfMeasure(1), 1); // first full bar lives at index 1
+      expect(d.indexOfMeasure(2), 2);
+      expect(d.indexOfMeasure(99), -1);
+    });
+
+    test('onset of a numbered measure resolves via the index, not number-1', () {
+      final d = gen.generate(pickupPiece(), 60);
+      // pickup = 1 s, then 4 s bars. Onset of measure number 1 is 1.0 s
+      // (NOT measureOnsetSeconds[1-1=0] == 0.0, the old off-by-one).
+      expect(d.measureOnsetSeconds[d.indexOfMeasure(1)], closeTo(1.0, 0.001));
+      expect(d.measureOnsetSeconds[d.indexOfMeasure(2)], closeTo(5.0, 0.001));
+    });
+  });
+
   group('Rests are excluded from notes list but advance cursor', () {
     test('rest produces no ScheduledNote', () {
       final d = gen.generate(_piece([[_rest(NoteValue.whole)]]), 60);

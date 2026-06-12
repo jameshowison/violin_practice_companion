@@ -144,6 +144,26 @@ class MeasureSelection {
   bool contains(int measure) =>
       measure >= startMeasure && measure <= endMeasure;
 
+  bool get isSingle => startMeasure == endMeasure;
+
+  /// New selection after tapping [tapped], given the [current] selection.
+  ///
+  /// "Tap anchor, tap to extend" semantics, shared by every notation view
+  /// (staff, jianpu, fingering):
+  ///   • nothing selected        → single-measure selection
+  ///   • single anchor selected  → extend to the inclusive range anchor..tapped
+  ///   • tap inside an existing range → clear (deselect)
+  ///   • tap outside a range      → start a fresh single-measure anchor
+  static MeasureSelection? afterTap(MeasureSelection? current, int tapped) {
+    if (current == null) return MeasureSelection(tapped, tapped);
+    if (current.contains(tapped)) return null;
+    if (current.isSingle) {
+      final s = current.startMeasure;
+      return MeasureSelection(s < tapped ? s : tapped, s > tapped ? s : tapped);
+    }
+    return MeasureSelection(tapped, tapped);
+  }
+
   @override
   bool operator ==(Object other) =>
       other is MeasureSelection &&

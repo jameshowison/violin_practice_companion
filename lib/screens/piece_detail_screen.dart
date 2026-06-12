@@ -6,7 +6,6 @@ import '../build_info.dart';
 import '../models/note_event.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
-import '../models/section.dart';
 import '../models/string_label_style.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
@@ -14,7 +13,6 @@ import '../services/providers.dart';
 import 'edit_measure_screen.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
-import '../widgets/measure_selector.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/playback_controls.dart';
 import '../widgets/section_bar.dart';
@@ -174,7 +172,12 @@ class PieceDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   Expanded(
-                    child: notationView,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: notationView),
+                        _FloatingEditButton(selection: selection),
+                      ],
+                    ),
                   ),
                   SectionBar(
                     sections: piece.sections,
@@ -182,15 +185,6 @@ class PieceDetailScreen extends ConsumerWidget {
                     onSectionTap: (sel) =>
                         ref.read(measureSelectionProvider.notifier).state =
                             sel,
-                  ),
-                  _ActiveMeasureSelector(
-                    measureCount: layout.measureCount,
-                    sections: piece.sections,
-                    selection: selection,
-                    currentMeasureNotifier: service.currentMeasureNotifier,
-                    piece: piece,
-                    flaggedMeasures:
-                        parsedPiece?.flaggedMeasureNumbers ?? const {},
                   ),
                   const PlaybackControls(),
                 ],
@@ -314,17 +308,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     }
   }
 
-  String _sectionLabel(MeasureSelection? selection) {
-    if (selection == null) return 'Whole piece';
-    for (final s in widget.piece.sections) {
-      if (s.startMeasure == selection.startMeasure &&
-          s.endMeasure == selection.endMeasure) {
-        return s.label;
-      }
-    }
-    return 'm. ${selection.startMeasure}–${selection.endMeasure}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final selection = widget.selection;
@@ -347,6 +330,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                 bottom: ref.watch(staffViewBottomInsetProvider),
                 child: widget.notationView,
               ),
+              _FloatingEditButton(selection: selection),
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -386,18 +370,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                             .read(measureSelectionProvider
                                                 .notifier)
                                             .state = sel,
-                                      ),
-                                      _ActiveMeasureSelector(
-                                        measureCount: widget.layout.measureCount,
-                                        sections: widget.piece.sections,
-                                        selection: selection,
-                                        currentMeasureNotifier: widget.service.currentMeasureNotifier,
-                                        piece: widget.piece,
-                                        flaggedMeasures: ref
-                                                .watch(parsedPieceProvider)
-                                                .valueOrNull
-                                                ?.flaggedMeasureNumbers ??
-                                            const {},
                                       ),
                                     ],
                                   ),
@@ -667,27 +639,33 @@ class _NotationView extends ConsumerWidget {
     this.keySignature,
   });
 
-  void _toggleMeasure(WidgetRef ref, int measure) {
+  // Shared "tap anchor, tap to extend" selection logic, used by every notation
+  // view (staff, jianpu, fingering). See MeasureSelection.afterTap.
+  void _selectMeasure(WidgetRef ref, int measure) {
     final current = ref.read(measureSelectionProvider);
-    if (current != null &&
-        current.startMeasure == measure &&
-        current.endMeasure == measure) {
-      ref.read(measureSelectionProvider.notifier).state = null;
-    } else {
-      ref.read(measureSelectionProvider.notifier).state =
-          MeasureSelection(measure, measure);
-    }
+    ref.read(measureSelectionProvider.notifier).state =
+        MeasureSelection.afterTap(current, measure);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selection = ref.watch(measureSelectionProvider);
+    final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+    final flaggedMeasures = parsed?.flaggedMeasureNumbers ?? const <int>{};
+    final measureNumbers =
+        parsed?.measures.map((m) => m.number).toList() ?? const <int>[];
     switch (mode) {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
           data: (xml) => xml != null
               ? StaffView(
                   musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier)
+                  highlightNotifier: service.currentHighlightNotifier,
+                  selection: selection,
+                  onMeasureTapped: (m) => _selectMeasure(ref, m),
+                  flaggedMeasures: flaggedMeasures,
+                  measureNumbers: measureNumbers,
+                )
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
@@ -698,7 +676,12 @@ class _NotationView extends ConsumerWidget {
           data: (xml) => xml != null
               ? StaffView(
                   musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier)
+                  highlightNotifier: service.currentHighlightNotifier,
+                  selection: selection,
+                  onMeasureTapped: (m) => _selectMeasure(ref, m),
+                  flaggedMeasures: flaggedMeasures,
+                  measureNumbers: measureNumbers,
+                )
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
@@ -708,8 +691,9 @@ class _NotationView extends ConsumerWidget {
         return JianpuView(
           layout: layout,
           selectedMeasures: selectedMeasures,
+          flaggedMeasures: flaggedMeasures,
           sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          onMeasureTap: (m) => _selectMeasure(ref, m),
           keySignature: keySignature,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -719,8 +703,9 @@ class _NotationView extends ConsumerWidget {
         return FingeringView(
           layout: layout,
           selectedMeasures: selectedMeasures,
+          flaggedMeasures: flaggedMeasures,
           sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          onMeasureTap: (m) => _selectMeasure(ref, m),
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
         );
@@ -729,8 +714,9 @@ class _NotationView extends ConsumerWidget {
         return FingeringView(
           layout: layout,
           selectedMeasures: selectedMeasures,
+          flaggedMeasures: flaggedMeasures,
           sectionLabels: sectionLabels,
-          onMeasureTap: (m) => _toggleMeasure(ref, m),
+          onMeasureTap: (m) => _selectMeasure(ref, m),
           combined: true,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -739,71 +725,49 @@ class _NotationView extends ConsumerWidget {
   }
 }
 
-// ── MeasureSelector wired to the playback active-measure notifier ─────────────
-
-class _ActiveMeasureSelector extends ConsumerWidget {
-  final int measureCount;
-  final List<Section> sections;
+// ── Floating edit-measure button ──────────────────────────────────────────
+//
+// Measure selection now happens directly on the notation (staff/jianpu/
+// fingering). The §6 note editor is reachable from a floating button overlaid
+// on the notation that appears whenever exactly one measure is selected on a
+// platform with writable storage — independent of the drawer/tray state, so
+// it's discoverable the moment you tap a measure. Fixtures are materialized to
+// an editable file on first save (see EditMeasureScreen._save); web has no file
+// storage so editing is disabled there via `supportsEditing` — no `kIsWeb`
+// needed in shared code.
+//
+// Always returns a [Positioned] (must be used as a direct child of the notation
+// [Stack]) — with an empty child when no single editable measure is selected.
+// It must stay positioned even when hidden: a non-positioned child would make
+// the Stack size itself to that child (collapsing it) instead of filling.
+class _FloatingEditButton extends ConsumerWidget {
   final MeasureSelection? selection;
-  final ValueListenable<int?> currentMeasureNotifier;
-  final Piece piece;
-  final Set<int> flaggedMeasures;
 
-  const _ActiveMeasureSelector({
-    required this.measureCount,
-    required this.sections,
-    required this.selection,
-    required this.currentMeasureNotifier,
-    required this.piece,
-    this.flaggedMeasures = const {},
-  });
+  const _FloatingEditButton({required this.selection});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Editing is reachable for any single-measure selection on a platform with
-    // writable storage. Fixtures are materialized to an editable file on first
-    // save (see EditMeasureScreen._save); web has no file storage so editing is
-    // disabled there via `supportsEditing` — no `kIsWeb` needed in shared code.
     final sel = selection;
     final canEdit = sel != null &&
-        sel.startMeasure == sel.endMeasure &&
+        sel.isSingle &&
         ref.watch(pieceRepositoryProvider).supportsEditing;
 
-    return ValueListenableBuilder<int?>(
-      valueListenable: currentMeasureNotifier,
-      builder: (_, activeMeasure, _) => Row(
-        children: [
-          Expanded(
-            child: MeasureSelector(
-              measureCount: measureCount,
-              sections: sections,
-              selection: selection,
-              onSelectionChanged: (sel) =>
-                  ref.read(measureSelectionProvider.notifier).state = sel,
-              activeMeasure: activeMeasure,
-              flaggedMeasures: flaggedMeasures,
-            ),
-          ),
-          if (canEdit)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, right: 8),
-              child: FilledButton.tonalIcon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        EditMeasureScreen(measureNumber: sel.startMeasure),
-                  ),
-                ),
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Edit'),
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+    return Positioned(
+      top: 8,
+      right: 8,
+      child: canEdit
+          ? FloatingActionButton.extended(
+              heroTag: 'edit_measure_fab',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      EditMeasureScreen(measureNumber: sel.startMeasure),
                 ),
               ),
-            ),
-        ],
-      ),
+              icon: const Icon(Icons.edit, size: 18),
+              label: Text('Edit m. ${sel.startMeasure}'),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

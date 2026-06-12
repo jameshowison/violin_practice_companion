@@ -58,4 +58,27 @@ void main() {
     );
     expect(piece.flaggedMeasureNumbers, {2});
   });
+
+  test('a short FIRST measure numbered 1 (anacrusis) is NOT flagged', () {
+    // OMR output often numbers a pickup "1" instead of 0, so the number==0
+    // guard misses it; the first-measure-is-short rule should catch it.
+    final piece = ParsedPiece(
+      keySignature: 'C',
+      keyFifths: 0,
+      keyMode: KeyMode.major,
+      beatsPerMeasure: 2,
+      beatType: 4,
+      measures: [
+        Measure(number: 1, notes: [_note(NoteValue.eighth)]), // short pickup
+        Measure(number: 2, notes: [
+          _note(NoteValue.quarter),
+          _note(NoteValue.eighth),
+          _note(NoteValue.eighth),
+        ]), // full 2/4 bar
+        Measure(number: 3, notes: [_note(NoteValue.eighth)]), // genuinely short
+      ],
+    );
+    // Measure 1 excluded (pickup); measure 3 still flagged.
+    expect(piece.flaggedMeasureNumbers, {3});
+  });
 }

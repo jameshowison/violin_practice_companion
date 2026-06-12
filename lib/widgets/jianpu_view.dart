@@ -16,6 +16,10 @@ class JianpuView extends StatefulWidget {
   final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
   final ValueListenable<int?>? currentMeasureNotifier;
 
+  /// Measures whose beat total doesn't match the time signature (OMR errors);
+  /// flagged measures get a small warning glyph.
+  final Set<int> flaggedMeasures;
+
   const JianpuView({
     super.key,
     required this.layout,
@@ -25,6 +29,7 @@ class JianpuView extends StatefulWidget {
     this.onMeasureTap,
     this.keySignature,
     this.currentMeasureNotifier,
+    this.flaggedMeasures = const {},
   });
 
   @override
@@ -115,6 +120,7 @@ class _JianpuViewState extends State<JianpuView> {
             ...widget.layout.rows.map((row) => _JianpuRow(
                   measures: row,
                   selectedMeasures: widget.selectedMeasures,
+                  flaggedMeasures: widget.flaggedMeasures,
                   sectionLabels: widget.sectionLabels,
                   onMeasureTap: widget.onMeasureTap,
                   notifierForMeasure: widget.notifierForMeasure,
@@ -130,6 +136,7 @@ class _JianpuViewState extends State<JianpuView> {
 class _JianpuRow extends StatelessWidget {
   final List<Measure> measures;
   final Set<int> selectedMeasures;
+  final Set<int> flaggedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final ValueNotifier<int?> Function(int) notifierForMeasure;
@@ -138,6 +145,7 @@ class _JianpuRow extends StatelessWidget {
   const _JianpuRow({
     required this.measures,
     required this.selectedMeasures,
+    required this.flaggedMeasures,
     required this.sectionLabels,
     required this.notifierForMeasure,
     required this.scale,
@@ -159,6 +167,7 @@ class _JianpuRow extends StatelessWidget {
               _JianpuMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
+                isFlagged: flaggedMeasures.contains(measures[i].number),
                 notifierForMeasure: notifierForMeasure,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
@@ -185,6 +194,7 @@ class _JianpuMeasure extends StatelessWidget {
 
   final Measure measure;
   final bool isSelected;
+  final bool isFlagged;
   final ValueNotifier<int?> Function(int) notifierForMeasure;
   final String? sectionLabel;
   final VoidCallback? onTap;
@@ -195,6 +205,7 @@ class _JianpuMeasure extends StatelessWidget {
     required this.isSelected,
     required this.notifierForMeasure,
     required this.scale,
+    this.isFlagged = false,
     this.sectionLabel,
     this.onTap,
   });
@@ -205,7 +216,9 @@ class _JianpuMeasure extends StatelessWidget {
     final scaledWidth = naturalWidth * scale;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: Stack(
+        children: [
+          Container(
         width: scaledWidth,
         decoration: BoxDecoration(
           color: isSelected
@@ -244,6 +257,15 @@ class _JianpuMeasure extends StatelessWidget {
             ),
           ],
         ),
+          ),
+          if (isFlagged)
+            Positioned(
+              top: labelHeight * scale,
+              right: 1,
+              child: const Icon(Icons.warning_amber_rounded,
+                  size: 12, color: Colors.deepOrange),
+            ),
+        ],
       ),
     );
   }

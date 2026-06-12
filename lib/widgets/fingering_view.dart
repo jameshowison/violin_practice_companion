@@ -16,6 +16,10 @@ class FingeringView extends StatefulWidget {
   final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
   final ValueListenable<int?>? currentMeasureNotifier;
 
+  /// Measures whose beat total doesn't match the time signature (OMR errors);
+  /// flagged measures get a small warning glyph.
+  final Set<int> flaggedMeasures;
+
   const FingeringView({
     super.key,
     required this.layout,
@@ -25,6 +29,7 @@ class FingeringView extends StatefulWidget {
     this.onMeasureTap,
     this.combined = false,
     this.currentMeasureNotifier,
+    this.flaggedMeasures = const {},
   });
 
   @override
@@ -101,6 +106,7 @@ class _FingeringViewState extends State<FingeringView> {
             return _FingeringRow(
               measures: row,
               selectedMeasures: widget.selectedMeasures,
+              flaggedMeasures: widget.flaggedMeasures,
               sectionLabels: widget.sectionLabels,
               onMeasureTap: widget.onMeasureTap,
               combined: widget.combined,
@@ -117,6 +123,7 @@ class _FingeringViewState extends State<FingeringView> {
 class _FingeringRow extends StatelessWidget {
   final List<Measure> measures;
   final Set<int> selectedMeasures;
+  final Set<int> flaggedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
   final bool combined;
@@ -126,6 +133,7 @@ class _FingeringRow extends StatelessWidget {
   const _FingeringRow({
     required this.measures,
     required this.selectedMeasures,
+    required this.flaggedMeasures,
     required this.sectionLabels,
     required this.combined,
     required this.notifierForMeasure,
@@ -150,6 +158,7 @@ class _FingeringRow extends StatelessWidget {
               _FingeringMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
+                isFlagged: flaggedMeasures.contains(measures[i].number),
                 notifierForMeasure: notifierForMeasure,
                 sectionLabel: sectionLabels[measures[i].number],
                 onTap: () => onMeasureTap?.call(measures[i].number),
@@ -175,6 +184,7 @@ class _FingeringRow extends StatelessWidget {
 class _FingeringMeasure extends StatelessWidget {
   final Measure measure;
   final bool isSelected;
+  final bool isFlagged;
   final ValueNotifier<int?> Function(int) notifierForMeasure;
   final String? sectionLabel;
   final VoidCallback? onTap;
@@ -186,6 +196,7 @@ class _FingeringMeasure extends StatelessWidget {
     required this.measure,
     required this.isSelected,
     required this.notifierForMeasure,
+    this.isFlagged = false,
     this.sectionLabel,
     this.onTap,
     required this.combined,
@@ -199,7 +210,9 @@ class _FingeringMeasure extends StatelessWidget {
     final scaledWidth = naturalWidth * scale;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: Stack(
+        children: [
+          Container(
         width: scaledWidth,
         decoration: BoxDecoration(
           color: isSelected
@@ -239,6 +252,15 @@ class _FingeringMeasure extends StatelessWidget {
             ),
           ],
         ),
+          ),
+          if (isFlagged)
+            const Positioned(
+              top: 16,
+              right: 1,
+              child: Icon(Icons.warning_amber_rounded,
+                  size: 12, color: Colors.deepOrange),
+            ),
+        ],
       ),
     );
   }
