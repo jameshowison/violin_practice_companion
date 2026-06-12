@@ -23,6 +23,13 @@ dependencies:
   path_provider: ^2.1.5
   flutter_midi_pro: ^3.1.6
   marionette_flutter: ^0.5.0
+  url_launcher: ^6.3.0
+
+  # ABC-notation import: abcjs (MIT) parses ABC, a small bundled emitter
+  # (assets/abc/abc_to_musicxml.js) turns its tree into MusicXML. Runs DOM-free
+  # via dart:js_interop on web and flutter_js (QuickJS/JavaScriptCore — NOT a
+  # WebView) on mobile/desktop. See lib/services/abc_converter*.dart.
+  flutter_js: ^0.8.2
 
   # OMR scan-to-MusicXML pipeline (mobile/desktop only — see
   # lib/services/omr_service*.dart for the web conditional-import split).
@@ -43,6 +50,7 @@ flutter:
   generate: true
 
   assets:
+    - assets/abc/
     - assets/fixtures/
     - assets/fixtures/sections/
     - assets/lookup_tables/
