@@ -31,7 +31,11 @@ class HighlightEvent {
 
 class MidiData {
   final List<ScheduledNote> notes; // sorted by onset ascending
-  final List<double> measureOnsetSeconds; // index i → onset of measure i+1
+  final List<double> measureOnsetSeconds; // index i → onset of measures[i]
+  // measureNumbers[i] is the Measure.number whose onset is measureOnsetSeconds[i],
+  // in document order. NOT i+1: a pickup makes measures[0].number == 0, so callers
+  // must map a measure number → index via this list rather than assuming number-1.
+  final List<int> measureNumbers;
   final double totalDurationSeconds;
   // Per measure (0-indexed), per note (0-indexed): absolute (onsetSecs, offsetSecs)
   final List<List<(double, double)>> measureNoteTimings;
@@ -40,10 +44,14 @@ class MidiData {
   const MidiData({
     required this.notes,
     required this.measureOnsetSeconds,
+    required this.measureNumbers,
     required this.totalDurationSeconds,
     required this.measureNoteTimings,
     required this.highlightEvents,
   });
+
+  /// Array index of the measure carrying [measureNumber], or -1 if absent.
+  int indexOfMeasure(int measureNumber) => measureNumbers.indexOf(measureNumber);
 }
 
 class MidiGenerator {
@@ -75,6 +83,7 @@ class MidiGenerator {
     final secsPerTick = 60.0 / (bpm * _tpb);
     final notes = <ScheduledNote>[];
     final measureOnsets = <double>[];
+    final measureNumbers = <int>[];
     final measureNoteTimings = <List<(double, double)>>[];
     final highlightEvents = <HighlightEvent>[];
     double cursor = 0.0;
@@ -82,6 +91,7 @@ class MidiGenerator {
 
     for (final measure in piece.measures) {
       measureOnsets.add(cursor);
+      measureNumbers.add(measure.number);
       for (final hidden in measure.hiddenLeadNotes) {
         final t = _ticks(hidden);
         cursor += t * secsPerTick;
@@ -115,6 +125,7 @@ class MidiGenerator {
     return MidiData(
       notes: notes,
       measureOnsetSeconds: measureOnsets,
+      measureNumbers: measureNumbers,
       totalDurationSeconds: cursor,
       measureNoteTimings: measureNoteTimings,
       highlightEvents: highlightEvents,

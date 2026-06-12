@@ -30,7 +30,7 @@
   window.setSpacing = function(val) {
     _spacing = val;
     applySpacing();
-    if (_scoreLoaded) osmd.render();
+    if (_scoreLoaded) { osmd.render(); refreshAfterRender(); }
   };
 
   // Scroll the staff view using a "page turn" metaphor:
@@ -89,12 +89,203 @@
   osmd.EngravingRules.RenderClefsAtBeginningOfStaffline = false;
   osmd.EngravingRules.RenderKeySignatures = false;
 
+  // ── Measure tap-to-select + selection/flag overlays ──────────────────────
+  //
+  // After each render we build a hit map of per-measure rectangles (in OSMD
+  // "units" — 10 units = 1 px at zoom 1) from the graphical sheet. A click is
+  // converted to unit space against the live SVG bounding rect (which already
+  // accounts for scroll) and matched to a measure, then posted back to Flutter.
+  // Selection highlight + flagged-measure markers are drawn as SVG overlays so
+  // they survive zoom/scroll and re-layout for free on every render.
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var _measureRects = [];      // [{number, x, y, w, h}] in OSMD units
+  var _sel = null;             // {start, end, color} or null
+  var _flagged = [];           // [measureNumber, ...]
+
+  function osmdSvg() {
+    return document.querySelector('#osmd-container svg');
+  }
+  function unitPx() { return 10 * (osmd.zoom || 1); }
+
+  function graphicSheet() {
+    return osmd.GraphicSheet || osmd.graphic || null;
+  }
+
+  function buildMeasureRects() {
+    _measureRects = [];
+    try {
+      var g = graphicSheet();
+      var list = g && (g.MeasureList || g.measureList);
+      if (!list) return;
+      for (var i = 0; i < list.length; i++) {
+        var staves = list[i];
+        if (!staves || !staves.length) continue;
+        var gm = staves[0];
+        if (!gm || !gm.PositionAndShape) continue;
+        var ps = gm.PositionAndShape;
+        var x = ps.AbsolutePosition.x;
+        var w = ps.Size.width;
+        // Draw box = the measure's own staff bounding box (snug, and it tracks
+        // staff-spacing changes since each measure re-positions on render).
+        var my = ps.AbsolutePosition.y;
+        var mh = ps.Size.height;
+        // Hit band = the whole music-system row, so the entire measure column
+        // is tappable (not just the 5-line staff). NOT used for drawing — the
+        // system box includes inter-system spacing and would look oversized.
+        var hy = my, hh = mh;
+        var sys = gm.ParentMusicSystem;
+        if (sys && sys.PositionAndShape) {
+          hy = sys.PositionAndShape.AbsolutePosition.y;
+          hh = sys.PositionAndShape.Size.height;
+        }
+        // Identify rects by POSITIONAL INDEX (document order), NOT OSMD's
+        // MeasureNumber. OSMD renumbers a short first measure as an anacrusis
+        // (0), which diverges from our parsed model's numbering; the index is
+        // unambiguous and maps 1:1 to parsed.measures[index] on the Dart side.
+        _measureRects.push({ index: i, x: x, w: w, my: my, mh: mh, hy: hy, hh: hh });
+      }
+    } catch(e) {}
+  }
+
+  function pointToMeasure(clientX, clientY) {
+    var svg = osmdSvg();
+    if (!svg) return null;
+    var r = svg.getBoundingClientRect();
+    var u = unitPx();
+    var ux = (clientX - r.left) / u;
+    var uy = (clientY - r.top) / u;
+    // Restrict to measures whose vertical band (full system row) contains the
+    // tap, then pick the one whose x-range contains it — or, if the tap fell in
+    // a gap (clef area before the pickup, or between barlines), the nearest by
+    // x. This makes a short pickup measure and inter-measure gaps tappable
+    // instead of dead.
+    var best = null, bestDist = Infinity;
+    for (var i = 0; i < _measureRects.length; i++) {
+      var m = _measureRects[i];
+      if (uy < m.hy || uy > m.hy + m.hh) continue;   // generous full-row band
+      if (ux >= m.x && ux <= m.x + m.w) return m.index;
+      var d = ux < m.x ? m.x - ux : ux - (m.x + m.w);
+      if (d < bestDist) { bestDist = d; best = m; }
+    }
+    return best ? best.index : null;
+  }
+
+  function postTap(index) {
+    var payload = JSON.stringify({ type: 'measureTapped', index: index });
+    if (window.OsmdBridge) {
+      OsmdBridge.postMessage(payload);          // iOS/Android JS channel
+    } else if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');  // web iframe (return path TBD)
+    }
+  }
+
+  function rectFor(index) {
+    for (var i = 0; i < _measureRects.length; i++) {
+      if (_measureRects[i].index === index) return _measureRects[i];
+    }
+    return null;
+  }
+
+  function clearLayer(id) {
+    var old = document.getElementById(id);
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
+  function redrawOverlay() {
+    var svg = osmdSvg();
+    if (!svg) return;
+    var u = unitPx();
+
+    // Selection highlight — drawn behind the notes (first child).
+    clearLayer('vpc-sel');
+    if (_sel) {
+      var g = document.createElementNS(SVGNS, 'g');
+      g.setAttribute('id', 'vpc-sel');
+      for (var n = _sel.start; n <= _sel.end; n++) {
+        var m = rectFor(n);
+        if (!m) continue;
+        var rect = document.createElementNS(SVGNS, 'rect');
+        rect.setAttribute('x', m.x * u);
+        rect.setAttribute('y', m.my * u);
+        rect.setAttribute('width', m.w * u);
+        rect.setAttribute('height', m.mh * u);
+        rect.setAttribute('fill', _sel.color || '#1976d2');
+        rect.setAttribute('opacity', '0.16');
+        rect.setAttribute('rx', '4');
+        g.appendChild(rect);
+      }
+      svg.insertBefore(g, svg.firstChild);
+    }
+
+    // Flagged-measure markers — drawn on top (last child).
+    clearLayer('vpc-flags');
+    if (_flagged && _flagged.length) {
+      var fg = document.createElementNS(SVGNS, 'g');
+      fg.setAttribute('id', 'vpc-flags');
+      for (var k = 0; k < _flagged.length; k++) {
+        var fm = rectFor(_flagged[k]);
+        if (!fm) continue;
+        var cx = (fm.x + fm.w) * u - 9;
+        var cy = fm.my * u + 9;
+        var dot = document.createElementNS(SVGNS, 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', '7');
+        dot.setAttribute('fill', '#ff7043');
+        fg.appendChild(dot);
+        var ex = document.createElementNS(SVGNS, 'text');
+        ex.setAttribute('x', cx);
+        ex.setAttribute('y', cy + 4);
+        ex.setAttribute('text-anchor', 'middle');
+        ex.setAttribute('font-size', '11');
+        ex.setAttribute('font-family', 'sans-serif');
+        ex.setAttribute('font-weight', 'bold');
+        ex.setAttribute('fill', 'white');
+        ex.textContent = '!';
+        fg.appendChild(ex);
+      }
+      svg.appendChild(fg);
+    }
+  }
+
+  // Rebuild the hit map and re-apply overlays after any (re-)render.
+  function refreshAfterRender() {
+    buildMeasureRects();
+    redrawOverlay();
+  }
+
+  window.setSelection = function(start, end, color) {
+    // start/end are positional INDICES (0-based). start < 0 is the
+    // "no selection" sentinel; 0 is a valid index (first measure), so never
+    // treat 0 as falsy/empty here.
+    _sel = (start >= 0)
+      ? { start: start, end: (end >= start ? end : start), color: color }
+      : null;
+    redrawOverlay();
+  };
+
+  window.setFlaggedMeasures = function(list) {
+    _flagged = list || [];
+    redrawOverlay();
+  };
+
+  document.addEventListener('click', function(ev) {
+    var n = pointToMeasure(ev.clientX, ev.clientY);
+    if (n != null) postTap(n);
+  });
+
+  window.addEventListener('resize', function() {
+    // Layout shifts on resize → hit rects move. Rebuild + redraw.
+    refreshAfterRender();
+  });
+
   window.loadScore = async function(xml) {
     try {
       applySpacing();
       await osmd.load(xml);
       osmd.render();
       _scoreLoaded = true;
+      refreshAfterRender();
     } catch(e) {
       showError('Load failed: ' + e.message);
       if (window.OsmdBridge) {
@@ -168,6 +359,10 @@
       window.setBottomInset(data.px);
     } else if (data.type === 'setSpacing') {
       window.setSpacing(data.val);
+    } else if (data.type === 'setSelection') {
+      window.setSelection(data.start, data.end, data.color);
+    } else if (data.type === 'setFlaggedMeasures') {
+      window.setFlaggedMeasures(data.measures);
     }
   });
 </script>

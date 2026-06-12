@@ -122,22 +122,57 @@ fails earlier, before touching the camera permission system).
 
 ---
 
-## 2. UX follow-ups (deferred from `docs/explore.md` §5)
+## 2. Measure selection UX — reworked (done)
 
-**Track C — measure selection UX.** `_toggleMeasure` in
-`piece_detail_screen.dart` only ever creates single-measure selections
-(`MeasureSelection(measure, measure)`). Two pieces remain:
-- **C1 — discoverability**: give each measure container a subtle permanent
-  background (`Colors.grey.shade100`) so it reads as tappable; flash
-  `primaryContainer` on tap before settling into the selected highlight.
-- **C2 — range selection**: `{S..S}` selected + tap `M != S` →
-  `{min(S,M)..max(S,M)}`; tap inside an existing range → clear; tap outside →
-  start a new single-measure selection. Add a small "drag to extend" hint
-  (`→`) when exactly one measure is selected.
+**Track C** originally proposed polishing the bottom-tray tile strip
+(`MeasureSelector`) for discoverability + range selection. Instead, selection
+was **moved onto the notation itself** and the tile strip removed. Now:
 
-Files: `piece_detail_screen.dart` (`_toggleMeasure`), `jianpu_view.dart`,
-`fingering_view.dart`. Do C1 before C2 — the visual feedback should be in
-place before range selection lands.
+- **Tap-to-select on every view** — staff, jianpu, and fingering. The tray
+  `MeasureSelector` is gone (`measure_selector.dart` deleted); `SectionBar`
+  stays for whole-section ranges.
+- **Range = "tap anchor, tap to extend"** (plan §2 C2 semantics), centralized
+  in the pure, unit-tested `MeasureSelection.afterTap(current, tapped)` in
+  `providers.dart`, used by all views via `_NotationView._selectMeasure`
+  (`test/measure_selection_test.dart`). No drag — it never fights the staff
+  WebView's vertical scroll.
+- **Floating "Edit m. N" button** (`_FloatingEditButton`) overlays the notation
+  whenever a single editable measure is selected (replaces the old tray-bound
+  button; independent of drawer state).
+- **Flagged-measure (beat-count) warnings** render on the staff (SVG marker)
+  and on jianpu/fingering cells, since the tray glyph was removed.
+
+**Staff bridge ↔ OSMD addressing.** `osmd_bridge.html` exposes tap detection
+(`measureTapped`), `setSelection`, and `setFlaggedMeasures`, and draws snug
+per-measure highlight rects (the *draw* box uses each measure's own staff
+bounding box so it tracks staff-spacing; the *tap* hit-band uses the full
+system row so short measures stay tappable). **Crucially the bridge addresses
+measures by POSITIONAL INDEX, not OSMD's `MeasureNumber`** — OSMD renumbers a
+short first measure as an anacrusis (0), diverging from our parsed model's
+numbering. `StaffView` maps index ↔ model number via a `measureNumbers` list
+(`parsed.measures.map((m) => m.number)`); the `-1` start = "no selection"
+sentinel (0 is a valid index).
+
+**Platform status: iOS first, web later.** Selection *highlighting*
+(Dart→HTML) works on both. Tap *origination* (HTML→Dart) is wired only on the
+iOS `webview_flutter` variant via the `OsmdBridge` JS channel; the web iframe
+return channel is deferred. On web, in Staff modes, selection is set via
+jianpu/fingering taps or `SectionBar` until that lands.
+
+**Known Marionette limitation:** synthetic taps don't reach the native
+WKWebView, so on-staff tap-to-select can't be driven by Marionette — verify
+real staff taps in the simulator directly (the rest is auto-verifiable).
+
+### Pickup / measure-numbering correctness (done)
+
+Pieces with an anacrusis exposed several off-by-ones, now fixed:
+- **Playback range** (`playback_service_base.dart`) mapped `fromMeasure - 1`
+  as an array index — wrong whenever a pickup shifts `Measure.number` vs the
+  positional index. `MidiData` now carries `measureNumbers` + `indexOfMeasure`;
+  start/end resolve through it (`test/midi_generator_test.dart`).
+- **Pickup never flagged** — `flaggedMeasureNumbers` excludes `number == 0`
+  *and* a short first measure (OMR output often numbers a pickup `1`, not `0`).
+- **Edit screen** loads the measure by `.number` (not `measures[n-1]`).
 
 ---
 
@@ -210,6 +245,11 @@ bundled fixture pieces remain read-only.
 repeats, and beam regeneration (edited eighth/sixteenth notes render
 unbeamed/flagged — cosmetically different but musically correct). Measures
 with the wrong total duration are auto-flagged but not auto-fixed.
+
+**Known gap:** an *empty* measure (e.g. homr's `<measure number="9"/>` in
+`homr_15_minuet_no_3.xml`) has no note to select, so the current editor (whose
+insert/delete act on a selected note) can't add the first note. It's flagged,
+but fixing it needs an "add note to empty measure" affordance.
 
 ### Proposed UI
 

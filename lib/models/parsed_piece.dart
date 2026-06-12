@@ -18,10 +18,17 @@ class Measure {
   bool isDurationMismatch(int beatsPerMeasure, int beatType) {
     if (number == 0) return false;
     final expected = beatsPerMeasure * 32 ~/ beatType;
-    final actual = notes.fold<int>(
-        0, (sum, n) => sum + thirtySecondUnits(n.noteValue, n.dotted));
-    return actual != expected;
+    return actualUnits != expected;
   }
+
+  /// Sum of this measure's visible-note durations in 32nd-note units.
+  int get actualUnits => notes.fold<int>(
+      0, (sum, n) => sum + thirtySecondUnits(n.noteValue, n.dotted));
+
+  /// True when this measure is shorter than a full bar — the hallmark of a
+  /// pickup/anacrusis.
+  bool isShort(int beatsPerMeasure, int beatType) =>
+      actualUnits < beatsPerMeasure * 32 ~/ beatType;
 }
 
 class ParsedPiece {
@@ -61,8 +68,16 @@ class ParsedPiece {
       measures.expand((m) => m.notes).toList(growable: false);
 
   /// Measure numbers whose visible notes don't total the expected beat count.
-  Set<int> get flaggedMeasureNumbers => {
-        for (final m in measures)
-          if (m.isDurationMismatch(beatsPerMeasure, beatType)) m.number,
-      };
+  /// A short FIRST measure is treated as a pickup/anacrusis and never flagged,
+  /// even when OMR output numbered it 1 instead of 0 (so the
+  /// `number == 0` guard in [Measure.isDurationMismatch] wouldn't catch it).
+  Set<int> get flaggedMeasureNumbers {
+    final flagged = <int>{};
+    for (var i = 0; i < measures.length; i++) {
+      final m = measures[i];
+      if (i == 0 && m.isShort(beatsPerMeasure, beatType)) continue;
+      if (m.isDurationMismatch(beatsPerMeasure, beatType)) flagged.add(m.number);
+    }
+    return flagged;
+  }
 }

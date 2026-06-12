@@ -54,7 +54,11 @@ abstract class PlaybackServiceBase {
     _stopInternal(silent: true);
     _fromMeasure = fromMeasure;
     _toMeasure = toMeasure;
-    _startOffset = d.measureOnsetSeconds[fromMeasure - 1];
+    // fromMeasure is a Measure.number, not an array index — map it via the
+    // document-order measureNumbers list so a pickup (number 0) and any
+    // non-1-based numbering resolve correctly. Falls back to the start.
+    final fromIdx = d.indexOfMeasure(fromMeasure);
+    _startOffset = d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
     _t0 = DateTime.now();
 
     final events = d.highlightEvents;
@@ -126,10 +130,13 @@ abstract class PlaybackServiceBase {
       currentHighlightNotifier.value = ev;
     }
 
-    // Check loop / end
+    // Check loop / end. End time = onset of the measure AFTER the last selected
+    // one (toMeasure), or the piece end. Map toMeasure (a Measure.number) to its
+    // array index first, then advance one — never assume number == index.
     final onsets = d.measureOnsetSeconds;
-    final endM = _toMeasure ?? onsets.length;
-    final endT = endM < onsets.length ? onsets[endM] : d.totalDurationSeconds;
+    final toIdx = _toMeasure == null ? onsets.length - 1 : d.indexOfMeasure(_toMeasure!);
+    final endIdx = (toIdx >= 0 ? toIdx : onsets.length - 1) + 1;
+    final endT = endIdx < onsets.length ? onsets[endIdx] : d.totalDurationSeconds;
     if (pt >= endT) {
       if (loopEnabled) {
         play(fromMeasure: _fromMeasure, toMeasure: _toMeasure);
