@@ -4,8 +4,11 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/note_event.dart';
+import '../models/parsed_piece.dart'; // for ParsedPiece.performanceOrder
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
+import '../models/section.dart';
+import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
@@ -16,6 +19,7 @@ import '../widgets/jianpu_view.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/playback_controls.dart';
 import '../widgets/section_bar.dart';
+import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 
 class PieceDetailScreen extends ConsumerWidget {
@@ -82,6 +86,22 @@ class PieceDetailScreen extends ConsumerWidget {
               children: [
                 Text('Settings', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
+                if (piece.sections.isNotEmpty) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Flexible(
+                          child: Text('Organize by sections (ABAA)')),
+                      Switch(
+                        value: ref.watch(sectionOrganizedProvider),
+                        onChanged: (v) => ref
+                            .read(sectionOrganizedProvider.notifier)
+                            .state = v,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -138,19 +158,40 @@ class PieceDetailScreen extends ConsumerWidget {
                   : <int>{};
 
               final sectionLabels = _sectionLabels(piece);
+              final sectionColors =
+                  SectionPalette.colorsForSections(piece.sections);
 
               final notationView = _NotationView(
                 mode: displayMode,
                 layout: layout,
                 selectedMeasures: selectedMeasureNumbers,
                 sectionLabels: sectionLabels,
+                sectionColors: sectionColors,
+                sections: piece.sections,
                 service: service,
                 keySignature: parsedPiece?.keySignature,
               );
 
+              final minimap = layout.runs.isEmpty
+                  ? null
+                  : SectionMinimap(
+                      runs: layout.runs,
+                      sectionColors: sectionColors,
+                      service: service,
+                      onTapRun: (i) {
+                        final run = layout.runs[i];
+                        ref.read(measureSelectionProvider.notifier).state =
+                            MeasureSelection(run.firstMeasure, run.lastMeasure);
+                        final cur = ref.read(navTargetRunProvider);
+                        ref.read(navTargetRunProvider.notifier).state =
+                            (run: i, seq: (cur?.seq ?? 0) + 1);
+                      },
+                    );
+
               if (useCompact) {
                 return _CompactPieceLayout(
                   notationView: notationView,
+                  minimap: minimap,
                   layout: layout,
                   piece: piece,
                   service: service,
@@ -172,10 +213,17 @@ class PieceDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   Expanded(
-                    child: Stack(
+                    child: Row(
                       children: [
-                        Positioned.fill(child: notationView),
-                        _FloatingEditButton(selection: selection),
+                        Expanded(
+                          child: Stack(
+                            children: [
+                              Positioned.fill(child: notationView),
+                              _FloatingEditButton(selection: selection),
+                            ],
+                          ),
+                        ),
+                        ?minimap,
                       ],
                     ),
                   ),
@@ -241,6 +289,7 @@ class _StringLabelPicker extends ConsumerWidget {
 
 class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Widget notationView;
+  final Widget? minimap;
   final PieceLayout layout;
   final Piece piece;
   final PlaybackServiceBase service;
@@ -249,6 +298,7 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
 
   const _CompactPieceLayout({
     required this.notationView,
+    required this.minimap,
     required this.layout,
     required this.piece,
     required this.service,
@@ -328,7 +378,14 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
               // staff row is never hidden behind the controls overlay.
               Positioned.fill(
                 bottom: ref.watch(staffViewBottomInsetProvider),
-                child: widget.notationView,
+                child: widget.minimap == null
+                    ? widget.notationView
+                    : Row(
+                        children: [
+                          Expanded(child: widget.notationView),
+                          widget.minimap!,
+                        ],
+                      ),
               ),
               _FloatingEditButton(selection: selection),
               Positioned(
@@ -627,6 +684,8 @@ class _NotationView extends ConsumerWidget {
   final PieceLayout layout;
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
+  final Map<String, Color> sectionColors;
+  final List<Section> sections;
   final PlaybackServiceBase service;
   final String? keySignature;
 
@@ -635,6 +694,8 @@ class _NotationView extends ConsumerWidget {
     required this.layout,
     required this.selectedMeasures,
     required this.sectionLabels,
+    required this.sectionColors,
+    required this.sections,
     required this.service,
     this.keySignature,
   });
@@ -652,8 +713,40 @@ class _NotationView extends ConsumerWidget {
     final selection = ref.watch(measureSelectionProvider);
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     final flaggedMeasures = parsed?.flaggedMeasureNumbers ?? const <int>{};
-    final measureNumbers =
-        parsed?.measures.map((m) => m.number).toList() ?? const <int>[];
+    // Minimap → custom-view navigation, and custom-view scroll → minimap.
+    final navTarget = ref.watch(navTargetRunProvider);
+    void onVisibleRun(int i) {
+      if (ref.read(scrollRunProvider) != i) {
+        ref.read(scrollRunProvider.notifier).state = i;
+      }
+    }
+    // In section-organized mode the staff XML is unfolded into performance
+    // order, so the index↔number map and the stretch rule must match it. Gate
+    // on sections present, identically to the providers that build the XML.
+    final sectioned = ref.watch(sectionOrganizedProvider) &&
+        (ref.watch(selectedPieceProvider)?.sections.isNotEmpty ?? false);
+    final measureNumbers = parsed == null
+        ? const <int>[]
+        : (sectioned
+            ? ParsedPiece.performanceOrder(parsed.measures)
+                .map((i) => parsed.measures[i].number)
+                .toList()
+            : parsed.measures.map((m) => m.number).toList());
+    // Section coloring/navigation is ABAA-only (no minimap, bars, or section
+    // tints in folded mode), so the staff wash is empty unless sectioned.
+    final sectionTints = sectioned
+        ? sectionTintSpans(measureNumbers, sections, sectionColors)
+        : const <SectionTintSpan>[];
+    // Minimap tap → scroll the staff to the run's first measure index. Guard the
+    // index: a stale navTarget (left over from a layout with more runs, e.g.
+    // after toggling ABAA off or switching pieces) must not index out of range.
+    final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
+        ? null
+        : () {
+            final run = layout.runs[navTarget.run];
+            final idx = measureNumbers.indexOf(run.firstMeasure);
+            return idx < 0 ? null : (index: idx, seq: navTarget.seq);
+          }();
     switch (mode) {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
@@ -665,6 +758,9 @@ class _NotationView extends ConsumerWidget {
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
                   flaggedMeasures: flaggedMeasures,
                   measureNumbers: measureNumbers,
+                  stretchLastSystem: !sectioned,
+                  sectionTints: sectionTints,
+                  scrollNav: staffNav,
                 )
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -681,6 +777,9 @@ class _NotationView extends ConsumerWidget {
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
                   flaggedMeasures: flaggedMeasures,
                   measureNumbers: measureNumbers,
+                  stretchLastSystem: !sectioned,
+                  sectionTints: sectionTints,
+                  scrollNav: staffNav,
                 )
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -692,7 +791,12 @@ class _NotationView extends ConsumerWidget {
           layout: layout,
           selectedMeasures: selectedMeasures,
           flaggedMeasures: flaggedMeasures,
-          sectionLabels: sectionLabels,
+          // Section identity now comes from the inline run headers + the
+          // minimap, so the per-measure A/B label is redundant.
+          sectionLabels: const {},
+          sectionColors: sectionColors,
+          navTarget: navTarget,
+          onVisibleRunChanged: onVisibleRun,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           keySignature: keySignature,
           notifierForMeasure: service.notifierForMeasure,
@@ -704,7 +808,10 @@ class _NotationView extends ConsumerWidget {
           layout: layout,
           selectedMeasures: selectedMeasures,
           flaggedMeasures: flaggedMeasures,
-          sectionLabels: sectionLabels,
+          sectionLabels: const {},
+          sectionColors: sectionColors,
+          navTarget: navTarget,
+          onVisibleRunChanged: onVisibleRun,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -715,7 +822,10 @@ class _NotationView extends ConsumerWidget {
           layout: layout,
           selectedMeasures: selectedMeasures,
           flaggedMeasures: flaggedMeasures,
-          sectionLabels: sectionLabels,
+          sectionLabels: const {},
+          sectionColors: sectionColors,
+          navTarget: navTarget,
+          onVisibleRunChanged: onVisibleRun,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           combined: true,
           notifierForMeasure: service.notifierForMeasure,

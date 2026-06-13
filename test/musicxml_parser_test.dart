@@ -76,4 +76,34 @@ void main() {
     final note = piece.measures[1].notes[1];
     expect(note.midiNumber, 81); // A5 = MIDI 81
   });
+
+  test('parses forward/backward repeat barlines into repeatStart/repeatEnd', () {
+    const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>V</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>
+    </measure>
+    <measure number="3">
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>''';
+    final m = parser.parse(xml).measures;
+    expect(m[0].repeatStart, isTrue);
+    expect(m[0].repeatEnd, isFalse);
+    expect(m[1].repeatStart, isFalse);
+    expect(m[1].repeatEnd, isTrue);
+    expect(m[2].repeatStart, isFalse);
+    expect(m[2].repeatEnd, isFalse);
+  });
 }

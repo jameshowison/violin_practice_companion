@@ -132,9 +132,12 @@ abstract class PlaybackServiceBase {
 
     // Check loop / end. End time = onset of the measure AFTER the last selected
     // one (toMeasure), or the piece end. Map toMeasure (a Measure.number) to its
-    // array index first, then advance one — never assume number == index.
+    // array index first, then advance one — never assume number == index. Use
+    // the LAST occurrence so a range spanning a repeated measure plays through
+    // every pass rather than stopping at the first.
     final onsets = d.measureOnsetSeconds;
-    final toIdx = _toMeasure == null ? onsets.length - 1 : d.indexOfMeasure(_toMeasure!);
+    final toIdx =
+        _toMeasure == null ? onsets.length - 1 : d.lastIndexOfMeasure(_toMeasure!);
     final endIdx = (toIdx >= 0 ? toIdx : onsets.length - 1) + 1;
     final endT = endIdx < onsets.length ? onsets[endIdx] : d.totalDurationSeconds;
     if (pt >= endT) {

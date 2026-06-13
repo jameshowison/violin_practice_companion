@@ -210,4 +210,71 @@ void main() {
       expect(d.notes.single.midiNote, 60);
     });
   });
+
+  group('Repeats expand the performance order', () {
+    // |: m1 m2 :|  — each a 4/4 bar of four quarters (4 s at 60 BPM).
+    ParsedPiece repeatPiece() => ParsedPiece(
+          keySignature: 'G',
+          keyFifths: 1,
+          keyMode: KeyMode.major,
+          measures: [
+            Measure(
+                number: 1,
+                notes: List.filled(4, _note(NoteValue.quarter)),
+                repeatStart: true),
+            Measure(
+                number: 2,
+                notes: List.filled(4, _note(NoteValue.quarter)),
+                repeatEnd: true),
+          ],
+        );
+
+    test('a |: A B :| span plays A B A B', () {
+      final d = gen.generate(repeatPiece(), 60);
+      expect(d.measureNumbers, [1, 2, 1, 2]);
+      expect(d.measureOnsetSeconds[0], closeTo(0.0, 0.001));
+      expect(d.measureOnsetSeconds[1], closeTo(4.0, 0.001));
+      expect(d.measureOnsetSeconds[2], closeTo(8.0, 0.001));
+      expect(d.measureOnsetSeconds[3], closeTo(12.0, 0.001));
+      expect(d.totalDurationSeconds, closeTo(16.0, 0.001));
+      // 4 measures × 4 notes.
+      expect(d.notes.length, 16);
+    });
+
+    test('onsets are strictly increasing across the repeat', () {
+      final d = gen.generate(repeatPiece(), 60);
+      for (var i = 1; i < d.highlightEvents.length; i++) {
+        expect(d.highlightEvents[i].onsetSeconds,
+            greaterThan(d.highlightEvents[i - 1].onsetSeconds - 1e-9));
+      }
+    });
+
+    test('replayed measure beatPosition returns to its first-pass value', () {
+      final d = gen.generate(repeatPiece(), 60);
+      // 4 notes per measure; index 0 = first note of m1 (pass 1),
+      // index 8 = first note of m1 (pass 2, the replay).
+      final firstPass = d.highlightEvents[0];
+      final replay = d.highlightEvents[8];
+      expect(replay.measureNumber, 1);
+      // Score-anchored beat drops back even though performance time advanced.
+      expect(replay.beatPosition, closeTo(firstPass.beatPosition, 1e-9));
+      expect(replay.onsetSeconds, closeTo(8.0, 0.001));
+      expect(replay.onsetSeconds, greaterThan(firstPass.onsetSeconds));
+    });
+
+    test('lastIndexOfMeasure finds the final occurrence', () {
+      final d = gen.generate(repeatPiece(), 60);
+      expect(d.indexOfMeasure(1), 0);
+      expect(d.lastIndexOfMeasure(1), 2);
+      expect(d.lastIndexOfMeasure(2), 3);
+      expect(d.lastIndexOfMeasure(99), -1);
+    });
+
+    test('no repeats → identity order (unchanged behaviour)', () {
+      final bar = List.filled(4, _note(NoteValue.quarter));
+      final d = gen.generate(_piece([bar, bar]), 60);
+      expect(d.measureNumbers, [1, 2]);
+      expect(d.notes.length, 8);
+    });
+  });
 }

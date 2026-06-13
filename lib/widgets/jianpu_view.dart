@@ -6,6 +6,8 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart';
 import 'notation_layout_engine.dart';
+import 'notation_run_scroll.dart';
+import 'section_run_header.dart';
 
 class JianpuView extends StatefulWidget {
   final PieceLayout layout;
@@ -15,6 +17,17 @@ class JianpuView extends StatefulWidget {
   final String? keySignature;
   final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
   final ValueListenable<int?>? currentMeasureNotifier;
+
+  /// Per-section-label tint color for the inline section bands; empty disables
+  /// section headers (falls back to plain rows).
+  final Map<String, Color> sectionColors;
+
+  /// Minimap scroll-to-section request (run index + a sequence so identical
+  /// requests still fire); null until the minimap is tapped.
+  final ({int run, int seq})? navTarget;
+
+  /// Called with the top-most visible section-run index as the user scrolls.
+  final ValueChanged<int>? onVisibleRunChanged;
 
   /// Measures whose beat total doesn't match the time signature (OMR errors);
   /// flagged measures get a small warning glyph.
@@ -29,6 +42,9 @@ class JianpuView extends StatefulWidget {
     this.onMeasureTap,
     this.keySignature,
     this.currentMeasureNotifier,
+    this.sectionColors = const {},
+    this.navTarget,
+    this.onVisibleRunChanged,
     this.flaggedMeasures = const {},
   });
 
@@ -36,15 +52,24 @@ class JianpuView extends StatefulWidget {
   State<JianpuView> createState() => _JianpuViewState();
 }
 
-class _JianpuViewState extends State<JianpuView> {
+class _JianpuViewState extends State<JianpuView> with NotationRunScroll {
   final _scrollController = ScrollController();
   // Updated by LayoutBuilder each build; used by the scroll listener.
   double _scale = 1.0;
 
   @override
+  ScrollController get scrollController => _scrollController;
+  @override
+  PieceLayout get layout => widget.layout;
+  @override
+  ValueChanged<int>? get onVisibleRunChanged => widget.onVisibleRunChanged;
+
+  @override
   void initState() {
     super.initState();
     widget.currentMeasureNotifier?.addListener(_onMeasureChanged);
+    _scrollController.addListener(reportVisibleRun);
+    WidgetsBinding.instance.addPostFrameCallback((_) => reportVisibleRun());
   }
 
   @override
@@ -53,6 +78,10 @@ class _JianpuViewState extends State<JianpuView> {
     if (old.currentMeasureNotifier != widget.currentMeasureNotifier) {
       old.currentMeasureNotifier?.removeListener(_onMeasureChanged);
       widget.currentMeasureNotifier?.addListener(_onMeasureChanged);
+    }
+    if (widget.navTarget != null && widget.navTarget != old.navTarget) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => scrollToRun(widget.navTarget!.run));
     }
   }
 
@@ -66,30 +95,7 @@ class _JianpuViewState extends State<JianpuView> {
   void _onMeasureChanged() {
     final m = widget.currentMeasureNotifier?.value;
     if (m == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToMeasure(m));
-  }
-
-  void _scrollToMeasure(int measureNumber) {
-    if (!_scrollController.hasClients) return;
-    final rowIndex = widget.layout.rows
-        .indexWhere((row) => row.any((m) => m.number == measureNumber));
-    if (rowIndex < 0) return;
-
-    // Header height: Padding(top:6,bottom:2) + Text(fontSize:14) ≈ 28pt
-    final headerH = widget.keySignature != null ? 28.0 : 0.0;
-    // Each row: label + note area, both scaled, plus symmetric vertical padding (2×2=4 each side → 8).
-    const rowPad = 8.0;
-    final rowH =
-        (_JianpuMeasure.labelHeight + NotationLayout.rowHeight) * _scale +
-            rowPad;
-
-    final rowTop = headerH + rowIndex * rowH;
-    final target = (rowTop - 8).clamp(0.0, _scrollController.position.maxScrollExtent);
-    _scrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => scrollToMeasure(m));
   }
 
   @override
@@ -101,33 +107,51 @@ class _JianpuViewState extends State<JianpuView> {
           : widget.layout.rows.map(NotationLayout.rowWidth).reduce(math.max);
       _scale = (availableWidth / maxRowW).clamp(0.0, 1.0);
 
+      Widget rowWidget(int ri) => KeyedSubtree(
+            key: rowKey(ri),
+            child: _JianpuRow(
+              measures: widget.layout.rows[ri],
+              selectedMeasures: widget.selectedMeasures,
+              flaggedMeasures: widget.flaggedMeasures,
+              sectionLabels: widget.sectionLabels,
+              onMeasureTap: widget.onMeasureTap,
+              notifierForMeasure: widget.notifierForMeasure,
+              scale: _scale,
+            ),
+          );
+
+      final runs = widget.layout.runs;
+      final children = <Widget>[
+        if (widget.keySignature != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 2),
+            child: Text(
+              '1 = ${widget.keySignature}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        if (runs.isEmpty)
+          for (var ri = 0; ri < widget.layout.rows.length; ri++) rowWidget(ri)
+        else
+          for (var i = 0; i < runs.length; i++)
+            SectionRunBlock(
+              title: runs[i].title,
+              color: widget.sectionColors[runs[i].label],
+              headerKey: runHeaderKey(i),
+              children: [
+                for (var ri = runs[i].rowStart; ri < runs[i].rowEnd; ri++)
+                  rowWidget(ri),
+              ],
+            ),
+      ];
+
       return SingleChildScrollView(
         controller: _scrollController,
-        child: Column(
-          children: [
-            if (widget.keySignature != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 2),
-                child: Text(
-                  '1 = ${widget.keySignature}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-            ...widget.layout.rows.map((row) => _JianpuRow(
-                  measures: row,
-                  selectedMeasures: widget.selectedMeasures,
-                  flaggedMeasures: widget.flaggedMeasures,
-                  sectionLabels: widget.sectionLabels,
-                  onMeasureTap: widget.onMeasureTap,
-                  notifierForMeasure: widget.notifierForMeasure,
-                  scale: _scale,
-                )),
-          ],
-        ),
+        child: Column(children: children),
       );
     });
   }
@@ -265,10 +289,36 @@ class _JianpuMeasure extends StatelessWidget {
               child: const Icon(Icons.warning_amber_rounded,
                   size: 12, color: Colors.deepOrange),
             ),
+          // Repeat barlines, centered vertically on the note row so they read as
+          // a `|:` (start) / `:|` (end) bracket without clashing with the
+          // top-right flagged-measure warning.
+          if (measure.repeatStart)
+            Positioned(
+              left: 1,
+              top: labelHeight * scale,
+              bottom: 0,
+              child: Center(child: _repeatGlyph('|:', scale)),
+            ),
+          if (measure.repeatEnd)
+            Positioned(
+              right: 1,
+              top: labelHeight * scale,
+              bottom: 0,
+              child: Center(child: _repeatGlyph(':|', scale)),
+            ),
         ],
       ),
     );
   }
+
+  static Widget _repeatGlyph(String glyph, double scale) => Text(
+        glyph,
+        style: TextStyle(
+          fontSize: 16 * scale,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      );
 }
 
 class _JianpuMeasurePainter extends CustomPainter {

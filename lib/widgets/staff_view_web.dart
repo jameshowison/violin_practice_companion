@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
 
+import '../models/section_palette.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
 
@@ -29,8 +30,19 @@ class StaffView extends ConsumerStatefulWidget {
 
   /// Model measure numbers in document order (`parsed.measures[i].number`). The
   /// bridge works in positional indices because OSMD renumbers a short pickup;
-  /// this list maps an index → our measure number.
+  /// this list maps an index → our measure number. In section-organized mode
+  /// this is the unfolded performance order.
   final List<int> measureNumbers;
+
+  /// Whether OSMD justifies the final system to full width. False in
+  /// section-organized mode so the last line keeps its natural measure widths.
+  final bool stretchLastSystem;
+
+  /// Per-section background wash spans, in positional measure-index space.
+  final List<SectionTintSpan> sectionTints;
+
+  /// Minimap scroll-to-measure request (measure index + sequence).
+  final ({int index, int seq})? scrollNav;
 
   const StaffView({
     super.key,
@@ -41,6 +53,9 @@ class StaffView extends ConsumerStatefulWidget {
     this.onMeasureTapped,
     this.flaggedMeasures = const {},
     this.measureNumbers = const [],
+    this.stretchLastSystem = true,
+    this.sectionTints = const [],
+    this.scrollNav,
   });
 
   @override
@@ -73,9 +88,12 @@ class _StaffViewState extends ConsumerState<StaffView> {
         'load',
         ((web.Event _) {
           _frameLoaded = true;
-          _postScore(widget.musicXml);
+          // Set overlay state before loading the score so the score's
+          // post-render redraw paints the section bars/selection/flags.
           _sendSelection();
           _sendFlagged();
+          _sendSectionTints();
+          _postScore(widget.musicXml);
           _onHighlight();
         }).toJS,
       );
@@ -93,14 +111,22 @@ class _StaffViewState extends ConsumerState<StaffView> {
       _onHighlight();
     }
     if (old.musicXml != widget.musicXml && _frameLoaded) {
-      _postScore(widget.musicXml);
+      // Set overlay state before reloading so the post-render redraw paints it.
       _sendSelection();
       _sendFlagged();
+      _sendSectionTints();
+      _postScore(widget.musicXml);
     }
     final mapChanged = !listEquals(old.measureNumbers, widget.measureNumbers);
     if (mapChanged || old.selection != widget.selection) _sendSelection();
     if (mapChanged || !setEquals(old.flaggedMeasures, widget.flaggedMeasures)) {
       _sendFlagged();
+    }
+    if (mapChanged || !listEquals(old.sectionTints, widget.sectionTints)) {
+      _sendSectionTints();
+    }
+    if (widget.scrollNav != null && widget.scrollNav != old.scrollNav) {
+      _sendScrollNav();
     }
   }
 
@@ -123,6 +149,14 @@ class _StaffViewState extends ConsumerState<StaffView> {
   void _postScore(String xml) {
     final cw = _frame?.contentWindow;
     if (cw == null) return;
+    // Send the stretch rule before the score so the first render uses it.
+    cw.postMessage(
+      jsonEncode({
+        'type': 'setStretchLastSystem',
+        'val': widget.stretchLastSystem,
+      }).toJS,
+      '*'.toJS,
+    );
     cw.postMessage(
       jsonEncode({'type': 'loadScore', 'xml': xml}).toJS,
       '*'.toJS,
@@ -200,6 +234,31 @@ class _StaffViewState extends ConsumerState<StaffView> {
       ..sort();
     cw.postMessage(
       jsonEncode({'type': 'setFlaggedMeasures', 'measures': idx}).toJS,
+      '*'.toJS,
+    );
+  }
+
+  void _sendSectionTints() {
+    final cw = _frame?.contentWindow;
+    if (!_frameLoaded || cw == null) return;
+    cw.postMessage(
+      jsonEncode({
+        'type': 'setSectionTints',
+        'spans': [
+          for (final s in widget.sectionTints)
+            {'start': s.start, 'end': s.end, 'color': s.color}
+        ],
+      }).toJS,
+      '*'.toJS,
+    );
+  }
+
+  void _sendScrollNav() {
+    final cw = _frame?.contentWindow;
+    final nav = widget.scrollNav;
+    if (!_frameLoaded || cw == null || nav == null) return;
+    cw.postMessage(
+      jsonEncode({'type': 'scrollToMeasureIndex', 'index': nav.index}).toJS,
       '*'.toJS,
     );
   }
