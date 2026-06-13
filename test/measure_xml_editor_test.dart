@@ -195,4 +195,95 @@ void main() {
     final reparsed = MusicXmlParser().parse(xml);
     expect(reparsed.measures.single.notes.single.pitch, 'F#5');
   });
+
+  test('setMeasureRepeats adds start + end repeat barlines that re-parse', () {
+    final withRepeats =
+        MeasureXmlEditor.setMeasureRepeats(_baseXml, 1, start: true, end: true);
+    final doc = XmlDocument.parse(withRepeats);
+
+    final forwards = doc
+        .findAllElements('repeat')
+        .where((r) => r.getAttribute('direction') == 'forward');
+    final backwards = doc
+        .findAllElements('repeat')
+        .where((r) => r.getAttribute('direction') == 'backward');
+    expect(forwards.length, 1);
+    expect(backwards.length, 1);
+
+    final m = parser.parse(withRepeats).measures.single;
+    expect(m.repeatStart, isTrue);
+    expect(m.repeatEnd, isTrue);
+    // Notes survive untouched.
+    expect(m.notes.single.pitch, 'C4');
+  });
+
+  test('setMeasureRepeats removes repeats when toggled off', () {
+    final on =
+        MeasureXmlEditor.setMeasureRepeats(_baseXml, 1, start: true, end: true);
+    final off =
+        MeasureXmlEditor.setMeasureRepeats(on, 1, start: false, end: false);
+    expect(XmlDocument.parse(off).findAllElements('repeat'), isEmpty);
+    final m = parser.parse(off).measures.single;
+    expect(m.repeatStart, isFalse);
+    expect(m.repeatEnd, isFalse);
+  });
+
+  test('setMeasureRepeats is idempotent', () {
+    final once =
+        MeasureXmlEditor.setMeasureRepeats(_baseXml, 1, start: true, end: true);
+    final twice =
+        MeasureXmlEditor.setMeasureRepeats(once, 1, start: true, end: true);
+    expect(twice, once);
+  });
+
+  test('replaceMeasureNotes preserves an existing repeat barline', () {
+    final withRepeat =
+        MeasureXmlEditor.setMeasureRepeats(_baseXml, 1, start: false, end: true);
+    final edited = MeasureXmlEditor.replaceMeasureNotes(
+      withRepeat,
+      1,
+      [
+        const NoteEvent(
+            pitch: 'G4',
+            midiNumber: 67,
+            octave: 4,
+            noteValue: NoteValue.half,
+            dotted: false,
+            isRest: false),
+      ],
+      4,
+    );
+    final m = parser.parse(edited).measures.single;
+    expect(m.repeatEnd, isTrue);
+    expect(m.notes.single.pitch, 'G4');
+  });
+
+  test('buildSingleMeasurePreviewXml emits repeat barlines when requested', () {
+    const parsed = ParsedPiece(
+      keySignature: 'C',
+      keyFifths: 0,
+      keyMode: KeyMode.major,
+      divisions: 4,
+      beatsPerMeasure: 4,
+      beatType: 4,
+      measures: [],
+    );
+    final xml = MeasureXmlEditor.buildSingleMeasurePreviewXml(
+      [
+        const NoteEvent(
+            pitch: 'C4',
+            midiNumber: 60,
+            octave: 4,
+            noteValue: NoteValue.whole,
+            dotted: false,
+            isRest: false),
+      ],
+      parsed,
+      repeatStart: true,
+      repeatEnd: true,
+    );
+    final m = MusicXmlParser().parse(xml).measures.single;
+    expect(m.repeatStart, isTrue);
+    expect(m.repeatEnd, isTrue);
+  });
 }

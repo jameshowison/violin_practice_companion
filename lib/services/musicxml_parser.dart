@@ -101,7 +101,24 @@ class MusicXmlParser {
         ));
       }
 
-      measures.add(Measure(number: number, notes: notes, hiddenLeadNotes: hiddenLeadNotes));
+      // Repeat barlines: <barline><repeat direction="forward|backward"/>.
+      // A forward repeat is the start (left, `|:`); a backward repeat is the
+      // end (right, `:|`). OMR scans usually omit these — the editor adds them.
+      var repeatStart = false;
+      var repeatEnd = false;
+      for (final barlineEl in measureEl.findElements('barline')) {
+        final dir = barlineEl.findElements('repeat').firstOrNull?.getAttribute('direction');
+        if (dir == 'forward') repeatStart = true;
+        if (dir == 'backward') repeatEnd = true;
+      }
+
+      measures.add(Measure(
+        number: number,
+        notes: notes,
+        hiddenLeadNotes: hiddenLeadNotes,
+        repeatStart: repeatStart,
+        repeatEnd: repeatEnd,
+      ));
     }
 
     return ParsedPiece(

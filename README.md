@@ -173,3 +173,23 @@ OMR accuracy on Suzuki Book 1 (homr_flutter, 2026-06-09): **17/18 perfect**
 
 GPL-3.0. You may use, modify, and redistribute this code freely. You may not
 wrap it in a proprietary or subscription product.
+
+## Profile run (logged to a file)
+
+To install and run on the iPhone 17 simulator in **profile** mode while
+capturing all output to a file an agent can read back, run this from the repo
+root:
+
+```bash
+flutter run --profile -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 2>&1 | tee flutter_profile.log
+```
+
+- `--profile` builds the release-grade engine with profiling enabled (no debug
+  asserts, no hot reload, and the debug-only Marionette binding is disabled).
+- `2>&1 | tee flutter_profile.log` mirrors stdout **and** stderr to the terminal
+  and to `flutter_profile.log`, so the agent can `tail`/`grep` that file (e.g.
+  `tail -n 50 flutter_profile.log`) without watching the live session.
+
+Swap the device id for another from `flutter devices` (or use `-d ios` /
+`-d macos`) as needed. The plain debug dev-server pattern (hot reload via a
+fifo) lives in `CLAUDE.md`.

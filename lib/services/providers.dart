@@ -10,6 +10,7 @@ import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
 import 'palette_xml_generator.dart';
+import 'section_unfold_xml.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
@@ -71,6 +72,13 @@ final staffSpacingProvider = StateProvider<double>((_) => staffSpacingDefault);
 
 final measuresPerRowProvider = StateProvider<int>((_) => 4);
 
+// ── Section-organized ("ABAA") layout preference ──────────────────────────────
+// When on (and the piece carries section metadata), every notation view is
+// organized by its A/B section structure: each section starts a new system,
+// repeats are unfolded so a repeated section shows up twice. Off by default;
+// no effect on pieces without sections. Runtime-only, like the other prefs.
+final sectionOrganizedProvider = StateProvider<bool>((_) => false);
+
 // ── Piece layout (single source of truth for all notation views) ──────────────
 
 final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
@@ -79,13 +87,29 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
   final measuresPerRow = ref.watch(measuresPerRowProvider);
-  return PieceLayout.compute(parsed.measures, piece.sections,
-      measuresPerRow: measuresPerRow);
+  final sectioned =
+      ref.watch(sectionOrganizedProvider) && piece.sections.isNotEmpty;
+  return sectioned
+      ? PieceLayout.computeSectioned(parsed.measures, piece.sections,
+          measuresPerRow: measuresPerRow)
+      : PieceLayout.compute(parsed.measures, piece.sections,
+          measuresPerRow: measuresPerRow);
 });
 
 // ── Display mode ──────────────────────────────────────────────────────────────
 
 final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff);
+
+// ── Section navigation (minimap) ──────────────────────────────────────────────
+// Top-most visible section-run index in the jianpu/fingering views, pushed on
+// scroll; the minimap reads it to show "where we are" (only meaningful for the
+// scrollable custom views — staff falls back to playback/selection).
+final scrollRunProvider = StateProvider<int?>((_) => null);
+
+// A scroll-to-run request from the minimap. The `seq` lets an identical run be
+// re-requested (a plain int wouldn't re-notify); the active custom view listens
+// and calls Scrollable.ensureVisible on that run's header.
+final navTargetRunProvider = StateProvider<({int run, int seq})?>((_) => null);
 
 // ── String-label style preference ─────────────────────────────────────────────
 
@@ -109,7 +133,16 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
-  return FingeringXmlInjector.stripFingerings(xml);
+  xml = FingeringXmlInjector.stripFingerings(xml);
+  final sectioned =
+      ref.watch(sectionOrganizedProvider) && piece.sections.isNotEmpty;
+  if (sectioned) {
+    final parsed = await ref.watch(parsedPieceProvider.future);
+    if (parsed != null) {
+      xml = SectionUnfoldXml.apply(xml, parsed.measures, piece.sections);
+    }
+  }
+  return xml;
 });
 
 final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
@@ -122,7 +155,14 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   final parsed = await ref.watch(parsedPieceProvider.future);
+  // Inject fingerings on the folded score first, then unfold — so each
+  // repeated copy carries the same fingering labels.
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
+  final sectioned =
+      ref.watch(sectionOrganizedProvider) && piece.sections.isNotEmpty;
+  if (sectioned && parsed != null) {
+    xml = SectionUnfoldXml.apply(xml, parsed.measures, piece.sections);
+  }
   return xml;
 });
 

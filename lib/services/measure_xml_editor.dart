@@ -55,12 +55,61 @@ class MeasureXmlEditor {
     return doc.toXmlString();
   }
 
+  /// Sets the repeat barlines on `<measure number="$measureNumber">` to match
+  /// [start] (forward repeat, left edge `|:`) and [end] (backward repeat, right
+  /// edge `:|`, drawn as the doubled `light-heavy` barline). Existing forward/
+  /// backward repeat barlines are removed first; non-repeat barlines (e.g. a
+  /// plain final double bar) are left untouched. Idempotent. Returns the
+  /// re-serialized MusicXML string.
+  static String setMeasureRepeats(String musicXml, int measureNumber,
+      {required bool start, required bool end}) {
+    final doc = XmlDocument.parse(musicXml);
+    final measureEl = doc.findAllElements('measure').firstWhere(
+          (m) => m.getAttribute('number') == '$measureNumber',
+          orElse: () =>
+              throw ArgumentError('Measure $measureNumber not found in MusicXML'),
+        );
+
+    bool isRepeatBarline(XmlNode n, String direction) =>
+        n is XmlElement &&
+        n.name.local == 'barline' &&
+        n.findElements('repeat').any((r) => r.getAttribute('direction') == direction);
+
+    // Drop the forward/backward repeat barlines we manage; leave any non-repeat
+    // barlines in place.
+    measureEl.children.removeWhere((n) => isRepeatBarline(n, 'forward'));
+    measureEl.children.removeWhere((n) => isRepeatBarline(n, 'backward'));
+
+    if (start) {
+      final barline = XmlDocument.parse(
+              '<barline location="left"><bar-style>heavy-light</bar-style>'
+              '<repeat direction="forward"/></barline>')
+          .rootElement
+          .copy();
+      // A left barline belongs at the start of the measure, after a leading
+      // <print> if one is present.
+      final printIdx = measureEl.children
+          .indexWhere((n) => n is XmlElement && n.name.local == 'print');
+      measureEl.children.insert(printIdx == -1 ? 0 : printIdx + 1, barline);
+    }
+    if (end) {
+      final barline = XmlDocument.parse(
+              '<barline location="right"><bar-style>light-heavy</bar-style>'
+              '<repeat direction="backward"/></barline>')
+          .rootElement
+          .copy();
+      measureEl.children.add(barline);
+    }
+    return doc.toXmlString();
+  }
+
   /// A minimal single-measure `<score-partwise>` for the live edit preview.
   /// Same structure proven to render with `StaffView` + the palette OSMD
   /// bridge (`PaletteXmlGenerator`): one part/measure with a synthesized
   /// `<attributes>` (divisions/key/time/treble clef) followed by [notes].
   static String buildSingleMeasurePreviewXml(
-      List<NoteEvent> notes, ParsedPiece parsed) {
+      List<NoteEvent> notes, ParsedPiece parsed,
+      {bool repeatStart = false, bool repeatEnd = false}) {
     final buf = StringBuffer()
       ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
       ..writeln('<score-partwise version="3.1">')
@@ -76,8 +125,16 @@ class MeasureXmlEditor {
           '<beat-type>${parsed.beatType}</beat-type></time>'
           '<clef><sign>G</sign><line>2</line></clef>'
           '</attributes>');
+    if (repeatStart) {
+      buf.writeln('<barline location="left"><bar-style>heavy-light</bar-style>'
+          '<repeat direction="forward"/></barline>');
+    }
     for (final n in notes) {
       buf.writeln(_noteXml(n, parsed.divisions));
+    }
+    if (repeatEnd) {
+      buf.writeln('<barline location="right"><bar-style>light-heavy</bar-style>'
+          '<repeat direction="backward"/></barline>');
     }
     buf
       ..writeln('</measure>')

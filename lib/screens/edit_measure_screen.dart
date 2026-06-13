@@ -34,6 +34,10 @@ const _stepSemitone = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11};
 class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   late List<NoteEvent> _notes;
   int? _selectedIndex;
+  // Repeat barlines on this measure, seeded from the parsed measure and toggled
+  // by the REPEAT control group. Persisted via MeasureXmlEditor.setMeasureRepeats.
+  bool _repeatStart = false;
+  bool _repeatEnd = false;
   final ValueNotifier<HighlightEvent?> _noHighlight = ValueNotifier(null);
   bool _saving = false;
 
@@ -48,6 +52,8 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             parsed.measures[(widget.measureNumber - 1).clamp(0, parsed.measures.length - 1)],
       );
       _notes = List.of(measure.notes);
+      _repeatStart = measure.repeatStart;
+      _repeatEnd = measure.repeatEnd;
     } else {
       _notes = [];
     }
@@ -216,8 +222,11 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     try {
       final repo = ref.read(pieceRepositoryProvider);
       final original = await repo.loadMusicXml(piece);
-      final newXml = MeasureXmlEditor.replaceMeasureNotes(
+      var newXml = MeasureXmlEditor.replaceMeasureNotes(
           original, widget.measureNumber, _notes, parsed.divisions);
+      newXml = MeasureXmlEditor.setMeasureRepeats(
+          newXml, widget.measureNumber,
+          start: _repeatStart, end: _repeatEnd);
 
       if (piece.musicXmlFilePath != null) {
         // Already file-backed (a scan or a previously-edited fixture).
@@ -270,6 +279,10 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     }
 
     final measureCount = parsed.measures.length;
+    // Repeats are shown as Flutter badge overlays (below), NOT baked into the
+    // preview XML: OSMD auto-closes an unclosed forward repeat onto the same
+    // measure's right barline, which would make a lone start-repeat look like
+    // both a start and an end. The saved file carries the real barlines.
     final previewXml =
         MeasureXmlEditor.buildSingleMeasurePreviewXml(_notes, parsed);
 
@@ -313,10 +326,32 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             // Live single-measure preview (renders blank in Marionette
             // screenshots — a known WebView limitation; verify in-sim).
             Expanded(
-              child: StaffView(
-                musicXml: previewXml,
-                highlightNotifier: _noHighlight,
-                bridgeAsset: 'assets/osmd/palette_bridge.html',
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: StaffView(
+                      musicXml: previewXml,
+                      highlightNotifier: _noHighlight,
+                      bridgeAsset: 'assets/osmd/palette_bridge.html',
+                    ),
+                  ),
+                  // Repeat indicators, one per active toggle — driven directly
+                  // by the toggle state so each shows independently.
+                  if (_repeatStart)
+                    const Positioned(
+                      left: 8,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(child: _RepeatBadge('|:')),
+                    ),
+                  if (_repeatEnd)
+                    const Positioned(
+                      right: 8,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(child: _RepeatBadge(':|')),
+                    ),
+                ],
               ),
             ),
             const Divider(height: 1),
@@ -430,16 +465,32 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           _group(
             'DURATION',
             [
-              _iconBtn(Icons.chevron_left,
-                  onPressed: hasSel ? () => _changeDuration(longer: false) : null),
-              SizedBox(
-                width: 92,
-                child: Text(durLabel,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12)),
+              // Value name sits above the ◀ ▶ buttons so the group stays narrow.
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 16,
+                    child: Text(durLabel,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11)),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _iconBtn(Icons.chevron_left,
+                          onPressed: hasSel
+                              ? () => _changeDuration(longer: false)
+                              : null),
+                      const SizedBox(width: 4),
+                      _iconBtn(Icons.chevron_right,
+                          onPressed: hasSel
+                              ? () => _changeDuration(longer: true)
+                              : null),
+                    ],
+                  ),
+                ],
               ),
-              _iconBtn(Icons.chevron_right,
-                  onPressed: hasSel ? () => _changeDuration(longer: true) : null),
             ],
           ),
           _divider(),
@@ -453,8 +504,54 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             _labelBtn(Icons.remove, 'delete',
                 onPressed: hasSel ? _delete : null),
           ]),
+          _divider(),
+          // Repeat barlines act on the whole measure, so these are always
+          // enabled regardless of which note (if any) is selected.
+          _group('REPEAT', [
+            _repeatToggle('|:', 'start', _repeatStart,
+                () => setState(() => _repeatStart = !_repeatStart)),
+            const SizedBox(width: 4),
+            _repeatToggle(':|', 'end', _repeatEnd,
+                () => setState(() => _repeatEnd = !_repeatEnd)),
+          ]),
         ],
       ),
+    );
+  }
+
+  // A measure-level repeat toggle: a square glyph button (filled when active)
+  // with a caption below.
+  Widget _repeatToggle(
+      String glyph, String label, bool active, VoidCallback onTap) {
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 40,
+          height: 40,
+          child: active
+              ? FilledButton(
+                  onPressed: onTap,
+                  style: FilledButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    shape: shape,
+                  ),
+                  child: Text(glyph, style: _accGlyph),
+                )
+              : OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    shape: shape,
+                  ),
+                  child: Text(glyph, style: _accGlyph),
+                ),
+        ),
+        const SizedBox(height: 2),
+        Text(label,
+            style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+      ],
     );
   }
 
@@ -478,7 +575,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   Widget _divider() => Container(
         width: 1,
         height: 56,
-        margin: const EdgeInsets.symmetric(horizontal: 14),
+        margin: const EdgeInsets.symmetric(horizontal: 8),
         color: Colors.grey.shade300,
       );
 
@@ -531,6 +628,34 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
                     ? Colors.grey.shade400
                     : Colors.grey.shade700)),
       ],
+    );
+  }
+}
+
+/// A repeat indicator drawn over the live preview (the staff itself stays
+/// repeat-free to dodge OSMD's auto-close of an unmatched forward repeat).
+class _RepeatBadge extends StatelessWidget {
+  final String glyph;
+  const _RepeatBadge(this.glyph);
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: Text(
+        glyph,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
     );
   }
 }

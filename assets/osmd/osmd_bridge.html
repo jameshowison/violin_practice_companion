@@ -33,6 +33,13 @@
     if (_scoreLoaded) { osmd.render(); refreshAfterRender(); }
   };
 
+  // Section-organized mode turns this off so the last system of the (unfolded)
+  // score keeps its natural measure widths instead of stretching across.
+  window.setStretchLastSystem = function(val) {
+    osmd.EngravingRules.StretchLastSystemLine = !!val;
+    if (_scoreLoaded) { osmd.render(); refreshAfterRender(); }
+  };
+
   // Scroll the staff view using a "page turn" metaphor:
   //   • While the cursor is on any row except the last visible one → no scroll.
   //   • When the cursor enters the last visible row → jump so that row sits at
@@ -101,6 +108,7 @@
   var _measureRects = [];      // [{number, x, y, w, h}] in OSMD units
   var _sel = null;             // {start, end, color} or null
   var _flagged = [];           // [measureNumber, ...]
+  var _sections = [];          // [{start, end, color}] index spans for section wash
 
   function osmdSvg() {
     return document.querySelector('#osmd-container svg');
@@ -246,6 +254,42 @@
       }
       svg.appendChild(fg);
     }
+
+    // Section margin bars — a single continuous "reply-quote" stripe in the
+    // section color spanning ALL the systems a section occupies (top of its
+    // first staff to the bottom of its last), sitting in the left page margin.
+    // One unbroken bar per section (it does not break between wrapped rows), set
+    // well clear of the staff so it never muddies notes or the selection. Drawn
+    // last as the first child so it sits behind everything. (Section coloring is
+    // ABAA-only; in folded mode _sections is empty.)
+    clearLayer('vpc-sections');
+    if (_sections && _sections.length) {
+      var secG = document.createElementNS(SVGNS, 'g');
+      secG.setAttribute('id', 'vpc-sections');
+      for (var s = 0; s < _sections.length; s++) {
+        var span = _sections[s];
+        var top = Infinity, bot = -Infinity, leftX = Infinity, have = false;
+        for (var idx = span.start; idx <= span.end; idx++) {
+          var sm = rectFor(idx);
+          if (!sm) continue;
+          have = true;
+          if (sm.my < top) top = sm.my;
+          if (sm.my + sm.mh > bot) bot = sm.my + sm.mh;
+          if (sm.x < leftX) leftX = sm.x;
+        }
+        if (!have) continue;
+        var sr = document.createElementNS(SVGNS, 'rect');
+        sr.setAttribute('x', Math.max(1, leftX * u - 16));
+        sr.setAttribute('y', top * u);
+        sr.setAttribute('width', 6);
+        sr.setAttribute('height', (bot - top) * u);
+        sr.setAttribute('fill', span.color || '#888888');
+        sr.setAttribute('opacity', '0.9');
+        sr.setAttribute('rx', '3');
+        secG.appendChild(sr);
+      }
+      svg.insertBefore(secG, svg.firstChild);
+    }
   }
 
   // Rebuild the hit map and re-apply overlays after any (re-)render.
@@ -267,6 +311,24 @@
   window.setFlaggedMeasures = function(list) {
     _flagged = list || [];
     redrawOverlay();
+  };
+
+  // spans: [{start, end, color}] in positional measure-index space.
+  window.setSectionTints = function(spans) {
+    _sections = spans || [];
+    redrawOverlay();
+  };
+
+  // Scroll so the measure at positional index [i] sits near the viewport top.
+  window.scrollToMeasureIndex = function(i) {
+    var m = rectFor(i);
+    var svg = osmdSvg();
+    if (!m || !svg) return;
+    var u = unitPx();
+    var pageTop = (window.scrollY || document.documentElement.scrollTop || 0);
+    var svgTop = svg.getBoundingClientRect().top + pageTop;
+    var target = svgTop + m.my * u - 8;
+    window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   };
 
   document.addEventListener('click', function(ev) {
@@ -359,10 +421,16 @@
       window.setBottomInset(data.px);
     } else if (data.type === 'setSpacing') {
       window.setSpacing(data.val);
+    } else if (data.type === 'setStretchLastSystem') {
+      window.setStretchLastSystem(data.val);
     } else if (data.type === 'setSelection') {
       window.setSelection(data.start, data.end, data.color);
     } else if (data.type === 'setFlaggedMeasures') {
       window.setFlaggedMeasures(data.measures);
+    } else if (data.type === 'setSectionTints') {
+      window.setSectionTints(data.spans);
+    } else if (data.type === 'scrollToMeasureIndex') {
+      window.scrollToMeasureIndex(data.index);
     }
   });
 </script>

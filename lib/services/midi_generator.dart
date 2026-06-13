@@ -50,8 +50,15 @@ class MidiData {
     required this.highlightEvents,
   });
 
-  /// Array index of the measure carrying [measureNumber], or -1 if absent.
+  /// Array index of the FIRST occurrence of [measureNumber], or -1 if absent.
+  /// With repeats a measure can appear more than once in performance order.
   int indexOfMeasure(int measureNumber) => measureNumbers.indexOf(measureNumber);
+
+  /// Array index of the LAST occurrence of [measureNumber], or -1 if absent.
+  /// Used as a range end-bound so a selection spanning a repeated measure plays
+  /// through every occurrence rather than stopping at the first.
+  int lastIndexOfMeasure(int measureNumber) =>
+      measureNumbers.lastIndexOf(measureNumber);
 }
 
 class MidiGenerator {
@@ -78,6 +85,15 @@ class MidiGenerator {
   }
 
   /// Converts [piece] at [bpm] to scheduled note events with absolute times.
+  ///
+  /// Repeats are honored: the measures are played in an *expanded performance
+  /// order* (a `|: A B :|` span yields A B A B). Onset/offset times advance off
+  /// a monotonic performance cursor (so audio + the playback time→event pointer
+  /// stay correct), while each highlight's [HighlightEvent.beatPosition] is
+  /// anchored to the measure's position in the ORIGINAL score — so on a replay
+  /// the beat value drops back, and the OSMD cursor's backward-seek reset jumps
+  /// it to the repeat start (no bridge change needed). With no repeats the
+  /// expanded order is identity and every value matches the un-repeated output.
   MidiData generate(ParsedPiece piece, int bpm) {
     assert(_initialized, 'Call init() before generate()');
     final secsPerTick = 60.0 / (bpm * _tpb);
@@ -87,15 +103,30 @@ class MidiGenerator {
     final measureNoteTimings = <List<(double, double)>>[];
     final highlightEvents = <HighlightEvent>[];
     double cursor = 0.0;
-    int cumulativeTicks = 0;
 
+    // Pre-pass: cumulative score ticks at each measure's document start
+    // (including hidden lead/pickup notes), used to anchor beatPosition.
+    final scoreStartTicks = <int>[];
+    int acc = 0;
     for (final measure in piece.measures) {
+      scoreStartTicks.add(acc);
+      for (final hidden in measure.hiddenLeadNotes) {
+        acc += _ticks(hidden);
+      }
+      for (final note in measure.notes) {
+        acc += _ticks(note);
+      }
+    }
+
+    for (final idx in ParsedPiece.performanceOrder(piece.measures)) {
+      final measure = piece.measures[idx];
       measureOnsets.add(cursor);
       measureNumbers.add(measure.number);
+      int scoreTick = scoreStartTicks[idx];
       for (final hidden in measure.hiddenLeadNotes) {
         final t = _ticks(hidden);
         cursor += t * secsPerTick;
-        cumulativeTicks += t;
+        scoreTick += t;
       }
       final noteTimings = <(double, double)>[];
       for (int ni = 0; ni < measure.notes.length; ni++) {
@@ -111,13 +142,13 @@ class MidiGenerator {
           isLong: !note.isRest && _isLongerThanQuarter(note),
           onsetSeconds: onset,
           offsetSeconds: offset,
-          beatPosition: cumulativeTicks / (_tpb * 4),
+          beatPosition: scoreTick / (_tpb * 4),
         ));
         if (!note.isRest) {
           notes.add(ScheduledNote(onset, offset, note.midiNumber));
         }
         cursor += dur;
-        cumulativeTicks += ticks;
+        scoreTick += ticks;
       }
       measureNoteTimings.add(noteTimings);
     }

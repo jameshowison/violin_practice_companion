@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../models/section_palette.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
 
@@ -25,8 +26,22 @@ class StaffView extends ConsumerStatefulWidget {
 
   /// Model measure numbers in document order (`parsed.measures[i].number`). The
   /// bridge works in positional indices because OSMD renumbers a short pickup;
-  /// this list maps an OSMD index ↔ our measure number in both directions.
+  /// this list maps an OSMD index ↔ our measure number in both directions. In
+  /// section-organized mode this is the unfolded performance order, so a
+  /// repeated measure number appears at more than one index.
   final List<int> measureNumbers;
+
+  /// Whether OSMD justifies the final system to full width. False in
+  /// section-organized mode so the last line keeps its natural measure widths.
+  final bool stretchLastSystem;
+
+  /// Per-section background wash spans, in positional measure-index space
+  /// (matching [measureNumbers]).
+  final List<SectionTintSpan> sectionTints;
+
+  /// Minimap scroll-to-measure request (measure index + a sequence so identical
+  /// requests still fire); null until the minimap is tapped.
+  final ({int index, int seq})? scrollNav;
 
   const StaffView({
     super.key,
@@ -37,6 +52,9 @@ class StaffView extends ConsumerStatefulWidget {
     this.onMeasureTapped,
     this.flaggedMeasures = const {},
     this.measureNumbers = const [],
+    this.stretchLastSystem = true,
+    this.sectionTints = const [],
+    this.scrollNav,
   });
 
   @override
@@ -95,6 +113,22 @@ class _StaffViewState extends ConsumerState<StaffView> {
     _runJs('window.setFlaggedMeasures([${idx.join(',')}])');
   }
 
+  void _sendSectionTints() {
+    if (!_osmdReady) return;
+    final payload = jsonEncode([
+      for (final s in widget.sectionTints)
+        {'start': s.start, 'end': s.end, 'color': s.color}
+    ]);
+    _runJs('window.setSectionTints($payload)');
+  }
+
+  void _sendScrollNav() {
+    if (!_osmdReady) return;
+    final nav = widget.scrollNav;
+    if (nav == null) return;
+    _runJs('window.scrollToMeasureIndex(${nav.index})');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,9 +143,14 @@ class _StaffViewState extends ConsumerState<StaffView> {
         onPageFinished: (_) {
           _osmdReady = true;
           _sendSpacing(ref.read(staffSpacingProvider));
-          _loadScore();
+          // Set overlay state BEFORE loading the score, so the score's
+          // post-render redraw paints the section bars/selection/flags. (Sending
+          // them after loadScore left _sections empty at first render — bars
+          // only appeared on the next overlay event, e.g. a minimap tap.)
           _sendSelection();
           _sendFlagged();
+          _sendSectionTints();
+          _loadScore();
           _onHighlight();
           _sendBottomInset(ref.read(staffViewBottomInsetProvider));
         },
@@ -149,10 +188,11 @@ class _StaffViewState extends ConsumerState<StaffView> {
       _onHighlight();
     }
     if (old.musicXml != widget.musicXml && _osmdReady) {
-      // A new score re-renders the staff; resend selection/flags afterwards.
-      _loadScore();
+      // Set overlay state before reloading so the post-render redraw paints it.
       _sendSelection();
       _sendFlagged();
+      _sendSectionTints();
+      _loadScore();
     }
     // measureNumbers changes (e.g. after an edit re-parse) shift the index
     // mapping, so re-send both overlays when it does.
@@ -160,6 +200,12 @@ class _StaffViewState extends ConsumerState<StaffView> {
     if (mapChanged || old.selection != widget.selection) _sendSelection();
     if (mapChanged || !setEquals(old.flaggedMeasures, widget.flaggedMeasures)) {
       _sendFlagged();
+    }
+    if (mapChanged || !listEquals(old.sectionTints, widget.sectionTints)) {
+      _sendSectionTints();
+    }
+    if (widget.scrollNav != null && widget.scrollNav != old.scrollNav) {
+      _sendScrollNav();
     }
   }
 
@@ -181,6 +227,8 @@ class _StaffViewState extends ConsumerState<StaffView> {
 
   void _loadScore() {
     if (!_osmdReady) return;
+    // Send the stretch rule before the score so the first render uses it.
+    _runJs('window.setStretchLastSystem(${widget.stretchLastSystem})');
     final escaped = widget.musicXml
         .replaceAll('\\', '\\\\')
         .replaceAll('`', '\\`')
