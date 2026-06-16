@@ -35,9 +35,10 @@ class StaffView extends ConsumerStatefulWidget {
   /// section-organized mode so the last line keeps its natural measure widths.
   final bool stretchLastSystem;
 
-  /// Per-section background wash spans, in positional measure-index space
-  /// (matching [measureNumbers]).
-  final List<SectionTintSpan> sectionTints;
+  /// Per-section background wash regions (note-level edges). The OSMD bridge is
+  /// the code-only fallback (macOS) and draws a measure-granularity margin bar,
+  /// so regions are rounded to whole measures here.
+  final List<SectionTintRegion> sectionTints;
 
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire); null until the minimap is tapped.
@@ -116,8 +117,15 @@ class _StaffViewState extends ConsumerState<StaffView> {
   void _sendSectionTints() {
     if (!_osmdReady) return;
     final payload = jsonEncode([
-      for (final s in widget.sectionTints)
-        {'start': s.start, 'end': s.end, 'color': s.color}
+      for (final r in widget.sectionTints)
+        {
+          'start': r.startMeasureIndex,
+          // Round the note-level region to whole measures for the margin bar.
+          'end': r.endNote == -1
+              ? r.endMeasureIndex
+              : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1),
+          'color': r.color,
+        }
     ]);
     _runJs('window.setSectionTints($payload)');
   }

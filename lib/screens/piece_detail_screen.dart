@@ -4,7 +4,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/note_event.dart';
-import '../models/parsed_piece.dart'; // for ParsedPiece.performanceOrder
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
 import '../models/section.dart';
@@ -87,22 +86,6 @@ class PieceDetailScreen extends ConsumerWidget {
               children: [
                 Text('Settings', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
-                if (piece.sections.isNotEmpty) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Flexible(
-                          child: Text('Organize by sections (ABAA)')),
-                      Switch(
-                        value: ref.watch(sectionOrganizedProvider),
-                        onChanged: (v) => ref
-                            .read(sectionOrganizedProvider.notifier)
-                            .state = v,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -173,19 +156,29 @@ class PieceDetailScreen extends ConsumerWidget {
                 keySignature: parsedPiece?.keySignature,
               );
 
-              final minimap = layout.runs.isEmpty
+              // The minimap shows the UNFOLDED structure (A A B B); the notation
+              // body stays folded. A tap maps the unfolded run back to the
+              // folded run for in-view navigation + practice-range selection.
+              final unfoldedRuns =
+                  ref.watch(sectionRunsProvider).valueOrNull ?? const [];
+              final minimap = unfoldedRuns.isEmpty
                   ? null
                   : SectionMinimap(
-                      runs: layout.runs,
+                      runs: unfoldedRuns,
                       sectionColors: sectionColors,
                       service: service,
                       onTapRun: (i) {
-                        final run = layout.runs[i];
+                        final run = unfoldedRuns[i];
                         ref.read(measureSelectionProvider.notifier).state =
                             MeasureSelection(run.firstMeasure, run.lastMeasure);
-                        final cur = ref.read(navTargetRunProvider);
-                        ref.read(navTargetRunProvider.notifier).state =
-                            (run: i, seq: (cur?.seq ?? 0) + 1);
+                        final foldedIdx = layout.runs.indexWhere((r) =>
+                            run.firstMeasure >= r.firstMeasure &&
+                            run.firstMeasure <= r.lastMeasure);
+                        if (foldedIdx >= 0) {
+                          final cur = ref.read(navTargetRunProvider);
+                          ref.read(navTargetRunProvider.notifier).state =
+                              (run: foldedIdx, seq: (cur?.seq ?? 0) + 1);
+                        }
                       },
                     );
 
@@ -230,6 +223,7 @@ class PieceDetailScreen extends ConsumerWidget {
                   ),
                   SectionBar(
                     sections: piece.sections,
+                    measures: parsedPiece?.measures ?? const [],
                     selection: selection,
                     onSectionTap: (sel) =>
                         ref.read(measureSelectionProvider.notifier).state =
@@ -423,6 +417,10 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                       const Divider(height: 1),
                                       SectionBar(
                                         sections: widget.piece.sections,
+                                        measures: [
+                                          for (final row in widget.layout.rows)
+                                            ...row
+                                        ],
                                         selection: selection,
                                         onSectionTap: (sel) => ref
                                             .read(measureSelectionProvider
@@ -716,31 +714,27 @@ class _NotationView extends ConsumerWidget {
     final flaggedMeasures = parsed?.flaggedMeasureNumbers ?? const <int>{};
     // Minimap → custom-view navigation, and custom-view scroll → minimap.
     final navTarget = ref.watch(navTargetRunProvider);
+    // Report the top-most visible run's first measure so the minimap can light
+    // its (unfolded) section while scrolling the jianpu/fingering views.
     void onVisibleRun(int i) {
-      if (ref.read(scrollRunProvider) != i) {
-        ref.read(scrollRunProvider.notifier).state = i;
+      final m =
+          (i >= 0 && i < layout.runs.length) ? layout.runs[i].firstMeasure : null;
+      if (ref.read(scrollMeasureProvider) != m) {
+        ref.read(scrollMeasureProvider.notifier).state = m;
       }
     }
-    // In section-organized mode the staff XML is unfolded into performance
-    // order, so the index↔number map and the stretch rule must match it. Gate
-    // on sections present, identically to the providers that build the XML.
-    final sectioned = ref.watch(sectionOrganizedProvider) &&
-        (ref.watch(selectedPieceProvider)?.sections.isNotEmpty ?? false);
-    final measureNumbers = parsed == null
-        ? const <int>[]
-        : (sectioned
-            ? ParsedPiece.performanceOrder(parsed.measures)
-                .map((i) => parsed.measures[i].number)
-                .toList()
-            : parsed.measures.map((m) => m.number).toList());
-    // Section coloring/navigation is ABAA-only (no minimap, bars, or section
-    // tints in folded mode), so the staff wash is empty unless sectioned.
-    final sectionTints = sectioned
-        ? sectionTintSpans(measureNumbers, sections, sectionColors)
-        : const <SectionTintSpan>[];
-    // Minimap tap → scroll the staff to the run's first measure index. Guard the
-    // index: a stale navTarget (left over from a layout with more runs, e.g.
-    // after toggling ABAA off or switching pieces) must not index out of range.
+    // The notation is always folded, so the index↔number map is the plain
+    // document order (numbers are unique).
+    final measureNumbers =
+        parsed == null ? const <int>[] : parsed.measures.map((m) => m.number).toList();
+    // Per-section background wash (note-level edges so a mid-measure section
+    // start/end splits the boundary measure). Empty without sections.
+    final sectionTints = (parsed == null || sections.isEmpty)
+        ? const <SectionTintRegion>[]
+        : sectionTintRegions(
+            measureNumbers, sections, sectionColors, parsed.measures);
+    // Minimap tap → scroll the staff to the (folded) run's first measure index.
+    // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
         ? null
         : () {
@@ -760,7 +754,6 @@ class _NotationView extends ConsumerWidget {
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
           measureNumbers: measureNumbers,
-          stretchLastSystem: !sectioned,
           sectionTints: sectionTints,
           scrollNav: staffNav,
         );
@@ -772,7 +765,6 @@ class _NotationView extends ConsumerWidget {
         onMeasureTapped: (m) => _selectMeasure(ref, m),
         flaggedMeasures: flaggedMeasures,
         measureNumbers: measureNumbers,
-        stretchLastSystem: !sectioned,
         sectionTints: sectionTints,
         scrollNav: staffNav,
       );

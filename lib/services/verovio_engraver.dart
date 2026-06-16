@@ -198,14 +198,58 @@ class VerovioEngraver {
       }
     }
 
+    final (measureLine, lineBands) = _computeLineBands(measures);
+
     return EngravedScore(
       viewBox: hitMap.viewBox,
       svg: flattenForRenderer(svg),
       bboxById: bboxById,
       measures: measures,
       notes: notes,
+      measureLine: measureLine,
+      lineBands: lineBands,
       renderMs: renderMs,
     );
+  }
+
+  /// Groups measures into system lines (a new line where the engraved x resets
+  /// leftward) and returns, per measure, its line index plus a set of **tiled**
+  /// vertical bands — one per line — whose boundaries sit at the midpoint
+  /// between adjacent lines' content. Tiling guarantees consecutive lines touch
+  /// with zero gap and zero overlap, so a full-height section/selection wash
+  /// reads as clean, even bands regardless of note heights.
+  static (List<int>, List<({double top, double bottom})>) _computeLineBands(
+      List<MeasureAnchor> measures) {
+    if (measures.isEmpty) return (const [], const []);
+    final measureLine = List<int>.filled(measures.length, 0);
+    final contentTop = <double>[];
+    final contentBottom = <double>[];
+    var line = -1;
+    var prevLeft = double.negativeInfinity;
+    for (var i = 0; i < measures.length; i++) {
+      final r = measures[i].rect;
+      if (line < 0 || r.left < prevLeft - 1) {
+        line++;
+        contentTop.add(r.top);
+        contentBottom.add(r.bottom);
+      } else {
+        if (r.top < contentTop[line]) contentTop[line] = r.top;
+        if (r.bottom > contentBottom[line]) contentBottom[line] = r.bottom;
+      }
+      measureLine[i] = line;
+      prevLeft = r.left;
+    }
+    final n = contentTop.length;
+    final bands = <({double top, double bottom})>[
+      for (var l = 0; l < n; l++)
+        (
+          top: l == 0 ? contentTop[0] : (contentBottom[l - 1] + contentTop[l]) / 2,
+          bottom: l == n - 1
+              ? contentBottom[n - 1]
+              : (contentBottom[l] + contentTop[l + 1]) / 2,
+        )
+    ];
+    return (measureLine, bands);
   }
 
   /// Index of the measure whose bbox contains [box]'s center, else the nearest
@@ -286,6 +330,13 @@ class EngravedScore {
   /// within that measure (rests counted — matching `HighlightEvent.noteIndex`).
   final List<NoteAnchor> notes;
 
+  /// Per measure index → its system-line index.
+  final List<int> measureLine;
+
+  /// One tiled vertical band per system line (viewBox coords); adjacent bands
+  /// touch with zero gap/overlap. Index with [measureLine].
+  final List<({double top, double bottom})> lineBands;
+
   final int renderMs;
 
   const EngravedScore({
@@ -294,11 +345,24 @@ class EngravedScore {
     required this.bboxById,
     required this.measures,
     required this.notes,
+    required this.measureLine,
+    required this.lineBands,
     required this.renderMs,
   });
 
   MeasureAnchor? measureAt(int index) =>
       (index < 0 || index >= measures.length) ? null : measures[index];
+
+  /// The system line a measure sits on, or -1 if out of range.
+  int lineOfMeasure(int index) =>
+      (index < 0 || index >= measureLine.length) ? -1 : measureLine[index];
+
+  /// The tiled vertical band (top/bottom, viewBox coords) for a measure's
+  /// system line, or null if out of range.
+  ({double top, double bottom})? bandForMeasure(int index) {
+    final l = lineOfMeasure(index);
+    return (l < 0 || l >= lineBands.length) ? null : lineBands[l];
+  }
 
   /// Anchor for the note at document measure [measureIndex], positional
   /// [noteIndex]. Null when out of range (e.g. a stale highlight).

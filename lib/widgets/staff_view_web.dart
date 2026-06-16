@@ -38,8 +38,9 @@ class StaffView extends ConsumerStatefulWidget {
   /// section-organized mode so the last line keeps its natural measure widths.
   final bool stretchLastSystem;
 
-  /// Per-section background wash spans, in positional measure-index space.
-  final List<SectionTintSpan> sectionTints;
+  /// Per-section background wash regions (note-level edges); rounded to whole
+  /// measures for the bridge's margin bar (web is a fallback render path).
+  final List<SectionTintRegion> sectionTints;
 
   /// Minimap scroll-to-measure request (measure index + sequence).
   final ({int index, int seq})? scrollNav;
@@ -245,8 +246,14 @@ class _StaffViewState extends ConsumerState<StaffView> {
       jsonEncode({
         'type': 'setSectionTints',
         'spans': [
-          for (final s in widget.sectionTints)
-            {'start': s.start, 'end': s.end, 'color': s.color}
+          for (final r in widget.sectionTints)
+            {
+              'start': r.startMeasureIndex,
+              'end': r.endNote == -1
+                  ? r.endMeasureIndex
+                  : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1),
+              'color': r.color,
+            }
         ],
       }).toJS,
       '*'.toJS,

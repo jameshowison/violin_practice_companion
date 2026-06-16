@@ -3,18 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/note_event.dart'; // DisplayMode
 import '../models/section_run.dart';
+import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 
-/// Right-hand navigation strip: one emblem per [SectionRun] in display order.
+/// Right-hand navigation strip: one emblem per **unfolded** [SectionRun] (so a
+/// `|: A :|` repeat shows two A emblems — `A A B B`). This is the single place
+/// that conveys the whole-piece structure; the notation itself stays folded.
 ///
-/// Each section is drawn as an emblematic "row and a half" (a full bar + a half
-/// bar) in the section's color — a schematic nod to a wrapped section with a
-/// ragged last line, not a per-measure map. The current section is outlined;
-/// tapping jumps to it.
+/// Each section is drawn as an emblematic bar in the section's color. The
+/// current section is outlined; tapping jumps to it.
 ///
-/// "Where we are" resolves to: the playing section (live), else the top-most
-/// scrolled section in the jianpu/fingering views, else the selected section.
+/// "Where we are" resolves to: the playing pass (live, by performance index —
+/// so the 2nd pass of A lights the 2nd A emblem), else the top-most scrolled
+/// section in the jianpu/fingering views, else the selected section.
 class SectionMinimap extends ConsumerWidget {
   final List<SectionRun> runs;
   final Map<String, Color> sectionColors;
@@ -31,15 +33,22 @@ class SectionMinimap extends ConsumerWidget {
     required this.onTapRun,
   });
 
-  int? _resolveCurrent(
-      bool isCustom, int? scrollRun, int? playMeasure, MeasureSelection? sel) {
-    if (playMeasure != null) {
-      final i = runs.indexWhere(
-          (r) => playMeasure >= r.firstMeasure && playMeasure <= r.lastMeasure);
+  int? _resolveCurrent(bool isCustom, int? scrollMeasure, HighlightEvent? play,
+      MeasureSelection? sel) {
+    if (play != null) {
+      // Pass-accurate: match the run whose performance-order slice is playing.
+      final i = runs.indexWhere((r) => r.containsPerf(play.performanceIndex));
       if (i >= 0) return i;
+      // Fallback (e.g. a run with no perf slice): match by measure number.
+      final byMeasure = runs.indexWhere((r) =>
+          play.measureNumber >= r.firstMeasure &&
+          play.measureNumber <= r.lastMeasure);
+      if (byMeasure >= 0) return byMeasure;
     }
-    if (isCustom && scrollRun != null && scrollRun < runs.length) {
-      return scrollRun;
+    if (isCustom && scrollMeasure != null) {
+      final i = runs.indexWhere((r) =>
+          scrollMeasure >= r.firstMeasure && scrollMeasure <= r.lastMeasure);
+      if (i >= 0) return i;
     }
     if (sel != null) {
       final exact = runs.indexWhere((r) =>
@@ -59,7 +68,7 @@ class SectionMinimap extends ConsumerWidget {
     final isCustom = mode == DisplayMode.jianpu ||
         mode == DisplayMode.fingering ||
         mode == DisplayMode.combined;
-    final scrollRun = ref.watch(scrollRunProvider);
+    final scrollMeasure = ref.watch(scrollMeasureProvider);
     final selection = ref.watch(measureSelectionProvider);
     final theme = Theme.of(context);
 
@@ -70,11 +79,11 @@ class SectionMinimap extends ConsumerWidget {
         border: Border(
             left: BorderSide(color: theme.dividerColor.withAlpha(120))),
       ),
-      child: ValueListenableBuilder<int?>(
-        valueListenable: service.currentMeasureNotifier,
-        builder: (_, playMeasure, _) {
+      child: ValueListenableBuilder<HighlightEvent?>(
+        valueListenable: service.currentHighlightNotifier,
+        builder: (_, play, _) {
           final current =
-              _resolveCurrent(isCustom, scrollRun, playMeasure, selection);
+              _resolveCurrent(isCustom, scrollMeasure, play, selection);
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
             child: Column(

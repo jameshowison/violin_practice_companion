@@ -18,6 +18,11 @@ class HighlightEvent {
   final double onsetSeconds; // absolute from piece start (BPM-dependent)
   final double offsetSeconds;
   final double beatPosition; // absolute beats from piece start (BPM-independent, for OSMD)
+  // Position in the expanded performance order (which unfolded measure-slot this
+  // note plays in). On a repeat, the SAME measure plays at a LATER performance
+  // index, so the minimap can light the exact pass (1st vs 2nd A). Folded
+  // notation keys off measureNumber; the unfolded minimap keys off this.
+  final int performanceIndex;
 
   const HighlightEvent({
     required this.measureNumber,
@@ -26,6 +31,7 @@ class HighlightEvent {
     required this.onsetSeconds,
     required this.offsetSeconds,
     required this.beatPosition,
+    this.performanceIndex = 0,
   });
 }
 
@@ -118,7 +124,9 @@ class MidiGenerator {
       }
     }
 
-    for (final idx in ParsedPiece.performanceOrder(piece.measures)) {
+    final order = ParsedPiece.performanceOrder(piece.measures);
+    for (var oi = 0; oi < order.length; oi++) {
+      final idx = order[oi];
       final measure = piece.measures[idx];
       measureOnsets.add(cursor);
       measureNumbers.add(measure.number);
@@ -143,6 +151,7 @@ class MidiGenerator {
           onsetSeconds: onset,
           offsetSeconds: offset,
           beatPosition: scoreTick / (_tpb * 4),
+          performanceIndex: oi,
         ));
         if (!note.isRest) {
           notes.add(ScheduledNote(onset, offset, note.midiNumber));
