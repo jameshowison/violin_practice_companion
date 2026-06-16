@@ -491,3 +491,34 @@ New `lib/screens/edit_measure_screen.dart`:
    live OSMD preview itself will render blank in Marionette screenshots per
    the known WebView limitation — verify the preview visually in the
    simulator window directly).
+
+---
+
+## 7. Verovio renderer — Phase 6 follow-ups (deferred)
+
+The native Verovio + jovial_svg staff renderer shipped and is the default (see
+`docs/explore.md` §10). What was explicitly deferred until cross-fixture parity
+with OSMD is proven:
+
+- **Parity sweep.** Render every `assets/fixtures/*` under both renderers (flip
+  `staffRendererProvider`) and compare engraving, selection, section tints,
+  flagged measures, fingering labels (verbatim `A2L`/`E2H`), and cursor tracking
+  through a full playback including repeats.
+- **ABAA cursor bug.** In unfolded/sectioned mode the cursor maps a repeated
+  measure number to its FIRST rendered copy (`_anchorForEvent` uses `indexOf` in
+  `staff_view_verovio.dart`). Fix by driving the lookup off performance-occurrence
+  rather than measure number.
+- **Per-platform default.** Set `staffRendererProvider` to `osmd` on macOS
+  (`verovio_flutter` has no macOS target) and `verovio` elsewhere. macOS is
+  likely blocked anyway by other mobile-only plugins (`homr_omr`,
+  `flutter_doc_scanner`, `image_cropper`).
+- **Web WASM verification.** Confirm the `verovio_flutter` WASM path renders and
+  the native overlays work in a browser.
+- **Licensing review.** `verovio_flutter` is LGPL-3.0; the static-FFI-link caveat
+  needs a decision before any public iOS/App Store distribution. Bundle weight
+  ~7 MB/ABI (`--split-per-abi` on Android).
+- **Cleanup (only after the flag default is firmly `verovio` everywhere it can
+  be).** Remove `assets/osmd/*`, the `webview_flutter*` deps, the
+  `staff_view_io/web.dart` bridge, the spike artifacts (`lib/spike/`, the
+  `_kVerovioSpike` flag in `lib/main.dart`), and `flutter_svg` if nothing else
+  kept it. Keep the OSMD path only if macOS-via-OSMD is retained.
