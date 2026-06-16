@@ -6,15 +6,42 @@ PODS:
     - Flutter
   - flutter_midi_pro (0.0.1):
     - Flutter
+  - flutter_onnxruntime (0.0.1):
+    - Flutter
+    - onnxruntime-objc (= 1.24.2)
+  - image_cropper (0.0.5):
+    - Flutter
+    - TOCropViewController (~> 3.1.2)
+  - onnxruntime-c (1.24.2)
+  - onnxruntime-objc (1.24.2):
+    - onnxruntime-objc/Core (= 1.24.2)
+  - onnxruntime-objc/Core (1.24.2):
+    - onnxruntime-c (= 1.24.2)
+  - TOCropViewController (3.1.2)
+  - url_launcher_ios (0.0.1):
+    - Flutter
   - verovio_flutter (0.0.1):
     - Flutter
+  - webview_flutter_wkwebview (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_doc_scanner (from `.symlinks/plugins/flutter_doc_scanner/ios`)
   - flutter_js (from `.symlinks/plugins/flutter_js/ios`)
   - flutter_midi_pro (from `.symlinks/plugins/flutter_midi_pro/ios`)
+  - flutter_onnxruntime (from `.symlinks/plugins/flutter_onnxruntime/ios`)
+  - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
+  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - verovio_flutter (from `.symlinks/plugins/verovio_flutter/ios`)
+  - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - onnxruntime-c
+    - onnxruntime-objc
+    - TOCropViewController
 
 EXTERNAL SOURCES:
   Flutter:
@@ -25,16 +52,31 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_js/ios"
   flutter_midi_pro:
     :path: ".symlinks/plugins/flutter_midi_pro/ios"
+  flutter_onnxruntime:
+    :path: ".symlinks/plugins/flutter_onnxruntime/ios"
+  image_cropper:
+    :path: ".symlinks/plugins/image_cropper/ios"
+  url_launcher_ios:
+    :path: ".symlinks/plugins/url_launcher_ios/ios"
   verovio_flutter:
     :path: ".symlinks/plugins/verovio_flutter/ios"
+  webview_flutter_wkwebview:
+    :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_doc_scanner: d930bcd7db6f69805d882330fc9b6f74a9db5c9e
   flutter_js: 867813c1830e1d9b2c5d547cdb6f61801e2f2145
   flutter_midi_pro: 91fdb12ab765d84d5d391bc0176a09f5f8808804
+  flutter_onnxruntime: 577a012771672fd168079e29be7909a9d0f9c302
+  image_cropper: fca51f94982730acae168c4b5d691e0f11aeb259
+  onnxruntime-c: b58bafbc58707d165404665e46a7467a16e8e0e4
+  onnxruntime-objc: 99e0fe4b6d606970c6c1350c194c7629ef6e6fc9
+  TOCropViewController: a916930c465b5d9445a74d95e0c0da931771b4df
+  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   verovio_flutter: 320509aa8efe5a9d8725b3f1fc97bc4d19aa2a7d
+  webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: 24c9dd591defb8e6828dda711b0fcd9bbb216f82
+PODFILE CHECKSUM: 77c918b63feb874b1494ff02fe288e3dac83843c
 
 COCOAPODS: 1.16.2
