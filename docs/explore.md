@@ -4,8 +4,10 @@ This document records the major paths explored during development, the
 decisions made at each fork, and the reasoning behind them. It supersedes
 `docs/PHASE1.md`–`PHASE4.md`, `docs/ux-improvements-plan.md`,
 `docs/homr_flutter_integration.md`, `docs/flutter-best-practices-migration.md`,
-and `docs/omr_evaluation/{homr,oemer}/results.md` — those documents drove the
-work described below and remain available in git history. Forward-looking
+`docs/omr_evaluation/{homr,oemer}/results.md`, and the Verovio-migration trio
+(`docs/replace_webview_plan_for_review.md`, `docs/verovio_spike_notes.md`,
+`docs/verovio_custompaint_migration_plan.md` — see §10) — those documents drove
+the work described below and remain available in git history. Forward-looking
 work lives in `docs/plan.md`.
 
 ---
@@ -316,3 +318,80 @@ single-page use, but that's a copy/UX nit, not worth trading away VisionKit's
 detection and contrast quality. If this is revisited, look for a way to
 configure/relabel the existing `VNDocumentCameraViewController` review screen
 rather than switching scanner implementations.
+
+---
+
+## 10. Off-WebView staff rendering: Verovio engine + jovial_svg (2026-06-16)
+
+The OSMD-in-WebView staff (§1) carried two long-standing pains: (a) WKWebView
+is a Flutter platform view, so Marionette screenshots over the staff are always
+blank (documented in `CLAUDE.md`), and (b) selection was measure-only and
+highlight color/animation was awkward (fixed-opacity SVG `<rect>`s injected into
+`osmd_bridge.html`). A spike on throwaway branch `spike/verovio-rendering`
+evaluated replacing it with a native render path, and the result shipped (merged
+to `main`, commit `6dc720c`, behind a `staffRendererProvider` flag).
+
+**Rejected first: the headless-OSMD + percentage-map blueprint.** An AI-generated
+design (former `replace_webview_plan_for_review.md`) proposed running OSMD
+headlessly in Node/`jsdom`, emitting flat SVG + a normalized 0–1 bounding-box
+JSON map, and rendering it with `flutter_svg` + a `Stack` of `Positioned`
+touch zones. Rejected because it (a) couldn't reflow (fixed engraving stretched
+with `BoxFit.fill`, not re-broken per width) and (b) depended on `flutter_svg`,
+which — as the spike then proved — cannot draw the SVG faithfully anyway.
+
+**Engine verdict: Verovio is an excellent on-device fit.** `verovio_flutter`
+0.3.1 (Verovio 6.2.x) runs as FFI on iOS/Android and WASM on web — no WebView,
+no JS bridge, on a worker isolate. Everything we need works on-device: genuine
+reflow (`setOptionsJson({pageWidth,...})` re-breaks systems, ~450ms), per-element
+bboxes (`renderPageWithHitMap` → `ElementHit{id,type,bbox}`), a timemap
+(`qstamp` = quarter-note position, maps to `HighlightEvent.beatPosition`), and
+stable glyph IDs (SMuFL codepoints).
+
+**Renderer was the whole fight.** The blocker was never Verovio — it was getting
+its SVG into Flutter's pipeline:
+- **`flutter_svg` → NO-GO.** It drops the `<style>` block (Verovio strokes all
+  staff lines/stems/beams via `stroke:currentColor` CSS → they vanish) and
+  ignores Verovio's nested `<svg class="definition-scale" viewBox="0 0 18000 …">`
+  (content drawn ~25× oversized, off-canvas). A stroke-inlining shim still
+  rendered blank. Fixing it would mean a heavy, version-fragile SVG normalizer.
+- **`jovial_svg` → GO** (1.1.29, BSD, `CustomPaint`-based, all platforms incl.
+  web — *not* a WebView, so Marionette/`simctl` capture it). It parses the
+  `<style>` CSS and supports a `currentColor` parameter — exactly the two things
+  flutter_svg dropped. **Only shim needed:** flatten Verovio's nested
+  `<svg class="definition-scale">` to `<g transform="scale(…)">` (jovial throws
+  "Second `<svg>` tag in file"), keeping the `<style>` intact. This made the
+  renderer a dependency swap rather than new code → **the hand-written Canvas
+  painter (the migration plan's Phase 2) was skipped entirely.**
+
+**What shipped:**
+- `lib/services/verovio_engraver.dart` — one long-lived `VerovioAsyncService`,
+  serialized `engrave()`, cached by `(xmlHash, widthBucket, scale)`, reflow.
+  Returns `EngravedScore` (jovial-ready flattened SVG + viewBox + index-based
+  `MeasureAnchor`/`NoteAnchor`). **Note→measure assignment is geometric** (bbox
+  containment + x-rank = positional `noteIndex`), deliberately chosen over
+  fragile qstamp/tick alignment; qstamp is kept only as a fallback. Domain-free:
+  the index↔model-number mapping stays in the widget via its `measureNumbers`
+  list (the same contract OSMD used, see §4 / `plan.md` §2).
+- `lib/widgets/staff_view_verovio.dart` — drop-in with `StaffView`'s public API.
+  All the OSMD-bridge overlays are now **native** (drawn over the engraving in a
+  `Stack`): section tints, selection range, flagged-measure markers, current-note
+  highlight, and the playback cursor — driven directly by `HighlightEvent`'s
+  `(measureNumber, noteIndex)`, no qstamp lookup. Page-turn autoscroll + scrollNav
+  reimplemented natively. Wired at both call sites (`piece_detail_screen.dart`,
+  `edit_measure_screen.dart`'s single-measure preview).
+
+**Renderer policy (per user): Verovio is the default and the only user-facing
+renderer — no UI toggle.** OSMD is retained as a *code-only* fallback for
+environments where Verovio can't run. The big payoff: the staff is no longer
+blank in Marionette/`simctl` screenshots (jovial is in-pipeline), so notation is
+finally agent-visible.
+
+**Cons accepted, carried forward as deferred work (see `plan.md`):**
+`verovio_flutter` has **no macOS support** (so macOS must stay on OSMD via the
+flag — but macOS is likely blocked by other mobile-only plugins anyway);
+**LGPL-3.0** static-FFI-link is an App-Store gray area; ~7 MB/ABI weight. Phase 6
+cleanup (removing `assets/osmd/*`, `webview_flutter*`, the bridge, `lib/spike/`)
+is **not done** — held until cross-fixture parity is fully proven. **Known
+limitation:** in unfolded/sectioned (ABAA) mode the cursor maps a repeated
+measure number to its FIRST rendered copy (`_anchorForEvent` uses `indexOf`);
+fixing it needs driving by performance-occurrence.
