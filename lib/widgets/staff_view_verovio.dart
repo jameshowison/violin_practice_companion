@@ -35,8 +35,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// width, so there's no last-system justification to toggle.
   final bool stretchLastSystem;
 
-  /// Per-section background washes, in engraved measure-index space.
-  final List<SectionTintSpan> sectionTints;
+  /// Per-section background washes, with note-level edges (engraved-index space).
+  final List<SectionTintRegion> sectionTints;
 
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
@@ -297,7 +297,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   static int _bucket(double w) => (w / 48).round();
 }
 
-/// Drawn UNDER the notation: per-section background washes.
+/// Drawn UNDER the notation: per-section background washes. Each region paints
+/// one rect per system line it spans (a section can wrap several lines), clipped
+/// to the section's first/last note so a mid-measure section start/end colors
+/// only its own notes.
+///
+/// The vertical extent of each rect is a UNIFORM band per system line — the
+/// union of every measure's bbox on that line — not each measure's own height.
+/// That keeps the wash a clean rectangle (no stepping as notes go high/low, and
+/// no white gaps between measures within a line).
 class _UnderlayPainter extends CustomPainter {
   _UnderlayPainter({
     required this.score,
@@ -307,27 +315,64 @@ class _UnderlayPainter extends CustomPainter {
 
   final EngravedScore score;
   final double scale;
-  final List<SectionTintSpan> sectionTints;
+  final List<SectionTintRegion> sectionTints;
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final span in sectionTints) {
-      final rect = _spanRect(span.start, span.end);
-      if (rect == null) continue;
-      final color = _parseHex(span.color).withValues(alpha: 0.10);
-      canvas.drawRect(rect, Paint()..color = color);
+    if (sectionTints.isEmpty) return;
+    for (final region in sectionTints) {
+      final color = _parseHex(region.color).withValues(alpha: 0.10);
+      for (final rect in _regionRowRects(region)) {
+        canvas.drawRect(rect, Paint()..color = color);
+      }
     }
   }
 
-  Rect? _spanRect(int startIndex, int endIndex) {
-    Rect? acc;
-    for (var i = startIndex; i <= endIndex; i++) {
+  /// Drawn (viewBox→screen scaled) rects for [r], one per system line. Measures
+  /// are unioned horizontally within a line; the line's TILED band (from the
+  /// engraving) sets the height so adjacent lines neither overlap nor gap; the
+  /// first measure's left and a partial last measure's right are clipped to
+  /// notes (mid-measure section edges).
+  List<Rect> _regionRowRects(SectionTintRegion r) {
+    // Last measure index that gets any wash: a whole-measure end (-1) or a
+    // mid-measure end (endNote>0) includes endMeasureIndex; endNote==0 stops at
+    // the measure before it.
+    final lastIdx = r.endNote == -1
+        ? r.endMeasureIndex
+        : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
+    if (lastIdx < r.startMeasureIndex) return const [];
+
+    final byLine = <int, ({double left, double right, double top, double bottom})>{};
+    for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
       final m = score.measureAt(i);
-      if (m == null) continue;
-      final r = _scaled(m.rect);
-      acc = acc == null ? r : acc.expandToInclude(r);
+      final band = score.bandForMeasure(i);
+      if (m == null || band == null) continue;
+      var left = m.rect.left;
+      var right = m.rect.right;
+      if (i == r.startMeasureIndex && r.startNote > 0) {
+        final n = score.noteAt(i, r.startNote);
+        if (n != null) left = n.rect.left;
+      }
+      if (r.endNote > 0 && i == r.endMeasureIndex) {
+        final n = score.noteAt(i, r.endNote);
+        if (n != null) right = n.rect.left;
+      }
+      if (right <= left) continue;
+      final line = score.lineOfMeasure(i);
+      final cur = byLine[line];
+      byLine[line] = cur == null
+          ? (left: left, right: right, top: band.top, bottom: band.bottom)
+          : (
+              left: left < cur.left ? left : cur.left,
+              right: right > cur.right ? right : cur.right,
+              top: cur.top,
+              bottom: cur.bottom,
+            );
     }
-    return acc;
+    return [
+      for (final s in byLine.values)
+        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom))
+    ];
   }
 
   Rect _scaled(Rect r) =>
@@ -374,18 +419,44 @@ class _OverlayPainter extends CustomPainter {
 
   int _indexOf(int measureNumber) => measureNumbers.indexOf(measureNumber);
 
+  /// Scaled rects covering measure indices [startIdx]..[endIdx], one per system
+  /// line: measures unioned horizontally, the line's tiled band as the height.
+  List<Rect> _measureBandRects(int startIdx, int endIdx) {
+    final byLine = <int, ({double left, double right, double top, double bottom})>{};
+    for (var i = startIdx; i <= endIdx; i++) {
+      final m = score.measureAt(i);
+      final band = score.bandForMeasure(i);
+      if (m == null || band == null) continue;
+      final line = score.lineOfMeasure(i);
+      final cur = byLine[line];
+      byLine[line] = cur == null
+          ? (left: m.rect.left, right: m.rect.right, top: band.top, bottom: band.bottom)
+          : (
+              left: m.rect.left < cur.left ? m.rect.left : cur.left,
+              right: m.rect.right > cur.right ? m.rect.right : cur.right,
+              top: cur.top,
+              bottom: cur.bottom,
+            );
+    }
+    return [
+      for (final s in byLine.values)
+        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom))
+    ];
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     // Selection range fill (measure numbers → indices, mirroring the OSMD path).
+    // Uses the same tiled per-line bands as the section wash so the highlight is
+    // a clean even band rather than stepping with note heights.
     final sel = selection;
     if (sel != null) {
       final start = _indexOf(sel.startMeasure);
       final end = _indexOf(sel.endMeasure);
       if (start >= 0 && end >= 0) {
         final fill = Paint()..color = primary.withValues(alpha: 0.16);
-        for (var i = start; i <= end; i++) {
-          final m = score.measureAt(i);
-          if (m != null) canvas.drawRect(_scaled(m.rect), fill);
+        for (final rect in _measureBandRects(start, end)) {
+          canvas.drawRect(rect, fill);
         }
       }
     }

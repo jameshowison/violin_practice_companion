@@ -1,11 +1,12 @@
 import 'package:flutter/painting.dart';
+import 'parsed_piece.dart';
 import 'section.dart';
 
 /// One low-saturation color per section, the shared visual identity across the
 /// staff wash, the jianpu/fingering section bands, and the minimap emblems.
 ///
 /// Colors are assigned to *distinct labels* in first-appearance order, so every
-/// occurrence of a repeated section (both `A`s in ABAA mode) shares one color.
+/// occurrence of a repeated section (both `A`s in ABAA) shares one color.
 class SectionPalette {
   /// Base hues — distinct but muted. Applied at low alpha as backgrounds so they
   /// never fight the notation; used near-full strength for minimap emblems.
@@ -34,47 +35,44 @@ class SectionPalette {
       '#${(c.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
 
-/// Contiguous measure-index span sharing one section color — what the OSMD
-/// bridge's `setSectionTints` draws as the per-section background wash.
-typedef SectionTintSpan = ({int start, int end, String color});
+/// A section's background-wash region over the engraved (folded) score, with
+/// note-level edges so a section that begins/ends mid-measure colors only its
+/// notes. Coordinates are engraved measure INDICES (matching the staff's
+/// `measureNumbers` list). [startNote] is the first tinted note in
+/// [startMeasureIndex] (0 = bar start); [endNote] is the EXCLUSIVE last note in
+/// [endMeasureIndex] (`-1` = the whole [endMeasureIndex]).
+typedef SectionTintRegion = ({
+  int startMeasureIndex,
+  int startNote,
+  int endMeasureIndex,
+  int endNote,
+  String color,
+});
 
-/// Groups [measureNumbers] (the staff's possibly-unfolded order) into contiguous
-/// same-section index spans, each tagged with its label's palette hex. Measures
-/// outside any section (e.g. a pickup) are left untinted (no span).
-List<SectionTintSpan> sectionTintSpans(
+/// Builds per-section wash regions over the folded staff. [measureNumbers] is
+/// the engraved order (index → measure number); [measures] is the parsed
+/// measure list (for resolving marker note offsets); [colors] maps label → hue.
+/// Sections sharing a label share a color (so A/B yield two colors).
+List<SectionTintRegion> sectionTintRegions(
   List<int> measureNumbers,
   List<Section> sections,
   Map<String, Color> colors,
+  List<Measure> measures,
 ) {
-  String? labelFor(int n) {
-    for (final s in sections) {
-      if (n >= s.startMeasure && n <= s.endMeasure) return s.label;
-    }
-    return null;
-  }
-
+  final ranges = resolveSectionRanges(sections, measures);
   const fallback = Color(0xFF888888);
-  final spans = <SectionTintSpan>[];
-  String? cur;
-  var start = 0;
-  void close(int endExclusive) {
-    if (cur != null) {
-      spans.add((
-        start: start,
-        end: endExclusive - 1,
-        color: SectionPalette.hex(colors[cur] ?? fallback),
-      ));
-    }
+  final regions = <SectionTintRegion>[];
+  for (final r in ranges) {
+    final startIdx = measureNumbers.indexOf(r.startMeasure);
+    final endIdx = measureNumbers.indexOf(r.endMeasure);
+    if (startIdx < 0 || endIdx < 0) continue;
+    regions.add((
+      startMeasureIndex: startIdx,
+      startNote: r.startNote,
+      endMeasureIndex: endIdx,
+      endNote: r.endNote,
+      color: SectionPalette.hex(colors[r.label] ?? fallback),
+    ));
   }
-
-  for (var i = 0; i < measureNumbers.length; i++) {
-    final lbl = labelFor(measureNumbers[i]);
-    if (lbl != cur) {
-      close(i);
-      cur = lbl;
-      start = i;
-    }
-  }
-  close(measureNumbers.length);
-  return spans;
+  return regions;
 }

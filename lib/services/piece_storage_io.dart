@@ -102,6 +102,37 @@ Future<String> writeFixtureFile(String id, String xml) async {
   return file.path;
 }
 
+/// Section overrides: edited section markers live in a per-piece sidecar at
+/// `<docs>/section_overrides/<id>.sections.json` (keyed by piece id, so it
+/// covers both fixtures and scanned pieces). Once present, the repository
+/// prefers it over a fixture's bundled section asset.
+Future<Directory> _sectionOverridesDir() async {
+  final docs = await getApplicationDocumentsDirectory();
+  final dir = Directory('${docs.path}/section_overrides');
+  if (!await dir.exists()) await dir.create(recursive: true);
+  return dir;
+}
+
+/// The raw `sections` list from piece [id]'s override sidecar, or null if the
+/// piece has never had its sections edited.
+Future<List<Map<String, dynamic>>?> loadSectionsOverride(String id) async {
+  final docs = await getApplicationDocumentsDirectory();
+  final file = File('${docs.path}/section_overrides/$id.sections.json');
+  if (!await file.exists()) return null;
+  final raw = await file.readAsString();
+  if (raw.isEmpty) return null;
+  final j = json.decode(raw) as Map<String, dynamic>;
+  return (j['sections'] as List).cast<Map<String, dynamic>>();
+}
+
+/// Writes piece [id]'s section markers to its override sidecar.
+Future<void> saveSectionsOverride(
+    String id, List<Map<String, dynamic>> sections) async {
+  final dir = await _sectionOverridesDir();
+  final file = File('${dir.path}/$id.sections.json');
+  await file.writeAsString(json.encode({'sections': sections}));
+}
+
 String _slugify(String title) {
   final slug = title.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
   return slug.isEmpty ? 'untitled' : slug;

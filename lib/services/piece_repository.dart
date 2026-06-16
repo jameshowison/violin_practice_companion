@@ -93,12 +93,20 @@ class PieceRepository {
   Future<List<Piece>> loadAll() async {
     final pieces = <Piece>[];
     for (final f in _fixtures) {
-      final sectionsRaw = await rootBundle.loadString(f.sections);
-      final sectionsJson = json.decode(sectionsRaw) as Map<String, dynamic>;
-      final sections = (sectionsJson['sections'] as List)
-          .cast<Map<String, dynamic>>()
-          .map(Section.fromJson)
-          .toList();
+      // Prefer an edited section override (sidecar) over the bundled asset, so
+      // section edits persist; un-edited fixtures track the bundled asset.
+      final override = await loadSectionsOverride(f.id);
+      final List<Section> sections;
+      if (override != null) {
+        sections = override.map(Section.fromJson).toList();
+      } else {
+        final sectionsRaw = await rootBundle.loadString(f.sections);
+        final sectionsJson = json.decode(sectionsRaw) as Map<String, dynamic>;
+        sections = (sectionsJson['sections'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(Section.fromJson)
+            .toList();
+      }
       // Once a fixture has been edited, a writable copy exists — load that
       // (file-backed, editable) instead of the read-only asset. Until then the
       // asset is the source of truth, so un-edited fixtures track asset updates.
@@ -112,7 +120,14 @@ class PieceRepository {
         sections: sections,
       ));
     }
-    pieces.addAll(await loadScannedPieces());
+    for (final scanned in await loadScannedPieces()) {
+      // Scanned pieces carry their sections only as an override sidecar.
+      final override = await loadSectionsOverride(scanned.id);
+      pieces.add(override == null
+          ? scanned
+          : scanned.copyWith(
+              sections: override.map(Section.fromJson).toList()));
+    }
     return pieces;
   }
 
@@ -140,5 +155,12 @@ class PieceRepository {
   /// it becomes file-backed and editable thereafter.
   Future<String> createEditableFixtureFile(String id, String musicXml) {
     return writeFixtureFile(id, musicXml);
+  }
+
+  /// Persists [sections] (section start markers) to piece [id]'s override
+  /// sidecar. Applies to both fixtures and scanned pieces; `loadAll` then
+  /// prefers this over any bundled section asset.
+  Future<void> saveSections(String id, List<Section> sections) {
+    return saveSectionsOverride(id, [for (final s in sections) s.toJson()]);
   }
 }

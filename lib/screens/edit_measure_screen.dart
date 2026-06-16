@@ -5,6 +5,7 @@ import '../models/duration_step.dart';
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/piece.dart';
+import '../models/section.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
@@ -39,6 +40,10 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   // by the REPEAT control group. Persisted via MeasureXmlEditor.setMeasureRepeats.
   bool _repeatStart = false;
   bool _repeatEnd = false;
+  // The whole piece's section start markers, edited via the SECTION control and
+  // persisted to the section-override sidecar on Save. Markers live outside the
+  // MusicXML, so they're tracked independently of the note/repeat edits.
+  late List<Section> _sectionStarts;
   final ValueNotifier<HighlightEvent?> _noHighlight = ValueNotifier(null);
   bool _saving = false;
 
@@ -46,6 +51,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   void initState() {
     super.initState();
     final parsed = ref.read(parsedPieceProvider).valueOrNull;
+    _sectionStarts = List.of(ref.read(selectedPieceProvider)?.sections ?? const []);
     if (parsed != null && parsed.measures.isNotEmpty) {
       final measure = parsed.measures.firstWhere(
         (m) => m.number == widget.measureNumber,
@@ -58,6 +64,65 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     } else {
       _notes = [];
     }
+  }
+
+  /// The marker (if any) that starts a section at the currently-selected note.
+  Section? get _markerAtSelection {
+    final i = _selectedIndex;
+    if (i == null) return null;
+    for (final s in _sectionStarts) {
+      if (s.startMeasure == widget.measureNumber && s.startNote == i) return s;
+    }
+    return null;
+  }
+
+  /// Add / edit / remove a section start marker at the selected note. The label
+  /// is typed in a small dialog; an empty label clears the marker.
+  Future<void> _editSectionMarker() async {
+    final i = _selectedIndex;
+    if (i == null) return;
+    final existing = _markerAtSelection;
+    final controller = TextEditingController(text: existing?.label ?? '');
+    final label = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(existing != null ? 'Edit section start' : 'Mark section start'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            labelText: 'Section label',
+            hintText: 'e.g. A, B',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          if (existing != null)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Remove'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (label == null) return; // cancelled
+    setState(() {
+      _sectionStarts.removeWhere(
+          (s) => s.startMeasure == widget.measureNumber && s.startNote == i);
+      if (label.isNotEmpty) {
+        _sectionStarts.add(Section(
+            label: label, startMeasure: widget.measureNumber, startNote: i));
+      }
+    });
   }
 
   @override
@@ -229,15 +294,17 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           newXml, widget.measureNumber,
           start: _repeatStart, end: _repeatEnd);
 
+      final Piece updated;
       if (piece.musicXmlFilePath != null) {
         // Already file-backed (a scan or a previously-edited fixture).
         await repo.updateScannedPiece(piece.musicXmlFilePath!, newXml);
+        updated = piece;
       } else {
         // First edit of a bundled fixture: materialize a writable copy and
         // switch the selected piece to it so future loads/edits use the file.
         final filePath =
             await repo.createEditableFixtureFile(piece.id, newXml);
-        ref.read(selectedPieceProvider.notifier).state = Piece(
+        updated = Piece(
           id: piece.id,
           title: piece.title,
           musicXmlFilePath: filePath,
@@ -245,6 +312,11 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           sections: piece.sections,
         );
       }
+      // Persist section markers (sidecar) and reflect them on the selected
+      // piece so the detail screen re-renders sections without a re-select.
+      await repo.saveSections(piece.id, _sectionStarts);
+      ref.read(selectedPieceProvider.notifier).state =
+          updated.copyWith(sections: _sectionStarts);
       ref.invalidate(piecesProvider);
       ref.invalidate(parsedPieceProvider);
       if (mounted) Navigator.pop(context);
@@ -522,8 +594,48 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             _repeatToggle(':|', 'end', _repeatEnd,
                 () => setState(() => _repeatEnd = !_repeatEnd)),
           ]),
+          _divider(),
+          // Section start marks the SELECTED note as the beginning of a section
+          // (sub-measure precision — e.g. a pickup belongs to what follows).
+          _group('SECTION', [
+            _sectionToggle(),
+          ]),
         ],
       ),
+    );
+  }
+
+  // A section-start toggle: shows the marker's label when the selected note
+  // begins a section, else a "+" to add one. Disabled until a note is selected.
+  Widget _sectionToggle() {
+    final marker = _markerAtSelection;
+    final active = marker != null;
+    final enabled = _selectedIndex != null;
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+    final child = Text(active ? marker.label : '+', style: _accGlyph);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 40,
+          height: 40,
+          child: active
+              ? FilledButton(
+                  onPressed: enabled ? _editSectionMarker : null,
+                  style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero, shape: shape),
+                  child: child,
+                )
+              : OutlinedButton(
+                  onPressed: enabled ? _editSectionMarker : null,
+                  style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero, shape: shape),
+                  child: child,
+                ),
+        ),
+        const SizedBox(height: 2),
+        Text('start', style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+      ],
     );
   }
 

@@ -28,3 +28,10 @@ Future<String> readScannedMusicXml(String musicXmlFilePath) async {
 Future<void> updateScannedPieceFile(String musicXmlFilePath, String newMusicXml) async {
   throw UnsupportedError('Editing scanned pieces is not supported on web yet.');
 }
+
+Future<List<Map<String, dynamic>>?> loadSectionsOverride(String id) async => null;
+
+Future<void> saveSectionsOverride(
+    String id, List<Map<String, dynamic>> sections) async {
+  throw UnsupportedError('Editing sections is not supported on web yet.');
+}
