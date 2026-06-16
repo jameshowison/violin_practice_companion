@@ -37,6 +37,9 @@ dependencies:
     path: ../homr_flutter/packages/homr_omr
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
+  verovio_flutter: ^0.3.1
+  flutter_svg: ^2.3.0
+  jovial_svg: ^1.1.29
 
 dev_dependencies:
   flutter_test:

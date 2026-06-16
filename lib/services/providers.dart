@@ -100,6 +100,22 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
 
 final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff);
 
+// ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
+// `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays
+// — note-level selection, full highlight control, and Marionette-visible
+// notation. It is the renderer everywhere it works.
+//
+// `osmd` is the legacy WebView path, retained ONLY as a code-level fallback for
+// environments where Verovio can't run (e.g. macOS — verovio_flutter has no
+// macOS build, but webview_flutter does). It is deliberately NOT surfaced in
+// the UI: there's no user toggle. A future task selects `osmd` per-platform
+// (e.g. on macOS) when that target is revisited; until then the default is
+// `verovio`. See docs/verovio_custompaint_migration_plan.md.
+enum StaffRenderer { osmd, verovio }
+
+final staffRendererProvider =
+    StateProvider<StaffRenderer>((_) => StaffRenderer.verovio);
+
 // ── Section navigation (minimap) ──────────────────────────────────────────────
 // Top-most visible section-run index in the jianpu/fingering views, pushed on
 // scroll; the minimap reads it to show "where we are" (only meaningful for the

@@ -6,12 +6,15 @@ PODS:
     - Flutter
   - flutter_midi_pro (0.0.1):
     - Flutter
+  - verovio_flutter (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_doc_scanner (from `.symlinks/plugins/flutter_doc_scanner/ios`)
   - flutter_js (from `.symlinks/plugins/flutter_js/ios`)
   - flutter_midi_pro (from `.symlinks/plugins/flutter_midi_pro/ios`)
+  - verovio_flutter (from `.symlinks/plugins/verovio_flutter/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
@@ -22,12 +25,15 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_js/ios"
   flutter_midi_pro:
     :path: ".symlinks/plugins/flutter_midi_pro/ios"
+  verovio_flutter:
+    :path: ".symlinks/plugins/verovio_flutter/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_doc_scanner: d930bcd7db6f69805d882330fc9b6f74a9db5c9e
   flutter_js: 867813c1830e1d9b2c5d547cdb6f61801e2f2145
   flutter_midi_pro: 91fdb12ab765d84d5d391bc0176a09f5f8808804
+  verovio_flutter: 320509aa8efe5a9d8725b3f1fc97bc4d19aa2a7d
 
 PODFILE CHECKSUM: 24c9dd591defb8e6828dda711b0fcd9bbb216f82
 
