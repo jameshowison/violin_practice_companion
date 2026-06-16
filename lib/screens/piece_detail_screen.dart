@@ -21,6 +21,7 @@ import '../widgets/playback_controls.dart';
 import '../widgets/section_bar.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
+import '../widgets/staff_view_verovio.dart';
 
 class PieceDetailScreen extends ConsumerWidget {
   const PieceDetailScreen({super.key});
@@ -747,21 +748,41 @@ class _NotationView extends ConsumerWidget {
             final idx = measureNumbers.indexOf(run.firstMeasure);
             return idx < 0 ? null : (index: idx, seq: navTarget.seq);
           }();
+    // Build the staff via the selected renderer (native Verovio or OSMD
+    // WebView), keeping one identical parameter set.
+    final renderer = ref.watch(staffRendererProvider);
+    Widget buildStaff(String xml) {
+      if (renderer == StaffRenderer.verovio) {
+        return StaffViewVerovio(
+          musicXml: xml,
+          highlightNotifier: service.currentHighlightNotifier,
+          selection: selection,
+          onMeasureTapped: (m) => _selectMeasure(ref, m),
+          flaggedMeasures: flaggedMeasures,
+          measureNumbers: measureNumbers,
+          stretchLastSystem: !sectioned,
+          sectionTints: sectionTints,
+          scrollNav: staffNav,
+        );
+      }
+      return StaffView(
+        musicXml: xml,
+        highlightNotifier: service.currentHighlightNotifier,
+        selection: selection,
+        onMeasureTapped: (m) => _selectMeasure(ref, m),
+        flaggedMeasures: flaggedMeasures,
+        measureNumbers: measureNumbers,
+        stretchLastSystem: !sectioned,
+        sectionTints: sectionTints,
+        scrollNav: staffNav,
+      );
+    }
+
     switch (mode) {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
           data: (xml) => xml != null
-              ? StaffView(
-                  musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier,
-                  selection: selection,
-                  onMeasureTapped: (m) => _selectMeasure(ref, m),
-                  flaggedMeasures: flaggedMeasures,
-                  measureNumbers: measureNumbers,
-                  stretchLastSystem: !sectioned,
-                  sectionTints: sectionTints,
-                  scrollNav: staffNav,
-                )
+              ? buildStaff(xml)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
@@ -770,17 +791,7 @@ class _NotationView extends ConsumerWidget {
       case DisplayMode.staffFingering:
         return ref.watch(staffFingeringXmlProvider).when(
           data: (xml) => xml != null
-              ? StaffView(
-                  musicXml: xml,
-                  highlightNotifier: service.currentHighlightNotifier,
-                  selection: selection,
-                  onMeasureTapped: (m) => _selectMeasure(ref, m),
-                  flaggedMeasures: flaggedMeasures,
-                  measureNumbers: measureNumbers,
-                  stretchLastSystem: !sectioned,
-                  sectionTints: sectionTints,
-                  scrollNav: staffNav,
-                )
+              ? buildStaff(xml)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
