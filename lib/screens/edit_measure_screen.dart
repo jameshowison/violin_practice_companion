@@ -10,6 +10,7 @@ import '../services/midi_generator.dart';
 import '../services/providers.dart';
 import '../widgets/measure_edit_row.dart';
 import '../widgets/staff_view.dart';
+import '../widgets/staff_view_verovio.dart';
 
 /// Single-measure note editor for scanned pieces (`docs/plan.md` §6).
 ///
@@ -323,17 +324,24 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
         // bottom and never get pushed off-screen.
         child: Column(
           children: [
-            // Live single-measure preview (renders blank in Marionette
-            // screenshots — a known WebView limitation; verify in-sim).
+            // Live single-measure preview. The native Verovio renderer draws
+            // in-pipeline (Marionette-visible); the OSMD palette bridge renders
+            // blank in Marionette screenshots (a WebView limitation).
             Expanded(
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: StaffView(
-                      musicXml: previewXml,
-                      highlightNotifier: _noHighlight,
-                      bridgeAsset: 'assets/osmd/palette_bridge.html',
-                    ),
+                    child: ref.watch(staffRendererProvider) ==
+                            StaffRenderer.verovio
+                        ? StaffViewVerovio(
+                            musicXml: previewXml,
+                            highlightNotifier: _noHighlight,
+                          )
+                        : StaffView(
+                            musicXml: previewXml,
+                            highlightNotifier: _noHighlight,
+                            bridgeAsset: 'assets/osmd/palette_bridge.html',
+                          ),
                   ),
                   // Repeat indicators, one per active toggle — driven directly
                   // by the toggle state so each shows independently.
