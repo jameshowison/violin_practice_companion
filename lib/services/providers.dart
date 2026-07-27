@@ -177,6 +177,11 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
 final tabNumberModeProvider =
     StateProvider<TabNumberMode>((_) => TabNumberMode.violinFingering);
 
+/// Tab fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
+/// fret on the fingering's string. Session-only; only affects fret numbers.
+final tabFretStyleProvider =
+    StateProvider<TabFretStyle>((_) => TabFretStyle.openStrings);
+
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
 /// for the tab view. Reuses the same strip pipeline as [staffXmlProvider] so the
 /// melody staff shows no fingerings (they live only on the tab staff).
@@ -187,11 +192,18 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   if (layout == null) return null;
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
+  final numberMode = ref.watch(tabNumberModeProvider);
+  final fretStyle = ref.watch(tabFretStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
-  return TabScoreGenerator.generate(xml, parsed);
+  return TabScoreGenerator.generate(
+    xml,
+    parsed,
+    fretMode: numberMode == TabNumberMode.mandolinFret,
+    preferOpenFrets: fretStyle == TabFretStyle.openStrings,
+  );
 });
 
 final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
