@@ -158,7 +158,19 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final ev = widget.highlightNotifier.value;
     if (score == null || ev == null) return;
     final anchor = _anchorForEvent(score, ev);
-    if (anchor != null) _autoScrollTo(anchor.rect);
+    if (anchor == null) return;
+    var rect = anchor.rect;
+    if (widget.tabMode) {
+      // The cursor sits on the melody note, but the tab staff is drawn below
+      // it. Extend the scroll rect down to the measure's full height (which
+      // spans both staves) so autoscroll keeps the tab — not just the staff
+      // note — in view.
+      final m = score.measureAt(anchor.measureIndex);
+      if (m != null) {
+        rect = Rect.fromLTRB(rect.left, rect.top, rect.right, m.rect.bottom);
+      }
+    }
+    _autoScrollTo(rect);
   }
 
   NoteAnchor? _anchorForEvent(EngravedScore score, HighlightEvent ev) {
