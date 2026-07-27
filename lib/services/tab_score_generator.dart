@@ -52,7 +52,15 @@ class TabScoreGenerator {
     'notations', 'lyric', 'play',
   ];
 
-  static TabScore generate(String musicXml, ParsedPiece parsed) {
+  /// [fretMode] true when the view shows fret numbers (no fingering-label swap).
+  /// [preferOpenFrets] (fret mode only) assigns each note to the highest open
+  /// string so frets stay ≤6, instead of following the fingering's string.
+  static TabScore generate(
+    String musicXml,
+    ParsedPiece parsed, {
+    bool fretMode = false,
+    bool preferOpenFrets = false,
+  }) {
     final doc = XmlDocument.parse(musicXml);
     final noteEvents = parsed.measures.expand((m) => m.notes).toList();
     final labels = <String>[];
@@ -94,7 +102,7 @@ class TabScoreGenerator {
           continue;
         }
         final ne = idx < noteEvents.length ? noteEvents[idx++] : null;
-        tabInfo.add(_resolve(ne));
+        tabInfo.add(_resolve(ne, preferOpenFrets && fretMode));
       }
 
       // Pass 2: replay the measure onto staff 2 as tab notes.
@@ -109,16 +117,26 @@ class TabScoreGenerator {
       }
     }
 
-    return TabScore(doc.toXmlString(), labels);
+    // Fret mode shows Verovio's native (now-capped) fret numbers directly — no
+    // fingering-label swap, so no labels are needed.
+    return TabScore(doc.toXmlString(), fretMode ? const [] : labels);
   }
 
-  /// Resolve a model note to its tab string/fret/label. Prefers the app's chosen
-  /// `fingerString`; falls back to a MIDI-derived string for notes outside the
-  /// first-position table. Label is the fingering (verbatim, incl. L/H) or, when
-  /// none was computed, the fret number so the tab stays complete.
-  static _TabNote _resolve(NoteEvent? ne) {
+  /// Resolve a model note to its tab string/fret/label.
+  ///
+  /// String choice: when [preferOpenFrets] (beginner fret mode), always use the
+  /// highest open string ([_deriveString], fret ≤6), ignoring the fingering's
+  /// string. Otherwise prefer the app's chosen `fingerString`, falling back to
+  /// the derived string for notes outside the first-position table.
+  ///
+  /// Label is the fingering (verbatim, incl. L/H) or, when none was computed,
+  /// the fret number so the tab stays complete (used only for the fingering-mode
+  /// text swap; fret mode shows the native fret).
+  static _TabNote _resolve(NoteEvent? ne, bool preferOpenFrets) {
     if (ne == null || ne.isRest) return _TabNote.silent();
-    final letter = ne.fingerString ?? _deriveString(ne.midiNumber);
+    final letter = preferOpenFrets
+        ? _deriveString(ne.midiNumber)
+        : (ne.fingerString ?? _deriveString(ne.midiNumber));
     final open = _openMidi[letter]!;
     final fret = ne.midiNumber - open;
     final stringNum = _stringNum[letter]!;

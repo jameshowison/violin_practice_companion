@@ -112,6 +112,11 @@ class PieceDetailScreen extends ConsumerWidget {
                   const Divider(),
                   const SizedBox(height: 8),
                   const _TabNumberPicker(),
+                  if (ref.watch(tabNumberModeProvider) ==
+                      TabNumberMode.mandolinFret) ...[
+                    const SizedBox(height: 16),
+                    const _TabFretStylePicker(),
+                  ],
                 ],
                 const SizedBox(height: 16),
               ],
@@ -307,6 +312,37 @@ class _TabNumberPicker extends ConsumerWidget {
           selected: {mode},
           onSelectionChanged: (s) =>
               ref.read(tabNumberModeProvider.notifier).state = s.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TabFretStylePicker extends ConsumerWidget {
+  const _TabFretStylePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(tabFretStyleProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Fret positions'),
+        const SizedBox(height: 8),
+        SegmentedButton<TabFretStyle>(
+          segments: const [
+            ButtonSegment(
+                value: TabFretStyle.openStrings, label: Text('Open strings')),
+            ButtonSegment(
+                value: TabFretStyle.matchFingering, label: Text('Match fingering')),
+          ],
+          selected: {style},
+          onSelectionChanged: (s) =>
+              ref.read(tabFretStyleProvider.notifier).state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -885,7 +921,6 @@ class _NotationView extends ConsumerWidget {
             ),
           );
         }
-        final numberMode = ref.watch(tabNumberModeProvider);
         return ref.watch(tabScoreProvider).when(
           data: (tab) => tab != null
               ? StaffViewVerovio(
@@ -898,9 +933,10 @@ class _NotationView extends ConsumerWidget {
                   sectionTints: sectionTints,
                   scrollNav: staffNav,
                   tabMode: true,
-                  tabFingerLabels: numberMode == TabNumberMode.violinFingering
-                      ? tab.fingerLabels
-                      : null,
+                  // Provider returns labels only in fingering mode (empty in
+                  // fret mode → no swap, native frets shown).
+                  tabFingerLabels:
+                      tab.fingerLabels.isEmpty ? null : tab.fingerLabels,
                 )
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
