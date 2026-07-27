@@ -40,6 +40,11 @@ class NotationSwitcher extends StatelessWidget {
           label: Text('+'),
           icon: Icon(Icons.layers),
         ),
+        ButtonSegment(
+          value: DisplayMode.tab,
+          label: Text('Tab'),
+          icon: Icon(Icons.grid_4x4),
+        ),
       ],
       selected: {current},
       onSelectionChanged: (set) => onChanged(set.first),

@@ -5,7 +5,9 @@ import '../models/piece.dart';
 import '../models/piece_layout.dart';
 import '../models/section_run.dart';
 import '../models/string_label_style.dart';
+import '../models/tab_number_mode.dart';
 import 'fingering_mapper.dart';
+import 'tab_score_generator.dart';
 import 'jianpu_converter.dart';
 import 'midi_generator.dart';
 import 'musicxml_parser.dart';
@@ -168,6 +170,28 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
   return xml;
+});
+
+/// Tab view: violin fingering (default) vs true mandolin fret numbers.
+/// Session-only, matching the other display-preference providers.
+final tabNumberModeProvider =
+    StateProvider<TabNumberMode>((_) => TabNumberMode.violinFingering);
+
+/// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
+/// for the tab view. Reuses the same strip pipeline as [staffXmlProvider] so the
+/// melody staff shows no fingerings (they live only on the tab staff).
+final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return null;
+  final layout = await ref.watch(pieceLayoutProvider.future);
+  if (layout == null) return null;
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (parsed == null) return null;
+  final repo = ref.watch(pieceRepositoryProvider);
+  String xml = await repo.loadMusicXml(piece);
+  xml = layout.stripLayoutHints(xml);
+  xml = FingeringXmlInjector.stripFingerings(xml);
+  return TabScoreGenerator.generate(xml, parsed);
 });
 
 final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {

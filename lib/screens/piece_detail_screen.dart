@@ -9,6 +9,7 @@ import '../models/piece_layout.dart'; // for PieceLayout type
 import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
+import '../models/tab_number_mode.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
@@ -106,6 +107,11 @@ class PieceDetailScreen extends ConsumerWidget {
                   const Divider(),
                   const SizedBox(height: 8),
                   const _StringLabelPicker(),
+                ],
+                if (displayMode == DisplayMode.tab) ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const _TabNumberPicker(),
                 ],
                 const SizedBox(height: 16),
               ],
@@ -270,6 +276,37 @@ class _StringLabelPicker extends ConsumerWidget {
           selected: {style},
           onSelectionChanged: (s) =>
               ref.read(stringLabelStyleProvider.notifier).set(s.first),
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TabNumberPicker extends ConsumerWidget {
+  const _TabNumberPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(tabNumberModeProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Tab numbers'),
+        const SizedBox(height: 8),
+        SegmentedButton<TabNumberMode>(
+          segments: const [
+            ButtonSegment(
+                value: TabNumberMode.violinFingering, label: Text('Fingering')),
+            ButtonSegment(
+                value: TabNumberMode.mandolinFret, label: Text('Fret')),
+          ],
+          selected: {mode},
+          onSelectionChanged: (s) =>
+              ref.read(tabNumberModeProvider.notifier).state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -507,6 +544,7 @@ class _CompactModeSwitcher extends StatefulWidget {
     (DisplayMode.jianpu, Icons.format_list_numbered, 'Jianpu'),
     (DisplayMode.fingering, Icons.back_hand, 'Finger'),
     (DisplayMode.combined, Icons.layers, '+'),
+    (DisplayMode.tab, Icons.grid_4x4, 'Tab'),
   ];
 
   @override
@@ -833,6 +871,40 @@ class _NotationView extends ConsumerWidget {
           combined: true,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
+        );
+
+      case DisplayMode.tab:
+        // Tab requires the native Verovio renderer (per-note anchors + tab
+        // engraving). OSMD (macOS fallback) can't supply it.
+        if (renderer != StaffRenderer.verovio) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Tab view needs the Verovio renderer.',
+                  textAlign: TextAlign.center),
+            ),
+          );
+        }
+        final numberMode = ref.watch(tabNumberModeProvider);
+        return ref.watch(tabScoreProvider).when(
+          data: (tab) => tab != null
+              ? StaffViewVerovio(
+                  musicXml: tab.musicXml,
+                  highlightNotifier: service.currentHighlightNotifier,
+                  selection: selection,
+                  onMeasureTapped: (m) => _selectMeasure(ref, m),
+                  flaggedMeasures: flaggedMeasures,
+                  measureNumbers: measureNumbers,
+                  sectionTints: sectionTints,
+                  scrollNav: staffNav,
+                  tabMode: true,
+                  tabFingerLabels: numberMode == TabNumberMode.violinFingering
+                      ? tab.fingerLabels
+                      : null,
+                )
+              : const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
         );
     }
   }

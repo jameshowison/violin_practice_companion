@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -42,6 +43,14 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// requests still fire).
   final ({int index, int seq})? scrollNav;
 
+  /// Tab view: this score has a second (tab) staff. Excludes its notes from the
+  /// anchors and keeps the per-system "T-A-B" clef.
+  final bool tabMode;
+
+  /// Tab view (fingering mode): fingering labels, in document order, swapped in
+  /// for Verovio's native fret numbers. Null → fret mode (native numbers stay).
+  final List<String>? tabFingerLabels;
+
   const StaffViewVerovio({
     super.key,
     required this.musicXml,
@@ -54,6 +63,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.stretchLastSystem = true,
     this.sectionTints = const [],
     this.scrollNav,
+    this.tabMode = false,
+    this.tabFingerLabels,
   });
 
   @override
@@ -87,7 +98,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       widget.highlightNotifier.addListener(_onHighlight);
       _onHighlight();
     }
-    if (old.musicXml != widget.musicXml && _engravedWidth > 0) {
+    if ((old.musicXml != widget.musicXml ||
+            old.tabMode != widget.tabMode ||
+            !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) &&
+        _engravedWidth > 0) {
       _engrave(_engravedWidth);
     }
     if (widget.scrollNav != null && widget.scrollNav != old.scrollNav) {
@@ -108,8 +122,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     _engravedWidth = widthPx;
     final seq = ++_engraveSeq;
     try {
-      final score = await VerovioEngraver.instance
-          .engrave(widget.musicXml, widthPx: widthPx);
+      final score = await VerovioEngraver.instance.engrave(
+        widget.musicXml,
+        widthPx: widthPx,
+        tabMode: widget.tabMode,
+        tabFingerLabels: widget.tabFingerLabels,
+        stripRepeatClefs: !widget.tabMode,
+      );
       if (!mounted || seq != _engraveSeq) return;
       // jovial parse is synchronous and fast (a few ms); currentColor resolves
       // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
