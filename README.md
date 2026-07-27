@@ -83,6 +83,29 @@ The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
 its ONNX models — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml) below. It
 is not available on the web build.
 
+## Booting the iOS simulator
+
+`flutter devices` only lists **booted** simulators. On a fresh machine (or after a
+reboot) the iPhone 17 simulator is `Shutdown`, so `flutter run` and `flutter
+devices` won't see it until you boot it:
+
+```bash
+xcrun simctl boot AE8AEC05-B7AE-4A80-873E-426EF51146F1   # the project's iPhone 17
+open -a Simulator                                         # show the simulator window
+```
+
+Confirm it came up:
+
+```bash
+xcrun simctl list devices | grep AE8AEC05   # should now read "(Booted)"
+flutter devices                             # the iPhone 17 now appears
+```
+
+If the UDID above doesn't exist on this machine, list what's installed with
+`xcrun simctl list devices available` and boot one of those instead (or create an
+iPhone 17 with `xcrun simctl create`). Missing the iOS runtime entirely? Install
+it with `xcodebuild -downloadPlatform iOS`.
+
 ## Screenshots & UI debugging (iOS Simulator)
 
 The staff is rendered by OSMD inside a `WKWebView` (a Flutter "platform view").
