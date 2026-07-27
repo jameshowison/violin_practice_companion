@@ -53,8 +53,8 @@ class VerovioEngraver {
   /// Width bucket so sub-pixel resize jitter doesn't re-engrave. ~48px steps.
   static int _bucketOf(double widthPx) => (widthPx / 48).round();
 
-  static String _keyFor(String xml, double widthPx, double scale) =>
-      '${xml.hashCode}|${_bucketOf(widthPx)}|${scale.toStringAsFixed(1)}';
+  static String _keyFor(String xml, double widthPx, double scale, String variant) =>
+      '${xml.hashCode}|${_bucketOf(widthPx)}|${scale.toStringAsFixed(1)}|$variant';
 
   /// Engrave [musicXml] targeting [widthPx] logical pixels of render width.
   ///
@@ -62,12 +62,27 @@ class VerovioEngraver {
   /// index-based geometric anchors for measures and notes. The score is
   /// domain-free — callers map a measure's document [index] to their model
   /// measure number (the same index↔number contract the OSMD bridge used).
+  ///
+  /// Tab-view options (see the tab-view plan / [TabScoreGenerator]):
+  /// - [tabFingerLabels]: when non-null, each rendered tab fret `<text>` (in
+  ///   document order) is replaced with the corresponding label — the violin
+  ///   fingering. Null leaves Verovio's native fret numbers (fret mode).
+  /// - [tabMode]: the score has a second (tab) staff; exclude its notes/rests
+  ///   from the note anchors so the highlight/cursor stay on the melody staff.
+  /// - [stripRepeatClefs]: keep the single-staff practice view's "clef/keySig on
+  ///   the first system only" trim. Set false for the tab view so the small
+  ///   "T-A-B" clef repeats per system (standard tab engraving).
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
     double scale = 40,
+    List<String>? tabFingerLabels,
+    bool tabMode = false,
+    bool stripRepeatClefs = true,
   }) {
-    final key = _keyFor(musicXml, widthPx, scale);
+    final variant = '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
+        '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
+    final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
     if (cached != null) {
       // Touch for LRU.
@@ -79,7 +94,12 @@ class VerovioEngraver {
     final result = _tail.then((_) async {
       final again = _cache[key];
       if (again != null) return again;
-      final score = await _engraveNow(musicXml, widthPx: widthPx, scale: scale);
+      final score = await _engraveNow(musicXml,
+          widthPx: widthPx,
+          scale: scale,
+          tabFingerLabels: tabFingerLabels,
+          tabMode: tabMode,
+          stripRepeatClefs: stripRepeatClefs);
       _cache[key] = score;
       if (_cache.length > _maxCache) {
         _cache.remove(_cache.keys.first);
@@ -95,6 +115,9 @@ class VerovioEngraver {
     String musicXml, {
     required double widthPx,
     required double scale,
+    List<String>? tabFingerLabels,
+    bool tabMode = false,
+    bool stripRepeatClefs = true,
   }) async {
     final svc = await _ensureService();
     final sw = Stopwatch()..start();
@@ -104,7 +127,14 @@ class VerovioEngraver {
     final options = <String, Object>{
       'scale': scale.round(),
       'pageWidth': pageWidthUnits,
-      'adjustPageHeight': true, // one tall page; systems wrap to width
+      // Force everything onto a single page: without an explicit pageHeight
+      // Verovio uses its ~A4 default, so once stacked systems exceed it the
+      // overflow spills to page 2+ — which we never render (we only ask for
+      // page 1). That's invisible in landscape (wide → few systems → fits) but
+      // clips the bottom of the score in portrait (narrow → many systems). A
+      // huge page guarantees one page; adjustPageHeight then crops the slack.
+      'pageHeight': 60000,
+      'adjustPageHeight': true,
       'breaks': 'auto',
       'footer': 'none',
       'header': 'none',
@@ -112,7 +142,7 @@ class VerovioEngraver {
       'svgViewBox': true, // root viewBox so the renderer can scale
     };
     await svc.setOptionsJson(jsonEncode(options));
-    await svc.loadData(musicXml);
+    await svc.loadData(stripPartLabels(musicXml));
 
     final res = await svc.renderPageWithHitMap(1);
     final hitMap = res.hitMap;
@@ -139,6 +169,9 @@ class VerovioEngraver {
       hitMap: hitMap,
       qstampById: qstampById,
       renderMs: sw.elapsedMilliseconds,
+      tabFingerLabels: tabFingerLabels,
+      tabMode: tabMode,
+      stripRepeatClefs: stripRepeatClefs,
     );
     if (debugLogging) {
       debugPrint('[engraver] engraved viewBox=${score.viewBox.width.toInt()}'
@@ -153,6 +186,9 @@ class VerovioEngraver {
     required PageHitMap hitMap,
     required Map<String, double> qstampById,
     required int renderMs,
+    List<String>? tabFingerLabels,
+    bool tabMode = false,
+    bool stripRepeatClefs = true,
   }) {
     final bboxById = <String, Rect>{
       for (final h in hitMap.byType) h.id: h.bbox,
@@ -166,11 +202,17 @@ class VerovioEngraver {
         MeasureAnchor(index: i, id: measureHits[i].id, rect: measureHits[i].bbox),
     ];
 
+    // Tab view: the second staff duplicates the melody. Exclude its notes/rests
+    // from the anchors so positional noteIndex (and thus the highlight/cursor,
+    // which map a model note → anchor) stays on the melody staff.
+    final tabIds = tabMode ? _tabStaffElementIds(svg) : const <String>{};
+
     // Assign each note/rest to the measure whose bbox contains its center,
     // then rank within the measure by x to get our positional noteIndex
     // (which counts rests). This is robust to qstamp/tick alignment quirks.
     final noteHits = hitMap.byType
-        .where((h) => h.type == 'note' || h.type == 'rest')
+        .where((h) => (h.type == 'note' || h.type == 'rest') &&
+            !tabIds.contains(h.id))
         .toList();
     final perMeasure = <int, List<ElementHit>>{};
     for (final h in noteHits) {
@@ -200,9 +242,15 @@ class VerovioEngraver {
 
     final (measureLine, lineBands) = _computeLineBands(measures);
 
+    var processedSvg = stripRepeatClefs ? _clefKeySigFirstSystemOnly(svg) : svg;
+    if (tabFingerLabels != null) {
+      processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
+    }
+    processedSvg = flattenForRenderer(processedSvg);
+
     return EngravedScore(
       viewBox: hitMap.viewBox,
-      svg: flattenForRenderer(svg),
+      svg: processedSvg,
       bboxById: bboxById,
       measures: measures,
       notes: notes,
@@ -272,6 +320,152 @@ class VerovioEngraver {
       }
     }
     return best;
+  }
+
+  /// Removes the instrument labels Verovio engraves at the left of each system
+  /// (the full `<part-name>` on the first system, the `<part-abbreviation>` on
+  /// later ones). For a single-instrument practice score these add no
+  /// information and just eat horizontal space, so we blank them at the source
+  /// rather than indenting around them. We empty the elements (and mark them
+  /// `print-object="no"`) instead of deleting, so the part structure is
+  /// untouched. `<instrument-name>` isn't engraved but is blanked for symmetry.
+  static String stripPartLabels(String xml) {
+    var out = xml;
+    // `print-object="no"` is the canonical MusicXML way to suppress a label;
+    // emptying the text also gives Verovio zero label width to indent for.
+    for (final tag in const ['part-name', 'part-abbreviation']) {
+      out = out.replaceAllMapped(
+        RegExp('<$tag\\b[^>]*>.*?</$tag>', dotAll: true),
+        (_) => '<$tag print-object="no"></$tag>',
+      );
+    }
+    // `instrument-name` isn't engraved, but blank it too for symmetry.
+    out = out.replaceAll(
+      RegExp('<instrument-name\\b[^>]*>.*?</instrument-name>', dotAll: true),
+      '<instrument-name></instrument-name>',
+    );
+    return out;
+  }
+
+  /// Keeps the clef + key signature only on the FIRST system, stripping the
+  /// copies Verovio re-engraves at the start of every subsequent system. This
+  /// is a deliberate departure from standard engraving (which repeats them per
+  /// line) for this single-staff practice view. The notes keep their engraved
+  /// x positions, so later systems carry a small leading indent where the
+  /// removed glyphs were — hitMap coordinates are untouched, so overlays,
+  /// the cursor, and taps stay aligned.
+  static String _clefKeySigFirstSystemOnly(String svg) {
+    final ranges = <(int, int)>[
+      ..._repeatedGroupRanges(svg, 'clef'),
+      ..._repeatedGroupRanges(svg, 'keySig'),
+    ];
+    if (ranges.isEmpty) return svg;
+    // Remove back-to-front so earlier indices stay valid.
+    ranges.sort((a, b) => b.$1.compareTo(a.$1));
+    var out = svg;
+    for (final (start, end) in ranges) {
+      out = out.substring(0, start) + out.substring(end);
+    }
+    return out;
+  }
+
+  /// Balanced `<g … class="[cls]">…</g>` spans for every occurrence AFTER the
+  /// first (Verovio emits one per system in document order; occurrence 0 is the
+  /// first system, which we keep). Balanced matching handles nested groups
+  /// (e.g. a keySig's `<g class="keyAccid">` children).
+  static List<(int, int)> _repeatedGroupRanges(String svg, String cls) {
+    final out = <(int, int)>[];
+    final marker = 'class="$cls"';
+    var search = 0;
+    var first = true;
+    while (true) {
+      final ci = svg.indexOf(marker, search);
+      if (ci < 0) break;
+      final open = svg.lastIndexOf('<g', ci);
+      final close = open < 0 ? -1 : _matchCloseG(svg, open);
+      search = close < 0 ? ci + marker.length : close;
+      if (first) {
+        first = false;
+        continue;
+      }
+      if (open >= 0 && close > open) out.add((open, close));
+    }
+    return out;
+  }
+
+  /// Index just past the `</g>` that closes the group opening at [open] (the
+  /// index of its `<g`), accounting for nested `<g>`…`</g>`. Returns -1 if
+  /// unbalanced.
+  static int _matchCloseG(String s, int open) {
+    var depth = 0;
+    var i = open;
+    while (i < s.length) {
+      if (s.startsWith('</g>', i)) {
+        depth--;
+        i += 4;
+        if (depth == 0) return i;
+        continue;
+      }
+      if (s.startsWith('<g', i) &&
+          (i + 2 >= s.length || s[i + 2] == ' ' || s[i + 2] == '>')) {
+        final gt = s.indexOf('>', i);
+        if (gt < 0) return -1;
+        if (s[gt - 1] != '/') depth++; // self-closing `<g/>` opens nothing
+        i = gt + 1;
+        continue;
+      }
+      i++;
+    }
+    return -1;
+  }
+
+  /// Tab view (fingering mode): replace each rendered tab fret number with the
+  /// corresponding violin fingering label. Verovio's `tab.guitar` engraving
+  /// draws frets as `<text><tspan>DIGIT</tspan></text>` inside a
+  /// `<g class="note">` (melody noteheads are `<use>` glyphs, never `<text>`),
+  /// so the Nth such group in document order is the Nth tab note — matching the
+  /// order of [labels] from `TabScoreGenerator`. `text-anchor="middle"` keeps a
+  /// multi-character label (e.g. "2L") centered.
+  static final _tabFretRe = RegExp(
+      r'(<g id="[^"]+" class="note">\s*<text\b[^>]*>\s*<tspan\b[^>]*>)([^<]*)(</tspan>)',
+      dotAll: true);
+
+  static String _swapTabFingerings(String svg, List<String> labels) {
+    var i = 0;
+    return svg.replaceAllMapped(_tabFretRe, (m) {
+      final label = i < labels.length ? labels[i] : m.group(2)!;
+      i++;
+      return '${m.group(1)}$label${m.group(3)}';
+    });
+  }
+
+  /// Ids of every note/rest element on a tab (second) staff. The SVG nests
+  /// `measure > staff > layer`; each measure emits its staves in order, so the
+  /// odd-indexed `<g class="staff">` groups (0-based) are the tab staff. Returns
+  /// the ids of the `<g class="note">`/`<g class="rest">` within those groups.
+  static Set<String> _tabStaffElementIds(String svg) {
+    final ids = <String>{};
+    final elemRe = RegExp(r'<g id="([^"]+)" class="(?:note|rest)"');
+    var search = 0;
+    var staffIndex = 0;
+    while (true) {
+      final ci = svg.indexOf('class="staff"', search);
+      if (ci < 0) break;
+      final open = svg.lastIndexOf('<g', ci);
+      final close = open < 0 ? -1 : _matchCloseG(svg, open);
+      search = close < 0 ? ci + 13 : close;
+      if (open < 0 || close < 0) {
+        staffIndex++;
+        continue;
+      }
+      if (staffIndex.isOdd) {
+        for (final m in elemRe.allMatches(svg.substring(open, close))) {
+          ids.add(m.group(1)!);
+        }
+      }
+      staffIndex++;
+    }
+    return ids;
   }
 
   /// jovial_svg shim: jovial parses `<style>`/`currentColor` (the two things
