@@ -39,6 +39,10 @@
     return { type: nearest[1], dots: 0, exact: false };
   }
 
+  // Beam levels (flags) for a note type: eighth=1, 16th=2, 32nd=3, else 0.
+  var BEAM_FLAGS = { eighth: 1, '16th': 2, '32nd': 3 };
+  function beamFlags(type) { return BEAM_FLAGS[type] || 0; }
+
   var DIVISIONS = 96; // per quarter note; whole note = 4 * DIVISIONS
   function xmlEscape(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -75,7 +79,8 @@
     return { beats: 4, beatType: 4 };
   }
 
-  function noteXml(el, warnings) {
+  function noteXml(el, warnings, beamXml) {
+    beamXml = beamXml || '';
     var dur = durationToType(el.duration);
     if (!dur.exact) warnings.push('non-standard duration ' + el.duration + ' approximated as ' + dur.type + ' (e.g. a tuplet; timing may be off)');
     var divisions = Math.round(el.duration * 4 * DIVISIONS);
@@ -99,7 +104,7 @@
     }
     pitchXml += '<octave>' + so.octave + '</octave>';
     return '      <note><pitch>' + pitchXml + '</pitch><duration>' + divisions +
-      '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + '</note>\n';
+      '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + beamXml + '</note>\n';
   }
 
   function convertTune(tune) {
@@ -133,11 +138,31 @@
       measures.push(cur);
       cur = { notes: '', repeatStart: false, repeatEnd: false };
     }
+    // abcjs marks beam groups on note elements via startBeam/endBeam. Track an
+    // open group and emit MusicXML <beam> begin/continue/end so beamed notes
+    // (eighths and shorter) render with beams instead of individual flags.
+    var inBeam = false;
     for (var ei = 0; ei < elements.length; ei++) {
       var el = elements[ei];
       if (el.el_type === 'note') {
-        cur.notes += noteXml(el, warnings);
+        var isRest = el.rest || !el.pitches || !el.pitches.length;
+        var fl = isRest ? 0 : beamFlags(durationToType(el.duration).type);
+        var state = null;
+        if (fl > 0) {
+          if (el.startBeam && !el.endBeam) { state = 'begin'; inBeam = true; }
+          else if (inBeam && el.endBeam) { state = 'end'; inBeam = false; }
+          else if (inBeam && !el.startBeam) { state = 'continue'; }
+          else { inBeam = false; } // standalone beamable note, or lone group
+        } else {
+          inBeam = false; // quarter+ or rest breaks any open beam
+        }
+        var beamXml = '';
+        if (state) {
+          for (var lv = 1; lv <= fl; lv++) beamXml += '<beam number="' + lv + '">' + state + '</beam>';
+        }
+        cur.notes += noteXml(el, warnings, beamXml);
       } else if (el.el_type === 'bar') {
+        inBeam = false; // beams never cross a barline
         var hasContent = cur.notes.length > 0;
         if (el.type === 'bar_right_repeat') cur.repeatEnd = true;
         if (hasContent) flush();
