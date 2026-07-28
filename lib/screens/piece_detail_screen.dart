@@ -16,6 +16,7 @@ import '../services/providers.dart';
 import 'edit_measure_screen.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
+import '../widgets/new_chords_block.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/playback_controls.dart';
 import '../widgets/section_bar.dart';
@@ -243,6 +244,9 @@ class PieceDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (displayMode == DisplayMode.staff ||
+                      displayMode == DisplayMode.staffFingering)
+                    const NewChordsBlock(),
                   SectionBar(
                     sections: piece.sections,
                     measures: parsedPiece?.measures ?? const [],
