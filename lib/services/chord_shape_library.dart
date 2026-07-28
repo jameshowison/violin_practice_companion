@@ -21,6 +21,10 @@ class ChordShapeLibrary {
     'Am': ChordShape('Am', [2, 2, 3, 0]),
     'Em': ChordShape('Em', [0, 2, 2, 0]),
     'F':  ChordShape('F',  [5, 0, 3, 1]),
+    // Not in the printed index; added for tunes like Devil's Dream. A fifth
+    // voicing (B–F♯, no 3rd), matching the chart's A/E style. For a true minor
+    // (with the D) use [4, 0, 2, 2] instead.
+    'Bm': ChordShape('Bm', [4, 4, 2, 2]),
   };
 
   static ChordShape? lookup(String name) => _shapes[name];
