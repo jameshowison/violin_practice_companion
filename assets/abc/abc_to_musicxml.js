@@ -277,16 +277,43 @@
     return total < full;
   }
 
+  // abcjs treats a blank line as end-of-tune, so a blank line right after the
+  // K: header — or between strains — silently drops the music (abcjs yields a
+  // tune with no staff lines). Within a single tune (first K: up to the next
+  // X: or end) strip whitespace-only lines so those common authoring quirks
+  // don't truncate the import.
+  function stripBodyBlankLines(abc) {
+    var lines = String(abc).split(/\r?\n/);
+    var out = [], inBody = false;
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (!inBody) {
+        out.push(ln);
+        if (/^\s*K:/i.test(ln)) inBody = true;
+        continue;
+      }
+      if (/^\s*X:/i.test(ln)) { inBody = false; out.push(ln); continue; }
+      if (/^\s*$/.test(ln)) continue; // drop blank body line
+      out.push(ln);
+    }
+    return out.join('\n');
+  }
+
   function abcToMusicXml(abc) {
     try {
       if (typeof ABCJS === 'undefined' || !ABCJS.parseOnly) {
         return JSON.stringify({ ok: false, error: 'abcjs (ABCJS.parseOnly) not loaded', warnings: [] });
       }
-      var tunes = ABCJS.parseOnly(abc);
+      var tunes = ABCJS.parseOnly(stripBodyBlankLines(abc));
       if (!tunes || !tunes.length) return JSON.stringify({ ok: false, error: 'No tune found in the ABC input.', warnings: [] });
       var warnings = [];
       if (tunes.length > 1) warnings.push('multiple tunes found; only the first was imported');
       var res = convertTune(tunes[0]);
+      // Never hand back a music-less score — the app would spin on an empty
+      // piece. Fail loudly with a hint about the most common cause.
+      if (!/<measure\b/.test(res.xml)) {
+        return JSON.stringify({ ok: false, error: 'No notes found in the ABC. Check the header — a blank line right after the K: line can end the tune before the music.', warnings: res.warnings || [] });
+      }
       warnings = warnings.concat(res.warnings);
       // de-dup warnings
       var seen = {}, uniq = [];
