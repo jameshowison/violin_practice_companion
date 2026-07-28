@@ -164,9 +164,10 @@
       } else if (el.el_type === 'bar') {
         inBeam = false; // beams never cross a barline
         var hasContent = cur.notes.length > 0;
-        if (el.type === 'bar_right_repeat') cur.repeatEnd = true;
+        // bar_dbl_repeat (`::` / `:||:`) closes one strain and opens the next.
+        if (el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat') cur.repeatEnd = true;
         if (hasContent) flush();
-        if (el.type === 'bar_left_repeat') pendingForwardRepeat = true;
+        if (el.type === 'bar_left_repeat' || el.type === 'bar_dbl_repeat') pendingForwardRepeat = true;
       }
       // ignore non-note/bar elements (chord symbols live on notes already)
     }

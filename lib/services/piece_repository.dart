@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/piece.dart';
 import '../models/section.dart';
+import 'musicxml_parser.dart';
 import 'piece_storage.dart';
+import 'section_detector.dart';
 
 class PieceRepository {
   static const _fixtures = [
@@ -137,11 +139,24 @@ class PieceRepository {
     return readScannedMusicXml(piece.musicXmlFilePath!);
   }
 
-  /// Persists a scanned piece's MusicXML and returns the resulting [Piece].
-  /// The returned piece has empty `sections` — section editing for scanned
-  /// pieces is a future enhancement.
-  Future<Piece> savePiece(String title, String musicXml) {
-    return saveScannedPiece(title, musicXml);
+  /// Persists a scanned/imported piece's MusicXML and returns the resulting
+  /// [Piece]. Auto-detects the sectional form (AABB/ABAA …) and, when found,
+  /// writes it to the piece's override sidecar so the section minimap appears.
+  /// Detection is best-effort — a failure or a structureless tune just yields a
+  /// piece with empty `sections` (no minimap), exactly as before.
+  Future<Piece> savePiece(String title, String musicXml) async {
+    final piece = await saveScannedPiece(title, musicXml);
+    try {
+      final parsed = MusicXmlParser().parse(musicXml);
+      final sections = SectionDetector.detect(parsed.measures);
+      if (sections.isNotEmpty) {
+        await saveSections(piece.id, sections);
+        return piece.copyWith(sections: sections);
+      }
+    } catch (_) {
+      // Never block import/scan on section detection.
+    }
+    return piece;
   }
 
   /// Overwrites a scanned piece's MusicXML file with [newMusicXml] (used by the
