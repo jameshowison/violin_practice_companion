@@ -107,6 +107,70 @@
       '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + beamXml + '</note>\n';
   }
 
+  // abcjs attaches guitar chords (ABC `"A"`, `"Bm"`, `"E7"`) to a note as
+  // el.chord = [{name, position}]; position 'default' is the chord (other
+  // positions are ^/_/</> text annotations). Emit the first as MusicXML
+  // <harmony> so it survives to Verovio (chord symbols) and the parser.
+  function chordHarmonyXml(el) {
+    if (!el.chord || !el.chord.length) return '';
+    var name = null;
+    for (var i = 0; i < el.chord.length; i++) {
+      var c = el.chord[i];
+      if (c.position === undefined || c.position === 'default') { name = c.name; break; }
+    }
+    if (name == null) return '';
+    return chordToHarmony(String(name).split('\n')[0]);
+  }
+
+  // Maps an ABC chord-quality suffix to a MusicXML <kind> value. Kept in sync
+  // with MusicXmlParser._kindSuffix so names round-trip (kind → suffix → name).
+  function qualityToKind(q) {
+    q = (q || '').trim();
+    var l = q.toLowerCase();
+    if (l === '') return 'major';
+    if (l === 'm' || l === 'min' || l === '-') return 'minor';
+    if (l === 'dim' || q === '°' || l === 'o') return 'diminished';
+    if (l === 'aug' || q === '+') return 'augmented';
+    if (l === '7') return 'dominant';
+    if (l === 'maj7' || q === 'M7' || l === 'major7') return 'major-seventh';
+    if (l === 'm7' || l === 'min7' || l === '-7') return 'minor-seventh';
+    if (l === 'dim7' || q === '°7') return 'diminished-seventh';
+    if (l === 'm7b5' || q === 'ø') return 'half-diminished';
+    if (l === '6') return 'major-sixth';
+    if (l === 'm6' || l === 'min6') return 'minor-sixth';
+    if (l === '9') return 'dominant-ninth';
+    if (l === 'sus4' || l === 'sus') return 'suspended-fourth';
+    if (l === 'sus2') return 'suspended-second';
+    if (l === '5') return 'power';
+    if (l[0] === 'm' && l.substring(0, 3) !== 'maj') return 'minor';
+    return 'major';
+  }
+
+  function chordToHarmony(name) {
+    if (!name) return '';
+    var m = /^([A-Ga-g])([#b]*)(.*)$/.exec(name.trim());
+    if (!m) return '';
+    var step = m[1].toUpperCase();
+    var alter = 0, i;
+    for (i = 0; i < m[2].length; i++) alter += m[2].charAt(i) === '#' ? 1 : -1;
+    var rest = m[3], bass = null;
+    var slash = rest.indexOf('/');
+    if (slash >= 0) { bass = rest.substring(slash + 1); rest = rest.substring(0, slash); }
+    var xml = '      <harmony>\n        <root><root-step>' + step + '</root-step>';
+    if (alter !== 0) xml += '<root-alter>' + alter + '</root-alter>';
+    xml += '</root>\n        <kind>' + qualityToKind(rest) + '</kind>\n';
+    var bm = bass ? /^([A-Ga-g])([#b]*)/.exec(bass) : null;
+    if (bm) {
+      var bstep = bm[1].toUpperCase(), balter = 0, j;
+      for (j = 0; j < bm[2].length; j++) balter += bm[2].charAt(j) === '#' ? 1 : -1;
+      xml += '        <bass><bass-step>' + bstep + '</bass-step>';
+      if (balter !== 0) xml += '<bass-alter>' + balter + '</bass-alter>';
+      xml += '</bass>\n';
+    }
+    xml += '        </harmony>\n';
+    return xml;
+  }
+
   function convertTune(tune) {
     var warnings = [];
     var key = null, meter = null, sawMultiVoice = false;
@@ -160,7 +224,7 @@
         if (state) {
           for (var lv = 1; lv <= fl; lv++) beamXml += '<beam number="' + lv + '">' + state + '</beam>';
         }
-        cur.notes += noteXml(el, warnings, beamXml);
+        cur.notes += chordHarmonyXml(el) + noteXml(el, warnings, beamXml);
       } else if (el.el_type === 'bar') {
         inBeam = false; // beams never cross a barline
         var hasContent = cur.notes.length > 0;

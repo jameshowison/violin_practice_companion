@@ -64,4 +64,17 @@ void main() {
           reason: 'note ${n.pitch} parsed with no MIDI number');
     }
   });
+
+  test('ABC guitar chords convert to <harmony> and parse as chord symbols', () {
+    final chords =
+        piece.allNotes.map((n) => n.chordSymbol).whereType<String>().toSet();
+    // The tune uses "A", "Bm" and "E"; the converter maps kind → suffix so they
+    // round-trip through MusicXmlParser as A / Bm / E.
+    expect(chords, containsAll(<String>{'A', 'Bm', 'E'}));
+    // The very first chord is A on the first note after the pickup.
+    final firstChord = piece.allNotes
+        .firstWhere((n) => n.chordSymbol != null)
+        .chordSymbol;
+    expect(firstChord, 'A');
+  });
 }
