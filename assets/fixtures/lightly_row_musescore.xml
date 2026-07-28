@@ -117,7 +117,7 @@
         <root>
           <root-step>E</root-step>
           </root>
-        <kind>dominant</kind>
+        <kind>major</kind>
         </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
@@ -290,7 +290,7 @@
         <root>
           <root-step>E</root-step>
           </root>
-        <kind>dominant</kind>
+        <kind>major</kind>
         </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
@@ -431,7 +431,7 @@
         <root>
           <root-step>E</root-step>
           </root>
-        <kind>dominant</kind>
+        <kind>major</kind>
         </harmony>
       <note default-x="84.15" default-y="-20.00">
         <pitch>
@@ -651,7 +651,7 @@
         <root>
           <root-step>E</root-step>
           </root>
-        <kind>dominant</kind>
+        <kind>major</kind>
         </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
