@@ -7,12 +7,16 @@ import '../models/chord_shape.dart';
 /// axis agreement with the tab, not a conventional vertical grid.
 class ChordDiagram extends StatelessWidget {
   final ChordShape shape;
+
+  /// Optional scale-degree label (e.g. `I`, `V`, `vi`) shown next to the name.
+  final String? degree;
   final double width;
   final double height;
 
   const ChordDiagram(
     this.shape, {
     super.key,
+    this.degree,
     this.width = 140,
     this.height = 66,
   });
@@ -23,9 +27,24 @@ class ChordDiagram extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(shape.name,
-            style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          textBaseline: TextBaseline.alphabetic,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          children: [
+            Text(shape.name,
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+            if (degree != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 5),
+                child: Text(degree!,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: color.withValues(alpha: 0.55))),
+              ),
+          ],
+        ),
         const SizedBox(height: 4),
         CustomPaint(
           size: Size(width, height),

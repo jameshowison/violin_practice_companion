@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
+import '../services/chord_analysis.dart';
 import '../services/chord_shape_library.dart';
 import '../services/providers.dart';
 import 'chord_diagram.dart';
@@ -54,7 +55,17 @@ class NewChordsBlock extends ConsumerWidget {
           Wrap(
             spacing: 20,
             runSpacing: 12,
-            children: [for (final s in shapes) ChordDiagram(s)],
+            children: [
+              for (final s in shapes)
+                ChordDiagram(
+                  s,
+                  degree: ChordAnalysis.romanNumeral(
+                    keyFifths: parsed.keyFifths,
+                    keyMode: parsed.keyMode,
+                    chordName: s.name,
+                  ),
+                ),
+            ],
           ),
         ],
       ),
