@@ -73,6 +73,12 @@
           <line>2</line>
           </clef>
         </attributes>
+      <harmony>
+        <root>
+          <root-step>A</root-step>
+          </root>
+        <kind>major</kind>
+        </harmony>
       <note default-x="98.97" default-y="-5.00">
         <pitch>
           <step>E</step>
@@ -107,6 +113,12 @@
         </note>
       </measure>
     <measure number="2" width="114.73">
+      <harmony>
+        <root>
+          <root-step>E</root-step>
+          </root>
+        <kind>dominant</kind>
+        </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
           <step>D</step>
@@ -139,6 +151,12 @@
         </note>
       </measure>
     <measure number="3" width="131.15">
+      <harmony>
+        <root>
+          <root-step>A</root-step>
+          </root>
+        <kind>major</kind>
+        </harmony>
       <note default-x="12.00" default-y="-25.00">
         <pitch>
           <step>A</step>
@@ -268,6 +286,12 @@
         </note>
       </measure>
     <measure number="6" width="126.64">
+      <harmony>
+        <root>
+          <root-step>E</root-step>
+          </root>
+        <kind>dominant</kind>
+        </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
           <step>D</step>
@@ -310,6 +334,12 @@
         </note>
       </measure>
     <measure number="7" width="126.64">
+      <harmony>
+        <root>
+          <root-step>A</root-step>
+          </root>
+        <kind>major</kind>
+        </harmony>
       <note default-x="12.00" default-y="-25.00">
         <pitch>
           <step>A</step>
@@ -397,6 +427,12 @@
           <system-distance>119.05</system-distance>
           </system-layout>
         </print>
+      <harmony>
+        <root>
+          <root-step>E</root-step>
+          </root>
+        <kind>dominant</kind>
+        </harmony>
       <note default-x="84.15" default-y="-20.00">
         <pitch>
           <step>B</step>
@@ -472,6 +508,12 @@
         </note>
       </measure>
     <measure number="11" width="130.75">
+      <harmony>
+        <root>
+          <root-step>A</root-step>
+          </root>
+        <kind>major</kind>
+        </harmony>
       <note default-x="12.00" default-y="-15.00">
         <pitch>
           <step>C</step>
@@ -605,6 +647,12 @@
         </note>
       </measure>
     <measure number="14" width="128.14">
+      <harmony>
+        <root>
+          <root-step>E</root-step>
+          </root>
+        <kind>dominant</kind>
+        </harmony>
       <note default-x="12.00" default-y="-10.00">
         <pitch>
           <step>D</step>
@@ -647,6 +695,12 @@
         </note>
       </measure>
     <measure number="15" width="128.14">
+      <harmony>
+        <root>
+          <root-step>A</root-step>
+          </root>
+        <kind>major</kind>
+        </harmony>
       <note default-x="12.00" default-y="-25.00">
         <pitch>
           <step>A</step>

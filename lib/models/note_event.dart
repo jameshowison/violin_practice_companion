@@ -31,6 +31,13 @@ class NoteEvent {
   final String? fingerString;
   final String? fingerNumber;
 
+  /// Chord symbol that begins at this note, as a display string built from the
+  /// MusicXML `<harmony>` that immediately precedes it (e.g. `'A'`, `'E7'`,
+  /// `'Am7'`, `'D/F#'`). Null when no chord starts here. Populated by
+  /// [MusicXmlParser]; consumed by the chord-symbol display (see
+  /// [ChordXmlInjector]).
+  final String? chordSymbol;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -45,6 +52,7 @@ class NoteEvent {
     this.jianpuAccidentalSharp,
     this.fingerString,
     this.fingerNumber,
+    this.chordSymbol,
   });
 
   NoteEvent copyWith({
@@ -61,6 +69,7 @@ class NoteEvent {
     bool? jianpuAccidentalSharp,
     String? fingerString,
     String? fingerNumber,
+    String? chordSymbol,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -77,5 +86,6 @@ class NoteEvent {
             jianpuAccidentalSharp ?? this.jianpuAccidentalSharp,
         fingerString: fingerString ?? this.fingerString,
         fingerNumber: fingerNumber ?? this.fingerNumber,
+        chordSymbol: chordSymbol ?? this.chordSymbol,
       );
 }

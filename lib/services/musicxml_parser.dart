@@ -27,8 +27,20 @@ class MusicXmlParser {
       final notes = <NoteEvent>[];
       final hiddenLeadNotes = <NoteEvent>[];
       bool seenVisibleNote = false;
+      // A `<harmony>` applies to the note that follows it (MusicXML places it as
+      // a sibling just before its note). Hold it until the next visible note
+      // consumes it, so it survives intervening grace/hidden notes.
+      String? pendingChord;
 
-      for (final noteEl in measureEl.findElements('note')) {
+      // Iterate children in document order so `<harmony>` and `<note>` interleave
+      // correctly; `findElements('note')` would skip the harmony siblings.
+      for (final el in measureEl.childElements) {
+        if (el.name.local == 'harmony') {
+          pendingChord = _parseHarmony(el) ?? pendingChord;
+          continue;
+        }
+        if (el.name.local != 'note') continue;
+        final noteEl = el;
         if (noteEl.findElements('grace').isNotEmpty) continue;
         final isHidden = noteEl.getAttribute('print-object') == 'no';
         if (isHidden && !seenVisibleNote) {
@@ -98,7 +110,9 @@ class MusicXmlParser {
           isRest: isRest,
           scoreFinger: scoreFinger,
           displayAccidental: displayAccidental,
+          chordSymbol: pendingChord,
         ));
+        pendingChord = null;
       }
 
       // Repeat barlines: <barline><repeat direction="forward|backward"/>.
@@ -138,6 +152,63 @@ class MusicXmlParser {
     };
     final base = (stepSemitones[step] ?? 0) + (octave + 1) * 12;
     return base + alter.round();
+  }
+
+  /// Builds a chord display string from a MusicXML `<harmony>` element, e.g.
+  /// `'A'`, `'E7'`, `'Am7'`, `'D/F#'`. Returns null if there's no usable root.
+  String? _parseHarmony(XmlElement harmonyEl) {
+    final rootEl = harmonyEl.findElements('root').firstOrNull;
+    final rootStep = rootEl?.findElements('root-step').firstOrNull?.innerText;
+    if (rootStep == null || rootStep.isEmpty) return null;
+    final rootAlter =
+        int.tryParse(rootEl?.findElements('root-alter').firstOrNull?.innerText ?? '') ?? 0;
+
+    final kindEl = harmonyEl.findElements('kind').firstOrNull;
+    // The `text` attribute is the engraver-preferred suffix; fall back to a
+    // mapping of the canonical kind value.
+    final kindText = kindEl?.getAttribute('text');
+    final suffix = (kindText != null && kindText.isNotEmpty)
+        ? kindText
+        : _kindSuffix(kindEl?.innerText ?? 'major');
+
+    var label = '$rootStep${_alterSign(rootAlter)}$suffix';
+
+    final bassEl = harmonyEl.findElements('bass').firstOrNull;
+    final bassStep = bassEl?.findElements('bass-step').firstOrNull?.innerText;
+    if (bassStep != null && bassStep.isNotEmpty) {
+      final bassAlter =
+          int.tryParse(bassEl?.findElements('bass-alter').firstOrNull?.innerText ?? '') ?? 0;
+      label = '$label/$bassStep${_alterSign(bassAlter)}';
+    }
+    return label;
+  }
+
+  String _alterSign(int alter) {
+    if (alter > 0) return '#' * alter;
+    if (alter < 0) return 'b' * -alter;
+    return '';
+  }
+
+  String _kindSuffix(String kind) {
+    switch (kind) {
+      case 'major': return '';
+      case 'minor': return 'm';
+      case 'augmented': return 'aug';
+      case 'diminished': return 'dim';
+      case 'dominant': return '7';
+      case 'major-seventh': return 'maj7';
+      case 'minor-seventh': return 'm7';
+      case 'diminished-seventh': return 'dim7';
+      case 'half-diminished': return 'm7b5';
+      case 'major-sixth': return '6';
+      case 'minor-sixth': return 'm6';
+      case 'dominant-ninth': return '9';
+      case 'suspended-second': return 'sus2';
+      case 'suspended-fourth': return 'sus4';
+      case 'power': return '5';
+      case 'none': return '';
+      default: return kind; // best-effort for unmapped kinds
+    }
   }
 
   NoteValue _parseNoteValue(String type) {
