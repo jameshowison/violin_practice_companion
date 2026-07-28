@@ -32,16 +32,17 @@ class ChordDiagram extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           crossAxisAlignment: CrossAxisAlignment.baseline,
           children: [
-            Text(shape.name,
+            // Degree-primary: prefer "I (A)" over "A (I)".
+            Text(degree ?? shape.name,
                 style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+                    fontSize: 15, fontWeight: FontWeight.w700, color: color)),
             if (degree != null)
               Padding(
                 padding: const EdgeInsets.only(left: 5),
-                child: Text(degree!,
+                child: Text('(${shape.name})',
                     style: TextStyle(
-                        fontSize: 11,
-                        color: color.withValues(alpha: 0.55))),
+                        fontSize: 12,
+                        color: color.withValues(alpha: 0.6))),
               ),
           ],
         ),
