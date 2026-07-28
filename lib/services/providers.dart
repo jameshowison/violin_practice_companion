@@ -12,6 +12,7 @@ import 'jianpu_converter.dart';
 import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
+import 'chord_xml_injector.dart';
 import 'palette_xml_generator.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
@@ -144,6 +145,12 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
   void set(StringLabelStyle v) => state = v;
 }
 
+// ── Chord-symbol display preference ───────────────────────────────────────────
+// Chord symbols (`<harmony>` in the source → `<harm>` in Verovio) are shown
+// above the staff in the staff & annotation views; toggling off strips them.
+// Session-only, matching the other display-preference providers.
+final showChordsProvider = StateProvider<bool>((_) => true);
+
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
 final staffXmlProvider = FutureProvider<String?>((ref) async {
@@ -155,6 +162,7 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
+  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
@@ -169,6 +177,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   xml = layout.stripLayoutHints(xml);
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
+  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
@@ -198,6 +207,8 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
+  // Tab view is fret-focused in M1: no chord symbols on the melody staff.
+  xml = ChordXmlInjector.stripHarmony(xml);
   return TabScoreGenerator.generate(
     xml,
     parsed,

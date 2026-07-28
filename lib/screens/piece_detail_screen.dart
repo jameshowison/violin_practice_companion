@@ -103,6 +103,17 @@ class PieceDetailScreen extends ConsumerWidget {
                   onChanged: (v) =>
                       ref.read(staffSpacingProvider.notifier).state = v,
                 ),
+                if (displayMode == DisplayMode.staff ||
+                    displayMode == DisplayMode.staffFingering) ...[
+                  const Divider(),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Chord symbols'),
+                    value: ref.watch(showChordsProvider),
+                    onChanged: (v) =>
+                        ref.read(showChordsProvider.notifier).state = v,
+                  ),
+                ],
                 if (displayMode == DisplayMode.staffFingering) ...[
                   const Divider(),
                   const SizedBox(height: 8),
