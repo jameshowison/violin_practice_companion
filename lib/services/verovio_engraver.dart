@@ -3,6 +3,11 @@ import 'dart:ui' show Rect, Size, Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
+import 'package:xml/xml.dart';
+
+import '../models/note_event.dart' show KeyMode;
+import 'chord_analysis.dart';
+import 'musicxml_parser.dart';
 
 /// Native staff engraving via the Verovio toolkit (FFI worker isolate).
 ///
@@ -172,6 +177,7 @@ class VerovioEngraver {
       tabFingerLabels: tabFingerLabels,
       tabMode: tabMode,
       stripRepeatClefs: stripRepeatClefs,
+      harmLabels: _computeHarmLabels(musicXml),
     );
     if (debugLogging) {
       debugPrint('[engraver] engraved viewBox=${score.viewBox.width.toInt()}'
@@ -189,6 +195,7 @@ class VerovioEngraver {
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
+    List<String> harmLabels = const [],
   }) {
     final bboxById = <String, Rect>{
       for (final h in hitMap.byType) h.id: h.bbox,
@@ -245,6 +252,9 @@ class VerovioEngraver {
     var processedSvg = stripRepeatClefs ? _clefKeySigFirstSystemOnly(svg) : svg;
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
+    }
+    if (harmLabels.isNotEmpty) {
+      processedSvg = _swapHarmLabels(processedSvg, harmLabels);
     }
     processedSvg = flattenForRenderer(processedSvg);
 
@@ -437,6 +447,87 @@ class VerovioEngraver {
       i++;
       return '${m.group(1)}$label${m.group(3)}';
     });
+  }
+
+  /// Chord-symbol labels (degree-primary, e.g. "I (A)") for each `<harmony>` in
+  /// the score, in document order — matching the order Verovio emits `harm`
+  /// groups in the SVG. Empty when there's no harmony (e.g. tab view, or chords
+  /// toggled off upstream).
+  static List<String> _computeHarmLabels(String xml) {
+    final XmlDocument doc;
+    try {
+      doc = XmlDocument.parse(xml);
+    } catch (_) {
+      return const [];
+    }
+    final harmonies = doc.findAllElements('harmony').toList();
+    if (harmonies.isEmpty) return const [];
+    final keyEl = doc.findAllElements('key').firstOrNull;
+    final fifths =
+        int.tryParse(keyEl?.findElements('fifths').firstOrNull?.innerText ?? '') ?? 0;
+    final mode = (keyEl?.findElements('mode').firstOrNull?.innerText) == 'minor'
+        ? KeyMode.minor
+        : KeyMode.major;
+    return [
+      for (final h in harmonies)
+        _harmLabel(MusicXmlParser.parseHarmonyLabel(h), fifths, mode),
+    ];
+  }
+
+  static String _harmLabel(String? name, int fifths, KeyMode mode) {
+    if (name == null) return '';
+    final deg = ChordAnalysis.romanNumeral(
+        keyFifths: fifths, keyMode: mode, chordName: name);
+    return deg == null ? name : '$deg ($name)'; // degree-primary
+  }
+
+  /// Rewrites the visible text of each rendered `harm` group (in document order)
+  /// to the corresponding [labels] entry. Verovio spaced/positioned the original
+  /// chord symbol; we only change the glyph text (like [_swapTabFingerings] for
+  /// tab frets). An empty label leaves the group untouched.
+  static String _swapHarmLabels(String svg, List<String> labels) {
+    final out = StringBuffer();
+    var last = 0, search = 0, idx = 0;
+    while (idx < labels.length) {
+      final ci = svg.indexOf('class="harm"', search);
+      if (ci < 0) break;
+      final open = svg.lastIndexOf('<g', ci);
+      final close = open < 0 ? -1 : _matchCloseG(svg, open);
+      if (open < 0 || close < 0) {
+        search = ci + 12;
+        continue;
+      }
+      final label = labels[idx++];
+      if (label.isEmpty) {
+        search = close;
+        continue;
+      }
+      out.write(svg.substring(last, open));
+      out.write(_replaceFirstTextContent(svg.substring(open, close), label));
+      last = close;
+      search = close;
+    }
+    out.write(svg.substring(last));
+    return out.toString();
+  }
+
+  /// Replaces the text of the first `<tspan>` (or bare `<text>`) inside [group]
+  /// with [label], preserving all element attributes (position/anchor/font).
+  static String _replaceFirstTextContent(String group, String label) {
+    final esc = label
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    for (final re in [
+      RegExp(r'(<tspan\b[^>]*>)([^<]*)(</tspan>)', dotAll: true),
+      RegExp(r'(<text\b[^>]*>)([^<]*)(</text>)', dotAll: true),
+    ]) {
+      final m = re.firstMatch(group);
+      if (m != null) {
+        return group.replaceRange(m.start, m.end, '${m.group(1)}$esc${m.group(3)}');
+      }
+    }
+    return group;
   }
 
   /// Ids of every note/rest element on a tab (second) staff. The SVG nests

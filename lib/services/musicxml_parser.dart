@@ -36,7 +36,7 @@ class MusicXmlParser {
       // correctly; `findElements('note')` would skip the harmony siblings.
       for (final el in measureEl.childElements) {
         if (el.name.local == 'harmony') {
-          pendingChord = _parseHarmony(el) ?? pendingChord;
+          pendingChord = parseHarmonyLabel(el) ?? pendingChord;
           continue;
         }
         if (el.name.local != 'note') continue;
@@ -156,7 +156,7 @@ class MusicXmlParser {
 
   /// Builds a chord display string from a MusicXML `<harmony>` element, e.g.
   /// `'A'`, `'E7'`, `'Am7'`, `'D/F#'`. Returns null if there's no usable root.
-  String? _parseHarmony(XmlElement harmonyEl) {
+  static String? parseHarmonyLabel(XmlElement harmonyEl) {
     final rootEl = harmonyEl.findElements('root').firstOrNull;
     final rootStep = rootEl?.findElements('root-step').firstOrNull?.innerText;
     if (rootStep == null || rootStep.isEmpty) return null;
@@ -183,13 +183,13 @@ class MusicXmlParser {
     return label;
   }
 
-  String _alterSign(int alter) {
+  static String _alterSign(int alter) {
     if (alter > 0) return '#' * alter;
     if (alter < 0) return 'b' * -alter;
     return '';
   }
 
-  String _kindSuffix(String kind) {
+  static String _kindSuffix(String kind) {
     switch (kind) {
       case 'major': return '';
       case 'minor': return 'm';
