@@ -28,7 +28,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     return 'Untitled ${DateTime.now().toIso8601String()}';
   }
 
-  Future<void> _scan() async {
+  Future<void> _scan(OmrImageSource source) async {
     final title = _title;
     setState(() {
       _scanning = true;
@@ -37,10 +37,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     try {
       final musicXml = await OmrService().scan(
+        source: source,
         title: title,
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);
         },
+        onSelectPdfPage: _selectPdfPage,
       );
 
       if (!mounted) return;
@@ -75,7 +77,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _scan();
+                _scan(source);
               },
               child: const Text('Retry'),
             ),
@@ -83,6 +85,24 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         ),
       );
     }
+  }
+
+  /// Prompt for which page of a multi-page PDF to recognise. Returns a
+  /// 0-based page index, or null if the user cancels.
+  Future<int?> _selectPdfPage(int pageCount) {
+    return showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('Choose a page (1–$pageCount)'),
+        children: [
+          for (var i = 0; i < pageCount; i++)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(i),
+              child: Text('Page ${i + 1}'),
+            ),
+        ],
+      ),
+    );
   }
 
   String _stageLabel(OmrScanStage? stage) => switch (stage) {
@@ -119,13 +139,28 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               const Center(child: CircularProgressIndicator()),
               const SizedBox(height: 16),
               Center(child: Text(_stageLabel(_stage))),
-            ] else
+            ] else ...[
               ElevatedButton.icon(
-                key: const ValueKey('scan_button'),
-                onPressed: _scan,
+                key: const ValueKey('scan_camera_button'),
+                onPressed: () => _scan(OmrImageSource.camera),
                 icon: const Icon(Icons.document_scanner),
-                label: const Text('Scan'),
+                label: const Text('Scan with Camera'),
               ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                key: const ValueKey('scan_photos_button'),
+                onPressed: () => _scan(OmrImageSource.photoLibrary),
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Choose from Photos'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                key: const ValueKey('scan_file_button'),
+                onPressed: () => _scan(OmrImageSource.file),
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Choose File'),
+              ),
+            ],
           ],
         ),
       ),
