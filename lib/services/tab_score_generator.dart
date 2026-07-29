@@ -65,16 +65,29 @@ class TabScoreGenerator {
     final noteEvents = parsed.measures.expand((m) => m.notes).toList();
     final labels = <String>[];
 
+    // Set up the tab staff. OMR output (homr) splits <attributes> across two
+    // blocks — a divisions-only one, then clef/key/time — so two elements must
+    // be targeted separately:
+    //   * <staves>2 goes in the FIRST block: Verovio fixes the staff count from
+    //     the first attributes it sees, so if <staves> arrives later it reports
+    //     "Staff 2 cannot be found" and asserts (isTablature) on the tab notes.
+    //   * the melody clef lives in whichever block has a <clef>; the TAB clef
+    //     (number 2) and staff-details join it there, and we tag (never
+    //     duplicate) the existing clef as number 1.
+    // Hand-authored pieces have a single attributes block, so both resolve to
+    // the same element and this matches the original single-block behaviour.
+    final allAttrs = doc.findAllElements('attributes').toList();
+    if (allAttrs.isNotEmpty) {
+      final clefBlock = allAttrs.firstWhere(
+        (a) => a.findElements('clef').isNotEmpty,
+        orElse: () => allAttrs.first,
+      );
+      _setupTabStaff(allAttrs.first, clefBlock);
+    }
+
     var idx = 0;
-    var attrsDone = false;
 
     for (final measure in doc.findAllElements('measure').toList()) {
-      final attrs = measure.findElements('attributes').firstOrNull;
-      if (attrs != null && !attrsDone) {
-        _setupTabStaff(attrs);
-        attrsDone = true;
-      }
-
       final notes = measure.findElements('note').toList();
 
       // Pass 1: tag the melody onto staff 1, resolve each note's tab data, and
@@ -88,6 +101,13 @@ class TabScoreGenerator {
           measureDur += int.tryParse(
                   noteEl.findElements('duration').firstOrNull?.innerText ?? '') ??
               0;
+        }
+        // OMR notes already carry <staff>1</staff>; strip any existing <staff>
+        // before tagging staff 1 so melody notes don't end up with duplicate
+        // (invalid) <staff> elements. Mirrors the staff-2 cleanup in
+        // _toTabNote. No-op for hand-authored pieces (no pre-existing <staff>).
+        for (final s in noteEl.findElements('staff').toList()) {
+          noteEl.children.remove(s);
         }
         _insertOrdered(noteEl, _el('staff', text: '1'), _noteOrder);
 
@@ -153,21 +173,24 @@ class TabScoreGenerator {
     return midi >= _openMidi['E']! ? 'E' : 'G';
   }
 
-  /// Add `<staves>2</staves>`, an explicit staff-1 treble clef, the staff-2 TAB
-  /// clef, and the 4-line staff-details — all in schema order. No `<staff-tuning>`
-  /// (keeps the `tab.guitar` import → swappable `<text>` frets).
-  static void _setupTabStaff(XmlElement attrs) {
-    _insertOrdered(attrs, _el('staves', text: '2'), _attrOrder);
+  /// Add `<staves>2</staves>` to [stavesAttrs], and the staff-2 TAB clef +
+  /// 4-line staff-details (plus a number="1" tag on the existing melody clef)
+  /// to [clefAttrs]. These are usually the same element; they differ only when
+  /// the source splits attributes (OMR output — see [generate]). No
+  /// `<staff-tuning>` (keeps the `tab.guitar` import → swappable `<text>`
+  /// frets). All inserts respect schema order.
+  static void _setupTabStaff(XmlElement stavesAttrs, XmlElement clefAttrs) {
+    _insertOrdered(stavesAttrs, _el('staves', text: '2'), _attrOrder);
     // Staff-1 clef: tag an existing one as number="1" (avoid a duplicate),
     // otherwise add an explicit treble clef.
-    final existingClef = attrs.findElements('clef').firstOrNull;
+    final existingClef = clefAttrs.findElements('clef').firstOrNull;
     if (existingClef != null) {
       if (existingClef.getAttribute('number') == null) {
         existingClef.setAttribute('number', '1');
       }
     } else {
       _insertOrdered(
-          attrs,
+          clefAttrs,
           _el('clef', attrs: {'number': '1'}, children: [
             _el('sign', text: 'G'),
             _el('line', text: '2'),
@@ -175,14 +198,14 @@ class TabScoreGenerator {
           _attrOrder);
     }
     _insertOrdered(
-        attrs,
+        clefAttrs,
         _el('clef', attrs: {'number': '2'}, children: [
           _el('sign', text: 'TAB'),
           _el('line', text: '5'),
         ]),
         _attrOrder);
     _insertOrdered(
-        attrs,
+        clefAttrs,
         _el('staff-details', attrs: {'number': '2'}, children: [
           _el('staff-lines', text: '4'),
         ]),
