@@ -37,6 +37,16 @@ dependencies:
     path: ../homr_flutter/packages/homr_omr
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
+  # Alternative scan sources (mobile/desktop only — imported solely in
+  # omr_service_io.dart, never on the web branch). image_picker = Photos
+  # library, file_picker = arbitrary jpg/png/pdf files, pdfx = rasterize a
+  # PDF page to PNG for the OMR pipeline.
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
+  pdfx: ^2.9.1
+  # Used only in omr_service_io.dart to detect a simulator/emulator, where the
+  # VisionKit document camera is unavailable and would hard-crash the app.
+  device_info_plus: ^11.1.1
   verovio_flutter: ^0.3.1
   flutter_svg: ^2.3.0
   jovial_svg: ^1.1.29

@@ -3,9 +3,11 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  file_selector_windows
   flutter_doc_scanner
   flutter_js
   flutter_onnxruntime
+  pdfx
   url_launcher_windows
 )
 

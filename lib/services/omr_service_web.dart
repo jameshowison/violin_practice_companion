@@ -8,6 +8,7 @@ import 'omr_service_base.dart';
 class OmrService implements OmrServiceBase {
   @override
   Future<String?> scan({
+    OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     String title = '',
   }) {
