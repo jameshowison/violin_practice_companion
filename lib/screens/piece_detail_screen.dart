@@ -11,6 +11,7 @@ import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/tab_number_mode.dart';
 import '../services/midi_generator.dart';
+import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import 'edit_measure_screen.dart';
@@ -176,7 +177,13 @@ class PieceDetailScreen extends ConsumerWidget {
                 sectionColors: sectionColors,
                 sections: piece.sections,
                 service: service,
-                keySignature: parsedPiece?.keySignature,
+                // Jianpu numbers 1 from the signature's RELATIVE MAJOR (see
+                // JianpuConverter, which keys its table on fifths alone), so a
+                // modal piece must still be labelled "1 = D", not "1 = Amix".
+                keySignature: parsedPiece == null
+                    ? null
+                    : MusicXmlParser.keyName(
+                        parsedPiece.keyFifths, KeyMode.major),
               );
 
               // The minimap shows the UNFOLDED structure (A A B B); the notation
@@ -269,11 +276,25 @@ class PieceDetailScreen extends ConsumerWidget {
   }
 
   // "Am" → "A minor", "Bb" → "B♭ major", "G" → "G major"
+  // "Amix" → "A mixolydian", "F#m" → "F♯ minor", "Bb" → "B♭ major". The suffix
+  // is whatever MusicXmlParser.keyName appended for the mode.
+  static const _modeWords = {
+    'dor': 'dorian', 'phr': 'phrygian', 'lyd': 'lydian',
+    'mix': 'mixolydian', 'loc': 'locrian', 'm': 'minor',
+  };
+
   static String _formatKey(String sig) {
-    final isMinor = sig.endsWith('m');
-    final root = isMinor ? sig.substring(0, sig.length - 1) : sig;
-    return '${root.replaceAll('b', '♭')} ${isMinor ? 'minor' : 'major'}';
+    for (final e in _modeWords.entries) {
+      if (sig.length > e.key.length && sig.endsWith(e.key)) {
+        final root = sig.substring(0, sig.length - e.key.length);
+        return '${_prettyRoot(root)} ${e.value}';
+      }
+    }
+    return '${_prettyRoot(sig)} major';
   }
+
+  static String _prettyRoot(String root) =>
+      root.replaceAll('b', '♭').replaceAll('#', '♯');
 }
 
 class _StringLabelPicker extends ConsumerWidget {

@@ -1,4 +1,4 @@
-import '../models/note_event.dart' show KeyMode;
+import '../models/note_event.dart' show KeyMode, KeyModeInfo;
 
 /// Diatonic analysis of a chord within a key — the scale-degree roman numeral
 /// (I, IV, V, vi, ♭VII, V7, vii°…). Case follows the chord's triad quality
@@ -40,15 +40,15 @@ class ChordAnalysis {
         !isDim && !isAug && quality.startsWith('m') && !quality.startsWith('maj');
     final hasSeventh = quality.contains('7');
 
-    // Tonic letter + pitch class.
+    // Tonic letter + pitch class. [keyFifths] gives the RELATIVE MAJOR (the
+    // signature); the mode then rotates that up to the real tonic — so A
+    // mixolydian's two sharps resolve to A, not D.
     final majorTonicLetter = _letterByFifths[(keyFifths % 7 + 7) % 7];
     final majorTonicPc = (keyFifths * 7) % 12;
-    final tonicLetter = keyMode == KeyMode.minor
-        ? _alpha[(_alpha.indexOf(majorTonicLetter) - 2 + 7) % 7]
-        : majorTonicLetter;
-    final tonicPc = keyMode == KeyMode.minor
-        ? (majorTonicPc - 3 + 12) % 12
-        : (majorTonicPc + 12) % 12;
+    final tonicLetter = _alpha[
+        (_alpha.indexOf(majorTonicLetter) + keyMode.rotation) % 7];
+    final tonicPc =
+        (majorTonicPc + keyMode.semitonesAboveRelativeMajor) % 12;
 
     // Scale-step degree (1..7) from letter distance.
     final degIdx =
@@ -56,7 +56,11 @@ class ChordAnalysis {
     var roman = _romans[degIdx];
 
     // Chromatic prefix: compare the root's pitch class to the diatonic degree.
-    final steps = keyMode == KeyMode.minor ? _minorSteps : _majorSteps;
+    // The reference scale is major for the bright modes and natural minor for
+    // the ♭3 ones, which is how trad charts read them — so the G in A
+    // mixolydian comes out ♭VII (the label that tells you it isn't major)
+    // rather than a bare VII.
+    final steps = keyMode.hasMinorThird ? _minorSteps : _majorSteps;
     final expectedPc = (tonicPc + steps[degIdx]) % 12;
     final actualPc = (_letterPc[rootLetter]! + rootAlter + 120) % 12;
     final diff = (actualPc - expectedPc + 12) % 12;

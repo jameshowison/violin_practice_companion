@@ -8,9 +8,9 @@ class MusicXmlParser {
 
     final keyEl = doc.findAllElements('key').firstOrNull;
     final fifths = int.parse(keyEl?.findElements('fifths').firstOrNull?.innerText ?? '0');
-    final modeStr = keyEl?.findElements('mode').firstOrNull?.innerText ?? 'major';
-    final keyMode = modeStr == 'minor' ? KeyMode.minor : KeyMode.major;
-    final keySignature = _fifthsToKeyName(fifths, keyMode);
+    final keyMode =
+        parseKeyMode(keyEl?.findElements('mode').firstOrNull?.innerText);
+    final keySignature = keyName(fifths, keyMode);
 
     final divisions =
         int.tryParse(doc.findAllElements('divisions').firstOrNull?.innerText ?? '') ?? 1;
@@ -225,16 +225,36 @@ class MusicXmlParser {
     }
   }
 
-  String _fifthsToKeyName(int fifths, KeyMode mode) {
-    const majorNames = {
-      -4: 'Ab', -3: 'Eb', -2: 'Bb', -1: 'F',
-      0: 'C', 1: 'G', 2: 'D', 3: 'A', 4: 'E',
-    };
-    const minorNames = {
-      -4: 'Fm', -3: 'Cm', -2: 'Gm', -1: 'Dm',
-      0: 'Am', 1: 'Em', 2: 'Bm', 3: 'F#m', 4: 'C#m',
-    };
-    if (mode == KeyMode.minor) return minorNames[fifths] ?? 'Am';
-    return majorNames[fifths] ?? 'C';
+  /// The MusicXML `<mode>` value as a [KeyMode]. Anything unrecognized (or
+  /// absent) is major, matching MusicXML's own default.
+  static KeyMode parseKeyMode(String? modeText) =>
+      switch (modeText?.trim().toLowerCase()) {
+        'minor' || 'aeolian' => KeyMode.minor,
+        'dorian' => KeyMode.dorian,
+        'phrygian' => KeyMode.phrygian,
+        'lydian' => KeyMode.lydian,
+        'mixolydian' => KeyMode.mixolydian,
+        'locrian' => KeyMode.locrian,
+        _ => KeyMode.major,
+      };
+
+  static const _majorKeyNames = {
+    -7: 'Cb', -6: 'Gb', -5: 'Db', -4: 'Ab', -3: 'Eb', -2: 'Bb', -1: 'F',
+    0: 'C', 1: 'G', 2: 'D', 3: 'A', 4: 'E', 5: 'B', 6: 'F#', 7: 'C#',
+  };
+
+  /// How far round the circle of fifths this mode's TONIC sits from the
+  /// signature's relative major — mixolydian flattens the 7th, so A mixolydian
+  /// carries two sharps where A major carries three. Indexed by [KeyMode].
+  static const _tonicFifthsOffset = [0, 2, 4, -1, 1, 3, 5];
+  static const _modeSuffix = ['', 'dor', 'phr', 'lyd', 'mix', 'm', 'loc'];
+
+  /// Short key name for a signature + mode: `D`, `Am`, `Amix`, `Ddor`. Pass
+  /// [KeyMode.major] to get the signature's relative major, which is what the
+  /// jianpu numbering treats as `1`.
+  static String keyName(int fifths, KeyMode mode) {
+    final tonic = _majorKeyNames[fifths + _tonicFifthsOffset[mode.index]];
+    if (tonic == null) return mode == KeyMode.minor ? 'Am' : 'C';
+    return '$tonic${_modeSuffix[mode.index]}';
   }
 }
