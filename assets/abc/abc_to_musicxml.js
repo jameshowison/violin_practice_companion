@@ -58,13 +58,21 @@
       }
       fifths = sharps > 0 ? sharps : -flats;
     }
+    // The mode must survive, not just the signature. "K: Amix" carries D
+    // major's two sharps but its tonic is A — collapsing it to major made the
+    // opening A chord of a mixolydian reel analyze as V instead of I.
+    // abcjs normalizes ionian to "" and aeolian to "m"; the rest come through
+    // as "Mix"/"Dor"/"Phr"/"Lyd"/"Loc".
     var m = (key && key.mode ? key.mode : '').toLowerCase();
     var mode = 'major';
     if (m === 'm' || m.indexOf('min') === 0 || m.indexOf('aeo') === 0) mode = 'minor';
+    else if (m.indexOf('mix') === 0) mode = 'mixolydian';
+    else if (m.indexOf('dor') === 0) mode = 'dorian';
+    else if (m.indexOf('phr') === 0) mode = 'phrygian';
+    else if (m.indexOf('lyd') === 0) mode = 'lydian';
+    else if (m.indexOf('loc') === 0) mode = 'locrian';
     else if (m && m !== 'maj' && m.indexOf('ion') !== 0) {
-      // Modal key (dorian/mixolydian/...): fifths from accidentals is still
-      // correct; the app only renders major/minor, so approximate.
-      warnings.push('modal key "' + m + '" rendered as major/minor');
+      warnings.push('unrecognized key mode "' + m + '" — treated as major');
     }
     return { fifths: fifths, mode: mode };
   }
