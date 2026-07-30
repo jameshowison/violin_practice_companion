@@ -46,8 +46,15 @@ class Measure {
   }
 
   /// Sum of this measure's visible-note durations in 32nd-note units.
+  ///
+  /// Chord members ([NoteEvent.isChord] — the 2nd+ note on one stem) are skipped:
+  /// they sound at the primary note's onset and occupy no time of their own, so
+  /// counting them would inflate the bar and falsely flag it (a two-note chord
+  /// of quarters in 4/4 would read as 5 beats, not 4).
   int get actualUnits => notes.fold<int>(
-      0, (sum, n) => sum + thirtySecondUnits(n.noteValue, n.dotted));
+      0,
+      (sum, n) =>
+          n.isChord ? sum : sum + thirtySecondUnits(n.noteValue, n.dotted));
 
   /// True when this measure is shorter than a full bar — the hallmark of a
   /// pickup/anacrusis.
