@@ -9,7 +9,9 @@ import '../models/parsed_piece.dart';
 /// Sibling to `fingering_xml_injector.dart` (same parse/mutate/`toXmlString`
 /// approach), but it rewrites a measure's note list rather than annotating
 /// existing notes, so it's a separate class. Single-voice only — `<backup>`/
-/// `<forward>`/chords are out of scope (see `docs/plan.md` §6).
+/// `<forward>` are out of scope (see `docs/plan.md` §6). Chords aren't editable
+/// as such, but a chord member's `<chord/>` marker round-trips so saving an
+/// edit doesn't silently break the stack into sequential notes.
 class MeasureXmlEditor {
   /// Builds a detached `<note>` element for [note]. `<duration>` is derived
   /// from the note value, dot, and the score's [divisions] (divisions per
@@ -160,9 +162,13 @@ class MeasureXmlEditor {
     if (n.isRest) {
       return '<note><rest/><duration>$dur</duration><type>$type</type>$dot</note>';
     }
+    // A chord member's marker comes first in MusicXML's <note> child order,
+    // before <pitch>. Rests are never chord members.
+    final chord = n.isChord ? '<chord/>' : '';
     final p = _parsePitch(n.pitch);
     final alter = p.alter != 0 ? '<alter>${p.alter}</alter>' : '';
     return '<note>'
+        '$chord'
         '<pitch><step>${p.step}</step>$alter<octave>${p.octave}</octave></pitch>'
         '<duration>$dur</duration>'
         '<type>$type</type>'

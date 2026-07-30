@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/services/chord_editor.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
@@ -82,6 +83,93 @@ void main() {
 
     expect(out[3].isRest, isTrue);
     expect(out[3].noteValue, NoteValue.eighth);
+  });
+
+  test('a chord member round-trips: <chord/> survives serialize → parse', () {
+    // Two notes on one stem. Without the marker the save would silently break
+    // the chord into sequential notes (inflating the bar and the playback).
+    final notes = <NoteEvent>[
+      const NoteEvent(
+          pitch: 'D4',
+          midiNumber: 62,
+          octave: 4,
+          noteValue: NoteValue.half,
+          dotted: false,
+          isRest: false),
+      const NoteEvent(
+          pitch: 'A4',
+          midiNumber: 69,
+          octave: 4,
+          noteValue: NoteValue.half,
+          dotted: false,
+          isRest: false,
+          isChord: true),
+      const NoteEvent(
+          pitch: 'B4',
+          midiNumber: 71,
+          octave: 4,
+          noteValue: NoteValue.half,
+          dotted: false,
+          isRest: false),
+    ];
+
+    final newXml = MeasureXmlEditor.replaceMeasureNotes(_baseXml, 1, notes, 4);
+    final measure = parser.parse(newXml).measures.single;
+
+    expect(measure.notes.map((n) => n.isChord).toList(),
+        [false, true, false]);
+    // The chord adds no time: half + half = a full 4/4 bar, so no warning.
+    expect(measure.actualUnits, 32);
+    expect(measure.isDurationMismatch(4, 4), isFalse);
+  });
+
+  test('a chord built in the editor survives serialize → parse', () {
+    // The editor's own path: three sequential notes stacked with ChordEditor,
+    // saved, and re-parsed. Guards the whole chain the measure editor uses.
+    var notes = <NoteEvent>[
+      const NoteEvent(
+          pitch: 'D4',
+          midiNumber: 62,
+          octave: 4,
+          noteValue: NoteValue.whole,
+          dotted: false,
+          isRest: false),
+      const NoteEvent(
+          pitch: 'A4',
+          midiNumber: 69,
+          octave: 4,
+          noteValue: NoteValue.quarter, // deliberately mismatched…
+          dotted: false,
+          isRest: false),
+      const NoteEvent(
+          pitch: 'F#5',
+          midiNumber: 78,
+          octave: 5,
+          noteValue: NoteValue.eighth,
+          dotted: true,
+          isRest: false),
+    ];
+    notes = ChordEditor.stack(notes, 1);
+    notes = ChordEditor.stack(notes, 2);
+
+    final newXml = MeasureXmlEditor.replaceMeasureNotes(_baseXml, 1, notes, 4);
+    final measure = parser.parse(newXml).measures.single;
+
+    expect(measure.notes.map((n) => n.isChord).toList(), [false, true, true]);
+    // …and normalized to the primary's whole note, so the bar is one 4/4 bar.
+    expect(measure.actualUnits, 32);
+    expect(measure.isDurationMismatch(4, 4), isFalse);
+
+    // Every member carries the primary's <duration>, and <chord/> comes FIRST
+    // inside <note> — Verovio relies on MusicXML's child order.
+    final noteEls = XmlDocument.parse(newXml)
+        .findAllElements('note')
+        .toList();
+    expect(noteEls.map((e) => e.findElements('duration').single.innerText),
+        ['16', '16', '16']);
+    for (final e in noteEls.skip(1)) {
+      expect(e.childElements.first.name.local, 'chord');
+    }
   });
 
   test('displayAccidental round-trips through serialize → parse', () {

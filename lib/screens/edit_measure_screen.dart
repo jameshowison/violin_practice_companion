@@ -6,6 +6,7 @@ import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/piece.dart';
 import '../models/section.dart';
+import '../services/chord_editor.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
@@ -58,7 +59,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
         orElse: () =>
             parsed.measures[(widget.measureNumber - 1).clamp(0, parsed.measures.length - 1)],
       );
-      _notes = List.of(measure.notes);
+      // Repair the chord invariant up front — OMR output can carry a stray
+      // leading <chord/> or a member whose duration drifted from its primary.
+      _notes = ChordEditor.normalize(measure.notes);
       _repeatStart = measure.repeatStart;
       _repeatEnd = measure.repeatEnd;
     } else {
@@ -66,9 +69,17 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     }
   }
 
+  /// Index a section marker for the current selection would occupy. Every note
+  /// in a chord shares one onset, so a marker always sits on the stack's
+  /// primary — selecting any member addresses the same marker.
+  int? get _markerIndex {
+    final i = _selectedIndex;
+    return i == null ? null : ChordEditor.primaryIndexOf(_notes, i);
+  }
+
   /// The marker (if any) that starts a section at the currently-selected note.
   Section? get _markerAtSelection {
-    final i = _selectedIndex;
+    final i = _markerIndex;
     if (i == null) return null;
     for (final s in _sectionStarts) {
       if (s.startMeasure == widget.measureNumber && s.startNote == i) return s;
@@ -79,7 +90,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   /// Add / edit / remove a section start marker at the selected note. The label
   /// is typed in a small dialog; an empty label clears the marker.
   Future<void> _editSectionMarker() async {
-    final i = _selectedIndex;
+    final i = _markerIndex;
     if (i == null) return;
     final existing = _markerAtSelection;
     final controller = TextEditingController(text: existing?.label ?? '');
@@ -166,14 +177,17 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     final step = _steps[idx];
     final alter = KeySignature.defaultAlter(_keyFifths, step);
     setState(() {
-      // Fresh NoteEvent: pitch change invalidates the stale fingering label.
-      _notes[i] = NoteEvent(
-        pitch: _pitchString(step, alter, octave),
-        midiNumber: _midi(step, alter, octave),
-        octave: octave,
-        noteValue: _notes[i].noteValue,
-        dotted: _notes[i].dotted,
-        isRest: false,
+      // ChordEditor.repitch drops the now-stale fingering but carries the
+      // structural fields (chord membership, chord symbol, rhythm) through.
+      _notes = ChordEditor.replaceAt(
+        _notes,
+        i,
+        ChordEditor.repitch(
+          _notes[i],
+          pitch: _pitchString(step, alter, octave),
+          midiNumber: _midi(step, alter, octave),
+          octave: octave,
+        ),
       );
     });
   }
@@ -192,20 +206,19 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     final newMidi = _midi(p.step, alter, p.octave);
     final pitchUnchanged = newMidi == n.midiNumber;
     setState(() {
-      // Fresh NoteEvent so displayAccidental can be cleared to null (copyWith
-      // can't). Keep the fingering only while the sounding pitch is unchanged
-      // (e.g. clearing a courtesy natural); a real pitch change invalidates it.
-      _notes[i] = NoteEvent(
-        pitch: _pitchString(p.step, alter, p.octave),
-        midiNumber: newMidi,
-        octave: p.octave,
-        noteValue: n.noteValue,
-        dotted: n.dotted,
-        isRest: false,
-        displayAccidental: kind,
-        scoreFinger: pitchUnchanged ? n.scoreFinger : null,
-        fingerNumber: pitchUnchanged ? n.fingerNumber : null,
-        fingerString: pitchUnchanged ? n.fingerString : null,
+      // Keep the fingering only while the sounding pitch is unchanged (e.g.
+      // clearing a courtesy natural); a real pitch change invalidates it.
+      _notes = ChordEditor.replaceAt(
+        _notes,
+        i,
+        ChordEditor.repitch(
+          n,
+          pitch: _pitchString(p.step, alter, p.octave),
+          midiNumber: newMidi,
+          octave: p.octave,
+          displayAccidental: kind,
+          keepFingering: pitchUnchanged,
+        ),
       );
     });
   }
@@ -213,34 +226,37 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   void _changeDuration({required bool longer}) {
     final i = _selectedIndex;
     if (i == null) return;
-    final n = _notes[i];
+    // Step from the PRIMARY, not the selected member, so a member that somehow
+    // drifted can't propagate its value to the rest of the stack.
+    final p = _notes[ChordEditor.primaryIndexOf(_notes, i)];
     final step = longer
-        ? DurationStep.next(n.noteValue, n.dotted)
-        : DurationStep.previous(n.noteValue, n.dotted);
+        ? DurationStep.next(p.noteValue, p.dotted)
+        : DurationStep.previous(p.noteValue, p.dotted);
     setState(() {
-      _notes[i] = n.copyWith(noteValue: step.value, dotted: step.dotted);
+      _notes = ChordEditor.setDuration(_notes, i, step);
     });
   }
 
   void _toggleRest() {
     final i = _selectedIndex;
     if (i == null) return;
-    final n = _notes[i];
     setState(() {
-      if (n.isRest) {
-        _notes[i] = RegExp(r'^[A-G]').hasMatch(n.pitch)
-            ? n.copyWith(isRest: false)
-            : NoteEvent(
-                pitch: 'B4',
-                midiNumber: 71,
-                octave: 4,
-                noteValue: n.noteValue,
-                dotted: n.dotted,
-                isRest: false,
-              );
-      } else {
-        _notes[i] = n.copyWith(isRest: true);
-      }
+      _notes = ChordEditor.toggleRest(_notes, i);
+    });
+  }
+
+  /// Joins the selected note to the previous note's stem, or detaches it again.
+  void _toggleStack() {
+    final i = _selectedIndex;
+    if (i == null) return;
+    setState(() {
+      _notes = ChordEditor.canUnstack(_notes, i)
+          ? ChordEditor.unstack(_notes, i)
+          : ChordEditor.stack(_notes, i);
+      // A marker on a note that just became a member has to follow its stack's
+      // primary — a section can't begin mid-stem.
+      _sectionStarts = ChordEditor.normalizeMarkers(
+          _notes, _sectionStarts, widget.measureNumber);
     });
   }
 
@@ -249,8 +265,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     if (i == null) return;
     final n = _notes[i];
     setState(() {
-      _notes.insert(
-        i + 1,
+      final r = ChordEditor.insertAfter(
+        _notes,
+        i,
         NoteEvent(
           pitch: n.pitch,
           midiNumber: n.midiNumber,
@@ -260,7 +277,8 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           isRest: n.isRest,
         ),
       );
-      _selectedIndex = i + 1;
+      _notes = r.notes;
+      _selectedIndex = r.selectedIndex;
     });
   }
 
@@ -268,9 +286,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     final i = _selectedIndex;
     if (i == null) return;
     setState(() {
-      _notes.removeAt(i);
-      _selectedIndex =
-          _notes.isEmpty ? null : i.clamp(0, _notes.length - 1);
+      final r = ChordEditor.deleteAt(_notes, i);
+      _notes = r.notes;
+      _selectedIndex = r.selectedIndex;
     });
   }
 
@@ -360,8 +378,12 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
         MeasureXmlEditor.buildSingleMeasurePreviewXml(_notes, parsed);
 
     final expectedUnits = parsed.beatsPerMeasure * 32 ~/ parsed.beatType;
+    // Chord members add no time (see Measure.actualUnits) — skip them so a
+    // chord doesn't read as several sequential notes in the beat total.
     final actualUnits = _notes.fold<int>(
-        0, (s, n) => s + thirtySecondUnits(n.noteValue, n.dotted));
+        0,
+        (s, n) =>
+            n.isChord ? s : s + thirtySecondUnits(n.noteValue, n.dotted));
     final mismatch =
         widget.measureNumber != 0 && actualUnits != expectedUnits;
     final actualBeats = actualUnits * parsed.beatType / 32;
@@ -505,9 +527,15 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     // when it follows the key signature. Drives the highlighted button.
     final currentAcc = hasSel && !isRest ? sel.displayAccidental : null;
     final accEnabled = hasSel && !isRest;
-    final durLabel = hasSel
-        ? DurationStep(sel.noteValue, sel.dotted).label
+    // The duration shown (and stepped) is the chord's, read from the primary —
+    // selecting a member shows the value the whole stack actually carries.
+    final primary = hasSel
+        ? _notes[ChordEditor.primaryIndexOf(_notes, _selectedIndex!)]
+        : null;
+    final durLabel = primary != null
+        ? DurationStep(primary.noteValue, primary.dotted).label
         : '—';
+    final restBlocked = ChordEditor.restBlockedReason(_notes, _selectedIndex);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -574,9 +602,17 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             ],
           ),
           _divider(),
+          // Stacking sits next to DURATION because the two interact: joining a
+          // stem adopts the target's duration, and duration then applies to the
+          // whole stack.
+          _group('CHORD', [
+            _stackToggle(),
+          ]),
+          _divider(),
           _group('NOTE / MEASURE', [
             _labelBtn(Icons.swap_horiz, 'rest',
-                onPressed: hasSel ? _toggleRest : null),
+                onPressed: hasSel && restBlocked == null ? _toggleRest : null,
+                tooltip: restBlocked),
             const SizedBox(width: 4),
             _labelBtn(Icons.add, 'insert',
                 onPressed: hasSel ? _insert : null),
@@ -636,6 +672,48 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
         const SizedBox(height: 2),
         Text('start', style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
       ],
+    );
+  }
+
+  // Stack / unstack the selected note onto the previous note's stem. Filled
+  // while the note IS stacked (tap to detach), outlined when it can be stacked,
+  // disabled otherwise — with the reason as the tooltip, so the enabled state
+  // and its explanation come from the same ChordEditor call.
+  Widget _stackToggle() {
+    final i = _selectedIndex;
+    final stacked = ChordEditor.canUnstack(_notes, i);
+    final blocked = ChordEditor.stackBlockedReason(_notes, i);
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+    final icon = Icon(stacked ? Icons.layers_clear : Icons.layers, size: 20);
+    return Tooltip(
+      message: stacked
+          ? 'Unstack from the chord — this note becomes its own beat.'
+          : (blocked ?? 'Stack on the previous note (chord).'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: stacked
+                ? FilledButton(
+                    onPressed: _toggleStack,
+                    style: FilledButton.styleFrom(
+                        padding: EdgeInsets.zero, shape: shape),
+                    child: icon,
+                  )
+                : OutlinedButton(
+                    onPressed: blocked == null ? _toggleStack : null,
+                    style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero, shape: shape),
+                    child: icon,
+                  ),
+          ),
+          const SizedBox(height: 2),
+          Text(stacked ? 'unstack' : 'stack',
+              style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+        ],
+      ),
     );
   }
 
@@ -735,8 +813,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     return tooltip != null ? Tooltip(message: tooltip, child: btn) : btn;
   }
 
-  Widget _labelBtn(IconData icon, String label, {VoidCallback? onPressed}) {
-    return Column(
+  Widget _labelBtn(IconData icon, String label,
+      {VoidCallback? onPressed, String? tooltip}) {
+    final btn = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _iconBtn(icon, onPressed: onPressed),
@@ -749,6 +828,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
                     : Colors.grey.shade700)),
       ],
     );
+    return tooltip != null ? Tooltip(message: tooltip, child: btn) : btn;
   }
 }
 
