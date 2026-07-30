@@ -62,6 +62,9 @@ class MusicXmlParser {
         }
         if (isHidden) continue;
         seenVisibleNote = true;
+        // A <chord/> child marks a note stacked on the previous note's stem: it
+        // shares that note's onset and adds no time (see MidiGenerator).
+        final isChord = noteEl.findElements('chord').isNotEmpty;
         final isRest = noteEl.findElements('rest').isNotEmpty;
         final dotted = noteEl.findElements('dot').isNotEmpty;
         final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
@@ -111,6 +114,7 @@ class MusicXmlParser {
           scoreFinger: scoreFinger,
           displayAccidental: displayAccidental,
           chordSymbol: pendingChord,
+          isChord: isChord,
         ));
         pendingChord = null;
       }

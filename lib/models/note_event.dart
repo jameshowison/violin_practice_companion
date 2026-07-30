@@ -38,6 +38,13 @@ class NoteEvent {
   /// [ChordXmlInjector]).
   final String? chordSymbol;
 
+  /// True when this note is a *chord member* — a MusicXML `<note>` carrying a
+  /// `<chord/>` child, i.e. the 2nd+ note stacked on one stem. It sounds at the
+  /// same onset as the preceding (primary) note and adds no time; the primary
+  /// note governs the chord's duration. Populated by [MusicXmlParser]; consumed
+  /// by MidiGenerator so chord notes play together instead of sequentially.
+  final bool isChord;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -53,6 +60,7 @@ class NoteEvent {
     this.fingerString,
     this.fingerNumber,
     this.chordSymbol,
+    this.isChord = false,
   });
 
   NoteEvent copyWith({
@@ -70,6 +78,7 @@ class NoteEvent {
     String? fingerString,
     String? fingerNumber,
     String? chordSymbol,
+    bool? isChord,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -87,5 +96,6 @@ class NoteEvent {
         fingerString: fingerString ?? this.fingerString,
         fingerNumber: fingerNumber ?? this.fingerNumber,
         chordSymbol: chordSymbol ?? this.chordSymbol,
+        isChord: isChord ?? this.isChord,
       );
 }
