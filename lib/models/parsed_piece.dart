@@ -130,16 +130,61 @@ class ParsedPiece {
   }
 
   /// Measure numbers whose visible notes don't total the expected beat count.
-  /// A short FIRST measure is treated as a pickup/anacrusis and never flagged,
-  /// even when OMR output numbered it 1 instead of 0 (so the
-  /// `number == 0` guard in [Measure.isDurationMismatch] wouldn't catch it).
+  ///
+  /// Two kinds of short bar are notation, not error:
+  ///  * a short FIRST measure — a pickup/anacrusis, even when OMR numbered it 1
+  ///    instead of 0 (so the `number == 0` guard in
+  ///    [Measure.isDurationMismatch] wouldn't catch it);
+  ///  * a **pickup pair** — an incomplete bar completed by the pickup it runs
+  ///    into. See [_pickupPairedIndices].
   Set<int> get flaggedMeasureNumbers {
+    final paired = _pickupPairedIndices();
     final flagged = <int>{};
     for (var i = 0; i < measures.length; i++) {
       final m = measures[i];
       if (i == 0 && m.isShort(beatsPerMeasure, beatType)) continue;
+      if (paired.contains(i)) continue;
       if (m.isDurationMismatch(beatsPerMeasure, beatType)) flagged.add(m.number);
     }
     return flagged;
+  }
+
+  /// Document indices of short measures that pair with an adjacent short
+  /// measure to make exactly one full bar.
+  ///
+  /// This is the standard repeated-strain layout: `|: A2 | … | A6 :|` ends on a
+  /// 3-beat bar that plays straight back into the 1-beat pickup, making four.
+  /// Both bars are short on paper and neither is a mistake.
+  ///
+  /// Adjacency is *performance* order, so a `:|` is adjacent to the `|:` it
+  /// jumps back to — and it's taken as a cycle, because the final incomplete bar
+  /// of a tune is completed by the opening anacrusis, which is the whole reason
+  /// the anacrusis is short in the first place.
+  ///
+  /// The boundary requirement is what stops this masking the OMR damage the flag
+  /// exists to catch: a bar accidentally split into 3 + 1 mid-phrase also sums
+  /// to a full bar, but has no repeat barline between the halves, so it stays
+  /// flagged.
+  Set<int> _pickupPairedIndices() {
+    final order = performanceOrder(measures);
+    if (order.length < 2) return const {};
+    final expected = beatsPerMeasure * 32 ~/ beatType;
+    final paired = <int>{};
+    for (var k = 0; k < order.length; k++) {
+      final isWrap = k == order.length - 1;
+      final ai = order[k];
+      final bi = order[(k + 1) % order.length];
+      if (ai == bi) continue;
+      final a = measures[ai];
+      final b = measures[bi];
+      if (!a.isShort(beatsPerMeasure, beatType)) continue;
+      if (!b.isShort(beatsPerMeasure, beatType)) continue;
+      if (a.actualUnits + b.actualUnits != expected) continue;
+      if (!a.repeatEnd && !b.repeatStart && !isWrap) continue;
+      paired
+        ..add(ai)
+        ..add(bi);
+    }
+    return paired;
   }
 }

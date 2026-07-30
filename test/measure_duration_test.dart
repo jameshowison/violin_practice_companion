@@ -96,6 +96,103 @@ void main() {
     });
   });
 
+  group('pickup pairs across repeats are notation, not error', () {
+    // Old Joe Clark's shape: |: A2 | …full bars… | A6 :| twice over. Each
+    // 3-beat bar plays straight back into a 1-beat pickup, making four.
+    ParsedPiece strain({bool secondStrain = true}) => ParsedPiece(
+          keySignature: 'Amix',
+          keyFifths: 2,
+          keyMode: KeyMode.mixolydian,
+          beatsPerMeasure: 4,
+          beatType: 4,
+          measures: [
+            Measure(
+                number: 1,
+                notes: [_note(NoteValue.quarter)],
+                repeatStart: true),
+            Measure(number: 2, notes: [_note(NoteValue.whole)]),
+            Measure(
+                number: 3,
+                notes: [_note(NoteValue.half, dotted: true)],
+                repeatEnd: true),
+            if (secondStrain) ...[
+              Measure(
+                  number: 4,
+                  notes: [_note(NoteValue.quarter)],
+                  repeatStart: true),
+              Measure(number: 5, notes: [_note(NoteValue.whole)]),
+              Measure(
+                  number: 6,
+                  notes: [_note(NoteValue.half, dotted: true)],
+                  repeatEnd: true),
+            ],
+          ],
+        );
+
+    test('no bar of a two-strain reel is flagged', () {
+      expect(strain().flaggedMeasureNumbers, isEmpty);
+    });
+
+    test('a single strain pairs its final bar with the opening pickup', () {
+      expect(strain(secondStrain: false).flaggedMeasureNumbers, isEmpty);
+    });
+
+    test('an unpaired short bar in the middle is still flagged', () {
+      final piece = ParsedPiece(
+        keySignature: 'C',
+        keyFifths: 0,
+        keyMode: KeyMode.major,
+        beatsPerMeasure: 4,
+        beatType: 4,
+        measures: [
+          Measure(number: 1, notes: [_note(NoteValue.whole)]),
+          Measure(number: 2, notes: [_note(NoteValue.half)]), // lone short bar
+          Measure(number: 3, notes: [_note(NoteValue.whole)]),
+        ],
+      );
+      expect(piece.flaggedMeasureNumbers, {2});
+    });
+
+    test('a bar split in two mid-phrase is NOT excused — no repeat between', () {
+      // The OMR damage the flag exists to catch: 3 + 1 also sums to a full bar,
+      // so only the barline structure distinguishes it from a real pickup pair.
+      final piece = ParsedPiece(
+        keySignature: 'C',
+        keyFifths: 0,
+        keyMode: KeyMode.major,
+        beatsPerMeasure: 4,
+        beatType: 4,
+        measures: [
+          Measure(number: 1, notes: [_note(NoteValue.whole)]),
+          Measure(number: 2, notes: [_note(NoteValue.half, dotted: true)]),
+          Measure(number: 3, notes: [_note(NoteValue.quarter)]),
+          Measure(number: 4, notes: [_note(NoteValue.whole)]),
+        ],
+      );
+      expect(piece.flaggedMeasureNumbers, {2, 3});
+    });
+
+    test('two shorts that do not add up to a bar are both flagged', () {
+      final piece = ParsedPiece(
+        keySignature: 'C',
+        keyFifths: 0,
+        keyMode: KeyMode.major,
+        beatsPerMeasure: 4,
+        beatType: 4,
+        measures: [
+          Measure(number: 1, notes: [_note(NoteValue.whole)]),
+          Measure(
+              number: 2,
+              notes: [_note(NoteValue.half)],
+              repeatEnd: true), // 2 beats
+          Measure(number: 3, notes: [_note(NoteValue.quarter)]), // 1 beat
+          Measure(number: 4, notes: [_note(NoteValue.whole)]),
+        ],
+      );
+      expect(piece.flaggedMeasureNumbers, {2, 3});
+    });
+  });
+
   test('a short FIRST measure numbered 1 (anacrusis) is NOT flagged', () {
     // OMR output often numbers a pickup "1" instead of 0, so the number==0
     // guard misses it; the first-measure-is-short rule should catch it.
