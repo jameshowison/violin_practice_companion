@@ -82,6 +82,18 @@ void main() {
     expect(MusicXmlParser.parseKeyMode('ionian'), KeyMode.major);
   });
 
+  test('the repeat pickups are not flagged as duration errors', () {
+    // |: A2 | … | A6 :| twice: measures 1/10 are 1-beat pickups and 9/18 are
+    // 3-beat bars that run back into them. All four are short on paper; none is
+    // a mistake.
+    final short = piece.measures
+        .where((m) => m.isShort(piece.beatsPerMeasure, piece.beatType))
+        .map((m) => m.number)
+        .toList();
+    expect(short, [1, 9, 10, 18], reason: 'the four half-bars of the two strains');
+    expect(piece.flaggedMeasureNumbers, isEmpty);
+  });
+
   test('the piece parses into measures with notes', () {
     expect(piece.measures, isNotEmpty);
     expect(piece.allNotes.where((n) => !n.isRest), isNotEmpty);
