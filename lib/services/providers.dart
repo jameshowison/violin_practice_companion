@@ -207,8 +207,9 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
-  // Tab view is fret-focused in M1: no chord symbols on the melody staff.
-  xml = ChordXmlInjector.stripHarmony(xml);
+  // Chord symbols ride above the melody staff here just like in the staff views
+  // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).
+  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
   return TabScoreGenerator.generate(
     xml,
     parsed,
