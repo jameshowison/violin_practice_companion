@@ -120,7 +120,8 @@ class MidiGenerator {
         acc += _ticks(hidden);
       }
       for (final note in measure.notes) {
-        acc += _ticks(note);
+        // Chord members share the primary note's onset and add no time.
+        if (!note.isChord) acc += _ticks(note);
       }
     }
 
@@ -137,11 +138,26 @@ class MidiGenerator {
         scoreTick += t;
       }
       final noteTimings = <(double, double)>[];
+      // A chord member reuses the primary note's onset/duration/beat and does
+      // not advance the cursor, so the whole chord sounds together in one slot.
+      double chordOnset = cursor;
+      double chordDur = 0.0;
+      int chordScoreTick = scoreTick;
       for (int ni = 0; ni < measure.notes.length; ni++) {
         final note = measure.notes[ni];
-        final ticks = _ticks(note);
-        final dur = ticks * secsPerTick;
-        final onset = cursor;
+        final isChordMember = note.isChord && ni > 0;
+        final double onset;
+        final double dur;
+        if (isChordMember) {
+          onset = chordOnset;
+          dur = chordDur;
+        } else {
+          onset = cursor;
+          dur = _ticks(note) * secsPerTick;
+          chordOnset = onset;
+          chordDur = dur;
+          chordScoreTick = scoreTick;
+        }
         final offset = onset + dur;
         noteTimings.add((onset, offset));
         highlightEvents.add(HighlightEvent(
@@ -150,14 +166,16 @@ class MidiGenerator {
           isLong: !note.isRest && _isLongerThanQuarter(note),
           onsetSeconds: onset,
           offsetSeconds: offset,
-          beatPosition: scoreTick / (_tpb * 4),
+          beatPosition: chordScoreTick / (_tpb * 4),
           performanceIndex: oi,
         ));
         if (!note.isRest) {
           notes.add(ScheduledNote(onset, offset, note.midiNumber));
         }
-        cursor += dur;
-        scoreTick += ticks;
+        if (!isChordMember) {
+          cursor += dur;
+          scoreTick += _ticks(note);
+        }
       }
       measureNoteTimings.add(noteTimings);
     }
