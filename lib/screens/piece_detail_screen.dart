@@ -106,7 +106,8 @@ class PieceDetailScreen extends ConsumerWidget {
                       ref.read(staffSpacingProvider.notifier).state = v,
                 ),
                 if (displayMode == DisplayMode.staff ||
-                    displayMode == DisplayMode.staffFingering) ...[
+                    displayMode == DisplayMode.staffFingering ||
+                    displayMode == DisplayMode.tab) ...[
                   const Divider(),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -252,7 +253,8 @@ class PieceDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   if (displayMode == DisplayMode.staff ||
-                      displayMode == DisplayMode.staffFingering)
+                      displayMode == DisplayMode.staffFingering ||
+                      displayMode == DisplayMode.tab)
                     const NewChordsBlock(),
                   SectionBar(
                     sections: piece.sections,

@@ -451,8 +451,8 @@ class VerovioEngraver {
 
   /// Chord-symbol labels (degree-primary, e.g. "I (A)") for each `<harmony>` in
   /// the score, in document order — matching the order Verovio emits `harm`
-  /// groups in the SVG. Empty when there's no harmony (e.g. tab view, or chords
-  /// toggled off upstream).
+  /// groups in the SVG. Empty when there's no harmony (chords toggled off
+  /// upstream, or a piece with no chord data).
   static List<String> _computeHarmLabels(String xml) {
     final XmlDocument doc;
     try {
