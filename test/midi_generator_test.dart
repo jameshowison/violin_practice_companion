@@ -277,4 +277,38 @@ void main() {
       expect(d.notes.length, 8);
     });
   });
+
+  group('Chords (notes on one stem) play together, not sequentially', () {
+    const bpm = 60; // 1 quarter = 1 s
+
+    // A C-major triad (all quarters) on one stem, then a single quarter note.
+    NoteEvent chordMember(int midi) =>
+        _note(NoteValue.quarter, midi: midi).copyWith(isChord: true);
+    ParsedPiece piece() => _piece([
+          [
+            _note(NoteValue.quarter, midi: 60), // primary (C)
+            chordMember(64), // E — <chord/>
+            chordMember(67), // G — <chord/>
+            _note(NoteValue.quarter, midi: 72), // next note (C, one octave up)
+          ],
+        ]);
+
+    test('the three chord notes share onset 0 and last one quarter', () {
+      final d = gen.generate(piece(), bpm);
+      final chord = d.notes.where((n) => n.onsetSeconds < 0.5).toList();
+      expect(chord.map((n) => n.midiNote).toSet(), {60, 64, 67});
+      for (final n in chord) {
+        expect(n.onsetSeconds, closeTo(0.0, 0.001));
+        expect(n.offsetSeconds, closeTo(1.0, 0.001));
+      }
+    });
+
+    test('the following note starts at 1 s, not 3 s (no time inflation)', () {
+      final d = gen.generate(piece(), bpm);
+      final next = d.notes.firstWhere((n) => n.midiNote == 72);
+      expect(next.onsetSeconds, closeTo(1.0, 0.001));
+      // Whole measure = chord quarter + one quarter = 2 s, not 4 s.
+      expect(d.totalDurationSeconds, closeTo(2.0, 0.001));
+    });
+  });
 }
