@@ -1,6 +1,28 @@
 enum NoteValue { whole, half, quarter, eighth, sixteenth }
 
-enum KeyMode { major, minor }
+/// The church modes, declared in rotation order from the relative major, so
+/// `index` IS the mode's degree within that major scale. `major` and `minor`
+/// keep their familiar names rather than ionian/aeolian — that's what MusicXML
+/// and the rest of the app call them.
+///
+/// Modes matter for trad/folk tunes: `K: Amix` (Old Joe Clark) carries D major's
+/// two sharps, but its tonic is A. Storing only the signature would make the
+/// opening A chord read as V instead of I.
+enum KeyMode { major, dorian, phrygian, lydian, mixolydian, minor, locrian }
+
+extension KeyModeInfo on KeyMode {
+  /// Scale degree (0-based) of this mode's tonic within its relative major.
+  int get rotation => index;
+
+  /// Semitones from the relative-major tonic up to this mode's tonic.
+  int get semitonesAboveRelativeMajor => const [0, 2, 4, 5, 7, 9, 11][index];
+
+  /// True for the modes with a minor third. These are conventionally analyzed
+  /// against the natural-minor scale, so e.g. dorian's ♭7 chord reads ♭VII —
+  /// the bright modes (ionian/lydian/mixolydian) are read against major.
+  bool get hasMinorThird =>
+      const [false, true, true, false, false, true, true][index];
+}
 
 enum DisplayMode { staff, staffFingering, jianpu, fingering, combined, tab }
 

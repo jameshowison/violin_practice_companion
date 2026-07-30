@@ -465,9 +465,8 @@ class VerovioEngraver {
     final keyEl = doc.findAllElements('key').firstOrNull;
     final fifths =
         int.tryParse(keyEl?.findElements('fifths').firstOrNull?.innerText ?? '') ?? 0;
-    final mode = (keyEl?.findElements('mode').firstOrNull?.innerText) == 'minor'
-        ? KeyMode.minor
-        : KeyMode.major;
+    final mode = MusicXmlParser.parseKeyMode(
+        keyEl?.findElements('mode').firstOrNull?.innerText);
     return [
       for (final h in harmonies)
         _harmLabel(MusicXmlParser.parseHarmonyLabel(h), fifths, mode),
