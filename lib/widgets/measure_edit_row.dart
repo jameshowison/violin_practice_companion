@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../models/note_event.dart';
+import '../services/chord_editor.dart';
 
 /// Horizontal row of large, tappable note cards for the measure being edited.
 /// Each card shows the pitch (or "rest"), the duration, and the fingering label
 /// if present. Generous ~72×96 cards — touch targets for editing, distinct from
 /// the dense playback-tuned cells of the jianpu/fingering views.
+///
+/// Notes sharing a stem (a chord) are drawn inside one tinted bracket with the
+/// gap between them collapsed, so the group reads as a single beat — otherwise
+/// a double-stop looks exactly like two sequential notes. Members stay
+/// individually tappable, so per-note pitch/accidental editing is unchanged.
 class MeasureEditRow extends StatelessWidget {
   final List<NoteEvent> notes;
   final int? selectedIndex;
@@ -30,6 +36,7 @@ class MeasureEditRow extends StatelessWidget {
     // still scroll horizontally when they overflow (a long one). The
     // ConstrainedBox(minWidth) lets the Row grow to the viewport so
     // MainAxisAlignment.center has room to work.
+    final cs = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -39,14 +46,16 @@ class MeasureEditRow extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              for (var i = 0; i < notes.length; i++)
+              for (final g in ChordEditor.groups(notes))
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _NoteEditCard(
-                    note: notes[i],
-                    selected: i == selectedIndex,
-                    onTap: () => onSelect(i),
-                  ),
+                  // The same vertical padding on both branches keeps every
+                  // child exactly 100 tall, so the row height doesn't jump the
+                  // moment a chord is created or broken.
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: g.end - g.start == 1
+                      ? _card(g.start)
+                      : _chordGroup(cs, g),
                 ),
             ],
           ),
@@ -54,17 +63,56 @@ class MeasureEditRow extends StatelessWidget {
       ),
     );
   }
+
+  Widget _card(int i, {bool chordMember = false}) => _NoteEditCard(
+        key: ValueKey('note_$i'),
+        note: notes[i],
+        selected: i == selectedIndex,
+        chordMember: chordMember,
+        onTap: () => onSelect(i),
+      );
+
+  // A stack drawn as one bracket. Chord chrome uses `tertiary` because
+  // `primary` already means "selected" (and labels the fingering) — a selected
+  // member must read as a primary border inside a tertiary bracket.
+  Widget _chordGroup(ColorScheme cs, ChordRange g) => DecoratedBox(
+        key: ValueKey('chord_group_${g.start}'),
+        decoration: BoxDecoration(
+          color: cs.tertiaryContainer.withValues(alpha: 0.30),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: cs.tertiary.withValues(alpha: 0.55), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = g.start; i < g.end; i++) ...[
+                if (i > g.start) const SizedBox(width: 3),
+                _card(i, chordMember: i > g.start),
+              ],
+            ],
+          ),
+        ),
+      );
 }
 
 class _NoteEditCard extends StatelessWidget {
   final NoteEvent note;
   final bool selected;
+
+  /// True for the 2nd+ note of a stack. Only changes the card's look — the
+  /// duration is dimmed because it's governed by the primary, not settable here.
+  final bool chordMember;
   final VoidCallback onTap;
 
   const _NoteEditCard({
+    super.key,
     required this.note,
     required this.selected,
     required this.onTap,
+    this.chordMember = false,
   });
 
   @override
@@ -76,7 +124,9 @@ class _NoteEditCard extends StatelessWidget {
         width: 72,
         height: 96,
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: chordMember
+              ? theme.colorScheme.tertiaryContainer.withValues(alpha: 0.25)
+              : theme.colorScheme.surface,
           border: Border.all(
             // Edit-time selection uses a bold primary border — visually
             // distinct from the amber playback-position convention.
@@ -99,7 +149,11 @@ class _NoteEditCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               _durationLabel(note),
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 12,
+                color: chordMember ? Colors.black38 : Colors.black54,
+                fontStyle: chordMember ? FontStyle.italic : FontStyle.normal,
+              ),
             ),
             if (note.fingerNumber != null) ...[
               const SizedBox(height: 2),
