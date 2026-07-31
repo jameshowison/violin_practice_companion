@@ -414,6 +414,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
                         ? StaffViewVerovio(
                             musicXml: previewXml,
                             highlightNotifier: _noHighlight,
+                            // A one-bar preview always auto-fits its box; the
+                            // whole-piece measures-per-line zoom doesn't apply.
+                            zoomable: false,
                           )
                         : StaffView(
                             musicXml: previewXml,

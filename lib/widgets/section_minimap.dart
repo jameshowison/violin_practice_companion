@@ -6,6 +6,7 @@ import '../models/section_run.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/staff_zoom.dart';
 
 /// Right-hand navigation strip: one emblem per **unfolded** [SectionRun] (so a
 /// `|: A :|` repeat shows two A emblems — `A A B B`). This is the single place
@@ -17,13 +18,30 @@ import '../services/providers.dart';
 /// "Where we are" resolves to: the playing pass (live, by performance index —
 /// so the 2nd pass of A lights the 2nd A emblem), else the top-most scrolled
 /// section in the jianpu/fingering views, else the selected section.
+///
+/// In the staff/annotation/tab views the label and emblem height scale with the
+/// notation zoom (see [sectionMarkerScaleFor]) — zooming in because the notes
+/// were too small to read should not leave the part markers unreadable. The
+/// custom views (jianpu/finger/+) aren't zoomable, so there the emblems keep
+/// their base size.
+///
+/// The strip's WIDTH is deliberately constant. It is a `Row` sibling of the
+/// notation, so its width subtracts from the width the score is engraved to —
+/// and the auto zoom's predicted height is proportional to that width. A
+/// zoom-dependent width therefore closes a positive feedback loop: wider strip →
+/// narrower notation → auto picks fewer measures per line → bigger markers →
+/// wider strip. Measured before this was pinned, opening a piece cascaded
+/// 6 → 4 → 3 measures per line across three extra engraves, with a visible
+/// reflow each time. A constant width makes that structurally impossible.
 class SectionMinimap extends ConsumerWidget {
   final List<SectionRun> runs;
   final Map<String, Color> sectionColors;
   final PlaybackServiceBase service;
   final ValueChanged<int> onTapRun;
 
-  static const double width = 30;
+  /// Fixed strip width — wide enough for a two-glyph label (e.g. `A¹`) at the
+  /// largest marker scale. See the class doc for why this must not vary.
+  static const double width = 44;
 
   const SectionMinimap({
     super.key,
@@ -71,6 +89,10 @@ class SectionMinimap extends ConsumerWidget {
     final scrollMeasure = ref.watch(scrollMeasureProvider);
     final selection = ref.watch(measureSelectionProvider);
     final theme = Theme.of(context);
+    // Only the Verovio-rendered views zoom, so only they scale their markers.
+    final scale = isCustom
+        ? 1.0
+        : sectionMarkerScaleFor(ref.watch(effectiveMeasuresPerLineProvider));
 
     return Container(
       width: width,
@@ -94,6 +116,7 @@ class SectionMinimap extends ConsumerWidget {
                     run: runs[i],
                     color: sectionColors[runs[i].label] ?? Colors.blueGrey,
                     active: i == current,
+                    scale: scale,
                     onTap: () => onTapRun(i),
                   ),
               ],
@@ -109,12 +132,18 @@ class _Emblem extends StatelessWidget {
   final SectionRun run;
   final Color color;
   final bool active;
+
+  /// Multiplier on the label size and emblem height, so the marker grows with
+  /// the notation zoom. Horizontal metrics stay fixed — the strip's width must
+  /// not vary (see [SectionMinimap]).
+  final double scale;
   final VoidCallback onTap;
 
   const _Emblem({
     required this.run,
     required this.color,
     required this.active,
+    required this.scale,
     required this.onTap,
   });
 
@@ -136,7 +165,7 @@ class _Emblem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 26,
+        height: 26 * scale,
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
         decoration: BoxDecoration(
@@ -160,17 +189,22 @@ class _Emblem extends StatelessWidget {
             ),
             const SizedBox(width: 3),
             Expanded(
-              child: Text(
-                _railLabel,
-                maxLines: 1,
-                overflow: TextOverflow.visible,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.0,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.onSurface.withAlpha(170),
+              // scaleDown guarantees a long label (or a superscripted pass, e.g.
+              // `A¹`) can never overflow the fixed-width strip, whatever the zoom.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _railLabel,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 11 * scale,
+                    height: 1.0,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    color: active
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onSurface.withAlpha(170),
+                  ),
                 ),
               ),
             ),

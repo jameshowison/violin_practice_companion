@@ -15,6 +15,7 @@ import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/staff_zoom.dart';
 import 'edit_measure_screen.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
@@ -109,6 +110,8 @@ class PieceDetailScreen extends ConsumerWidget {
                 if (displayMode == DisplayMode.staff ||
                     displayMode == DisplayMode.staffFingering ||
                     displayMode == DisplayMode.tab) ...[
+                  const Divider(),
+                  const _MeasuresPerLineSlider(),
                   const Divider(),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -298,6 +301,70 @@ class PieceDetailScreen extends ConsumerWidget {
 
   static String _prettyRoot(String root) =>
       root.replaceAll('b', '♭').replaceAll('#', '♯');
+}
+
+/// Staff zoom. Fewer measures per line ⇒ bigger notes: the score is always
+/// engraved to the viewport width, so the two are one knob (see `staff_zoom.dart`).
+///
+/// Null override = auto, which fits a short piece into ~75% of the viewport.
+/// The readout shows what Verovio actually achieved — its break points are
+/// musical, so a dense bar can land one short of the target, hence "≈".
+class _MeasuresPerLineSlider extends ConsumerWidget {
+  const _MeasuresPerLineSlider();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final override = ref.watch(measuresPerLineProvider).value;
+    final achieved = ref.watch(effectiveMeasuresPerLineProvider);
+    // On auto, park the thumb on whatever the renderer settled at.
+    final position = (override ?? achieved ?? measuresPerLineForWidth(
+            MediaQuery.sizeOf(context).width))
+        .clamp(measuresPerLineMin, measuresPerLineMax);
+    final readout = achieved == null
+        ? (override == null ? 'Auto' : '$override')
+        : (override == null ? 'Auto (≈$achieved)' : '≈$achieved');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Measures per line'),
+            Row(
+              children: [
+                Text(readout, style: Theme.of(context).textTheme.bodySmall),
+                if (override != null)
+                  TextButton(
+                    onPressed: () =>
+                        ref.read(measuresPerLineProvider.notifier).commit(null),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Auto'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        Slider(
+          value: position.toDouble(),
+          min: measuresPerLineMin.toDouble(),
+          max: measuresPerLineMax.toDouble(),
+          divisions: measuresPerLineMax - measuresPerLineMin,
+          label: '$position',
+          // Drag moves the state (and so re-engraves); the write to disk waits
+          // for the finger to lift so a drag persists once, not per frame.
+          onChanged: (v) =>
+              ref.read(measuresPerLineProvider.notifier).preview(v.round()),
+          onChangeEnd: (v) =>
+              ref.read(measuresPerLineProvider.notifier).commit(v.round()),
+        ),
+      ],
+    );
+  }
 }
 
 class _StringLabelPicker extends ConsumerWidget {
