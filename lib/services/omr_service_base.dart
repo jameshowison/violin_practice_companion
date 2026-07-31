@@ -25,9 +25,16 @@ abstract class OmrServiceBase {
   /// Returns the recognised MusicXML, or `null` if the user cancels at any
   /// step (acquiring the image or cropping). [source] selects where the page
   /// image comes from. [title] is embedded as the MusicXML work-title.
+  ///
+  /// [onSelectPdfPage] is consulted when [source] is [OmrImageSource.file] and
+  /// the chosen file is a multi-page PDF: it receives the page count and returns
+  /// the 0-based page to recognise, or null to cancel. Callers pass it
+  /// unconditionally, so it belongs on this shared contract — every
+  /// implementation must accept it, even one that can't use it.
   Future<String?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     String title = '',
+    Future<int?> Function(int pageCount)? onSelectPdfPage,
   });
 }
