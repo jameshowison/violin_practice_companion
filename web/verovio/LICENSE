@@ -1,0 +1,6 @@
+Verovio is licensed under the LGPL-3.0-or-later license.
+For the full license text, see: https://www.gnu.org/licenses/lgpl-3.0-standalone.html
+
+This directory contains prebuilt WebAssembly distribution from:
+https://github.com/rism-digital/verovio
+Version: 6.2.0
