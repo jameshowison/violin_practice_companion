@@ -10,6 +10,7 @@ import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/tab_number_mode.dart';
+import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
@@ -244,7 +245,7 @@ class PieceDetailScreen extends ConsumerWidget {
                           child: Stack(
                             children: [
                               Positioned.fill(child: notationView),
-                              _FloatingEditButton(selection: selection),
+                              _FloatingMeasureActions(selection: selection),
                             ],
                           ),
                         ),
@@ -493,7 +494,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         ],
                       ),
               ),
-              _FloatingEditButton(selection: selection),
+              _FloatingMeasureActions(selection: selection),
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -999,10 +1000,13 @@ class _NotationView extends ConsumerWidget {
 // [Stack]) — with an empty child when no single editable measure is selected.
 // It must stay positioned even when hidden: a non-positioned child would make
 // the Stack size itself to that child (collapsing it) instead of filling.
-class _FloatingEditButton extends ConsumerWidget {
+/// Edit + Delete actions for the selected measure, floating over the notation
+/// view. Delete is here (rather than inside the measure editor) so removing a
+/// stray bar — a common OMR fix — doesn't need a round trip through the editor.
+class _FloatingMeasureActions extends ConsumerWidget {
   final MeasureSelection? selection;
 
-  const _FloatingEditButton({required this.selection});
+  const _FloatingMeasureActions({required this.selection});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1010,24 +1014,105 @@ class _FloatingEditButton extends ConsumerWidget {
     final canEdit = sel != null &&
         sel.isSingle &&
         ref.watch(pieceRepositoryProvider).supportsEditing;
+    // A part must keep at least one measure (see MeasureXmlEditor.deleteMeasure).
+    final measureCount =
+        ref.watch(parsedPieceProvider).valueOrNull?.measures.length ?? 0;
 
     return Positioned(
       top: 8,
       right: 8,
       child: canEdit
-          ? FloatingActionButton.extended(
-              heroTag: 'edit_measure_fab',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      EditMeasureScreen(measureNumber: sel.startMeasure),
+          ? Row(
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'edit_measure_fab',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          EditMeasureScreen(measureNumber: sel.startMeasure),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: Text('Edit m. ${sel.startMeasure}'),
                 ),
-              ),
-              icon: const Icon(Icons.edit, size: 18),
-              label: Text('Edit m. ${sel.startMeasure}'),
+                const SizedBox(width: 8),
+                FloatingActionButton.extended(
+                  heroTag: 'delete_measure_fab',
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  foregroundColor:
+                      Theme.of(context).colorScheme.onErrorContainer,
+                  onPressed: measureCount > 1
+                      ? () => _confirmAndDelete(context, ref, sel.startMeasure)
+                      : null,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete'),
+                ),
+              ],
             )
           : const SizedBox.shrink(),
     );
+  }
+
+  /// Confirms, then removes the measure from the piece's MusicXML. Destructive
+  /// and there's no undo, hence the dialog.
+  Future<void> _confirmAndDelete(
+      BuildContext context, WidgetRef ref, int measureNumber) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete measure $measureNumber?'),
+        content: const Text(
+            'The bar and its notes are removed and the following bars shift '
+            'back one. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final piece = ref.read(selectedPieceProvider);
+    if (piece == null) return;
+    final repo = ref.read(pieceRepositoryProvider);
+    try {
+      final original = await repo.loadMusicXml(piece);
+      final newXml = MeasureXmlEditor.deleteMeasure(original, measureNumber);
+      final updated = await repo.writeEditedMusicXml(piece, newXml);
+      // Markers past the deleted bar shift back with it.
+      final sections =
+          sectionsAfterMeasureDelete(piece.sections, measureNumber);
+      await repo.saveSections(piece.id, sections);
+      ref.read(selectedPieceProvider.notifier).state =
+          updated.copyWith(sections: sections);
+      // The selected bar no longer exists (and the numbers around it moved).
+      ref.read(measureSelectionProvider.notifier).state = null;
+      ref.invalidate(piecesProvider);
+      ref.invalidate(parsedPieceProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Could not delete measure'),
+          content: Text('$e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 
