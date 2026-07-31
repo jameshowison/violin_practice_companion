@@ -579,7 +579,44 @@ class VerovioEngraver {
       // First </svg> closes the (removed) inner svg; outer </svg> stays.
       out = out.replaceFirst('</svg>', '</g>');
     }
+    out = _unscopeStyleSelectors(out);
     return out;
+  }
+
+  /// Rewrites Verovio's ID-scoped CSS selectors into bare element selectors.
+  ///
+  /// Verovio namespaces its stylesheet with the root SVG's generated id so that
+  /// several scores on one HTML page can't bleed into each other:
+  ///
+  /// ```css
+  /// #jspm2ir ellipse, #jspm2ir path, … {stroke:currentColor}
+  /// ```
+  ///
+  /// jovial_svg cannot match that. Its stylesheet is keyed by tag name or by
+  /// `#id` only (`svg_parser.dart` splits a selector on `.` and nothing else), so
+  /// a descendant selector becomes a key like `"#jspm2ir path"` that no lookup
+  /// ever asks for — the rule is silently dropped.
+  ///
+  /// That matters because staff lines, stems and barlines are bare
+  /// `<path d="…" stroke-width="13"/>` with no stroke attribute of their own:
+  /// this rule is the only thing that makes them visible. They happen to render
+  /// anyway under Skia (host and iOS) but not under CanvasKit on web, so the
+  /// stylesheet has to actually apply rather than be relied on by accident.
+  ///
+  /// We render exactly one score per widget, so the id namespacing is redundant
+  /// and dropping it yields `ellipse, path, … {stroke:currentColor}` — selectors
+  /// jovial keys by tag name and applies. Scoped strictly to the `<style>` block
+  /// so `xlink:href="#E050-…"` glyph references are untouched.
+  static String _unscopeStyleSelectors(String svg) {
+    return svg.replaceAllMapped(
+      RegExp(r'<style\b[^>]*>(.*?)</style>', dotAll: true),
+      (m) {
+        final body = m.group(1)!.replaceAllMapped(
+            // `#<id>` followed by whitespace and then a tag name.
+            RegExp(r'#[A-Za-z][\w-]*\s+(?=[A-Za-z])'), (_) => '');
+        return m.group(0)!.replaceFirst(m.group(1)!, body);
+      },
+    );
   }
 
   Future<void> dispose() async {
