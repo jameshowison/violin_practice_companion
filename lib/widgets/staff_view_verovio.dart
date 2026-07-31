@@ -6,6 +6,7 @@ import 'package:jovial_svg/jovial_svg.dart';
 import '../models/section_palette.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
+import '../services/staff_zoom.dart';
 import '../services/verovio_engraver.dart';
 
 /// Native staff renderer: Verovio engraves (coordinates + per-element bboxes),
@@ -51,6 +52,13 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// for Verovio's native fret numbers. Null → fret mode (native numbers stay).
   final List<String>? tabFingerLabels;
 
+  /// Whether the user's [measuresPerLineProvider] override applies. False for
+  /// incidental previews (the measure editor, the note palette) that show a bar
+  /// or two and should always just auto-fit their box — a whole-piece zoom of
+  /// "4 measures per line" would render a single-measure preview at a quarter
+  /// size.
+  final bool zoomable;
+
   const StaffViewVerovio({
     super.key,
     required this.musicXml,
@@ -65,11 +73,22 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
+    this.zoomable = true,
   });
 
   @override
   ConsumerState<StaffViewVerovio> createState() => _StaffViewVerovioState();
 }
+
+/// One engrave request: the box to fill, the measures-per-line target (null =
+/// auto, resolved against [viewportHeightPx] once calibrated), and the vertical
+/// staff spacing.
+typedef _EngraveRequest = ({
+  double widthPx,
+  double viewportHeightPx,
+  int? target,
+  double staffSpacing,
+});
 
 class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   final _scrollController = ScrollController();
@@ -80,9 +99,34 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   // The width the current [_score] was engraved for; re-engrave when the
   // available width crosses a bucket boundary (reflow on rotation/resize).
+  // Assigned only after a successful engrave, so it always describes [_score].
   double _engravedWidth = 0;
-  int _engraveSeq = 0; // guards against out-of-order async results
-  bool _engraving = false; // in-flight guard (avoid per-frame re-kicks)
+
+  /// The measures-per-line target the current [_score] satisfies — the raw
+  /// request value, so null means "this score came from auto". Compared against
+  /// the live provider to decide whether a re-engrave is needed.
+  int? _engravedTarget;
+
+  /// The staff spacing the current [_score] was engraved with; a change means a
+  /// re-engrave (and a re-calibration, since it moves the system height).
+  double? _engravedSpacing;
+
+  /// The width the last build laid out at — the single denominator for the
+  /// viewBox→screen scale, shared by the painters, hit testing and autoscroll.
+  double _layoutWidth = 0;
+
+  /// Calibration for [_calibratedFor] (the XML/variant it was measured on):
+  /// average measure width in MEI units (scale- and width-invariant), average
+  /// system height in pixels **at [staffScaleProbe]** (not invariant — callers
+  /// convert by the scale ratio), and the measure count. See `staff_zoom.dart`.
+  String? _calibratedFor;
+  double _unitsPerMeasure = 0;
+  double _systemHeightPx = 0; // measured at [staffScaleProbe]
+  int _measureCount = 0;
+
+  int _engraveSeq = 0; // discards out-of-order async results
+  bool _engraving = false;
+  _EngraveRequest? _pending; // latest-wins queue
 
   @override
   void initState() {
@@ -98,11 +142,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       widget.highlightNotifier.addListener(_onHighlight);
       _onHighlight();
     }
-    if ((old.musicXml != widget.musicXml ||
-            old.tabMode != widget.tabMode ||
-            !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) &&
-        _engravedWidth > 0) {
-      _engrave(_engravedWidth);
+    // New content invalidates both the render and the calibration; clearing
+    // _engravedWidth makes the build-time check below kick a fresh request, so
+    // there's only one place that decides to engrave.
+    if (old.musicXml != widget.musicXml ||
+        old.tabMode != widget.tabMode ||
+        !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
+      _engravedWidth = 0;
+      _calibratedFor = null;
     }
     if (widget.scrollNav != null && widget.scrollNav != old.scrollNav) {
       _scrollToMeasureIndex(widget.scrollNav!.index);
@@ -116,20 +163,90 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     super.dispose();
   }
 
-  Future<void> _engrave(double widthPx) async {
-    if (widthPx <= 0 || _engraving) return;
+  /// Key the calibration is valid for. Everything that changes the engraved
+  /// geometry counts: the tab variant (a second staff changes the system height)
+  /// and the staff spacing (which changes it directly, and so changes what the
+  /// auto-fit rule can afford).
+  String _calibrationKeyFor(double staffSpacing) =>
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$staffSpacing';
+
+  // ── Engrave queue ──────────────────────────────────────────────────────
+  //
+  // Latest-wins: a new request replaces any queued one, and the in-flight run
+  // picks up whatever is newest when it finishes. A plain "drop while busy"
+  // guard would discard the FINAL value of a slider drag and leave a
+  // permanently stale render.
+
+  void _request(_EngraveRequest req) {
+    if (req.widthPx <= 0) return;
+    _pending = req;
+    if (_engraving) return;
+    _drain();
+  }
+
+  Future<void> _drain() async {
     _engraving = true;
-    _engravedWidth = widthPx;
+    try {
+      while (mounted && _pending != null) {
+        final req = _pending!;
+        _pending = null;
+        await _engrave(req);
+      }
+    } finally {
+      _engraving = false;
+    }
+  }
+
+  Future<void> _engrave(_EngraveRequest req) async {
     final seq = ++_engraveSeq;
     try {
-      final score = await VerovioEngraver.instance.engrave(
-        widget.musicXml,
-        widthPx: widthPx,
-        tabMode: widget.tabMode,
-        tabFingerLabels: widget.tabFingerLabels,
-        stripRepeatClefs: !widget.tabMode,
+      // 1. Calibrate. unitsPerMeasure is a property of the piece, invariant in
+      //    both scale and width, so one probe engrave per score serves every
+      //    later zoom level. The probe uses the pre-zoom option set, so an
+      //    un-zoomed piece reuses the cache entry it always had.
+      EngravedScore? probe;
+      if (_calibratedFor != _calibrationKeyFor(req.staffSpacing)) {
+        probe = await _engraveAt(req.widthPx, staffScaleProbe,
+            staffSpacing: req.staffSpacing);
+        if (!mounted || seq != _engraveSeq) return;
+        _unitsPerMeasure = unitsPerMeasureFrom(
+          pageWidthUnits: probe.pageWidthUnits,
+          measuresPerLine: measuresPerLineOf(probe.measureLine),
+        );
+        _systemHeightPx = probe.systemHeightViewBox;
+        _measureCount = probe.measures.length;
+        _calibratedFor = _calibrationKeyFor(req.staffSpacing);
+      }
+
+      // 2. Resolve the target and solve for Verovio's scale.
+      final target = req.target ??
+          autoMeasuresPerLine(
+            widthPx: req.widthPx,
+            viewportHeightPx: req.viewportHeightPx,
+            unitsPerMeasure: _unitsPerMeasure,
+            systemHeightPx: _systemHeightPx,
+            measureCount: _measureCount,
+          );
+      final scale = scaleFor(
+        widthPx: req.widthPx,
+        unitsPerMeasure: _unitsPerMeasure,
+        n: target,
       );
+
+      // 3. Engrave for real — unless the probe already produced exactly this
+      //    layout. Every option must match, not just the scale: reusing a probe
+      //    whose page was shorter would silently clip a long score's tail (only
+      //    page 1 is ever rendered), and its bar numbering would be off-interval.
+      final reusable = probe != null &&
+          (scale - staffScaleProbe).abs() < 0.05 &&
+          _pageHeightFor(target) == _probePageHeightUnits &&
+          target == _probeMnumInterval;
+      final score = reusable
+          ? probe
+          : await _engraveAt(req.widthPx, scale,
+              measuresPerLine: target, staffSpacing: req.staffSpacing);
       if (!mounted || seq != _engraveSeq) return;
+
       // jovial parse is synchronous and fast (a few ms); currentColor resolves
       // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
       final image = ScalableImage.fromSvgString(
@@ -141,13 +258,54 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _score = score;
         _image = image;
         _error = null;
+        _engravedWidth = req.widthPx;
+        _engravedTarget = req.target;
+        _engravedSpacing = req.staffSpacing;
       });
+      // Report what Verovio actually did — its break points are musical, so a
+      // dense bar can land one short of the target. Drives the slider readout.
+      // Only the whole-piece views speak for it; a one-bar preview would
+      // otherwise overwrite the readout with its own count.
+      if (widget.zoomable) {
+        ref.read(effectiveMeasuresPerLineProvider.notifier).state =
+            measuresPerLineOf(score.measureLine);
+      }
       _onHighlight(); // re-place the cursor on the fresh layout
     } catch (e) {
       if (mounted && seq == _engraveSeq) setState(() => _error = '$e');
-    } finally {
-      _engraving = false;
     }
+  }
+
+  // The calibration probe's option set is deliberately the pre-zoom one, so an
+  // un-zoomed piece reuses the engraver cache entry it always had.
+  static const _probePageHeightUnits = 60000;
+  static const _probeMnumInterval = 4;
+
+  /// Page height for a [measuresPerLine] layout. Only page 1 is ever rendered,
+  /// so the page must hold every system — and zooming in multiplies them.
+  int _pageHeightFor(int measuresPerLine) => pageHeightUnitsFor(
+        measureCount: _measureCount,
+        measuresPerLine: measuresPerLine,
+        systemHeightPx: _systemHeightPx,
+      );
+
+  Future<EngravedScore> _engraveAt(double widthPx, double scale,
+      {int? measuresPerLine, required double staffSpacing}) {
+    return VerovioEngraver.instance.engrave(
+      widget.musicXml,
+      widthPx: widthPx,
+      scale: scale,
+      spacingSystem: verovioSpacingSystemFor(staffSpacing),
+      pageHeightUnits: measuresPerLine == null
+          ? _probePageHeightUnits
+          : _pageHeightFor(measuresPerLine),
+      // A bar number on every system beats a fixed every-4-bars once the line
+      // length is the thing being adjusted.
+      mnumInterval: measuresPerLine ?? _probeMnumInterval,
+      tabMode: widget.tabMode,
+      tabFingerLabels: widget.tabFingerLabels,
+      stripRepeatClefs: !widget.tabMode,
+    );
   }
 
   void _onHighlight() {
@@ -184,10 +342,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   // ── Scrolling ──────────────────────────────────────────────────────────
 
+  /// viewBox → screen scale. Derived from the width the widget is actually laid
+  /// out at (not the width the score was engraved for): after a zoom change the
+  /// two differ for a frame, and taps/overlays must follow what is on screen.
   double get _scale {
     final score = _score;
-    if (score == null || _engravedWidth <= 0) return 1;
-    return _engravedWidth / score.viewBox.width;
+    if (score == null || _layoutWidth <= 0 || score.viewBox.width <= 0) return 1;
+    return _layoutWidth / score.viewBox.width;
   }
 
   /// Page-turn autoscroll: keep the cursor comfortably in view. When it drops
@@ -254,18 +415,44 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         child: Text('Staff view error: $_error', textAlign: TextAlign.center),
       );
     }
+    // Null = auto-fit. The previews (measure editor, palette) opt out so a
+    // whole-piece zoom doesn't shrink their single bar.
+    final zoom = ref.watch(measuresPerLineProvider);
+    final target = widget.zoomable ? zoom.value : null;
+    // Hold off the first engrave until the piece's saved zoom has been read,
+    // otherwise every piece with an override engraves the auto default first and
+    // throws it away. Previews don't read the setting, so they never wait.
+    final waitingForZoom = widget.zoomable && !zoom.restored;
+    // Vertical gap between systems. Was wired only to the OSMD fallback, so it
+    // did nothing under this (default) renderer until now.
+    final staffSpacing = ref.watch(staffSpacingProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        // Engrave once a real width is known, and re-engrave (reflow) when the
-        // width crosses a bucket boundary. Scheduled post-frame so we don't
-        // setState during layout.
-        final needsEngrave =
-            width > 0 && (_score == null || _bucket(width) != _bucket(_engravedWidth));
-        if (needsEngrave) {
+        // The LayoutBuilder sits OUTSIDE the SingleChildScrollView, so maxHeight
+        // is the real viewport height — what the auto-fit rule budgets against.
+        final viewportHeight = constraints.maxHeight;
+        _layoutWidth = width;
+        // Engrave once a real width is known; re-engrave (reflow) when the width
+        // crosses a bucket boundary or the target changes. Height is read at
+        // engrave time but deliberately does NOT trigger a reflow: it shifts
+        // whenever the compact bottom tray slides, and re-engraving the score
+        // under a moving tray would be jarring.
+        bool stale() =>
+            _score == null ||
+            _bucket(width) != _bucket(_engravedWidth) ||
+            target != _engravedTarget ||
+            staffSpacing != _engravedSpacing;
+        if (width > 0 && !waitingForZoom && stale()) {
+          // Scheduled post-frame so we don't setState during layout.
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && (_score == null || _bucket(width) != _bucket(_engravedWidth))) {
-              _engrave(width);
+            if (mounted && !waitingForZoom && stale()) {
+              _request((
+                widthPx: width,
+                viewportHeightPx: viewportHeight,
+                target: target,
+                staffSpacing: staffSpacing,
+              ));
             }
           });
         }
@@ -274,7 +461,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         if (score == null || image == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        final scale = width / score.viewBox.width;
+        final scale = _scale;
         final renderH = score.viewBox.height * scale;
         final theme = Theme.of(context);
         return SingleChildScrollView(
@@ -497,7 +684,7 @@ class _OverlayPainter extends CustomPainter {
       final i = _indexOf(number);
       final m = score.measureAt(i);
       if (m == null) continue;
-      _drawFlag(canvas, _scaled(m.rect));
+      _drawFlag(canvas, _scaled(m.rect), (_bandPx(i) * 0.13).clamp(7.0, 26.0));
     }
 
     // Current-note highlight + playback cursor.
@@ -506,26 +693,36 @@ class _OverlayPainter extends CustomPainter {
       final mi = _indexOf(ev.measureNumber);
       final anchor = mi < 0 ? null : score.noteAt(mi, ev.noteIndex);
       if (anchor != null) {
-        final r = _scaled(anchor.rect).inflate(3);
+        final pad = (_bandPx(mi) * 0.035).clamp(2.0, 9.0);
+        final r = _scaled(anchor.rect).inflate(pad);
         canvas.drawRRect(
-          RRect.fromRectAndRadius(r, const Radius.circular(3)),
+          RRect.fromRectAndRadius(r, Radius.circular(pad)),
           Paint()..color = primary.withValues(alpha: 0.30),
         );
         canvas.drawRRect(
-          RRect.fromRectAndRadius(r, const Radius.circular(3)),
+          RRect.fromRectAndRadius(r, Radius.circular(pad)),
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
+            ..strokeWidth = (pad * 0.7).clamp(1.5, 4.0)
             ..color = primary,
         );
       }
     }
   }
 
-  void _drawFlag(Canvas canvas, Rect measure) {
-    const s = 9.0;
-    final x = measure.left + 2;
-    final y = measure.top + 2;
+  /// Screen-space height of the system band holding [measureIndex] — the yardstick
+  /// for decoration sizes, so the flag and cursor outline stay proportionate to
+  /// the notes at any zoom (`scale` itself is ~1 at every zoom level, because the
+  /// score is always engraved to the render width).
+  double _bandPx(int measureIndex) {
+    final band = score.bandForMeasure(measureIndex);
+    if (band == null) return 48 * scale;
+    return (band.bottom - band.top) * scale;
+  }
+
+  void _drawFlag(Canvas canvas, Rect measure, double s) {
+    final x = measure.left + s * 0.22;
+    final y = measure.top + s * 0.22;
     final path = Path()
       ..moveTo(x, y + s)
       ..lineTo(x + s / 2, y)
@@ -533,8 +730,8 @@ class _OverlayPainter extends CustomPainter {
       ..close();
     canvas.drawPath(path, Paint()..color = flagColor.withValues(alpha: 0.9));
     // Exclamation dot.
-    canvas.drawCircle(
-        Offset(x + s / 2, y + s - 2), 0.8, Paint()..color = Colors.white);
+    canvas.drawCircle(Offset(x + s / 2, y + s - s * 0.22), s * 0.09,
+        Paint()..color = Colors.white);
   }
 
   @override
