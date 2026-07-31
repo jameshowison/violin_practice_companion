@@ -17,6 +17,7 @@ import 'palette_xml_generator.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
+import 'staff_zoom_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,75 @@ final staffSpacingProvider = StateProvider<double>((_) => staffSpacingDefault);
 // ── Measures per row (updated at runtime from screen width) ──────────────────
 
 final measuresPerRowProvider = StateProvider<int>((_) => 4);
+
+// ── Staff zoom: measures per line ─────────────────────────────────────────────
+// The staff/annotation/tab views engrave to exactly the viewport width, so
+// "fewer measures per line" and "bigger notes" are the same knob (Verovio's
+// `scale`). See `staff_zoom.dart` for the maths and `measuresPerLineMin/Max`.
+//
+// Note this is NOT [measuresPerRowProvider], which is derived purely from screen
+// width and drives the jianpu/fingering row layout.
+
+final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore());
+
+/// The user's measures-per-line override ([value]; null = auto, meaning fit a
+/// short piece to ~75% of the viewport), plus whether the per-piece setting has
+/// been read back from storage yet.
+///
+/// [restored] exists so the staff view can hold off its first engrave: the read
+/// is async, so acting on the initial `null` would engrave the auto default and
+/// then immediately re-engrave at the saved value — a wasted ~600ms engrave and a
+/// visible reflow on every piece that has a saved zoom.
+typedef MeasuresPerLineState = ({int? value, bool restored});
+
+/// Persisted per piece, so the notifier is rebuilt — and re-read — whenever the
+/// selected piece changes.
+final measuresPerLineProvider =
+    StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
+  return MeasuresPerLineNotifier(
+    ref.watch(staffZoomStoreProvider),
+    ref.watch(selectedPieceProvider)?.id,
+  );
+});
+
+class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
+  MeasuresPerLineNotifier(this._store, this._pieceId)
+      // With no piece there is nothing to read, so we're trivially restored.
+      : super((value: null, restored: _pieceId == null)) {
+    if (_pieceId != null) _restore();
+  }
+
+  final StaffZoomStore _store;
+  final String? _pieceId;
+  bool _touched = false;
+
+  Future<void> _restore() async {
+    final saved = await _store.load(_pieceId!);
+    if (!mounted) return;
+    // A user move that landed before the async read returned wins.
+    state = (value: _touched ? state.value : saved, restored: true);
+  }
+
+  /// Live slider position — state only, no write (a drag would otherwise write
+  /// on every frame).
+  void preview(int? v) {
+    _touched = true;
+    state = (value: v, restored: state.restored);
+  }
+
+  /// Settles on [v] (null = back to auto) and persists it for this piece.
+  void commit(int? v) {
+    _touched = true;
+    state = (value: v, restored: state.restored);
+    final id = _pieceId;
+    if (id != null) _store.save(id, v);
+  }
+}
+
+/// Measures per line the renderer actually achieved on the last engrave — the
+/// slider position and readout while on auto, and honest feedback that Verovio's
+/// musical break points may differ from the target by one. Set by the staff view.
+final effectiveMeasuresPerLineProvider = StateProvider<int?>((_) => null);
 
 // ── Piece layout (single source of truth for all notation views) ──────────────
 // Always folded — the notation shows the score as written (repeat barlines

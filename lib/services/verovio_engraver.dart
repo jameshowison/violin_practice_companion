@@ -8,6 +8,8 @@ import 'package:xml/xml.dart';
 import '../models/note_event.dart' show KeyMode;
 import 'chord_analysis.dart';
 import 'musicxml_parser.dart';
+import 'staff_zoom.dart'
+    show measuresPerLineOf, staffScaleProbe, systemLinesOf;
 
 /// Native staff engraving via the Verovio toolkit (FFI worker isolate).
 ///
@@ -35,9 +37,10 @@ class VerovioEngraver {
 
   // Small LRU-ish cache keyed by (xmlHash, widthBucket, scale). Reflow on
   // rotation/resize and the live measure editor re-engrave hit the cache when
-  // the inputs are unchanged.
+  // the inputs are unchanged. Sized to hold a handful of zoom levels alongside
+  // the width buckets and the tab/non-tab variants.
   final _cache = <String, EngravedScore>{};
-  static const _maxCache = 8;
+  static const _maxCache = 16;
 
   // Serializes full engrave round-trips (the worker serializes individual
   // calls, but a score swap spans several calls that must stay atomic).
@@ -77,15 +80,33 @@ class VerovioEngraver {
   /// - [stripRepeatClefs]: keep the single-staff practice view's "clef/keySig on
   ///   the first system only" trim. Set false for the tab view so the small
   ///   "T-A-B" clef repeats per system (standard tab engraving).
+  ///
+  /// Zoom options (see `staff_zoom.dart`):
+  /// - [scale]: Verovio's percentage scale. Because [widthPx] pins the page
+  ///   width, this simultaneously sets glyph size and how many measures fit per
+  ///   system. [staffScaleProbe] is the un-zoomed baseline.
+  /// - [pageHeightUnits]: must exceed the engraved content height — only page 1
+  ///   is ever rendered, so anything below the page bottom is silently dropped.
+  ///   `adjustPageHeight` crops the slack, so over-provisioning is free. Compute
+  ///   with `pageHeightUnitsFor`.
+  /// - [mnumInterval]: bar-number interval; pass the measures-per-line target so
+  ///   each system starts with a number.
+  /// - [spacingSystem]: vertical gap between systems in MEI units — the
+  ///   Verovio-side home of the "Staff spacing" preference. Verovio's own default
+  ///   is 12; see `verovioSpacingSystemFor`.
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
-    double scale = 40,
+    double scale = staffScaleProbe,
+    int pageHeightUnits = 60000,
+    int mnumInterval = 4,
+    int spacingSystem = 12,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
   }) {
     final variant = '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
+        '|$pageHeightUnits|$mnumInterval|$spacingSystem|'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
@@ -102,6 +123,9 @@ class VerovioEngraver {
       final score = await _engraveNow(musicXml,
           widthPx: widthPx,
           scale: scale,
+          pageHeightUnits: pageHeightUnits,
+          mnumInterval: mnumInterval,
+          spacingSystem: spacingSystem,
           tabFingerLabels: tabFingerLabels,
           tabMode: tabMode,
           stripRepeatClefs: stripRepeatClefs);
@@ -120,6 +144,9 @@ class VerovioEngraver {
     String musicXml, {
     required double widthPx,
     required double scale,
+    required int pageHeightUnits,
+    required int mnumInterval,
+    required int spacingSystem,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
@@ -136,14 +163,17 @@ class VerovioEngraver {
       // Verovio uses its ~A4 default, so once stacked systems exceed it the
       // overflow spills to page 2+ — which we never render (we only ask for
       // page 1). That's invisible in landscape (wide → few systems → fits) but
-      // clips the bottom of the score in portrait (narrow → many systems). A
-      // huge page guarantees one page; adjustPageHeight then crops the slack.
-      'pageHeight': 60000,
+      // clips the bottom of the score in portrait (narrow → many systems), and
+      // zooming in makes it far easier to hit. A generous page guarantees one
+      // page; adjustPageHeight then crops the slack. See `pageHeightUnitsFor`.
+      'pageHeight': pageHeightUnits,
       'adjustPageHeight': true,
       'breaks': 'auto',
       'footer': 'none',
       'header': 'none',
-      'mnumInterval': 4, // measure numbers every 4 bars
+      'mnumInterval': mnumInterval,
+      // Vertical gap between systems — the "Staff spacing" preference.
+      'spacingSystem': spacingSystem,
       'svgViewBox': true, // root viewBox so the renderer can scale
     };
     await svc.setOptionsJson(jsonEncode(options));
@@ -173,6 +203,7 @@ class VerovioEngraver {
       svg: res.svg,
       hitMap: hitMap,
       qstampById: qstampById,
+      pageWidthUnits: pageWidthUnits,
       renderMs: sw.elapsedMilliseconds,
       tabFingerLabels: tabFingerLabels,
       tabMode: tabMode,
@@ -182,7 +213,9 @@ class VerovioEngraver {
     if (debugLogging) {
       debugPrint('[engraver] engraved viewBox=${score.viewBox.width.toInt()}'
           '×${score.viewBox.height.toInt()} measures=${score.measures.length} '
-          'notes=${score.notes.length} ${score.renderMs}ms');
+          'notes=${score.notes.length} scale=${scale.toStringAsFixed(1)} '
+          'pageW=$pageWidthUnits lines=${score.lineCount} '
+          'mpl=${measuresPerLineOf(score.measureLine)} ${score.renderMs}ms');
     }
     return score;
   }
@@ -191,6 +224,7 @@ class VerovioEngraver {
     required String svg,
     required PageHitMap hitMap,
     required Map<String, double> qstampById,
+    required int pageWidthUnits,
     required int renderMs,
     List<String>? tabFingerLabels,
     bool tabMode = false,
@@ -247,7 +281,8 @@ class VerovioEngraver {
       }
     }
 
-    final (measureLine, lineBands) = _computeLineBands(measures);
+    final (measureLine, lineBands) =
+        systemLinesOf([for (final m in measures) m.rect]);
 
     var processedSvg = stripRepeatClefs ? _clefKeySigFirstSystemOnly(svg) : svg;
     if (tabFingerLabels != null) {
@@ -266,48 +301,9 @@ class VerovioEngraver {
       notes: notes,
       measureLine: measureLine,
       lineBands: lineBands,
+      pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
     );
-  }
-
-  /// Groups measures into system lines (a new line where the engraved x resets
-  /// leftward) and returns, per measure, its line index plus a set of **tiled**
-  /// vertical bands — one per line — whose boundaries sit at the midpoint
-  /// between adjacent lines' content. Tiling guarantees consecutive lines touch
-  /// with zero gap and zero overlap, so a full-height section/selection wash
-  /// reads as clean, even bands regardless of note heights.
-  static (List<int>, List<({double top, double bottom})>) _computeLineBands(
-      List<MeasureAnchor> measures) {
-    if (measures.isEmpty) return (const [], const []);
-    final measureLine = List<int>.filled(measures.length, 0);
-    final contentTop = <double>[];
-    final contentBottom = <double>[];
-    var line = -1;
-    var prevLeft = double.negativeInfinity;
-    for (var i = 0; i < measures.length; i++) {
-      final r = measures[i].rect;
-      if (line < 0 || r.left < prevLeft - 1) {
-        line++;
-        contentTop.add(r.top);
-        contentBottom.add(r.bottom);
-      } else {
-        if (r.top < contentTop[line]) contentTop[line] = r.top;
-        if (r.bottom > contentBottom[line]) contentBottom[line] = r.bottom;
-      }
-      measureLine[i] = line;
-      prevLeft = r.left;
-    }
-    final n = contentTop.length;
-    final bands = <({double top, double bottom})>[
-      for (var l = 0; l < n; l++)
-        (
-          top: l == 0 ? contentTop[0] : (contentBottom[l - 1] + contentTop[l]) / 2,
-          bottom: l == n - 1
-              ? contentBottom[n - 1]
-              : (contentBottom[l] + contentTop[l + 1]) / 2,
-        )
-    ];
-    return (measureLine, bands);
   }
 
   /// Index of the measure whose bbox contains [box]'s center, else the nearest
@@ -621,6 +617,11 @@ class EngravedScore {
   /// touch with zero gap/overlap. Index with [measureLine].
   final List<({double top, double bottom})> lineBands;
 
+  /// The Verovio `pageWidth` (MEI units) this score was laid out for. Together
+  /// with the achieved measures-per-line it yields the piece's scale-invariant
+  /// `unitsPerMeasure` — see `staff_zoom.dart`.
+  final int pageWidthUnits;
+
   final int renderMs;
 
   const EngravedScore({
@@ -631,8 +632,31 @@ class EngravedScore {
     required this.notes,
     required this.measureLine,
     required this.lineBands,
+    required this.pageWidthUnits,
     required this.renderMs,
   });
+
+  /// Number of system lines engraved.
+  int get lineCount => lineBands.length;
+
+  /// Average height of one system in viewBox coordinates, gap included. The
+  /// bands tile the content, so their mean is content-height / lines — the right
+  /// per-system figure for predicting how tall another layout would be. Falls
+  /// back to the whole viewBox when there are no bands.
+  ///
+  /// NOTE the units: viewBox coordinates, i.e. **logical pixels at the scale
+  /// this score was engraved at** (the page is engraved to the render width, so
+  /// `viewBox.width ≈ widthPx`). It is NOT in MEI units and it is NOT
+  /// scale-invariant — a consumer must divide by the engraving scale to compare
+  /// across zoom levels. See `staff_zoom.dart`.
+  double get systemHeightViewBox {
+    if (lineBands.isEmpty) return viewBox.height;
+    var sum = 0.0;
+    for (final b in lineBands) {
+      sum += b.bottom - b.top;
+    }
+    return sum / lineBands.length;
+  }
 
   MeasureAnchor? measureAt(int index) =>
       (index < 0 || index >= measures.length) ? null : measures[index];
