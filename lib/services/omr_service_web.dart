@@ -11,6 +11,10 @@ class OmrService implements OmrServiceBase {
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     String title = '',
+    // Accepted and ignored: scanning is unavailable here, but the parameter is
+    // part of the shared contract and `scan_screen.dart` passes it
+    // unconditionally. Omitting it broke the web build entirely.
+    Future<int?> Function(int pageCount)? onSelectPdfPage,
   }) {
     throw UnsupportedError(
       'Scan-to-MusicXML is not available on web yet. '
