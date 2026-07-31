@@ -4,136 +4,273 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/piece.dart';
+import 'musicxml_parser.dart';
+import 'piece_storage_base.dart';
 
 /// Whether this platform can write MusicXML files (and therefore supports
-/// editing). True on mobile/desktop; the web stub sets it false. Read via the
-/// conditional-import seam so shared code needn't branch on `kIsWeb`.
+/// editing). True on mobile/desktop. Read via the conditional-import seam so
+/// shared code needn't branch on `kIsWeb`.
 const bool storageSupportsEditing = true;
 
-/// Mobile/desktop persistence for scanned pieces: each piece's MusicXML is
-/// written to `<docs>/scanned_pieces/<id>.musicxml`, and an `index.json` in
-/// the same directory tracks `{id, title, musicXmlFilePath}` for [loadScannedPieces].
-Future<Directory> _scannedPiecesDir() async {
-  final docs = await getApplicationDocumentsDirectory();
-  final dir = Directory('${docs.path}/scanned_pieces');
-  if (!await dir.exists()) await dir.create(recursive: true);
-  return dir;
-}
+/// Mobile/desktop persistence for pieces, under the app documents directory:
+///
+/// * `scanned_pieces/<id>.musicxml` — imported and scanned scores
+/// * `scanned_pieces/index.json` — a **title cache** (see below)
+/// * `editable_fixtures/<id>.musicxml` — writable copy of an edited bundled fixture
+/// * `section_overrides/<id>.sections.json` — edited section markers
+///
+/// ## Why the directory, not the index, is the source of truth
+///
+/// This store used to record each piece's **absolute** path in `index.json`. iOS
+/// assigns a new data-container UUID on every reinstall (and on restore from
+/// backup), so every recorded path died the moment the app was reinstalled: the
+/// list still rendered every title, and every piece failed to open. The files had
+/// been preserved all along — only the paths were wrong.
+///
+/// So [loadScannedPieces] now enumerates the directory and treats `index.json`
+/// purely as a cache of titles, repairing it in place when the two disagree. A
+/// piece's id is its filename, and its path is recomputed on every load. That
+/// makes the whole class of bug unreachable, and matches what
+/// [fixtureFilePathIfExists] and [loadSectionsOverride] always did correctly.
+///
+/// It also fixes two latent problems: the index was append-only with no delete
+/// path anywhere in the app, so orphan rows accumulated; and a corrupt index used
+/// to lose the entire library.
+class PieceStorage {
+  /// [root] overrides the documents directory. Production leaves it null and
+  /// resolves `getApplicationDocumentsDirectory()` lazily; tests pass a temp dir,
+  /// which is what makes this layer testable without a platform channel.
+  // An initializing formal would have to name the parameter `_root`, and named
+  // parameters can't be private — so the assignment stays explicit.
+  // ignore: prefer_initializing_formals
+  PieceStorage({Directory? root}) : _root = root;
 
-Future<File> _indexFile() async {
-  final dir = await _scannedPiecesDir();
-  return File('${dir.path}/index.json');
-}
+  Directory? _root;
 
-Future<List<Map<String, dynamic>>> _readIndex(File file) async {
-  if (!await file.exists()) return [];
-  final raw = await file.readAsString();
-  if (raw.isEmpty) return [];
-  return (json.decode(raw) as List).cast<Map<String, dynamic>>();
-}
+  static const _ext = '.musicxml';
+  static const _indexVersion = 2;
 
-Future<List<Piece>> loadScannedPieces() async {
-  final entries = await _readIndex(await _indexFile());
-  return entries
-      .map((e) => Piece(
-            id: e['id'] as String,
-            title: e['title'] as String,
-            musicXmlFilePath: e['musicXmlFilePath'] as String,
-            sections: const [],
-          ))
-      .toList();
-}
+  Future<Directory> _docs() async =>
+      _root ??= await getApplicationDocumentsDirectory();
 
-Future<Piece> saveScannedPiece(String title, String musicXml) async {
-  final dir = await _scannedPiecesDir();
-  final id = '${_slugify(title)}_${DateTime.now().millisecondsSinceEpoch}';
-  final musicXmlFile = File('${dir.path}/$id.musicxml');
-  await musicXmlFile.writeAsString(musicXml);
+  Future<Directory> _subdir(String name) async {
+    final dir = Directory('${(await _docs()).path}/$name');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
 
-  final indexFile = await _indexFile();
-  final entries = await _readIndex(indexFile);
-  entries.add({'id': id, 'title': title, 'musicXmlFilePath': musicXmlFile.path});
-  await indexFile.writeAsString(json.encode(entries));
+  Future<Directory> _scannedPiecesDir() => _subdir('scanned_pieces');
+  Future<Directory> _editableFixturesDir() => _subdir('editable_fixtures');
+  Future<Directory> _sectionOverridesDir() => _subdir('section_overrides');
 
-  return Piece(
-    id: id,
-    title: title,
-    musicXmlFilePath: musicXmlFile.path,
-    sections: const [],
-  );
-}
+  // ── Scanned / imported pieces ───────────────────────────────────────────
 
-Future<String> readScannedMusicXml(String musicXmlFilePath) {
-  return File(musicXmlFilePath).readAsString();
-}
+  /// Every stored piece, oldest first, with paths freshly computed.
+  ///
+  /// Reads the directory; consults `index.json` only for titles. A file with no
+  /// indexed title recovers it from the score's own `<work-title>`
+  /// ([MusicXmlParser.titleOf]), else falls back to the id. Rewrites the index
+  /// whenever it no longer matches what's on disk.
+  Future<List<Piece>> loadScannedPieces() async {
+    final dir = await _scannedPiecesDir();
+    final files = <File>[
+      for (final entity in await dir.list().toList())
+        if (entity is File && entity.path.endsWith(_ext)) entity,
+    ];
+    if (files.isEmpty) {
+      await _writeIndexIfChanged(const []);
+      return const [];
+    }
 
-/// Overwrites an existing scanned piece's MusicXML file in place (e.g. after a
-/// note-editing correction). The `index.json` entry is unchanged — only the
-/// file contents differ.
-Future<void> updateScannedPieceFile(String musicXmlFilePath, String newMusicXml) {
-  return File(musicXmlFilePath).writeAsString(newMusicXml);
-}
+    final byId = {for (final f in files) _idOf(f.path): f};
+    final titles = await _readIndexTitles();
 
-/// Editable fixtures: a bundled fixture becomes editable by materializing a
-/// writable copy at `<docs>/editable_fixtures/<id>.musicxml`. Once present, the
-/// repository loads the piece from this file instead of the read-only asset, so
-/// edits persist across launches.
-Future<Directory> _editableFixturesDir() async {
-  final docs = await getApplicationDocumentsDirectory();
-  final dir = Directory('${docs.path}/editable_fixtures');
-  if (!await dir.exists()) await dir.create(recursive: true);
-  return dir;
-}
+    // Keep the index's order for ids still present (it is insertion order, so the
+    // list doesn't reshuffle under the user), then append anything unindexed.
+    final ordered = <String>[
+      ...titles.keys.where(byId.containsKey),
+      ...(byId.keys.where((id) => !titles.containsKey(id)).toList()
+        ..sort(compareByCreatedAt)),
+    ];
 
-/// Path to the materialized copy of fixture [id], or null if it hasn't been
-/// edited yet (still asset-backed).
-Future<String?> fixtureFilePathIfExists(String id) async {
-  final docs = await getApplicationDocumentsDirectory();
-  final file = File('${docs.path}/editable_fixtures/$id.musicxml');
-  return await file.exists() ? file.path : null;
-}
+    final pieces = <Piece>[];
+    for (final id in ordered) {
+      final file = byId[id]!;
+      var title = titles[id];
+      if (title == null || title.isEmpty) {
+        title = MusicXmlParser.titleOf(await file.readAsString()) ?? id;
+      }
+      pieces.add(Piece(
+        id: id,
+        title: title,
+        musicXmlFilePath: file.path,
+        sections: const [],
+      ));
+    }
+    await _writeIndexIfChanged(pieces);
+    return pieces;
+  }
 
-/// Writes [xml] to fixture [id]'s editable file (creating it on first edit) and
-/// returns the path.
-Future<String> writeFixtureFile(String id, String xml) async {
-  final dir = await _editableFixturesDir();
-  final file = File('${dir.path}/$id.musicxml');
-  await file.writeAsString(xml);
-  return file.path;
-}
+  Future<Piece> saveScannedPiece(String title, String musicXml) async {
+    final dir = await _scannedPiecesDir();
+    final id = scannedPieceId(title,
+        createdAtMillis: DateTime.now().millisecondsSinceEpoch);
+    final file = File('${dir.path}/$id$_ext');
+    await file.writeAsString(musicXml);
 
-/// Section overrides: edited section markers live in a per-piece sidecar at
-/// `<docs>/section_overrides/<id>.sections.json` (keyed by piece id, so it
-/// covers both fixtures and scanned pieces). Once present, the repository
-/// prefers it over a fixture's bundled section asset.
-Future<Directory> _sectionOverridesDir() async {
-  final docs = await getApplicationDocumentsDirectory();
-  final dir = Directory('${docs.path}/section_overrides');
-  if (!await dir.exists()) await dir.create(recursive: true);
-  return dir;
-}
+    final piece = Piece(
+      id: id,
+      title: title,
+      musicXmlFilePath: file.path,
+      sections: const [],
+    );
+    // Refresh the whole cache from disk rather than appending, so the index can
+    // never drift from the directory.
+    await loadScannedPieces();
+    return piece;
+  }
 
-/// The raw `sections` list from piece [id]'s override sidecar, or null if the
-/// piece has never had its sections edited.
-Future<List<Map<String, dynamic>>?> loadSectionsOverride(String id) async {
-  final docs = await getApplicationDocumentsDirectory();
-  final file = File('${docs.path}/section_overrides/$id.sections.json');
-  if (!await file.exists()) return null;
-  final raw = await file.readAsString();
-  if (raw.isEmpty) return null;
-  final j = json.decode(raw) as Map<String, dynamic>;
-  return (j['sections'] as List).cast<Map<String, dynamic>>();
-}
+  /// Reads a piece by the handle carried on [Piece.musicXmlFilePath].
+  ///
+  /// Falls back to matching by filename inside the store when the handle itself
+  /// doesn't resolve — a stale absolute path held in memory (or handed over from
+  /// an older install) then still finds its file, since the container moves but
+  /// the filename doesn't.
+  Future<String> readScannedMusicXml(String handle) async {
+    final direct = File(handle);
+    if (await direct.exists()) return direct.readAsString();
 
-/// Writes piece [id]'s section markers to its override sidecar.
-Future<void> saveSectionsOverride(
-    String id, List<Map<String, dynamic>> sections) async {
-  final dir = await _sectionOverridesDir();
-  final file = File('${dir.path}/$id.sections.json');
-  await file.writeAsString(json.encode({'sections': sections}));
-}
+    final name = _basename(handle);
+    for (final dir in [
+      await _scannedPiecesDir(),
+      await _editableFixturesDir(),
+    ]) {
+      final candidate = File('${dir.path}/$name');
+      if (await candidate.exists()) return candidate.readAsString();
+    }
+    throw FileSystemException('Piece file not found', handle);
+  }
 
-String _slugify(String title) {
-  final slug = title.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
-  return slug.isEmpty ? 'untitled' : slug;
+  /// Overwrites a piece's MusicXML in place (e.g. after a note-editing
+  /// correction). The index is untouched — only the file contents differ.
+  Future<void> updateScannedPieceFile(String handle, String newMusicXml) async {
+    final direct = File(handle);
+    if (await direct.exists()) {
+      await direct.writeAsString(newMusicXml);
+      return;
+    }
+    final name = _basename(handle);
+    for (final dir in [
+      await _scannedPiecesDir(),
+      await _editableFixturesDir(),
+    ]) {
+      final candidate = File('${dir.path}/$name');
+      if (await candidate.exists()) {
+        await candidate.writeAsString(newMusicXml);
+        return;
+      }
+    }
+    throw FileSystemException('Piece file not found', handle);
+  }
+
+  // ── Index (a rebuildable title cache) ───────────────────────────────────
+
+  Future<File> _indexFile() async =>
+      File('${(await _scannedPiecesDir()).path}/index.json');
+
+  /// `{id: title}` in file order. Tolerant of both schemas and of corruption:
+  /// anything unreadable yields an empty map, and the titles are then recovered
+  /// from the scores themselves.
+  ///
+  /// v2 is `{"version": 2, "pieces": [{id, title}]}`. v1 was a bare JSON array
+  /// whose rows also carried a `musicXmlFilePath`; that field is deliberately
+  /// ignored — it is the stale value this design exists to stop trusting.
+  Future<Map<String, String>> _readIndexTitles() async {
+    final file = await _indexFile();
+    if (!await file.exists()) return {};
+    try {
+      final raw = await file.readAsString();
+      if (raw.trim().isEmpty) return {};
+      final decoded = json.decode(raw);
+      final rows = switch (decoded) {
+        List<dynamic> legacy => legacy, // v1
+        Map<String, dynamic> m => (m['pieces'] as List?) ?? const [],
+        _ => const [],
+      };
+      return {
+        for (final row in rows)
+          if (row is Map && row['id'] is String)
+            row['id'] as String: (row['title'] as String?) ?? '',
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _writeIndexIfChanged(List<Piece> pieces) async {
+    final content = const JsonEncoder.withIndent('  ').convert({
+      'version': _indexVersion,
+      'pieces': [
+        for (final p in pieces) {'id': p.id, 'title': p.title},
+      ],
+    });
+    final file = await _indexFile();
+    if (await file.exists() && await file.readAsString() == content) return;
+    if (pieces.isEmpty && !await file.exists()) return;
+    await file.writeAsString(content);
+  }
+
+  // ── Editable fixtures ───────────────────────────────────────────────────
+
+  /// Path to the materialized copy of fixture [id], or null if it hasn't been
+  /// edited yet (still asset-backed). Always recomputed — never stored.
+  Future<String?> fixtureFilePathIfExists(String id) async {
+    final file = File('${(await _editableFixturesDir()).path}/$id$_ext');
+    return await file.exists() ? file.path : null;
+  }
+
+  Future<String> writeFixtureFile(String id, String xml) async {
+    final file = File('${(await _editableFixturesDir()).path}/$id$_ext');
+    await file.writeAsString(xml);
+    return file.path;
+  }
+
+  // ── Section overrides ───────────────────────────────────────────────────
+
+  /// The raw `sections` list from piece [id]'s override sidecar, or null if the
+  /// piece has never had its sections edited.
+  Future<List<Map<String, dynamic>>?> loadSectionsOverride(String id) async {
+    final file =
+        File('${(await _sectionOverridesDir()).path}/$id.sections.json');
+    if (!await file.exists()) return null;
+    try {
+      final raw = await file.readAsString();
+      if (raw.isEmpty) return null;
+      final j = json.decode(raw) as Map<String, dynamic>;
+      return (j['sections'] as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveSectionsOverride(
+      String id, List<Map<String, dynamic>> sections) async {
+    final file =
+        File('${(await _sectionOverridesDir()).path}/$id.sections.json');
+    await file.writeAsString(json.encode({'sections': sections}));
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  static String _idOf(String path) {
+    final name = _basename(path);
+    return name.endsWith(_ext) ? name.substring(0, name.length - _ext.length) : name;
+  }
+
+  /// Last path segment, tolerating either separator so a handle written on one
+  /// platform is still readable on another.
+  static String _basename(String path) {
+    final cut = path.lastIndexOf(RegExp(r'[/\\]'));
+    return cut < 0 ? path : path.substring(cut + 1);
+  }
 }
