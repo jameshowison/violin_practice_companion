@@ -94,9 +94,7 @@ Fingering labels are defined canonically in the piece asset files (e.g., `A1`, `
 
 ## Multi-Platform Posture
 
-This is a solo "vibe coding" project. There is no PR workflow, no CI, no code review gate. Currently shipping **web-only**, but mobile (iOS / Android / macOS) is a deferred-but-real target — `flutter_midi_pro` and the GeneralUser GS soundfont are already in the dependency set, and the codebase uses the conditional-import pattern (`*_io.dart` / `*_web.dart`).
-
-The stance: web-first while features are churning is fine, **as long as** the prototype keeps the multi-platform plumbing clean so the eventual first mobile build doesn't surface architecture-level surprises.
+This is a solo "vibe coding" project. There is no PR workflow, no CI, no code review gate. 
 
 ### Smell check after every commit
 
