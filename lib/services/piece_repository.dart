@@ -7,6 +7,14 @@ import 'piece_storage.dart';
 import 'section_detector.dart';
 
 class PieceRepository {
+  /// [storage] is injectable so the persistence layer can be exercised in tests
+  /// against a temp directory (see `test/piece_storage_io_test.dart`); production
+  /// takes the platform default via the `piece_storage.dart` conditional import.
+  PieceRepository({PieceStorage? storage})
+      : _storage = storage ?? PieceStorage();
+
+  final PieceStorage _storage;
+
   static const _fixtures = [
     (
       id: 'lightly_row',
@@ -97,7 +105,7 @@ class PieceRepository {
     for (final f in _fixtures) {
       // Prefer an edited section override (sidecar) over the bundled asset, so
       // section edits persist; un-edited fixtures track the bundled asset.
-      final override = await loadSectionsOverride(f.id);
+      final override = await _storage.loadSectionsOverride(f.id);
       final List<Section> sections;
       if (override != null) {
         sections = override.map(Section.fromJson).toList();
@@ -112,7 +120,7 @@ class PieceRepository {
       // Once a fixture has been edited, a writable copy exists — load that
       // (file-backed, editable) instead of the read-only asset. Until then the
       // asset is the source of truth, so un-edited fixtures track asset updates.
-      final editedPath = await fixtureFilePathIfExists(f.id);
+      final editedPath = await _storage.fixtureFilePathIfExists(f.id);
       pieces.add(Piece(
         id: f.id,
         title: f.title,
@@ -122,9 +130,9 @@ class PieceRepository {
         sections: sections,
       ));
     }
-    for (final scanned in await loadScannedPieces()) {
+    for (final scanned in await _storage.loadScannedPieces()) {
       // Scanned pieces carry their sections only as an override sidecar.
-      final override = await loadSectionsOverride(scanned.id);
+      final override = await _storage.loadSectionsOverride(scanned.id);
       pieces.add(override == null
           ? scanned
           : scanned.copyWith(
@@ -136,7 +144,7 @@ class PieceRepository {
   Future<String> loadMusicXml(Piece piece) async {
     final assetPath = piece.musicXmlAssetPath;
     if (assetPath != null) return rootBundle.loadString(assetPath);
-    return readScannedMusicXml(piece.musicXmlFilePath!);
+    return _storage.readScannedMusicXml(piece.musicXmlFilePath!);
   }
 
   /// Persists a scanned/imported piece's MusicXML and returns the resulting
@@ -145,7 +153,7 @@ class PieceRepository {
   /// Detection is best-effort — a failure or a structureless tune just yields a
   /// piece with empty `sections` (no minimap), exactly as before.
   Future<Piece> savePiece(String title, String musicXml) async {
-    final piece = await saveScannedPiece(title, musicXml);
+    final piece = await _storage.saveScannedPiece(title, musicXml);
     try {
       final parsed = MusicXmlParser().parse(musicXml);
       final sections = SectionDetector.detect(parsed.measures);
@@ -162,14 +170,14 @@ class PieceRepository {
   /// Overwrites a scanned piece's MusicXML file with [newMusicXml] (used by the
   /// measure editor). Mirrors the [savePiece] → `saveScannedPiece` passthrough.
   Future<void> updateScannedPiece(String musicXmlFilePath, String newMusicXml) {
-    return updateScannedPieceFile(musicXmlFilePath, newMusicXml);
+    return _storage.updateScannedPieceFile(musicXmlFilePath, newMusicXml);
   }
 
   /// Materializes a writable copy of fixture [id] containing [musicXml] and
   /// returns its file path. Used the first time a bundled fixture is edited, so
   /// it becomes file-backed and editable thereafter.
   Future<String> createEditableFixtureFile(String id, String musicXml) {
-    return writeFixtureFile(id, musicXml);
+    return _storage.writeFixtureFile(id, musicXml);
   }
 
   /// Writes [newMusicXml] as [piece]'s content and returns the piece to select
@@ -196,6 +204,6 @@ class PieceRepository {
   /// sidecar. Applies to both fixtures and scanned pieces; `loadAll` then
   /// prefers this over any bundled section asset.
   Future<void> saveSections(String id, List<Section> sections) {
-    return saveSectionsOverride(id, [for (final s in sections) s.toJson()]);
+    return _storage.saveSectionsOverride(id, [for (final s in sections) s.toJson()]);
   }
 }
