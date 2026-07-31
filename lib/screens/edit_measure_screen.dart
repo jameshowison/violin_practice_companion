@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/duration_step.dart';
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
-import '../models/piece.dart';
 import '../models/section.dart';
 import '../services/chord_editor.dart';
 import '../services/measure_xml_editor.dart';
@@ -312,24 +311,9 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           newXml, widget.measureNumber,
           start: _repeatStart, end: _repeatEnd);
 
-      final Piece updated;
-      if (piece.musicXmlFilePath != null) {
-        // Already file-backed (a scan or a previously-edited fixture).
-        await repo.updateScannedPiece(piece.musicXmlFilePath!, newXml);
-        updated = piece;
-      } else {
-        // First edit of a bundled fixture: materialize a writable copy and
-        // switch the selected piece to it so future loads/edits use the file.
-        final filePath =
-            await repo.createEditableFixtureFile(piece.id, newXml);
-        updated = Piece(
-          id: piece.id,
-          title: piece.title,
-          musicXmlFilePath: filePath,
-          sectionsAssetPath: piece.sectionsAssetPath,
-          sections: piece.sections,
-        );
-      }
+      // Materializes a writable copy on a bundled fixture's first edit, so the
+      // returned piece is always file-backed.
+      final updated = await repo.writeEditedMusicXml(piece, newXml);
       // Persist section markers (sidecar) and reflect them on the selected
       // piece so the detail screen re-renders sections without a re-select.
       await repo.saveSections(piece.id, _sectionStarts);

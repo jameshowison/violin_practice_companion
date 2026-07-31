@@ -118,6 +118,37 @@ List<SectionRange> resolveSectionRanges(
   return ranges;
 }
 
+/// Re-maps section markers after the measure numbered [deleted] is removed from
+/// the score and every later measure shifts back by one.
+///
+/// A marker before the deleted bar is untouched and one after it shifts back. A
+/// marker **on** the deleted bar slides onto the bar that takes its place, at the
+/// bar line (`startNote` 0) since its own notes are gone — unless another marker
+/// already starts there, in which case it's dropped: a one-measure section whose
+/// measure was deleted is a section that no longer exists.
+List<Section> sectionsAfterMeasureDelete(List<Section> starts, int deleted) {
+  final kept = <Section>[
+    for (final s in starts)
+      if (s.startMeasure < deleted)
+        s
+      else if (s.startMeasure > deleted)
+        Section(
+            label: s.label,
+            startMeasure: s.startMeasure - 1,
+            startNote: s.startNote),
+  ];
+  final taken = {for (final s in kept) s.startMeasure};
+  for (final s in starts) {
+    if (s.startMeasure != deleted || taken.contains(deleted)) continue;
+    kept.add(Section(label: s.label, startMeasure: deleted));
+    taken.add(deleted);
+  }
+  return kept
+    ..sort((a, b) => a.startMeasure != b.startMeasure
+        ? a.startMeasure.compareTo(b.startMeasure)
+        : a.startNote.compareTo(b.startNote));
+}
+
 /// Measure NUMBER → section label, at measure granularity (a mid-measure start
 /// colors its whole boundary measure as the new section). Measures before the
 /// first marker get no entry. Used by the row-based jianpu/fingering grouping
