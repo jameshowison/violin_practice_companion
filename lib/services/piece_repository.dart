@@ -172,6 +172,26 @@ class PieceRepository {
     return writeFixtureFile(id, musicXml);
   }
 
+  /// Writes [newMusicXml] as [piece]'s content and returns the piece to select
+  /// afterwards. A file-backed piece (a scan, or a previously-edited fixture) is
+  /// overwritten in place; the first edit of a bundled fixture materializes a
+  /// writable copy, so the returned piece is file-backed and stays editable.
+  /// Shared by every editing entry point (measure editor, measure delete).
+  Future<Piece> writeEditedMusicXml(Piece piece, String newMusicXml) async {
+    if (piece.musicXmlFilePath != null) {
+      await updateScannedPiece(piece.musicXmlFilePath!, newMusicXml);
+      return piece;
+    }
+    final filePath = await createEditableFixtureFile(piece.id, newMusicXml);
+    return Piece(
+      id: piece.id,
+      title: piece.title,
+      musicXmlFilePath: filePath,
+      sectionsAssetPath: piece.sectionsAssetPath,
+      sections: piece.sections,
+    );
+  }
+
   /// Persists [sections] (section start markers) to piece [id]'s override
   /// sidecar. Applies to both fixtures and scanned pieces; `loadAll` then
   /// prefers this over any bundled section asset.

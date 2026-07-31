@@ -72,17 +72,89 @@ class MeasureXmlEditor {
               throw ArgumentError('Measure $measureNumber not found in MusicXML'),
         );
 
-    bool isRepeatBarline(XmlNode n, String direction) =>
-        n is XmlElement &&
-        n.name.local == 'barline' &&
-        n.findElements('repeat').any((r) => r.getAttribute('direction') == direction);
-
     // Drop the forward/backward repeat barlines we manage; leave any non-repeat
     // barlines in place.
-    measureEl.children.removeWhere((n) => isRepeatBarline(n, 'forward'));
-    measureEl.children.removeWhere((n) => isRepeatBarline(n, 'backward'));
+    measureEl.children.removeWhere((n) => _isRepeatBarline(n, 'forward'));
+    measureEl.children.removeWhere((n) => _isRepeatBarline(n, 'backward'));
 
-    if (start) {
+    if (start) _addRepeat(measureEl, forward: true);
+    if (end) _addRepeat(measureEl, forward: false);
+    return doc.toXmlString();
+  }
+
+  /// Deletes `<measure number="$measureNumber">` from every part and renumbers
+  /// the measures that follow so numbering stays consecutive (a pickup measure
+  /// numbered 0 keeps its 0).
+  ///
+  /// The deleted bar's *context* is handed to its neighbours, so removing a bar
+  /// doesn't silently change how the rest of the piece engraves or sounds:
+  ///  * `<attributes>` — when the deleted bar was the part's first, its
+  ///    divisions/key/time/clef are merged into the next measure (tag by tag,
+  ///    never overwriting one the next measure already states), otherwise the
+  ///    score would lose its key and time signature.
+  ///  * repeat barlines — a `|:` moves to the next measure's left edge and a
+  ///    `:|` to the previous measure's right edge, so a repeated strain keeps
+  ///    its brackets (and the piece keeps its performance order).
+  ///  * `<harmony>` — the deleted bar's last chord symbol is copied to the head
+  ///    of the next measure when that measure states no chord of its own, since
+  ///    the chord it introduced is still the one sounding.
+  ///
+  /// Throws [ArgumentError] when no part contains the measure, or when it is the
+  /// only measure a part has (a part must keep at least one).
+  static String deleteMeasure(String musicXml, int measureNumber) {
+    final doc = XmlDocument.parse(musicXml);
+    var deleted = false;
+
+    for (final part in doc.findAllElements('part')) {
+      final measures = part.findElements('measure').toList();
+      final idx =
+          measures.indexWhere((m) => m.getAttribute('number') == '$measureNumber');
+      if (idx < 0) continue;
+      if (measures.length <= 1) {
+        throw ArgumentError('Cannot delete measure $measureNumber: '
+            'a part must keep at least one measure');
+      }
+      final target = measures[idx];
+      final prev = idx > 0 ? measures[idx - 1] : null;
+      final next = idx + 1 < measures.length ? measures[idx + 1] : null;
+
+      if (idx == 0 && next != null) _carryAttributes(target, next);
+      if (_hasRepeat(target, 'forward') && next != null) {
+        _addRepeat(next, forward: true);
+      }
+      if (_hasRepeat(target, 'backward') && prev != null) {
+        _addRepeat(prev, forward: false);
+      }
+      if (next != null) _carryHarmony(target, next);
+
+      part.children.remove(target);
+      _renumberMeasures(part);
+      deleted = true;
+    }
+
+    if (!deleted) {
+      throw ArgumentError('Measure $measureNumber not found in MusicXML');
+    }
+    return doc.toXmlString();
+  }
+
+  // ── deleteMeasure helpers ────────────────────────────────────────────────
+
+  static bool _isRepeatBarline(XmlNode n, String direction) =>
+      n is XmlElement &&
+      n.name.local == 'barline' &&
+      n.findElements('repeat')
+          .any((r) => r.getAttribute('direction') == direction);
+
+  static bool _hasRepeat(XmlElement measure, String direction) =>
+      measure.children.any((n) => _isRepeatBarline(n, direction));
+
+  /// Adds a forward (left edge) or backward (right edge) repeat barline to
+  /// [measure]. No-op when that repeat is already there, so moving a repeat onto
+  /// a bar that already carries one can't double it up.
+  static void _addRepeat(XmlElement measure, {required bool forward}) {
+    if (_hasRepeat(measure, forward ? 'forward' : 'backward')) return;
+    if (forward) {
       final barline = XmlDocument.parse(
               '<barline location="left"><bar-style>heavy-light</bar-style>'
               '<repeat direction="forward"/></barline>')
@@ -90,19 +162,92 @@ class MeasureXmlEditor {
           .copy();
       // A left barline belongs at the start of the measure, after a leading
       // <print> if one is present.
-      final printIdx = measureEl.children
+      final printIdx = measure.children
           .indexWhere((n) => n is XmlElement && n.name.local == 'print');
-      measureEl.children.insert(printIdx == -1 ? 0 : printIdx + 1, barline);
+      measure.children.insert(printIdx == -1 ? 0 : printIdx + 1, barline);
+    } else {
+      measure.children.add(
+          XmlDocument.parse('<barline location="right">'
+                  '<bar-style>light-heavy</bar-style>'
+                  '<repeat direction="backward"/></barline>')
+              .rootElement
+              .copy());
     }
-    if (end) {
-      final barline = XmlDocument.parse(
-              '<barline location="right"><bar-style>light-heavy</bar-style>'
-              '<repeat direction="backward"/></barline>')
-          .rootElement
-          .copy();
-      measureEl.children.add(barline);
+  }
+
+  /// MusicXML child-order within `<attributes>`, so a merged block stays
+  /// schema-ordered (importers read divisions before it means anything).
+  static const _attrOrder = [
+    'footnote', 'level', 'divisions', 'key', 'time', 'staves', 'part-symbol',
+    'instruments', 'clef', 'staff-details', 'measure-style',
+  ];
+
+  /// Merges [from]'s `<attributes>` children into [to], skipping any tag [to]
+  /// already states (its own value is the more specific one) and re-sorting the
+  /// result into schema order.
+  static void _carryAttributes(XmlElement from, XmlElement to) {
+    final donors = from.findElements('attributes').toList();
+    if (donors.isEmpty) return;
+    final present = <String>{
+      for (final a in to.findElements('attributes'))
+        for (final c in a.childElements) c.name.local,
+    };
+    final carried = <XmlElement>[
+      for (final a in donors)
+        for (final c in a.childElements)
+          if (!present.contains(c.name.local)) c.copy(),
+    ];
+    if (carried.isEmpty) return;
+
+    var block = to.findElements('attributes').firstOrNull;
+    if (block == null) {
+      block = XmlElement(XmlName('attributes'));
+      // <attributes> precedes the measure's notes; a <print> stays first.
+      final printIdx = to.children
+          .indexWhere((n) => n is XmlElement && n.name.local == 'print');
+      to.children.insert(printIdx == -1 ? 0 : printIdx + 1, block);
     }
-    return doc.toXmlString();
+    final merged = [...block.childElements.map((e) => e.copy()), ...carried]
+      ..sort((a, b) => _attrRank(a).compareTo(_attrRank(b)));
+    block.children
+      ..clear()
+      ..addAll(merged);
+  }
+
+  static int _attrRank(XmlElement e) {
+    final i = _attrOrder.indexOf(e.name.local);
+    return i < 0 ? _attrOrder.length : i;
+  }
+
+  /// Copies [from]'s last `<harmony>` to the head of [to] when [to] states no
+  /// chord before its first note — the chord [from] introduced is still
+  /// sounding, so it should keep a symbol rather than reverting to the one
+  /// before it. A `<harmony>` belongs immediately before the note it applies to.
+  static void _carryHarmony(XmlElement from, XmlElement to) {
+    final donor = from.findElements('harmony').lastOrNull;
+    if (donor == null) return;
+    final children = to.children;
+    final firstNoteIdx =
+        children.indexWhere((n) => n is XmlElement && n.name.local == 'note');
+    final headHarmonyIdx =
+        children.indexWhere((n) => n is XmlElement && n.name.local == 'harmony');
+    final statesOwnChord = headHarmonyIdx != -1 &&
+        (firstNoteIdx == -1 || headHarmonyIdx < firstNoteIdx);
+    if (statesOwnChord) return;
+    children.insert(firstNoteIdx == -1 ? children.length : firstNoteIdx,
+        donor.copy());
+  }
+
+  /// Renumbers [part]'s measures 1, 2, 3, … in document order. A measure
+  /// numbered 0 (a pickup) keeps its 0; a non-numeric number (e.g. an OMR
+  /// "1a") is left alone.
+  static void _renumberMeasures(XmlElement part) {
+    var n = 1;
+    for (final m in part.findElements('measure')) {
+      final cur = int.tryParse(m.getAttribute('number') ?? '');
+      if (cur == null || cur == 0) continue;
+      m.setAttribute('number', '${n++}');
+    }
   }
 
   /// A minimal single-measure `<score-partwise>` for the live edit preview.
