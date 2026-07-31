@@ -3,6 +3,26 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 
 class MusicXmlParser {
+  /// The score's own title — `<work-title>`, falling back to `<movement-title>`.
+  /// Null when absent, blank, or the XML doesn't parse.
+  ///
+  /// Used to recover a piece's name from the file itself when the piece index is
+  /// missing or incomplete, so the index is a rebuildable cache rather than the
+  /// only record of a song's title. See `piece_storage_io.dart`.
+  static String? titleOf(String xmlString) {
+    final XmlDocument doc;
+    try {
+      doc = XmlDocument.parse(xmlString);
+    } catch (_) {
+      return null;
+    }
+    for (final tag in const ['work-title', 'movement-title']) {
+      final text = doc.findAllElements(tag).firstOrNull?.innerText.trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
   ParsedPiece parse(String xmlString) {
     final doc = XmlDocument.parse(xmlString);
 
