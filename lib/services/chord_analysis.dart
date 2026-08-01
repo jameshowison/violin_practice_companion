@@ -21,6 +21,23 @@ class ChordAnalysis {
     required int keyFifths,
     required KeyMode keyMode,
     required String chordName,
+  }) =>
+      analyze(keyFifths: keyFifths, keyMode: keyMode, chordName: chordName)
+          ?.roman;
+
+  /// The roman numeral plus the two facts the chord palette colors by.
+  ///
+  /// [degreeIndex] is the base scale step (0 = I … 6 = VII), deliberately blind
+  /// to case, the ♯/♭ prefix and the °/+/7 suffix — `VII`, `♭VII` and `vii°` are
+  /// all degree 6, so they share one hue. [minorQuality] is what separates the
+  /// two shades of that hue: true for minor and diminished (exactly the cases
+  /// the numeral is lowercased for), false for major and augmented.
+  ///
+  /// Null when the name can't be parsed.
+  static ({String roman, int degreeIndex, bool minorQuality})? analyze({
+    required int keyFifths,
+    required KeyMode keyMode,
+    required String chordName,
   }) {
     if (chordName.isEmpty) return null;
     final rootLetter = chordName[0].toUpperCase();
@@ -73,8 +90,13 @@ class ChordAnalysis {
       _ => '',
     };
 
-    if (isMinor || isDim) roman = roman.toLowerCase();
+    final minorQuality = isMinor || isDim;
+    if (minorQuality) roman = roman.toLowerCase();
     final suffix = (isDim ? '°' : (isAug ? '+' : '')) + (hasSeventh ? '7' : '');
-    return '$prefix$roman$suffix';
+    return (
+      roman: '$prefix$roman$suffix',
+      degreeIndex: degIdx,
+      minorQuality: minorQuality,
+    );
   }
 }
