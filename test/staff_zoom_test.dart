@@ -6,21 +6,21 @@ import 'package:violin_practice_companion/services/providers.dart'
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/widgets/section_minimap.dart';
 
+/// A synthetic engraving: [perLine] measures on each successive system,
+/// systems stacked 100 apart, measures 200 wide.
+List<Rect> engraving(List<int> perLine, {double staffHeight = 60}) {
+  final rects = <Rect>[];
+  for (var line = 0; line < perLine.length; line++) {
+    final top = line * 100.0;
+    for (var m = 0; m < perLine[line]; m++) {
+      rects.add(Rect.fromLTWH(m * 200.0, top, 200, staffHeight));
+    }
+  }
+  return rects;
+}
+
 void main() {
   group('systemLinesOf', () {
-    /// A synthetic engraving: [perLine] measures on each successive system,
-    /// systems stacked 100 apart, measures 200 wide.
-    List<Rect> engraving(List<int> perLine, {double staffHeight = 60}) {
-      final rects = <Rect>[];
-      for (var line = 0; line < perLine.length; line++) {
-        final top = line * 100.0;
-        for (var m = 0; m < perLine[line]; m++) {
-          rects.add(Rect.fromLTWH(m * 200.0, top, 200, staffHeight));
-        }
-      }
-      return rects;
-    }
-
     test('groups measures by system', () {
       final (lines, bands) = systemLinesOf(engraving([4, 4, 2]));
       expect(lines, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2]);
@@ -65,6 +65,48 @@ void main() {
       final (lines, bands) = systemLinesOf(const []);
       expect(lines, isEmpty);
       expect(bands, isEmpty);
+    });
+  });
+
+  group('lineContentOf', () {
+    test('is the raw union of each line\'s measure boxes', () {
+      final rects = engraving([4, 4, 2]);
+      final content = lineContentOf(rects, systemLinesOf(rects).$1);
+      expect(content.length, 3);
+      expect(content[0], (top: 0.0, bottom: 60.0));
+      expect(content[1], (top: 100.0, bottom: 160.0));
+      expect(content[2], (top: 200.0, bottom: 260.0));
+    });
+
+    test('a tall measure stretches only its own line', () {
+      final rects = [
+        Rect.fromLTWH(0, 0, 200, 60),
+        Rect.fromLTWH(200, 0, 200, 90), // low note
+        Rect.fromLTWH(0, 100, 200, 60),
+      ];
+      final content = lineContentOf(rects, systemLinesOf(rects).$1);
+      expect(content[0], (top: 0.0, bottom: 90.0));
+      expect(content[1], (top: 100.0, bottom: 160.0));
+    });
+
+    test('sits INSIDE the tiled bands — which is the whole point', () {
+      // The tiled bands deliberately meet at the midpoint of the inter-system
+      // gap, so `bands[l].top` is already in the whitespace and cannot answer
+      // "where does the ink start?". These extents can — and the difference
+      // between them is exactly the room the chord lane is drawn in.
+      final rects = engraving([4, 4, 4]);
+      final (lines, bands) = systemLinesOf(rects);
+      final content = lineContentOf(rects, lines);
+      for (var l = 1; l < content.length; l++) {
+        expect(content[l].top, greaterThan(bands[l].top));
+        expect(content[l].top - content[l - 1].bottom, 40); // the real gap
+      }
+      // Line 0 has no system above it, so there the two agree.
+      expect(content.first.top, bands.first.top);
+    });
+
+    test('empty input', () {
+      expect(lineContentOf(const [], const []), isEmpty);
     });
   });
 

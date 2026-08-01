@@ -86,4 +86,43 @@ void main() {
     expect(rn(0, KeyMode.major, ''), isNull);
     expect(rn(0, KeyMode.major, 'H'), isNull);
   });
+
+  group('analyze — the fields the chord palette colors by', () {
+    ({String roman, int degreeIndex, bool minorQuality})? an(
+            int fifths, KeyMode mode, String chord) =>
+        ChordAnalysis.analyze(
+            keyFifths: fifths, keyMode: mode, chordName: chord);
+
+    test('degreeIndex ignores the ♭/♯ prefix, so a hue is per scale step', () {
+      // Old Joe Clark: the borrowed G reads ♭VII but must color as VII.
+      expect(an(2, KeyMode.mixolydian, 'G')?.degreeIndex, 6);
+      expect(an(2, KeyMode.mixolydian, 'G')?.roman, '♭VII');
+      expect(an(2, KeyMode.mixolydian, 'A')?.degreeIndex, 0);
+      expect(an(2, KeyMode.mixolydian, 'E')?.degreeIndex, 4);
+    });
+
+    test('quality shades the degree rather than moving it', () {
+      // IV and iv are the same scale step, so they share a hue and differ only
+      // in shade — that's the whole reason minorQuality is separate.
+      final major = an(0, KeyMode.major, 'F')!; // IV of C major
+      final minor = an(-3, KeyMode.minor, 'Fm')!; // iv of C minor
+      expect(major.degreeIndex, 3);
+      expect(major.minorQuality, isFalse);
+      expect(minor.degreeIndex, 3);
+      expect(minor.minorQuality, isTrue);
+    });
+
+    test('diminished counts as the darker quality, augmented does not', () {
+      expect(an(2, KeyMode.major, 'C#dim')?.minorQuality, isTrue);
+      expect(an(0, KeyMode.major, 'Caug')?.minorQuality, isFalse);
+      // A major seventh is still major.
+      expect(an(2, KeyMode.major, 'A7')?.minorQuality, isFalse);
+      expect(an(2, KeyMode.major, 'Bm7')?.minorQuality, isTrue);
+    });
+
+    test('an unparseable name yields null, like romanNumeral', () {
+      expect(an(0, KeyMode.major, 'H'), isNull);
+      expect(an(0, KeyMode.major, ''), isNull);
+    });
+  });
 }

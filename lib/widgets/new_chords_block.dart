@@ -57,14 +57,21 @@ class NewChordsBlock extends ConsumerWidget {
             runSpacing: 12,
             children: [
               for (final s in shapes)
-                ChordDiagram(
-                  s,
-                  degree: ChordAnalysis.romanNumeral(
-                    keyFifths: parsed.keyFifths,
-                    keyMode: parsed.keyMode,
-                    chordName: s.name,
-                  ),
-                ),
+                // The analysis feeds both the label and the swatch, so a
+                // diagram's accent is guaranteed to match its bar on the staff.
+                switch (ChordAnalysis.analyze(
+                  keyFifths: parsed.keyFifths,
+                  keyMode: parsed.keyMode,
+                  chordName: s.name,
+                )) {
+                  final a? => ChordDiagram(
+                      s,
+                      degree: a.roman,
+                      degreeIndex: a.degreeIndex,
+                      minorQuality: a.minorQuality,
+                    ),
+                  _ => ChordDiagram(s),
+                },
             ],
           ),
         ],
