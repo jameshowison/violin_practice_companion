@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Relaunch the Flutter dev server on the iPhone 17 simulator using the fifo
-# control pattern documented in CLAUDE.md. Safe to re-run: kills any existing
-# flutter run first.
+# Relaunch the Flutter dev server on a simulator using the fifo control pattern
+# documented in CLAUDE.md. Safe to re-run: kills any existing flutter run first.
+# Defaults to dev-iphone; pass another simulator name as $1, e.g.
+#   scripts/dev_run.sh dev-ipad
+# (see README "Simulator names" for how the dev-* aliases are set up)
 set -u
 
-DEVICE="AE8AEC05-B7AE-4A80-873E-426EF51146F1"
+DEVICE="${1:-${DEVICE:-dev-iphone}}"
 FIFO="/tmp/flutter_ctl"
 LOG="flutter_run.log"
 

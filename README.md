@@ -77,34 +77,145 @@ flutter build web            # Web / PWA
 ```
 
 iOS requires an Apple developer account for device installation. The web build
-works on iPhone Safari as a PWA with no account required.
+works on iPhone Safari as a PWA with no account required. For the day-to-day
+simulator loop, see [From a cold Mac to the app on the iPad
+simulator](#from-a-cold-mac-to-the-app-on-the-ipad-simulator) below.
 
 The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
 its ONNX models — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml) below. It
 is not available on the web build.
 
-## Booting the iOS simulator
+## Simulator names
 
-`flutter devices` only lists **booted** simulators. On a fresh machine (or after a
-reboot) the iPhone 17 simulator is `Shutdown`, so `flutter run` and `flutter
-devices` won't see it until you boot it:
+The docs and scripts refer to two simulators by name rather than by UDID:
+
+| Name         | Device                |
+| ------------ | --------------------- |
+| `dev-iphone` | iPhone 17             |
+| `dev-ipad`   | iPad Pro 11-inch (M5) |
+
+These are ordinary simulators that have been *renamed*. Both `simctl` and
+`flutter -d` accept a device name wherever they accept a UDID, so the name is
+all you ever need to type:
 
 ```bash
-xcrun simctl boot AE8AEC05-B7AE-4A80-873E-426EF51146F1   # the project's iPhone 17
-open -a Simulator                                         # show the simulator window
+xcrun simctl boot dev-ipad
+xcrun simctl io dev-ipad screenshot shot.png
+flutter run -d dev-ipad
 ```
 
-Confirm it came up:
+UDIDs are per-machine, so on a new Mac set the names up once — pick whatever
+iPhone/iPad you actually have and rename them:
 
 ```bash
-xcrun simctl list devices | grep AE8AEC05   # should now read "(Booted)"
-flutter devices                             # the iPhone 17 now appears
+xcrun simctl list devices available          # find the UDIDs
+xcrun simctl rename <iphone-udid> dev-iphone
+xcrun simctl rename <ipad-udid>   dev-ipad
 ```
 
-If the UDID above doesn't exist on this machine, list what's installed with
-`xcrun simctl list devices available` and boot one of those instead (or create an
-iPhone 17 with `xcrun simctl create`). Missing the iOS runtime entirely? Install
-it with `xcodebuild -downloadPlatform iOS`.
+The rename is stored with the device, so it survives reboots and shows up in
+Xcode too. Nothing else needs to change. If you have no suitable device,
+create one (`xcrun simctl create dev-ipad "iPad Pro 11-inch (M5)"`); if the iOS
+runtime is missing entirely, install it with `xcodebuild -downloadPlatform iOS`.
+
+Renaming hides the hardware model, so to check what a `dev-*` name actually is:
+
+```bash
+xcrun simctl list devices -j | grep -B2 dev-ipad     # deviceTypeIdentifier
+```
+
+`flutter -d` matches an exact name or a **name prefix**, not a substring — so
+`-d dev-ip` is ambiguous across the two, and `-d ipad` matches neither.
+
+## From a cold Mac to the app on the iPad simulator
+
+The full sequence after a reboot. Nothing here survives a restart, so it's all
+of it, in order.
+
+**1. Point the command-line tools at Xcode.** Only needed once per machine, but
+it's the failure that looks like everything else being broken:
+
+```bash
+xcode-select -p          # should print .../Xcode.app/Contents/Developer
+# if it prints /Library/Developer/CommandLineTools:
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept
+```
+
+**2. Boot the iPad.** A reboot shuts every simulator down, and `flutter devices`
+only lists *booted* ones — so this comes before anything Flutter-side:
+
+```bash
+xcrun simctl boot dev-ipad
+open -a Simulator          # bring the simulator window up
+```
+
+Wait for it to reach `Booted` (the first boot after a restart is the slow one):
+
+```bash
+xcrun simctl list devices | grep dev-ipad   # want "(Booted)"
+```
+
+No `dev-ipad` on this machine? See [Simulator names](#simulator-names) above.
+
+**3. Confirm Flutter sees it:**
+
+```bash
+flutter devices          # dev-ipad should now be in the list
+```
+
+**4. Fetch packages and stamp the build:**
+
+```bash
+flutter pub get
+bash scripts/gen_build_info.sh    # writes lib/build_info.dart
+```
+
+`build_info.dart` is gitignored, so it won't exist on a fresh clone and the
+build fails without it. It puts the git hash + timestamp in the AppBar on debug
+builds, which is how you tell which build is actually live.
+
+**5. Launch the dev server** on the iPad. The helper script does the fifo dance
+from `CLAUDE.md` (kill any existing run, boot the device, open the control
+pipe):
+
+```bash
+bash scripts/dev_run.sh dev-ipad     # omit the argument for dev-iphone
+```
+
+Or by hand, if you want the run in your own shell:
+
+```bash
+rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
+flutter run -d dev-ipad < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
+exec 3>/tmp/flutter_ctl     # hold the pipe open so the fifo doesn't close
+```
+
+**6. Watch it come up.** The first build after a reboot is a cold one — a couple
+of minutes is normal:
+
+```bash
+tail -f flutter_run.log
+```
+
+You're up when the log prints `Flutter run key commands` and a `VM Service`
+URL.
+
+**7. Drive it from there.** Treat `flutter run` as a dev server for the rest of
+the session rather than restarting it:
+
+```bash
+echo "r" > /tmp/flutter_ctl    # hot reload — keeps widget state
+echo "R" > /tmp/flutter_ctl    # hot restart — resets state
+```
+
+A full relaunch (steps 4–5 again) is needed for changes to `main()`,
+`pubspec.yaml`, or **anything under `assets/`** — assets are baked into the
+`.app` at `flutter run` time, so a hot restart will keep serving the old one.
+
+To screenshot the running iPad, including the notation WebView, see
+[Screenshots & UI debugging](#screenshots--ui-debugging-ios-simulator) below —
+`xcrun simctl io dev-ipad screenshot shot.png`.
 
 ## Screenshots & UI debugging (iOS Simulator)
 
@@ -119,8 +230,8 @@ simulator's framebuffer directly:
 
 ```bash
 xcrun simctl io booted screenshot screenshot.png        # the running sim
-# or target a specific device by UDID:
-xcrun simctl io <device-udid> screenshot screenshot.png
+# or target one by name, if several are booted:
+xcrun simctl io dev-ipad screenshot screenshot.png
 ```
 
 The raw image is in the device's native (portrait) orientation, so if the app
@@ -199,12 +310,12 @@ wrap it in a proprietary or subscription product.
 
 ## Profile run (logged to a file)
 
-To install and run on the iPhone 17 simulator in **profile** mode while
+To install and run on the `dev-iphone` simulator in **profile** mode while
 capturing all output to a file an agent can read back, run this from the repo
 root:
 
 ```bash
-flutter run --profile -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 2>&1 | tee flutter_profile.log
+flutter run --profile -d dev-iphone 2>&1 | tee flutter_profile.log
 ```
 
 - `--profile` builds the release-grade engine with profiling enabled (no debug
@@ -213,6 +324,6 @@ flutter run --profile -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 2>&1 | tee flutter
   and to `flutter_profile.log`, so the agent can `tail`/`grep` that file (e.g.
   `tail -n 50 flutter_profile.log`) without watching the live session.
 
-Swap the device id for another from `flutter devices` (or use `-d ios` /
+Swap in another device name from `flutter devices` (e.g. `-d dev-ipad`, or
 `-d macos`) as needed. The plain debug dev-server pattern (hot reload via a
 fifo) lives in `CLAUDE.md`.
