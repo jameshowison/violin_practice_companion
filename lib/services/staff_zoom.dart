@@ -161,6 +161,37 @@ double sectionMarkerScaleFor(int? measuresPerLine) {
   return (measureLine, bands);
 }
 
+/// Per system line, the RAW content extent — the union of that line's measure
+/// boxes, indexed by the `measureLine` that [systemLinesOf] returns.
+///
+/// This is the counterpart to [systemLinesOf]'s **tiled** bands, whose
+/// boundaries deliberately sit at the midpoint of the inter-system gap so a wash
+/// reads as an even band. That tiling makes them useless for asking "where does
+/// the ink actually start?" — `lineBands[l].top` is already inside the
+/// whitespace. These extents are the true edges, so
+/// `content[l].top - content[l-1].bottom` is the real gap between two systems:
+/// the space the chord-run lane is drawn in.
+List<({double top, double bottom})> lineContentOf(
+    List<Rect> measureRects, List<int> measureLine) {
+  final tops = <int, double>{};
+  final bottoms = <int, double>{};
+  var lines = 0;
+  for (var i = 0; i < measureRects.length && i < measureLine.length; i++) {
+    final l = measureLine[i];
+    if (l < 0) continue;
+    final r = measureRects[i];
+    final top = tops[l];
+    final bottom = bottoms[l];
+    tops[l] = (top == null || r.top < top) ? r.top : top;
+    bottoms[l] = (bottom == null || r.bottom > bottom) ? r.bottom : bottom;
+    if (l + 1 > lines) lines = l + 1;
+  }
+  return [
+    for (var l = 0; l < lines; l++)
+      (top: tops[l] ?? 0.0, bottom: bottoms[l] ?? 0.0)
+  ];
+}
+
 /// Measures per system, as actually engraved: the median over all systems
 /// except the last (which is short by definition — it holds the remainder).
 ///

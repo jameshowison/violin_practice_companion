@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 
+import '../models/chord_palette.dart';
 import '../models/section_palette.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
 import '../services/verovio_engraver.dart';
+import 'chord_swatch.dart';
 
 /// Native staff renderer: Verovio engraves (coordinates + per-element bboxes),
 /// jovial_svg draws the SVG in Flutter's own pipeline, and native CustomPaint
@@ -40,6 +42,11 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// Per-section background washes, with note-level edges (engraved-index space).
   final List<SectionTintRegion> sectionTints;
 
+  /// Chord runs, drawn as labelled colored bars in a lane above each system. This
+  /// renderer owns the chord label entirely — the callers strip `<harmony>` from
+  /// the XML so Verovio engraves no `<harm>` text to duplicate it.
+  final List<ChordRunRegion> chordRuns;
+
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
   final ({int index, int seq})? scrollNav;
@@ -70,6 +77,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.measureNumbers = const [],
     this.stretchLastSystem = true,
     this.sectionTints = const [],
+    this.chordRuns = const [],
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
@@ -503,6 +511,19 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                       ),
                     ),
                   ),
+                  // Last, so a lane whose y-estimate drifts stays visible rather
+                  // than hiding under a stem or a bar number.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _ChordLanePainter(
+                          score: score,
+                          scale: scale,
+                          runs: widget.chordRuns,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -606,6 +627,148 @@ class _UnderlayPainter extends CustomPainter {
       old.score != score ||
       old.scale != scale ||
       old.sectionTints != sectionTints;
+}
+
+/// Drawn in the lane ABOVE each system: one labelled colored bar per chord run,
+/// spanning exactly the notes the chord governs. The bar answers "until when?",
+/// which a chord letter on its own can't, and its color keys the run to its
+/// diagram in the "New chords" footer.
+///
+/// Horizontal geometry mirrors [_UnderlayPainter._regionRowRects] — measures
+/// unioned within a system line, note-level start/end edges, one segment per line
+/// so a run that wraps splits cleanly. The vertical extent comes from
+/// [EngravedScore.chordLaneBand] instead of the tiled system band, since the lane
+/// must land in the whitespace above the ink rather than over it.
+class _ChordLanePainter extends CustomPainter {
+  _ChordLanePainter({
+    required this.score,
+    required this.scale,
+    required this.runs,
+  });
+
+  final EngravedScore score;
+  final double scale;
+  final List<ChordRunRegion> runs;
+
+  /// Hairline pulled off each end so two adjacent runs read as separate blocks
+  /// rather than one continuous ribbon (their measure edges touch exactly).
+  static const _gap = 1.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (runs.isEmpty) return;
+    for (final run in runs) {
+      for (final seg in _runRowRects(run)) {
+        _paintSegment(canvas, seg, run);
+      }
+    }
+  }
+
+  void _paintSegment(Canvas canvas, _LaneSegment seg, ChordRunRegion run) {
+    final r = seg.rect;
+    if (r.width <= 0 || r.height <= 0) return;
+    final cap = Radius.circular(r.height * chordSwatchRadiusFraction);
+    // Square-cut the edge where a run continues onto the next system, so the
+    // wrap reads as "carries on" rather than as two separate chords.
+    paintChordSwatch(
+      canvas,
+      RRect.fromRectAndCorners(
+        r,
+        topLeft: seg.isFirst ? cap : Radius.zero,
+        bottomLeft: seg.isFirst ? cap : Radius.zero,
+        topRight: seg.isLast ? cap : Radius.zero,
+        bottomRight: seg.isLast ? cap : Radius.zero,
+      ),
+      degree: run.degree,
+      minor: run.minorQuality,
+    );
+    final fill = ChordPalette.of(run.degree, minor: run.minorQuality);
+
+    // Label. Repeated on every wrapped segment, so a system read on its own
+    // still names its chord; dropped when the segment is too narrow for it
+    // (a short mid-measure run), where the color alone carries the identity.
+    final inset = r.height * chordLabelInsetFraction;
+    final tp = TextPainter(
+      text: TextSpan(
+          text: run.label, style: chordLabelStyle(r.height, fill)),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    if (tp.width + inset * 2 > r.width) return;
+    tp.paint(canvas, Offset(r.left + inset, r.center.dy - tp.height / 2));
+  }
+
+  /// One segment per system line the run touches, in line order.
+  List<_LaneSegment> _runRowRects(ChordRunRegion r) {
+    // Last measure index that gets a bar: a whole-measure end (-1) or a
+    // mid-measure end (endNote>0) includes endMeasureIndex; endNote==0 stops at
+    // the measure before it. Same rule as the section wash.
+    final lastIdx = r.endNote == -1
+        ? r.endMeasureIndex
+        : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
+    if (lastIdx < r.startMeasureIndex) return const [];
+
+    final byLine = <int, ({double left, double right})>{};
+    for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
+      final m = score.measureAt(i);
+      if (m == null) continue;
+      var left = m.rect.left;
+      var right = m.rect.right;
+      if (i == r.startMeasureIndex && r.startNote > 0) {
+        final n = score.noteAt(i, r.startNote);
+        if (n != null) left = n.rect.left;
+      }
+      if (r.endNote > 0 && i == r.endMeasureIndex) {
+        final n = score.noteAt(i, r.endNote);
+        if (n != null) right = n.rect.left;
+      }
+      if (right <= left) continue;
+      final line = score.lineOfMeasure(i);
+      if (line < 0) continue;
+      final cur = byLine[line];
+      byLine[line] = cur == null
+          ? (left: left, right: right)
+          : (
+              left: left < cur.left ? left : cur.left,
+              right: right > cur.right ? right : cur.right,
+            );
+    }
+    if (byLine.isEmpty) return const [];
+
+    final lines = byLine.keys.toList()..sort();
+    final out = <_LaneSegment>[];
+    for (final line in lines) {
+      final band = score.chordLaneBand(line);
+      if (band == null) continue; // no whitespace on this line — skip, don't clash
+      final s = byLine[line]!;
+      final rect = Rect.fromLTRB(
+        s.left * scale + _gap,
+        band.top * scale,
+        s.right * scale - _gap,
+        band.bottom * scale,
+      );
+      out.add(_LaneSegment(
+        rect: rect,
+        isFirst: line == lines.first,
+        isLast: line == lines.last,
+      ));
+    }
+    return out;
+  }
+
+  @override
+  bool shouldRepaint(_ChordLanePainter old) =>
+      old.score != score || old.scale != scale || old.runs != runs;
+}
+
+/// One chord bar on one system line. [isFirst]/[isLast] mark the run's true ends,
+/// so only those get a rounded cap.
+class _LaneSegment {
+  final Rect rect;
+  final bool isFirst;
+  final bool isLast;
+  const _LaneSegment(
+      {required this.rect, required this.isFirst, required this.isLast});
 }
 
 /// Drawn OVER the notation: selection range, flagged markers, current-note

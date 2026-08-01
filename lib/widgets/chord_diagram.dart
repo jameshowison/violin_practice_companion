@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/chord_shape.dart';
+import 'chord_swatch.dart';
 
 /// A single mandolin chord diagram, drawn **horizontally** so its string order
 /// matches the tab stave: strings run left→right (nut→frets), stacked high→low
@@ -8,8 +9,22 @@ import '../models/chord_shape.dart';
 class ChordDiagram extends StatelessWidget {
   final ChordShape shape;
 
-  /// Optional scale-degree label (e.g. `I`, `V`, `vi`) shown next to the name.
+  /// Optional scale-degree numeral (e.g. `I`, `V`, `vi`). When given, the header
+  /// becomes a [ChordPill] reading `I (A)` — *the same pill the staff's chord
+  /// lane draws*, at the same size and in the same colour. The point is that the
+  /// footer header IS the bar you are hunting for on the staff, rather than a
+  /// separate legend you have to translate. Without it the header falls back to
+  /// the plain chord name.
   final String? degree;
+
+  /// Scale-degree index (0 = I … 6 = VII) and quality, which pick the pill's
+  /// colour and shade. Ignored when [degree] is null.
+  ///
+  /// The grid itself stays monochrome on purpose: it is notation, and coloured
+  /// notation is harder to read than a coloured header.
+  final int? degreeIndex;
+  final bool minorQuality;
+
   final double width;
   final double height;
 
@@ -17,6 +32,8 @@ class ChordDiagram extends StatelessWidget {
     this.shape, {
     super.key,
     this.degree,
+    this.degreeIndex,
+    this.minorQuality = false,
     this.width = 140,
     this.height = 66,
   });
@@ -27,26 +44,19 @@ class ChordDiagram extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          textBaseline: TextBaseline.alphabetic,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          children: [
-            // Degree-primary: prefer "I (A)" over "A (I)".
-            Text(degree ?? shape.name,
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700, color: color)),
-            if (degree != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: Text('(${shape.name})',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: color.withValues(alpha: 0.6))),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
+        if (degree != null)
+          // Degree-primary, one weight throughout: `I` says what the chord does
+          // and `(A)` says which shape to grab — you need to read both.
+          ChordPill(
+            label: '$degree (${shape.name})',
+            degree: degreeIndex,
+            minor: minorQuality,
+          )
+        else
+          Text(shape.name,
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+        const SizedBox(height: 6),
         CustomPaint(
           size: Size(width, height),
           painter: _ChordDiagramPainter(shape, color),
