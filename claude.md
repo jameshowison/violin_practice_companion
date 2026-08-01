@@ -3,12 +3,13 @@
 Do not use flutter-all:flutter-device-orchestrator to launch the app; it doesn't know the fifo pattern.
 
 Treat `flutter run` as a persistent dev server for the session, not a one-shot command.
-The primary dev target is the **iPhone 17 simulator** (device ID `AE8AEC05-B7AE-4A80-873E-426EF51146F1`).
+
+Simulators are referred to by name, never by UDID: **`dev-iphone`** (iPhone 17) is the primary dev target, **`dev-ipad`** (iPad Pro 11-inch M5) is the secondary. Both `simctl` and `flutter -d` resolve these names. See the README "Simulator names" section. If a name doesn't resolve, the simulator hasn't been renamed on this machine — check `xcrun simctl list devices` rather than guessing a UDID.
 
 **Start once:**
 ```bash
 rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
-flutter run -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
+flutter run -d dev-iphone < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
 exec 3>/tmp/flutter_ctl  # hold the pipe open so the fifo doesn't close
 ```
 
@@ -32,7 +33,7 @@ tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 bash scripts/gen_build_info.sh   # writes lib/build_info.dart (gitignored)
 pkill -f flutter_tools.snapshot
 rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
-flutter run -d AE8AEC05-B7AE-4A80-873E-426EF51146F1 < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
+flutter run -d dev-iphone < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
 exec 3>/tmp/flutter_ctl
 ```
 
@@ -73,7 +74,7 @@ mcp__marionette__hot_reload()                # trigger reload via MCP
 Practically: any screen that contains a `StaffView` (the OSMD WebView) will show a blank white rectangle in Marionette screenshots. Use screenshots to verify the surrounding Flutter UI (AppBar, playback controls, tray layout) but **not** to verify staff notation rendering. To verify staff content, screenshot the simulator framebuffer directly — this captures the WebView:
 
 ```bash
-xcrun simctl io booted screenshot /tmp/staff.png   # or use the device UDID instead of `booted`
+xcrun simctl io booted screenshot /tmp/staff.png   # or `dev-iphone` / `dev-ipad` instead of `booted`
 sips -r 90 /tmp/staff.png                            # raw capture is portrait; rotate if the app is landscape
 ```
 
@@ -86,7 +87,7 @@ The main Marionette-visible alternatives would be `verovio_flutter` (FFI, output
 - Connection refused → the app crashed or hasn't launched yet; check `flutter_run.log`.
 - Screenshots show piece-list screen → navigate to a piece with `mcp__marionette__tap(text: "Lightly Row")`.
 
-**Screen coordinates** in marionette are in logical pixels at whatever scale the simulator reports. The iPhone 17 simulator in landscape reports ~874×402pt for the full screen (including AppBar). The body below the AppBar starts at y≈52.
+**Screen coordinates** in marionette are in logical pixels at whatever scale the simulator reports. `dev-iphone` in landscape reports ~874×402pt for the full screen (including AppBar). The body below the AppBar starts at y≈52.
 
 ## Fingering Label Format
 
