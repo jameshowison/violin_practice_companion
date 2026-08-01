@@ -216,10 +216,26 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 }
 
 // ── Chord-symbol display preference ───────────────────────────────────────────
-// Chord symbols (`<harmony>` in the source → `<harm>` in Verovio) are shown
-// above the staff in the staff & annotation views; toggling off strips them.
+// Chord symbols are shown above the staff in the staff, annotation & tab views;
+// toggling off hides them (and the "New chords" footer).
 // Session-only, matching the other display-preference providers.
 final showChordsProvider = StateProvider<bool>((_) => true);
+
+/// Whether `<harmony>` should be stripped before the score is engraved.
+///
+/// Two independent reasons to strip. The obvious one is the user turning chords
+/// off. The other is that the **native renderer draws chords itself**, as
+/// labelled colored bars in a lane above the staff (`ChordRunRegion` /
+/// `_ChordLanePainter`), so leaving the harmony in would have Verovio engrave a
+/// second, unspanned copy of every symbol as `<harm>` text. The OSMD fallback has
+/// no lane, so there it stays in and Verovio's own symbols are the display.
+///
+/// The `<harmony>` elements are only stripped from the ENGRAVED xml — the parsed
+/// model still carries `NoteEvent.chordSymbol`, which is what the lane and the
+/// footer diagrams are built from.
+bool _stripHarmonyFor(Ref ref) =>
+    !ref.watch(showChordsProvider) ||
+    ref.watch(staffRendererProvider) == StaffRenderer.verovio;
 
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
@@ -232,7 +248,7 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
-  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
+  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
@@ -247,7 +263,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   xml = layout.stripLayoutHints(xml);
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
-  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
+  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
@@ -279,7 +295,7 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).
-  if (!ref.watch(showChordsProvider)) xml = ChordXmlInjector.stripHarmony(xml);
+  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return TabScoreGenerator.generate(
     xml,
     parsed,

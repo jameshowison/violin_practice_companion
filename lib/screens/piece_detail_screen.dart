@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
+import '../models/chord_palette.dart';
 import '../models/note_event.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
@@ -913,6 +914,12 @@ class _NotationView extends ConsumerWidget {
         ? const <SectionTintRegion>[]
         : sectionTintRegions(
             measureNumbers, sections, sectionColors, parsed.measures);
+    // Chord runs as labelled bars in a lane above the staff — the native renderer
+    // owns the chord label now (the XML providers strip `<harmony>` for it), so
+    // this list is the only thing that puts chords on the score.
+    final chordRuns = (parsed == null || !ref.watch(showChordsProvider))
+        ? const <ChordRunRegion>[]
+        : chordRunRegions(measureNumbers, parsed);
     // Minimap tap → scroll the staff to the (folded) run's first measure index.
     // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
@@ -935,6 +942,7 @@ class _NotationView extends ConsumerWidget {
           flaggedMeasures: flaggedMeasures,
           measureNumbers: measureNumbers,
           sectionTints: sectionTints,
+          chordRuns: chordRuns,
           scrollNav: staffNav,
         );
       }
@@ -1037,6 +1045,7 @@ class _NotationView extends ConsumerWidget {
                   flaggedMeasures: flaggedMeasures,
                   measureNumbers: measureNumbers,
                   sectionTints: sectionTints,
+                  chordRuns: chordRuns,
                   scrollNav: staffNav,
                   tabMode: true,
                   // Provider returns labels only in fingering mode (empty in

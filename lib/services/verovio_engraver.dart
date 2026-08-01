@@ -3,13 +3,9 @@ import 'dart:ui' show Rect, Size, Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
-import 'package:xml/xml.dart';
 
-import '../models/note_event.dart' show KeyMode;
-import 'chord_analysis.dart';
-import 'musicxml_parser.dart';
 import 'staff_zoom.dart'
-    show measuresPerLineOf, staffScaleProbe, systemLinesOf;
+    show lineContentOf, measuresPerLineOf, staffScaleProbe, systemLinesOf;
 
 /// Native staff engraving via the Verovio toolkit (FFI worker isolate).
 ///
@@ -208,7 +204,6 @@ class VerovioEngraver {
       tabFingerLabels: tabFingerLabels,
       tabMode: tabMode,
       stripRepeatClefs: stripRepeatClefs,
-      harmLabels: _computeHarmLabels(musicXml),
     );
     if (debugLogging) {
       debugPrint('[engraver] engraved viewBox=${score.viewBox.width.toInt()}'
@@ -216,6 +211,14 @@ class VerovioEngraver {
           'notes=${score.notes.length} scale=${scale.toStringAsFixed(1)} '
           'pageW=$pageWidthUnits lines=${score.lineCount} '
           'mpl=${measuresPerLineOf(score.measureLine)} ${score.renderMs}ms');
+      // Chord-lane calibration: is there already whitespace above line 0 (page
+      // margin) and between systems (spacingSystem) for a full-height bar?
+      final c = score.lineContent;
+      debugPrint('[engraver] lane contentH=${score.contentHeightViewBox.toStringAsFixed(1)} '
+          'laneH=${score.chordLaneHeight.toStringAsFixed(1)} '
+          'top0=${c.isEmpty ? -1 : c.first.top.toStringAsFixed(1)} '
+          'gap1=${c.length > 1 ? (c[1].top - c[0].bottom).toStringAsFixed(1) : '-'} '
+          'band0=${score.chordLaneBand(0)}');
     }
     return score;
   }
@@ -229,7 +232,6 @@ class VerovioEngraver {
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
-    List<String> harmLabels = const [],
   }) {
     final bboxById = <String, Rect>{
       for (final h in hitMap.byType) h.id: h.bbox,
@@ -281,15 +283,13 @@ class VerovioEngraver {
       }
     }
 
-    final (measureLine, lineBands) =
-        systemLinesOf([for (final m in measures) m.rect]);
+    final measureRects = [for (final m in measures) m.rect];
+    final (measureLine, lineBands) = systemLinesOf(measureRects);
+    final lineContent = lineContentOf(measureRects, measureLine);
 
     var processedSvg = stripRepeatClefs ? _clefKeySigFirstSystemOnly(svg) : svg;
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
-    }
-    if (harmLabels.isNotEmpty) {
-      processedSvg = _swapHarmLabels(processedSvg, harmLabels);
     }
     processedSvg = flattenForRenderer(processedSvg);
 
@@ -301,6 +301,7 @@ class VerovioEngraver {
       notes: notes,
       measureLine: measureLine,
       lineBands: lineBands,
+      lineContent: lineContent,
       pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
     );
@@ -445,86 +446,6 @@ class VerovioEngraver {
     });
   }
 
-  /// Chord-symbol labels (degree-primary, e.g. "I (A)") for each `<harmony>` in
-  /// the score, in document order — matching the order Verovio emits `harm`
-  /// groups in the SVG. Empty when there's no harmony (chords toggled off
-  /// upstream, or a piece with no chord data).
-  static List<String> _computeHarmLabels(String xml) {
-    final XmlDocument doc;
-    try {
-      doc = XmlDocument.parse(xml);
-    } catch (_) {
-      return const [];
-    }
-    final harmonies = doc.findAllElements('harmony').toList();
-    if (harmonies.isEmpty) return const [];
-    final keyEl = doc.findAllElements('key').firstOrNull;
-    final fifths =
-        int.tryParse(keyEl?.findElements('fifths').firstOrNull?.innerText ?? '') ?? 0;
-    final mode = MusicXmlParser.parseKeyMode(
-        keyEl?.findElements('mode').firstOrNull?.innerText);
-    return [
-      for (final h in harmonies)
-        _harmLabel(MusicXmlParser.parseHarmonyLabel(h), fifths, mode),
-    ];
-  }
-
-  static String _harmLabel(String? name, int fifths, KeyMode mode) {
-    if (name == null) return '';
-    final deg = ChordAnalysis.romanNumeral(
-        keyFifths: fifths, keyMode: mode, chordName: name);
-    return deg == null ? name : '$deg ($name)'; // degree-primary
-  }
-
-  /// Rewrites the visible text of each rendered `harm` group (in document order)
-  /// to the corresponding [labels] entry. Verovio spaced/positioned the original
-  /// chord symbol; we only change the glyph text (like [_swapTabFingerings] for
-  /// tab frets). An empty label leaves the group untouched.
-  static String _swapHarmLabels(String svg, List<String> labels) {
-    final out = StringBuffer();
-    var last = 0, search = 0, idx = 0;
-    while (idx < labels.length) {
-      final ci = svg.indexOf('class="harm"', search);
-      if (ci < 0) break;
-      final open = svg.lastIndexOf('<g', ci);
-      final close = open < 0 ? -1 : _matchCloseG(svg, open);
-      if (open < 0 || close < 0) {
-        search = ci + 12;
-        continue;
-      }
-      final label = labels[idx++];
-      if (label.isEmpty) {
-        search = close;
-        continue;
-      }
-      out.write(svg.substring(last, open));
-      out.write(_replaceFirstTextContent(svg.substring(open, close), label));
-      last = close;
-      search = close;
-    }
-    out.write(svg.substring(last));
-    return out.toString();
-  }
-
-  /// Replaces the text of the first `<tspan>` (or bare `<text>`) inside [group]
-  /// with [label], preserving all element attributes (position/anchor/font).
-  static String _replaceFirstTextContent(String group, String label) {
-    final esc = label
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-    for (final re in [
-      RegExp(r'(<tspan\b[^>]*>)([^<]*)(</tspan>)', dotAll: true),
-      RegExp(r'(<text\b[^>]*>)([^<]*)(</text>)', dotAll: true),
-    ]) {
-      final m = re.firstMatch(group);
-      if (m != null) {
-        return group.replaceRange(m.start, m.end, '${m.group(1)}$esc${m.group(3)}');
-      }
-    }
-    return group;
-  }
-
   /// Ids of every note/rest element on a tab (second) staff. The SVG nests
   /// `measure > staff > layer`; each measure emits its staves in order, so the
   /// odd-indexed `<g class="staff">` groups (0-based) are the tab staff. Returns
@@ -654,6 +575,12 @@ class EngravedScore {
   /// touch with zero gap/overlap. Index with [measureLine].
   final List<({double top, double bottom})> lineBands;
 
+  /// Per system line, the RAW content extent (viewBox coords) — the union of that
+  /// line's measure boxes. Unlike [lineBands] these are not tiled, so
+  /// `lineContent[l].top - lineContent[l-1].bottom` is the true whitespace
+  /// between two systems. See [chordLaneBand].
+  final List<({double top, double bottom})> lineContent;
+
   /// The Verovio `pageWidth` (MEI units) this score was laid out for. Together
   /// with the achieved measures-per-line it yields the piece's scale-invariant
   /// `unitsPerMeasure` — see `staff_zoom.dart`.
@@ -669,6 +596,7 @@ class EngravedScore {
     required this.notes,
     required this.measureLine,
     required this.lineBands,
+    required this.lineContent,
     required this.pageWidthUnits,
     required this.renderMs,
   });
@@ -693,6 +621,62 @@ class EngravedScore {
       sum += b.bottom - b.top;
     }
     return sum / lineBands.length;
+  }
+
+  /// Mean height of one system's INK (viewBox coords), gap excluded — the mean of
+  /// [lineContent]. Unlike [systemHeightViewBox] this doesn't move when the staff
+  /// spacing preference changes, which makes it the right yardstick for sizing
+  /// decorations: the chord lane should track the note size, not the gap.
+  double get contentHeightViewBox {
+    if (lineContent.isEmpty) return viewBox.height;
+    var sum = 0.0;
+    for (final c in lineContent) {
+      sum += c.bottom - c.top;
+    }
+    return sum / lineContent.length;
+  }
+
+  /// Chord-lane height and clearance, as fractions of [contentHeightViewBox]. Kept
+  /// proportional so the lane scales with the notes at every zoom level, the same
+  /// principle as `_OverlayPainter._bandPx`.
+  static const chordLaneHeightFraction = 0.30;
+  static const chordLanePadFraction = 0.05;
+
+  /// Height (viewBox px) of the chord-run lane, the SAME on every system so the
+  /// bars read as one consistent register rather than growing and shrinking with
+  /// each gap. It is the proportional target, capped by the tightest whitespace
+  /// the score offers: the page's top margin above line 0, and the inter-system
+  /// gap (`spacingSystem`) everywhere else. 0 when nothing fits.
+  ///
+  /// Capping rather than demanding room is deliberate — asking Verovio for a
+  /// bigger margin/gap would mean a re-engrave (and a re-calibration, since
+  /// `spacingSystem` moves the system height) every time chords are toggled, and
+  /// measurement showed the default layout already affords a legible bar.
+  double get chordLaneHeight {
+    if (lineContent.isEmpty) return 0;
+    final yard = contentHeightViewBox;
+    if (yard <= 0) return 0;
+    final pad = yard * chordLanePadFraction;
+    var room = lineContent[0].top; // page margin; nothing above it to clear
+    for (var l = 1; l < lineContent.length; l++) {
+      final gap = lineContent[l].top - lineContent[l - 1].bottom - pad;
+      if (gap < room) room = gap;
+    }
+    final avail = room - pad;
+    final want = yard * chordLaneHeightFraction;
+    return want < avail ? want : (avail > 0 ? avail : 0);
+  }
+
+  /// Vertical band (viewBox coords) for the chord-run lane on system line [l], or
+  /// null when there is no usable room. Sits [chordLaneHeight] tall in the
+  /// whitespace directly above the line's ink.
+  ({double top, double bottom})? chordLaneBand(int l) {
+    if (l < 0 || l >= lineContent.length) return null;
+    final h = chordLaneHeight;
+    if (h <= 0) return null;
+    final bottom =
+        lineContent[l].top - contentHeightViewBox * chordLanePadFraction;
+    return (top: bottom - h, bottom: bottom);
   }
 
   MeasureAnchor? measureAt(int index) =>
