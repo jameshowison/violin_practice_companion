@@ -82,6 +82,68 @@ class MeasureXmlEditor {
     return doc.toXmlString();
   }
 
+  /// Rewrites the score's time signature to [beats]/[beatType].
+  ///
+  /// **Relabels only — note values are untouched.** The case this exists for is
+  /// a score whose bars are right and whose `<time>` is wrong: The Wellerman
+  /// imported with four quarters in every bar under a `2/4` signature, so every
+  /// bar read as double-length and the measure editor flagged the lot. Changing
+  /// the label to `2/2` makes the file self-consistent without moving a note.
+  /// Re-notating a tune into a different meter (halving or doubling every
+  /// duration) is a different operation and deliberately not this one.
+  ///
+  /// Only the FIRST `<time>` in each part is rewritten. The app's model carries
+  /// one meter per piece ([ParsedPiece.beatsPerMeasure] comes from the first
+  /// `<time>` in the document), so a mid-piece meter change is already outside
+  /// what it can represent — overwriting those too would silently destroy a
+  /// distinction the rest of the app can't yet make. A part with no `<time>` at
+  /// all gets one, inserted into its first `<attributes>` in the order MusicXML
+  /// requires (after `<key>`, before `<clef>`).
+  static String setTimeSignature(String musicXml,
+      {required int beats, required int beatType}) {
+    if (beats < 1 || beatType < 1) {
+      throw ArgumentError('Time signature $beats/$beatType is not a meter');
+    }
+    final doc = XmlDocument.parse(musicXml);
+    var changed = false;
+
+    for (final part in doc.findAllElements('part')) {
+      final existing = part.findAllElements('time').firstOrNull;
+      if (existing != null) {
+        _setChildText(existing, 'beats', '$beats');
+        _setChildText(existing, 'beat-type', '$beatType');
+        changed = true;
+        continue;
+      }
+      final attributes = part.findAllElements('attributes').firstOrNull;
+      if (attributes == null) continue;
+      final time = XmlDocument.parse(
+              '<time><beats>$beats</beats><beat-type>$beatType</beat-type></time>')
+          .rootElement
+          .copy();
+      final clefIdx = attributes.children
+          .indexWhere((n) => n is XmlElement && n.name.local == 'clef');
+      attributes.children
+          .insert(clefIdx == -1 ? attributes.children.length : clefIdx, time);
+      changed = true;
+    }
+
+    if (!changed) {
+      throw ArgumentError('No <attributes> block to hold a time signature');
+    }
+    return doc.toXmlString();
+  }
+
+  /// Sets [element]'s `<$name>` child to [text], creating it if absent.
+  static void _setChildText(XmlElement element, String name, String text) {
+    final child = element.findElements(name).firstOrNull;
+    if (child == null) {
+      element.children.add(XmlElement(XmlName(name), [], [XmlText(text)]));
+    } else {
+      child.innerText = text;
+    }
+  }
+
   /// Deletes `<measure number="$measureNumber">` from every part and renumbers
   /// the measures that follow so numbering stays consecutive (a pickup measure
   /// numbered 0 keeps its 0).

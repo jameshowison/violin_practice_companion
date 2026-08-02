@@ -6,6 +6,7 @@ import '../build_info.dart';
 import '../models/chord_palette.dart';
 import '../models/note_event.dart';
 import '../models/piece.dart';
+import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
 import '../models/section.dart';
 import '../models/section_palette.dart';
@@ -27,6 +28,7 @@ import '../widgets/section_bar.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
+import '../widgets/time_signature_dialog.dart';
 
 class PieceDetailScreen extends ConsumerWidget {
   const PieceDetailScreen({super.key});
@@ -798,6 +800,46 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
     super.dispose();
   }
 
+  /// Relabels the score's meter. Note values are untouched — see
+  /// [MeasureXmlEditor.setTimeSignature].
+  ///
+  /// No confirmation step: the change is fully reversible from the same control
+  /// (unlike deleting a measure, which this otherwise mirrors), and the dialog
+  /// has already shown what the new meter does to the bar totals.
+  Future<void> _editTimeSignature(
+      BuildContext context, WidgetRef ref, ParsedPiece parsed) async {
+    final chosen = await showTimeSignatureDialog(context, piece: parsed);
+    if (chosen == null || !context.mounted) return;
+
+    final piece = ref.read(selectedPieceProvider);
+    if (piece == null) return;
+    final repo = ref.read(pieceRepositoryProvider);
+    try {
+      final original = await repo.loadMusicXml(piece);
+      final newXml = MeasureXmlEditor.setTimeSignature(original,
+          beats: chosen.beats, beatType: chosen.beatType);
+      final updated = await repo.writeEditedMusicXml(piece, newXml);
+      ref.read(selectedPieceProvider.notifier).state = updated;
+      ref.invalidate(piecesProvider);
+      ref.invalidate(parsedPieceProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Could not change the time signature'),
+          content: Text('$e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
@@ -822,11 +864,30 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
             children: [
               const SizedBox(width: 48),
               Expanded(
-                child: Text(
-                  keyTitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 13, fontStyle: FontStyle.italic),
+                // The meter joins the key here because this strip is the
+                // piece's identity line, and because a wrong meter is something
+                // you notice while looking at the staff — which is where this
+                // is. Tapping opens the editor; the pencil says so, since
+                // italic grey text otherwise reads as a label, not a control.
+                child: InkWell(
+                  key: const ValueKey('piece_meter_button'),
+                  onTap: () => _editTimeSignature(context, ref, parsed),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$keyTitle · ${parsed.beatsPerMeasure}/${parsed.beatType}',
+                          style: const TextStyle(
+                              fontSize: 13, fontStyle: FontStyle.italic),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.edit_outlined,
+                            size: 13, color: Theme.of(context).hintColor),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               IconButton(
