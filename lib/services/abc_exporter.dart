@@ -1,4 +1,5 @@
 import '../models/duration_step.dart';
+import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import 'musicxml_parser.dart';
@@ -187,7 +188,7 @@ class AbcExporter {
 
     final letter = note.pitch[0].toUpperCase();
     final alter = spelling.alterOf(note, letter);
-    final fromKey = spelling.keyAlters[letter] ?? 0;
+    final fromKey = spelling.keyAlterFor(letter);
     final needsSign = alter != fromKey || altered.contains(letter);
     if (alter != fromKey) altered.add(letter);
 
@@ -257,9 +258,6 @@ class AbcExporter {
   /// the rest of itself into bogus ABC.
   static String _headerText(String value) =>
       value.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-  static const _sharpOrder = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
-  static const _flatOrder = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 }
 
 /// Decides what alteration each note actually carries — the one genuinely
@@ -286,10 +284,10 @@ class AbcExporter {
 /// to make a drawing-led file look like a sounding-pitch one and turn every
 /// other F♯ and C♯ in the reel natural.)
 class _Spelling {
-  _Spelling({required this.keyAlters, required this.trustAlter});
+  _Spelling({required this.keyFifths, required this.trustAlter});
 
-  /// The alteration each letter carries by default under the key signature.
-  final Map<String, int> keyAlters;
+  /// The piece's key signature, as a MusicXML `<fifths>` count.
+  final int keyFifths;
 
   /// Whether an unmarked note's `<alter>` states its sounding pitch.
   final bool trustAlter;
@@ -306,11 +304,12 @@ class _Spelling {
         }
       }
     }
-    return _Spelling(
-      keyAlters: _keySignatureAlters(piece.keyFifths),
-      trustAlter: trust,
-    );
+    return _Spelling(keyFifths: piece.keyFifths, trustAlter: trust);
   }
+
+  /// The alteration [letter] carries by default under this key signature.
+  int keyAlterFor(String letter) =>
+      KeySignature.defaultAlter(keyFifths, letter);
 
   /// This note's alteration, resolving the two conventions above. The drawn
   /// accidental wins where there is one: it's the only unambiguous statement
@@ -323,7 +322,7 @@ class _Spelling {
     // Drawing-led file, nothing drawn: the key signature governs. Only a
     // *missing* alteration is overridden this way — an explicit one (a ♭ in a
     // sharp key, say) is still real data even without an `<accidental>`.
-    return sounding == 0 ? (keyAlters[letter] ?? 0) : sounding;
+    return sounding == 0 ? keyAlterFor(letter) : sounding;
   }
 
   /// Semitone alteration as encoded, derived from the MIDI number rather than
@@ -331,16 +330,6 @@ class _Spelling {
   /// accidentals to a single character, the MIDI number doesn't.
   static int _soundingAlter(NoteEvent note, String letter) =>
       note.midiNumber - ((_naturalSemitone[letter] ?? 0) + (note.octave + 1) * 12);
-
-  static Map<String, int> _keySignatureAlters(int fifths) {
-    final alters = {for (final l in _naturalSemitone.keys) l: 0};
-    final order = fifths >= 0 ? AbcExporter._sharpOrder : AbcExporter._flatOrder;
-    final sign = fifths >= 0 ? 1 : -1;
-    for (var i = 0; i < fifths.abs() && i < order.length; i++) {
-      alters[order[i]] = sign;
-    }
-    return alters;
-  }
 
   /// MusicXML `<accidental>` values, as [MusicXmlParser] stores them verbatim.
   /// Unlisted values (`quarter-sharp`, editorial variants) fall through to the
