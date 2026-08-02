@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/chord_analysis.dart';
+import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// Old Joe Clark is `K: Amix` — A mixolydian, which carries D major's two
@@ -19,14 +20,28 @@ void main() {
   late final ParsedPiece piece;
 
   setUpAll(() {
-    piece = parser
-        .parse(File('test/fixtures/old_joe_clark.musicxml').readAsStringSync());
+    piece = parser.parse(MusicXmlNormalizer.toSoundingPitch(
+        File('test/fixtures/old_joe_clark.musicxml').readAsStringSync()));
   });
 
   test('the mixolydian mode survives the conversion', () {
     expect(piece.keyFifths, 2, reason: 'A mixolydian shares D major\'s signature');
     expect(piece.keyMode, KeyMode.mixolydian);
     expect(piece.keySignature, 'Amix');
+  });
+
+  test('the two sharps sound, and the flat seventh stays flat', () {
+    // Mixolydian is the case that makes this worth stating: the signature
+    // sharpens F and C, and the G — the ♭7 that makes the mode — must NOT be
+    // sharpened along with them. Before the normalizer every one of these
+    // played natural, so the tune came out in A minor-ish.
+    Set<int> pitchClasses(String step) => piece.allNotes
+        .where((n) => !n.isRest && n.pitch.startsWith(step))
+        .map((n) => n.midiNumber % 12)
+        .toSet();
+    expect(pitchClasses('F'), {6}, reason: 'F#');
+    expect(pitchClasses('C'), {1}, reason: 'C#');
+    expect(pitchClasses('G'), {7}, reason: 'G natural — the mixolydian ♭7');
   });
 
   test('the tune\'s chord symbols are preserved', () {

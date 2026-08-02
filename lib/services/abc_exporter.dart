@@ -53,7 +53,6 @@ class AbcExporter {
       ..writeln('L: 1/${32 ~/ unit}')
       ..writeln('K: ${MusicXmlParser.keyName(piece.keyFifths, piece.keyMode)}');
 
-    final spelling = _Spelling.forPiece(piece);
     final beamUnits = _beamUnits(piece);
     final measures = piece.measures;
     final line = StringBuffer();
@@ -87,7 +86,7 @@ class AbcExporter {
         leading = opening;
       }
       write(leading);
-      write(_measureBody(m, spelling, unit, beamUnits));
+      write(_measureBody(m, piece.keyFifths, unit, beamUnits));
     }
     write(measures.isNotEmpty && measures.last.repeatEnd ? ':|' : '|]');
     if (line.isNotEmpty) buffer.writeln(line.toString());
@@ -122,7 +121,7 @@ class AbcExporter {
   /// in only where the beat changes — which is exactly how the tune would have
   /// been typed by hand.
   static String _measureBody(
-      Measure measure, _Spelling spelling, int unit, int beamUnits) {
+      Measure measure, int keyFifths, int unit, int beamUnits) {
     // Accidental state is per-bar and, deliberately, per-LETTER rather than per
     // letter+octave. ABC readers disagree about whether an accidental carries to
     // the same note in another octave, so once a letter has been altered in a
@@ -147,8 +146,8 @@ class AbcExporter {
 
       final units = thirtySecondUnits(note.noteValue, note.dotted);
       final head = group.length == 1
-          ? _noteToken(group.first, spelling, altered)
-          : '[${group.map((n) => _noteToken(n, spelling, altered)).join()}]';
+          ? _noteToken(group.first, keyFifths, altered)
+          : '[${group.map((n) => _noteToken(n, keyFifths, altered)).join()}]';
 
       final symbol = note.chordSymbol;
       final prefix =
@@ -183,12 +182,12 @@ class AbcExporter {
   /// A single pitch (or `z` for a rest) with its accidental and octave marks,
   /// updating [altered] with any letter this note alters.
   static String _noteToken(
-      NoteEvent note, _Spelling spelling, Set<String> altered) {
+      NoteEvent note, int keyFifths, Set<String> altered) {
     if (note.isRest) return 'z';
 
     final letter = note.pitch[0].toUpperCase();
-    final alter = spelling.alterOf(note, letter);
-    final fromKey = spelling.keyAlterFor(letter);
+    final alter = _soundingAlter(note, letter);
+    final fromKey = KeySignature.defaultAlter(keyFifths, letter);
     final needsSign = alter != fromKey || altered.contains(letter);
     if (alter != fromKey) altered.add(letter);
 
@@ -258,91 +257,23 @@ class AbcExporter {
   /// the rest of itself into bogus ABC.
   static String _headerText(String value) =>
       value.replaceAll(RegExp(r'\s+'), ' ').trim();
-}
 
-/// Decides what alteration each note actually carries — the one genuinely
-/// awkward part of the export, because the MusicXML this app ingests follows two
-/// incompatible conventions.
-///
-/// A conforming file states the *sounding* pitch: an F♯ under a two-sharp
-/// signature carries `<alter>1</alter>` even though no sharp is drawn. That is
-/// what MuseScore and the OMR output do. The bundled abcjs converter (and hence
-/// every tune imported from ABC) instead writes `<alter>` only where an
-/// accidental is actually *drawn*, leaving key-signature sharps implicit — so
-/// reading its `<alter>` literally turns every F♯ in Old Joe Clark into an F♮.
-///
-/// Neither convention can be detected from a single note, but it shows up
-/// reliably across a piece: a drawing-led file only ever alters a pitch where it
-/// also draws the sign, so an `<alter>` with **no** `<accidental>` beside it is
-/// the fingerprint of a sounding-pitch file. Find one anywhere in the piece and
-/// every `<alter>` can be trusted wholesale; find none and an unmarked note
-/// follows the key signature instead.
-///
-/// (The tempting simpler test — "does any note restate the key signature?" —
-/// looks equivalent and isn't. The Devil's Dream is written `BA^GB` in A major,
-/// a redundant sharp on a note the signature already sharpens, which is enough
-/// to make a drawing-led file look like a sounding-pitch one and turn every
-/// other F♯ and C♯ in the reel natural.)
-class _Spelling {
-  _Spelling({required this.keyFifths, required this.trustAlter});
-
-  /// The piece's key signature, as a MusicXML `<fifths>` count.
-  final int keyFifths;
-
-  /// Whether an unmarked note's `<alter>` states its sounding pitch.
-  final bool trustAlter;
-
-  factory _Spelling.forPiece(ParsedPiece piece) {
-    var trust = false;
-    outer:
-    for (final measure in piece.measures) {
-      for (final note in measure.notes) {
-        if (note.isRest || note.displayAccidental != null) continue;
-        if (_soundingAlter(note, note.pitch[0].toUpperCase()) != 0) {
-          trust = true;
-          break outer;
-        }
-      }
-    }
-    return _Spelling(keyFifths: piece.keyFifths, trustAlter: trust);
-  }
-
-  /// The alteration [letter] carries by default under this key signature.
-  int keyAlterFor(String letter) =>
-      KeySignature.defaultAlter(keyFifths, letter);
-
-  /// This note's alteration, resolving the two conventions above. The drawn
-  /// accidental wins where there is one: it's the only unambiguous statement
-  /// either kind of file makes.
-  int alterOf(NoteEvent note, String letter) {
-    final drawn = _accidentalAlter[note.displayAccidental];
-    if (drawn != null) return drawn;
-    final sounding = _soundingAlter(note, letter);
-    if (trustAlter) return sounding;
-    // Drawing-led file, nothing drawn: the key signature governs. Only a
-    // *missing* alteration is overridden this way — an explicit one (a ♭ in a
-    // sharp key, say) is still real data even without an `<accidental>`.
-    return sounding == 0 ? keyAlterFor(letter) : sounding;
-  }
-
-  /// Semitone alteration as encoded, derived from the MIDI number rather than
-  /// the `#`/`b` suffix on [NoteEvent.pitch] — the suffix collapses double
-  /// accidentals to a single character, the MIDI number doesn't.
+  /// This note's alteration, in semitones.
+  ///
+  /// Read off the MIDI number rather than the `#`/`b` suffix on
+  /// [NoteEvent.pitch], which collapses a double accidental to a single
+  /// character; and rather than [NoteEvent.displayAccidental], which says only
+  /// what is *drawn*.
+  ///
+  /// That the sounding pitch can simply be read is not free. MusicXML written
+  /// the way the bundled abcjs converter writes it states `<alter>` only where
+  /// an accidental is drawn, leaving the key signature's sharps implicit — read
+  /// literally, every F♯ in Old Joe Clark comes out an F♮. `MusicXmlNormalizer`
+  /// resolves such a file into the sounding-pitch convention when it is read, so
+  /// by the time a [ParsedPiece] reaches the exporter there is one convention
+  /// left and no heuristic is needed to tell which it is.
   static int _soundingAlter(NoteEvent note, String letter) =>
       note.midiNumber - ((_naturalSemitone[letter] ?? 0) + (note.octave + 1) * 12);
-
-  /// MusicXML `<accidental>` values, as [MusicXmlParser] stores them verbatim.
-  /// Unlisted values (`quarter-sharp`, editorial variants) fall through to the
-  /// encoded alteration rather than inventing a sign ABC has no spelling for.
-  static const _accidentalAlter = {
-    'natural': 0,
-    'sharp': 1,
-    'flat': -1,
-    'double-sharp': 2,
-    'sharp-sharp': 2,
-    'double-flat': -2,
-    'flat-flat': -2,
-  };
 
   static const _naturalSemitone = {
     'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
