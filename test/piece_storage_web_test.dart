@@ -140,4 +140,53 @@ void main() {
       );
     });
   });
+
+  group('deleting a piece', () {
+    test('removes both the xml and the title key, and nothing else', () async {
+      final keep = await storage.saveScannedPiece('Keep', scoreXml('Keep'));
+      final drop = await storage.saveScannedPiece('Drop', scoreXml('Drop'));
+
+      await storage.deleteScannedPiece(drop.id);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys().where((k) => k.contains(drop.id)), isEmpty);
+      expect(prefs.getKeys().where((k) => k.contains(keep.id)), hasLength(2));
+      expect((await storage.loadScannedPieces()).map((p) => p.id), [keep.id]);
+    });
+
+    test('deleting an id that was never there is a silent no-op', () async {
+      final keep = await storage.saveScannedPiece('Keep', scoreXml('Keep'));
+
+      await storage.deleteScannedPiece('never_existed_9');
+
+      expect((await storage.loadScannedPieces()).map((p) => p.id), [keep.id]);
+    });
+
+    test('section overrides delete independently and idempotently', () async {
+      await storage.saveSectionsOverride('p1', [
+        {'label': 'A', 'startMeasure': 1}
+      ]);
+      await storage.saveSectionsOverride('p2', [
+        {'label': 'B', 'startMeasure': 1}
+      ]);
+
+      await storage.deleteSectionsOverride('p1');
+      await storage.deleteSectionsOverride('p1');
+
+      expect(await storage.loadSectionsOverride('p1'), isNull);
+      expect(await storage.loadSectionsOverride('p2'), isNotNull);
+    });
+
+    test('deleting a fixture copy leaves a scan of the same id alone', () async {
+      // `piece.<id>.xml` and `fixture.<id>.xml` are different keyspaces.
+      await storage.writeFixtureFile('shared_id_1', scoreXml('Fixture'));
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('piece.shared_id_1.xml', scoreXml('Scan'));
+
+      await storage.deleteFixtureFile('shared_id_1');
+
+      expect(await storage.fixtureFilePathIfExists('shared_id_1'), isNull);
+      expect(prefs.getString('piece.shared_id_1.xml'), contains('Scan'));
+    });
+  });
 }

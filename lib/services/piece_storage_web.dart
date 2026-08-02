@@ -119,6 +119,15 @@ class PieceStorage {
     await prefs.setString(_keyForHandle(handle), newMusicXml);
   }
 
+  /// Removes piece [id]. The key set IS the index here, so dropping the `.xml`
+  /// key delists it; the `.title` key goes with it so no orphan keys are left
+  /// behind. Idempotent — removing an absent key is a no-op.
+  Future<void> deleteScannedPiece(String id) async {
+    final prefs = await _open();
+    await prefs.remove('$_piecePrefix$id$_xmlSuffix');
+    await prefs.remove('$_piecePrefix$id$_titleSuffix');
+  }
+
   /// Storage key behind a `prefs:<kind>:<id>` handle.
   static String _keyForHandle(String handle) {
     if (!handle.startsWith(_scheme)) {
@@ -153,6 +162,14 @@ class PieceStorage {
     return _handle(_fixtureKind, id);
   }
 
+  /// Discards the writable copy of fixture [id], so it goes back to tracking the
+  /// bundled asset. A different keyspace from `piece.<id>.xml`, so this never
+  /// touches a scan that happens to share the id. Idempotent.
+  Future<void> deleteFixtureFile(String id) async {
+    final prefs = await _open();
+    await prefs.remove('$_fixturePrefix$id$_xmlSuffix');
+  }
+
   // ── Section overrides ───────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>?> loadSectionsOverride(String id) async {
@@ -172,5 +189,11 @@ class PieceStorage {
     final prefs = await _open();
     await prefs.setString(
         '$_sectionsPrefix$id', json.encode({'sections': sections}));
+  }
+
+  /// Discards piece [id]'s section overrides. Idempotent.
+  Future<void> deleteSectionsOverride(String id) async {
+    final prefs = await _open();
+    await prefs.remove('$_sectionsPrefix$id');
   }
 }

@@ -3,6 +3,11 @@ import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart';
+import '../models/piece_library.dart';
+// Four of the notifier's methods share a name with the free function they wrap
+// (renameCollection, reorderInCollection, setHidden, forgetPiece), where the
+// method would otherwise shadow it.
+import '../models/piece_library.dart' as plib;
 import '../models/section_run.dart';
 import '../models/string_label_style.dart';
 import '../models/tab_number_mode.dart';
@@ -14,6 +19,7 @@ import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
 import 'chord_xml_injector.dart';
 import 'palette_xml_generator.dart';
+import 'piece_library_store.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
@@ -31,6 +37,15 @@ final fingeringMapperProvider = Provider<FingeringMapper>((_) => FingeringMapper
 
 // ── Piece list ────────────────────────────────────────────────────────────────
 
+/// Every piece there is, unfiltered — fixtures in declaration order, then user
+/// pieces oldest-first.
+///
+/// Deliberately knows nothing about the library. Filtering hidden pieces inside
+/// `loadAll()` would make the repository depend on `shared_preferences` (so it
+/// could not run headless), would force this into a family so all four
+/// `ref.invalidate(piecesProvider)` sites had to care about a flag unrelated to
+/// importing a score, and would leave the Manage screen — which needs
+/// everything, with hidden marked — without a source. See [visiblePiecesProvider].
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
   return ref.watch(pieceRepositoryProvider).loadAll();
 });
@@ -38,6 +53,174 @@ final piecesProvider = FutureProvider<List<Piece>>((ref) async {
 // ── Selected piece ────────────────────────────────────────────────────────────
 
 final selectedPieceProvider = StateProvider<Piece?>((ref) => null);
+
+// ── Piece library (collections, hidden pieces, renames) ──────────────────────
+
+final pieceLibraryStoreProvider =
+    Provider<PieceLibraryStore>((_) => PieceLibraryStore());
+
+final libraryProvider =
+    AsyncNotifierProvider<PieceLibraryNotifier, PieceLibrary>(
+        PieceLibraryNotifier.new);
+
+class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
+  @override
+  Future<PieceLibrary> build() async {
+    final store = ref.watch(pieceLibraryStoreProvider);
+    final loaded = await store.load();
+    final seeded = seedLibrary(
+      loaded,
+      omrDemoIds: PieceRepository.omrDemoFixtureIds,
+      nowMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+    // Value equality, so this writes on the first launch only.
+    if (seeded != loaded) await store.save(seeded);
+    return seeded;
+  }
+
+  /// Applies [f], publishes the result immediately, then writes.
+  ///
+  /// State first, persist after — the same order as [MeasuresPerLineNotifier],
+  /// so a chip tap or a drag never waits on storage. The write is best-effort
+  /// ([PieceLibraryStore.save] swallows failures); the session still holds the
+  /// value.
+  Future<void> _mutate(PieceLibrary Function(PieceLibrary) f) async {
+    final current = state.valueOrNull;
+    if (current == null) return; // still loading; the tap is a no-op
+    final next = f(current);
+    if (next == current) return; // value equality: no rebuild, no write
+    state = AsyncData(next);
+    await ref.read(pieceLibraryStoreProvider).save(next);
+  }
+
+  Future<void> createCollection(String name) => _mutate((l) => addCollection(l,
+      name: name, nowMillis: DateTime.now().millisecondsSinceEpoch));
+
+  Future<void> renameCollection(String id, String name) =>
+      _mutate((l) => plib.renameCollection(l, id, name));
+
+  Future<void> deleteCollection(String id) =>
+      _mutate((l) => removeCollection(l, id));
+
+  Future<void> setTags(String pieceId, Set<String> collectionIds) => _mutate(
+      (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds));
+
+  /// [visibleIds] is the collection as displayed; see [reorderInCollection].
+  Future<void> reorderInCollection(
+    String collectionId,
+    List<String> visibleIds,
+    int oldIndex,
+    int newIndex,
+  ) =>
+      _mutate((l) => plib.reorderInCollection(
+          l, collectionId, visibleIds, oldIndex, newIndex));
+
+  Future<void> setHidden(String pieceId, bool hidden) =>
+      _mutate((l) => plib.setHidden(l, pieceId, hidden));
+
+  /// A null or blank [title] clears the override, reverting to the score's own.
+  Future<void> renamePiece(String pieceId, String? title) =>
+      _mutate((l) => setTitleOverride(l, pieceId, title));
+
+  Future<void> forgetPiece(String pieceId) =>
+      _mutate((l) => plib.forgetPiece(l, pieceId));
+}
+
+/// The collection whose chip is selected, by ID — null is the "All" chip.
+///
+/// An ID rather than a name, so renaming the active collection doesn't drop the
+/// filter. Session-only, like the other display-preference providers.
+final activeCollectionProvider = StateProvider<String?>((_) => null);
+
+/// Every piece with its user-chosen title applied — nothing filtered, nothing
+/// reordered. What the Manage screen lists (it needs the hidden ones too).
+///
+/// The library is read with `valueOrNull` rather than awaited: while the
+/// metadata read is in flight the raw list shows instead of a spinner.
+/// Decoration must never gate the library screen.
+final libraryPiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
+  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+  return ref
+      .watch(piecesProvider)
+      .whenData((pieces) => applyLibrary(lib, pieces, showHidden: true));
+});
+
+/// The everyday piece list: overridden titles, hidden pieces dropped, and — when
+/// a chip is selected — that collection's members in its hand-set order. With no
+/// chip selected the repository's own order stands.
+///
+/// There is deliberately no "show hidden" escape hatch here. This list once had
+/// a session-sticky toggle, and it was a trap: leave it on and hiding silently
+/// stops applying on the one screen hiding exists to protect, with nothing but a
+/// grey footer at the bottom of a long list to say so. Hidden pieces are always
+/// visible (dimmed) on the Manage screen instead, which is where they can be
+/// changed anyway — one place, no mode.
+final visiblePiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
+  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+  final collectionId = ref.watch(activeCollectionProvider);
+  return ref.watch(piecesProvider).whenData(
+      (pieces) => applyLibrary(lib, pieces, collectionId: collectionId));
+});
+
+/// The chip row's collections, in display order. Empty while loading.
+final collectionsProvider = Provider<List<Collection>>(
+    (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const []);
+
+/// The count behind "10 hidden pieces", scoped to the active collection so the
+/// footer never promises pieces that showing hidden wouldn't reveal. 0 hides the
+/// footer entirely.
+final hiddenPieceCountProvider = Provider<int>((ref) {
+  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+  final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
+  return hiddenCount(lib, pieces,
+      collectionId: ref.watch(activeCollectionProvider));
+});
+
+/// Which collections a piece belongs to — the tag dialog's initial checkboxes.
+/// Derived, never stored: a persisted reverse index would be a second copy of
+/// the membership, free to disagree with the first.
+final pieceCollectionsProvider =
+    Provider.family<Set<String>, String>((ref, pieceId) => collectionIdsOf(
+        ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty, pieceId));
+
+final libraryActionsProvider = Provider<LibraryActions>(LibraryActions.new);
+
+/// The one library operation that spans more than one store.
+///
+/// It does not live on [PieceRepository] because two of the stores involved
+/// ([StaffZoomStore], [PieceLibraryStore]) deliberately bypass it, and it does
+/// not live on [PieceLibraryNotifier] because the library has no business
+/// deleting files. It is the composition, and nothing else.
+class LibraryActions {
+  LibraryActions(this._ref);
+
+  final Ref _ref;
+
+  /// Everything a user-added piece owns comes out together: its MusicXML, its
+  /// index row / prefs keys, its section-override sidecar, any editable copy,
+  /// its staff-zoom preference, and its membership in every collection — plus
+  /// the selection, if it happened to be selected.
+  ///
+  /// Clearing the selection matters even though deletion happens on a screen the
+  /// detail view isn't under: a stale [selectedPieceProvider] feeds
+  /// [parsedPieceProvider], which would try to load a file that no longer
+  /// exists and surface as an error the next time the user navigated back.
+  Future<void> deletePiece(String pieceId) async {
+    final repo = _ref.read(pieceRepositoryProvider);
+    if (repo.isBundled(pieceId)) {
+      throw ArgumentError.value(pieceId, 'pieceId',
+          'Bundled fixtures are hidden, not deleted');
+    }
+    await repo.deletePiece(pieceId);
+    await _ref.read(staffZoomStoreProvider).clear(pieceId);
+    await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
+    if (_ref.read(selectedPieceProvider)?.id == pieceId) {
+      _ref.read(selectedPieceProvider.notifier).state = null;
+      _ref.read(measureSelectionProvider.notifier).state = null;
+    }
+    _ref.invalidate(piecesProvider);
+  }
+}
 
 // ── Parsed piece (loads + parses + converts on piece selection) ───────────────
 
