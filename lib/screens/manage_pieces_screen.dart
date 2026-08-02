@@ -5,7 +5,9 @@ import '../models/collection_palette.dart';
 import '../models/piece.dart';
 import '../models/piece_library.dart';
 import '../models/piece_library_view.dart';
+import '../services/abc_exporter.dart';
 import '../services/providers.dart';
+import '../widgets/abc_export_dialog.dart';
 import '../widgets/checkbox_picker_dialog.dart';
 import '../widgets/collection_filter_bar.dart';
 import '../widgets/library_dialogs.dart';
@@ -184,6 +186,28 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
     ));
   }
 
+  /// Renders the piece as ABC and shows it for copying.
+  ///
+  /// The MusicXML is loaded and parsed here rather than read from
+  /// [parsedPieceProvider], because that provider is keyed to the *selected*
+  /// piece — using it would mean silently changing which piece the detail screen
+  /// is showing as a side effect of exporting a different one. Export also has
+  /// no use for the jianpu numbers or fingerings that provider layers on.
+  Future<void> _exportAbc(Piece piece) async {
+    String? abc;
+    await _run(() async {
+      final xml = await ref.read(pieceRepositoryProvider).loadMusicXml(piece);
+      abc = AbcExporter.export(
+        ref.read(musicXmlParserProvider).parse(xml),
+        title: piece.title,
+      );
+    }, failure: 'Could not export "${piece.title}"');
+    final text = abc;
+    if (text == null || !mounted) return;
+    // Outside _run so the AppBar spinner stops while the dialog is up.
+    await showAbcExportDialog(context, title: piece.title, abc: text);
+  }
+
   Future<void> _delete(Piece piece) async {
     final confirmed = await confirmDestructive(
       context,
@@ -309,6 +333,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
         labeledActions: labeled,
         onTags: () => _editTags(row.piece),
         onRename: () => _rename(row.piece),
+        onExportAbc: () => _exportAbc(row.piece),
         onHideOrDelete: () =>
             row.isBundled ? _toggleHidden(row) : _delete(row.piece),
       );
