@@ -167,12 +167,18 @@ class AbcExporter {
     return body.toString();
   }
 
-  /// The span notes are beamed over, in 32nd-note units.
+  /// The span notes are written over without a space, in 32nd-note units.
   ///
-  /// One beat, except at the two extremes engravers don't actually follow:
-  /// compound meters (3/8, 6/8, 9/8, 12/8) beam a whole dotted beat, and a beat
-  /// longer than a quarter is subdivided — cut time is felt in two but nobody
-  /// writes eight sixteenths under a single beam.
+  /// One beat, except at the two extremes: compound meters (3/8, 6/8, 9/8,
+  /// 12/8) group a whole dotted beat, and a beat longer than a quarter is
+  /// subdivided.
+  ///
+  /// This is a *typography* rule, not an engraving one, and deliberately not
+  /// the same as `MusicXmlBeamer`'s. Whitespace in ABC is what a human reads
+  /// the beats by, so grouping per beat is what makes the source legible;
+  /// engravers beam eighths across a half bar, which as ABC would run four or
+  /// eight notes together and hide the pulse. abcjs beams what it finds
+  /// unspaced, so the tune still *engraves* correctly either way.
   static int _beamUnits(ParsedPiece piece) {
     final beat = 32 ~/ piece.beatType;
     if (piece.beatType == 8 && piece.beatsPerMeasure % 3 == 0) return beat * 3;

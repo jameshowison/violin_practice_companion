@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/piece.dart';
 import '../models/section.dart';
+import 'musicxml_beamer.dart';
 import 'musicxml_normalizer.dart';
 import 'musicxml_parser.dart';
 import 'piece_storage.dart';
@@ -162,28 +163,37 @@ class PieceRepository {
     return pieces;
   }
 
-  /// A piece's MusicXML, with key-signature accidentals resolved into the
-  /// sounding pitch by [MusicXmlNormalizer].
+  /// Everything the app fixes about a piece's MusicXML, in one place.
+  ///
+  /// Both passes are gated on evidence the file needs them, so a document that
+  /// already says what it means comes back unchanged, character for character.
+  /// Applied wherever XML enters or leaves the repository — read it, save it or
+  /// edit it and you get the repaired form — which is what keeps a single
+  /// convention in force everywhere downstream.
+  static String _repair(String musicXml) =>
+      MusicXmlBeamer.rebeam(MusicXmlNormalizer.toSoundingPitch(musicXml));
+
+  /// A piece's MusicXML, repaired: key-signature accidentals resolved into the
+  /// sounding pitch, and beams written for any measure that states none.
   ///
   /// This is the one place every piece's XML is read — bundled fixture or file
-  /// — so it is where a tune imported before the normalizer existed gets
-  /// repaired. A file-backed piece is rewritten in place so the migration
-  /// happens once and the file on disk stops disagreeing with what the app
-  /// plays; a bundled asset is read-only, and normalizes in memory (a no-op in
-  /// practice, since all of them were written sounding-led).
+  /// — so it is where a tune imported before those passes existed gets fixed. A
+  /// file-backed piece is rewritten in place so the migration happens once and
+  /// the file on disk stops disagreeing with what the app plays and draws; a
+  /// bundled asset is read-only and is repaired in memory (a no-op in practice,
+  /// since all of them were already sounding-led and beamed).
   Future<String> loadMusicXml(Piece piece) async {
     final assetPath = piece.musicXmlAssetPath;
     if (assetPath != null) {
-      return MusicXmlNormalizer.toSoundingPitch(
-          await rootBundle.loadString(assetPath));
+      return _repair(await rootBundle.loadString(assetPath));
     }
     final filePath = piece.musicXmlFilePath!;
     final raw = await _storage.readScannedMusicXml(filePath);
-    final normalized = MusicXmlNormalizer.toSoundingPitch(raw);
-    if (normalized != raw) {
-      await updateScannedPiece(filePath, normalized);
+    final repaired = _repair(raw);
+    if (repaired != raw) {
+      await updateScannedPiece(filePath, repaired);
     }
-    return normalized;
+    return repaired;
   }
 
   /// Persists a scanned/imported piece's MusicXML and returns the resulting
@@ -192,14 +202,14 @@ class PieceRepository {
   /// Detection is best-effort — a failure or a structureless tune just yields a
   /// piece with empty `sections` (no minimap), exactly as before.
   Future<Piece> savePiece(String title, String musicXml) async {
-    // Normalize before storing, not on the way back out: the ABC converter
-    // leaves key-signature accidentals implicit (see [MusicXmlNormalizer]), and
+    // Repair before storing, not on the way back out: the ABC converter leaves
+    // key-signature accidentals implicit (see [MusicXmlNormalizer]), and
     // section detection below compares notes by MIDI number, so a drawing-led
     // tune would be sectioned on the wrong pitches.
-    final normalized = MusicXmlNormalizer.toSoundingPitch(musicXml);
-    final piece = await _storage.saveScannedPiece(title, normalized);
+    final repaired = _repair(musicXml);
+    final piece = await _storage.saveScannedPiece(title, repaired);
     try {
-      final parsed = MusicXmlParser().parse(normalized);
+      final parsed = MusicXmlParser().parse(repaired);
       final sections = SectionDetector.detect(parsed.measures);
       if (sections.isNotEmpty) {
         await saveSections(piece.id, sections);
@@ -228,13 +238,17 @@ class PieceRepository {
   /// afterwards. A file-backed piece (a scan, or a previously-edited fixture) is
   /// overwritten in place; the first edit of a bundled fixture materializes a
   /// writable copy, so the returned piece is file-backed and stays editable.
-  /// Shared by every editing entry point (measure editor, measure delete).
+  /// Shared by every editing entry point (measure editor, measure delete), so
+  /// it is where [_repair] runs on the way out: a measure the editor rebuilt
+  /// states no beams, and gets them here rather than leaving the editor to know
+  /// what a beam is.
   Future<Piece> writeEditedMusicXml(Piece piece, String newMusicXml) async {
+    final repaired = _repair(newMusicXml);
     if (piece.musicXmlFilePath != null) {
-      await updateScannedPiece(piece.musicXmlFilePath!, newMusicXml);
+      await updateScannedPiece(piece.musicXmlFilePath!, repaired);
       return piece;
     }
-    final filePath = await createEditableFixtureFile(piece.id, newMusicXml);
+    final filePath = await createEditableFixtureFile(piece.id, repaired);
     return piece.backedByFile(filePath);
   }
 
