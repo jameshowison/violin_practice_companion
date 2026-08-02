@@ -97,6 +97,26 @@ class PieceRepository {
     ),
   ];
 
+  /// The ids of the bundled fixtures.
+  ///
+  /// The ONLY reliable way to tell a bundled piece from a user-added one. It is
+  /// tempting to test `musicXmlAssetPath != null` instead, and that is wrong:
+  /// once a fixture has been edited, [loadAll] re-points it at its writable copy
+  /// in `editable_fixtures/`, so an edited fixture is field-for-field
+  /// indistinguishable from a scan. Hide-vs-delete must branch on this.
+  static final Set<String> fixtureIds = {for (final f in _fixtures) f.id};
+
+  /// The `abc_*`/`homr_*` OMR-comparison fixtures — kept as a side-by-side
+  /// demonstration of scan quality, but 10 of the 13 bundled pieces and pure
+  /// noise for everyday practice (docs/plan.md §4). Seeded hidden on first run;
+  /// see `seedLibrary`.
+  static final List<String> omrDemoFixtureIds = [
+    for (final f in _fixtures)
+      if (f.id.startsWith('abc_') || f.id.startsWith('homr_')) f.id,
+  ];
+
+  bool isBundled(String id) => fixtureIds.contains(id);
+
   /// Whether the current platform supports editing (writable file storage).
   bool get supportsEditing => storageSupportsEditing;
 
@@ -191,13 +211,25 @@ class PieceRepository {
       return piece;
     }
     final filePath = await createEditableFixtureFile(piece.id, newMusicXml);
-    return Piece(
-      id: piece.id,
-      title: piece.title,
-      musicXmlFilePath: filePath,
-      sectionsAssetPath: piece.sectionsAssetPath,
-      sections: piece.sections,
-    );
+    return piece.backedByFile(filePath);
+  }
+
+  /// Permanently removes a user-added piece and every artifact keyed to its id:
+  /// its MusicXML, its index row (io) / prefs keys (web), its section-override
+  /// sidecar, and any editable copy it accumulated. Idempotent.
+  ///
+  /// NOT for bundled fixtures — their MusicXML ships inside the app bundle and
+  /// cannot be removed, so the library hides them instead. Callers must check
+  /// [isBundled] first; this asserts it.
+  ///
+  /// Deliberately does not touch the staff-zoom preference or the piece
+  /// library: both stores bypass this class by design. `LibraryActions` in
+  /// `providers.dart` is where the full delete is composed.
+  Future<void> deletePiece(String id) async {
+    assert(!isBundled(id), 'Bundled fixtures are hidden, never deleted');
+    await _storage.deleteScannedPiece(id);
+    await _storage.deleteSectionsOverride(id);
+    await _storage.deleteFixtureFile(id);
   }
 
   /// Persists [sections] (section start markers) to piece [id]'s override

@@ -173,6 +173,19 @@ class PieceStorage {
     throw FileSystemException('Piece file not found', handle);
   }
 
+  /// Removes piece [id]'s MusicXML and rebuilds the index from the directory.
+  ///
+  /// The first delete path in the app — the gap called out in this class's doc
+  /// comment. Nothing special is needed to prune the index row:
+  /// [loadScannedPieces] already rebuilds `index.json` from what is actually on
+  /// disk, so removing the file IS the whole operation. Idempotent: an absent
+  /// file is not an error.
+  Future<void> deleteScannedPiece(String id) async {
+    final file = File('${(await _scannedPiecesDir()).path}/$id$_ext');
+    if (await file.exists()) await file.delete();
+    await loadScannedPieces(); // rewrites the title cache without the row
+  }
+
   // ── Index (a rebuildable title cache) ───────────────────────────────────
 
   Future<File> _indexFile() async =>
@@ -235,6 +248,13 @@ class PieceStorage {
     return file.path;
   }
 
+  /// Discards the writable copy of fixture [id], so it goes back to tracking the
+  /// bundled asset. Idempotent.
+  Future<void> deleteFixtureFile(String id) async {
+    final file = File('${(await _editableFixturesDir()).path}/$id$_ext');
+    if (await file.exists()) await file.delete();
+  }
+
   // ── Section overrides ───────────────────────────────────────────────────
 
   /// The raw `sections` list from piece [id]'s override sidecar, or null if the
@@ -258,6 +278,14 @@ class PieceStorage {
     final file =
         File('${(await _sectionOverridesDir()).path}/$id.sections.json');
     await file.writeAsString(json.encode({'sections': sections}));
+  }
+
+  /// Discards piece [id]'s section overrides, reverting it to whatever its
+  /// bundled asset says (fixtures) or to no sections at all (scans). Idempotent.
+  Future<void> deleteSectionsOverride(String id) async {
+    final file =
+        File('${(await _sectionOverridesDir()).path}/$id.sections.json');
+    if (await file.exists()) await file.delete();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────

@@ -237,4 +237,77 @@ void main() {
       ]);
     });
   });
+
+  group('deleting a piece', () {
+    test('removes the file, the listing and the index row', () async {
+      // The gap this class's doc comment calls out: the index used to be
+      // append-only with no delete path, so orphan rows accumulated.
+      await writePiece('keep_1', 'Keep');
+      await writePiece('drop_2', 'Drop');
+      await storage.loadScannedPieces(); // materialize the index
+
+      await storage.deleteScannedPiece('drop_2');
+
+      expect(File('${scannedDir().path}/drop_2.musicxml').existsSync(), isFalse);
+      expect((await storage.loadScannedPieces()).map((p) => p.id), ['keep_1']);
+      expect(await indexFile().readAsString(), isNot(contains('drop_2')));
+    });
+
+    test('deleting the last piece leaves a valid empty index', () async {
+      await writePiece('only_1', 'Only');
+      await storage.loadScannedPieces();
+
+      await storage.deleteScannedPiece('only_1');
+
+      expect(await storage.loadScannedPieces(), isEmpty);
+      final decoded = json.decode(await indexFile().readAsString());
+      expect(decoded['version'], 2);
+      expect(decoded['pieces'], isEmpty);
+    });
+
+    test('deleting an id that was never there is a silent no-op', () async {
+      await writePiece('keep_1', 'Keep');
+
+      await storage.deleteScannedPiece('never_existed_9');
+
+      expect((await storage.loadScannedPieces()).map((p) => p.id), ['keep_1']);
+    });
+
+    test('section overrides and editable fixtures delete independently',
+        () async {
+      await storage.saveSectionsOverride('p1', [
+        {'label': 'A', 'startMeasure': 1}
+      ]);
+      await storage.saveSectionsOverride('p2', [
+        {'label': 'B', 'startMeasure': 1}
+      ]);
+      await storage.writeFixtureFile('p1', scoreXml('Fixture'));
+
+      await storage.deleteSectionsOverride('p1');
+      expect(await storage.loadSectionsOverride('p1'), isNull);
+      expect(await storage.loadSectionsOverride('p2'), isNotNull,
+          reason: 'another id must be untouched');
+      expect(await storage.fixtureFilePathIfExists('p1'), isNotNull,
+          reason: 'the editable copy is a separate artifact');
+
+      await storage.deleteFixtureFile('p1');
+      expect(await storage.fixtureFilePathIfExists('p1'), isNull);
+
+      // Both are idempotent.
+      await storage.deleteSectionsOverride('p1');
+      await storage.deleteFixtureFile('p1');
+    });
+
+    test('deleting a piece leaves an editable fixture of the same id alone',
+        () async {
+      // Guards against prefix/dir confusion between the two stores.
+      await writePiece('shared_id_1', 'Scan');
+      await storage.writeFixtureFile('shared_id_1', scoreXml('Fixture'));
+
+      await storage.deleteScannedPiece('shared_id_1');
+
+      expect(await storage.loadScannedPieces(), isEmpty);
+      expect(await storage.fixtureFilePathIfExists('shared_id_1'), isNotNull);
+    });
+  });
 }
