@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
+import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// Header + body of one exported document, split so tests can assert on the
@@ -38,12 +39,14 @@ String _score(String measures, {int fifths = 0, String mode = 'major'}) => '''
 String _note(String step, int octave,
         {String type = 'quarter',
         int? alter,
+        String? accidental,
         bool dot = false,
         bool chord = false}) =>
     '<note>${chord ? '<chord/>' : ''}<pitch><step>$step</step>'
     '${alter == null ? '' : '<alter>$alter</alter>'}'
     '<octave>$octave</octave></pitch><duration>4</duration>'
-    '<type>$type</type>${dot ? '<dot/>' : ''}</note>';
+    '<type>$type</type>${dot ? '<dot/>' : ''}'
+    '${accidental == null ? '' : '<accidental>$accidental</accidental>'}</note>';
 
 void main() {
   group('headers', () {
@@ -137,31 +140,31 @@ void main() {
     });
   });
 
-  group('two <alter> conventions', () {
-    // Same three notes both ways: an F under a two-sharp signature, plus one
-    // note that pins down which convention the file follows.
-    String tune(String extra) => _score(
-        '<measure number="1">${_note('F', 4)}$extra</measure>',
-        fifths: 2);
-
-    test('a file that never alters a note silently is drawing-led', () {
-      // The only <alter> comes with a drawn accidental — the fingerprint of the
-      // bundled ABC converter's output, where key-signature sharps are implicit.
-      // So the bare F is the signature's F#, not an F natural.
-      final abc = _export(tune(
-          '<note><pitch><step>G</step><alter>1</alter><octave>4</octave></pitch>'
-          '<duration>4</duration><type>quarter</type>'
-          '<accidental>sharp</accidental></note>'));
-      expect(_split(abc).body.first, startsWith('F2 ^G2'));
+  group('sounding pitch is the only convention the exporter reads', () {
+    test('a bare <step> with no <alter> is a natural, whatever the key says', () {
+      // The exporter takes <alter> at its word: an F with none is an F natural
+      // even under two sharps, and has to be written out as `=F`. Files that
+      // leave key-signature sharps implicit — everything the bundled ABC
+      // converter produces — are resolved by MusicXmlNormalizer on the way in,
+      // so they never reach here. See `musicxml_normalizer_test.dart`.
+      final abc = _export(_score(
+          '<measure number="1">${_note('F', 4)}${_note('C', 5, alter: 1)}'
+          '</measure>',
+          fifths: 2));
+      expect(_split(abc).body.first, startsWith('=F2 c2'));
     });
 
-    test('an alter with no accidental beside it means sounding pitch', () {
-      // MuseScore and the OMR output state every alteration, drawn or not, so
-      // here the bare F really is an F natural and has to say so.
-      final abc = _export(tune(
-          '<note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch>'
-          '<duration>4</duration><type>quarter</type></note>'));
-      expect(_split(abc).body.first, startsWith('=F2 c2'));
+    test('an ABC-converted tune survives the round trip', () {
+      // The whole path a tune actually takes: drawing-led MusicXML (a bare F
+      // under one sharp, as the converter writes it) → normalizer → parser →
+      // exporter. The F# must come back out implicit, exactly as it went in.
+      final drawingLed = _score(
+          '<measure number="1">${_note('E', 4)}${_note('F', 4)}'
+          '${_note('G', 4)}${_note('F', 4, accidental: 'natural')}</measure>',
+          fifths: 1);
+      final abc = _export(MusicXmlNormalizer.toSoundingPitch(drawingLed));
+      expect(_split(abc).headers, contains('K: G'));
+      expect(_split(abc).body.first, startsWith('E2 F2 G2 =F2'));
     });
   });
 

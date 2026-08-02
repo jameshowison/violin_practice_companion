@@ -87,6 +87,12 @@
     return { beats: 4, beatType: 4 };
   }
 
+  // Emits `<alter>` only where an accidental is actually drawn, leaving the key
+  // signature's sharps and flats implicit — so an F in K:Em comes out as a bare
+  // <step>F</step>, not the F# it sounds. That is NOT conforming MusicXML, which
+  // wants the sounding pitch stated; MusicXmlNormalizer (Dart) resolves it on
+  // import, and does so there rather than here so the circle of fifths lives in
+  // exactly one place (models/key_signature.dart) instead of once per language.
   function noteXml(el, warnings, beamXml) {
     beamXml = beamXml || '';
     var dur = durationToType(el.duration);
