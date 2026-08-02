@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/piece.dart';
 import '../models/section.dart';
+import 'musicxml_normalizer.dart';
 import 'musicxml_parser.dart';
 import 'piece_storage.dart';
 import 'section_detector.dart';
@@ -161,10 +162,28 @@ class PieceRepository {
     return pieces;
   }
 
+  /// A piece's MusicXML, with key-signature accidentals resolved into the
+  /// sounding pitch by [MusicXmlNormalizer].
+  ///
+  /// This is the one place every piece's XML is read — bundled fixture or file
+  /// — so it is where a tune imported before the normalizer existed gets
+  /// repaired. A file-backed piece is rewritten in place so the migration
+  /// happens once and the file on disk stops disagreeing with what the app
+  /// plays; a bundled asset is read-only, and normalizes in memory (a no-op in
+  /// practice, since all of them were written sounding-led).
   Future<String> loadMusicXml(Piece piece) async {
     final assetPath = piece.musicXmlAssetPath;
-    if (assetPath != null) return rootBundle.loadString(assetPath);
-    return _storage.readScannedMusicXml(piece.musicXmlFilePath!);
+    if (assetPath != null) {
+      return MusicXmlNormalizer.toSoundingPitch(
+          await rootBundle.loadString(assetPath));
+    }
+    final filePath = piece.musicXmlFilePath!;
+    final raw = await _storage.readScannedMusicXml(filePath);
+    final normalized = MusicXmlNormalizer.toSoundingPitch(raw);
+    if (normalized != raw) {
+      await updateScannedPiece(filePath, normalized);
+    }
+    return normalized;
   }
 
   /// Persists a scanned/imported piece's MusicXML and returns the resulting
@@ -173,9 +192,14 @@ class PieceRepository {
   /// Detection is best-effort — a failure or a structureless tune just yields a
   /// piece with empty `sections` (no minimap), exactly as before.
   Future<Piece> savePiece(String title, String musicXml) async {
-    final piece = await _storage.saveScannedPiece(title, musicXml);
+    // Normalize before storing, not on the way back out: the ABC converter
+    // leaves key-signature accidentals implicit (see [MusicXmlNormalizer]), and
+    // section detection below compares notes by MIDI number, so a drawing-led
+    // tune would be sectioned on the wrong pitches.
+    final normalized = MusicXmlNormalizer.toSoundingPitch(musicXml);
+    final piece = await _storage.saveScannedPiece(title, normalized);
     try {
-      final parsed = MusicXmlParser().parse(musicXml);
+      final parsed = MusicXmlParser().parse(normalized);
       final sections = SectionDetector.detect(parsed.measures);
       if (sections.isNotEmpty) {
         await saveSections(piece.id, sections);
