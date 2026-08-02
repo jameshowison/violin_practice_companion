@@ -41,4 +41,8 @@ class StaffZoomStore {
       // Ignore: the session-level provider still holds the value.
     }
   }
+
+  /// Forgets [pieceId] entirely — part of deleting a piece, so its preference
+  /// doesn't outlive it and get inherited by a later piece with the same id.
+  Future<void> clear(String pieceId) => save(pieceId, null);
 }
