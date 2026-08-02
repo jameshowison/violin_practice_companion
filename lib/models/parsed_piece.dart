@@ -85,6 +85,22 @@ class ParsedPiece {
     this.beatType = 4,
   });
 
+  /// The same music read under a different meter.
+  ///
+  /// Nothing about the notes changes — this is the "what if it were 2/2?"
+  /// question the time-signature editor asks so it can show how many bars would
+  /// still fail to add up before anything is written to the file.
+  ParsedPiece copyWithTime({int? beatsPerMeasure, int? beatType}) =>
+      ParsedPiece(
+        keySignature: keySignature,
+        keyFifths: keyFifths,
+        keyMode: keyMode,
+        measures: measures,
+        divisions: divisions,
+        beatsPerMeasure: beatsPerMeasure ?? this.beatsPerMeasure,
+        beatType: beatType ?? this.beatType,
+      );
+
   ParsedPiece copyWithMeasures(List<Measure> measures) => ParsedPiece(
         keySignature: keySignature,
         keyFifths: keyFifths,
