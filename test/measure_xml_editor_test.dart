@@ -250,6 +250,88 @@ void main() {
     expect(doc.findAllElements('divisions').single.innerText, '4');
   });
 
+  group('grace notes survive a rewrite', () {
+    /// Three quarters, with a grace note ornamenting the second — the shape a
+    /// bar of Gossec's Gavotte has.
+    String graceXml() => _baseXml.replaceFirst(
+        '<note><pitch><step>C</step><octave>4</octave></pitch>'
+        '<duration>16</duration><type>whole</type></note>',
+        '<note><pitch><step>C</step><octave>4</octave></pitch>'
+        '<duration>4</duration><type>quarter</type></note>'
+        '<note><grace/><pitch><step>E</step><octave>5</octave></pitch>'
+        '<type>eighth</type></note>'
+        '<note><pitch><step>D</step><octave>4</octave></pitch>'
+        '<duration>4</duration><type>quarter</type></note>'
+        '<note><pitch><step>E</step><octave>4</octave></pitch>'
+        '<duration>4</duration><type>quarter</type></note>');
+
+    NoteEvent quarter(String pitch, int midi) => NoteEvent(
+        pitch: pitch,
+        midiNumber: midi,
+        octave: 4,
+        noteValue: NoteValue.quarter,
+        dotted: false,
+        isRest: false);
+
+    /// Each `<note>` of measure 1 as `step` or `~step` for a grace note.
+    List<String> shape(String xml) => XmlDocument.parse(xml)
+        .findAllElements('measure')
+        .first
+        .findElements('note')
+        .map((n) =>
+            '${n.findElements('grace').isEmpty ? '' : '~'}'
+            '${n.findAllElements('step').single.innerText}')
+        .toList();
+
+    test('the grace note stays in front of the note it ornaments', () {
+      // The parser never sees grace notes, so they can only come through by
+      // being carried — retyping the ornamented note must not lose it.
+      final newXml = MeasureXmlEditor.replaceMeasureNotes(
+        graceXml(),
+        1,
+        [quarter('C4', 60), quarter('G4', 67), quarter('E4', 64)],
+        4,
+      );
+      expect(shape(newXml), ['C', '~E', 'G', 'E']);
+    });
+
+    test('and moves with its anchor when the notes before it change', () {
+      // One note fewer ahead of it: the ornament follows the position, landing
+      // on whatever note is now second.
+      final newXml = MeasureXmlEditor.replaceMeasureNotes(
+        graceXml(),
+        1,
+        [quarter('A4', 69), quarter('B4', 71)],
+        4,
+      );
+      expect(shape(newXml), ['A', '~E', 'B']);
+    });
+
+    test('but goes away with it when its note is deleted', () {
+      // Nothing left at position 1, so the ornament has nothing to ornament.
+      // Re-hanging it on the remaining note would invent one nobody wrote.
+      final newXml = MeasureXmlEditor.replaceMeasureNotes(
+        graceXml(),
+        1,
+        [quarter('C4', 60)],
+        4,
+      );
+      expect(shape(newXml), ['C']);
+    });
+
+    test('and it does not survive as a duplicate', () {
+      final newXml = MeasureXmlEditor.replaceMeasureNotes(
+        graceXml(),
+        1,
+        [quarter('C4', 60), quarter('D4', 62), quarter('E4', 64)],
+        4,
+      );
+      expect(XmlDocument.parse(newXml).findAllElements('grace').length, 1);
+      // And the parser still reads exactly the three timed notes it was given.
+      expect(parser.parse(newXml).measures.single.notes.length, 3);
+    });
+  });
+
   test('buildSingleMeasurePreviewXml is valid and carries attributes', () {
     const parsed = ParsedPiece(
       keySignature: 'D',
