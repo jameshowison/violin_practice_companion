@@ -3,22 +3,25 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// Validates the *downstream contract*: the MusicXML produced by the bundled
-/// abcjs-based JS converter must parse cleanly through the app's real
-/// [MusicXmlParser]. The golden fixture `test/fixtures/devils_dream.musicxml`
-/// was captured by converting `test/fixtures/devils_dream.abc` (The Devil's
-/// Dream reel) once with that converter — see the import-from-ABC plan. The
-/// live ABC→MusicXML conversion runs JS (dart:js_interop on web, flutter_js on
-/// native) and is exercised by on-device verification, not here.
+/// abcjs-based JS converter must survive the path an imported tune actually
+/// takes — [MusicXmlNormalizer], then the app's real [MusicXmlParser]. The
+/// golden fixture `test/fixtures/devils_dream.musicxml` was captured by
+/// converting `test/fixtures/devils_dream.abc` (The Devil's Dream reel) once
+/// with that converter — see the import-from-ABC plan. The live ABC→MusicXML
+/// conversion runs JS (dart:js_interop on web, flutter_js on native) and is
+/// exercised by on-device verification, not here.
 void main() {
   final parser = MusicXmlParser();
+  late final String golden;
   late final ParsedPiece piece;
 
   setUpAll(() {
-    final xml = File('test/fixtures/devils_dream.musicxml').readAsStringSync();
-    piece = parser.parse(xml);
+    golden = File('test/fixtures/devils_dream.musicxml').readAsStringSync();
+    piece = parser.parse(MusicXmlNormalizer.toSoundingPitch(golden));
   });
 
   test('parses the converted key signature (A major)', () {
@@ -63,6 +66,50 @@ void main() {
       expect(n.isRest || n.midiNumber > 0, isTrue,
           reason: 'note ${n.pitch} parsed with no MIDI number');
     }
+  });
+
+  group('the key signature reaches the sounding pitch', () {
+    test('the converter itself leaves it implicit', () {
+      // The reel is in A major and full of g/c/f, yet the converter writes not
+      // one <alter> — the sharps live only in the signature. Read literally,
+      // the tune plays in A *natural* minor. This is the fixture form of the
+      // Wellerman bug.
+      expect(golden, isNot(contains('<alter>1</alter>\n')));
+      final raw = parser.parse(golden);
+      expect(raw.allNotes.firstWhere((n) => n.pitch.startsWith('G')).midiNumber,
+          79); // G natural
+    });
+
+    test('after normalizing, g sounds G# and f sounds F#', () {
+      int midiOf(String step) => piece.allNotes
+          .firstWhere((n) => !n.isRest && n.pitch.startsWith(step))
+          .midiNumber;
+      expect(midiOf('G'), 80); // G#5
+      expect(midiOf('F'), 78); // F#5
+      expect(midiOf('C'), 73); // C#5
+      // A, B, D, E are not in the signature and must be untouched.
+      expect(midiOf('E'), 76);
+      expect(midiOf('B'), 71);
+    });
+
+    test('the redundant ^G in `BA^GB` does not naturalize the rest', () {
+      // A drawn sharp on a note the signature already sharpens is enough to
+      // make a drawing-led file look sounding-led to a naive test. The gate
+      // keys on an alter with *no* accidental, so it isn't fooled: every g in
+      // the reel is still a G#.
+      final gs = piece.allNotes
+          .where((n) => !n.isRest && n.pitch.startsWith('G'))
+          .map((n) => n.midiNumber % 12)
+          .toSet();
+      expect(gs, {8}); // G# in both the drawn octave (G#4) and the bare one
+    });
+
+    test('every note is a scale degree of A major', () {
+      const aMajor = {9, 11, 1, 2, 4, 6, 8}; // A B C# D E F# G#
+      for (final n in piece.allNotes.where((n) => !n.isRest)) {
+        expect(aMajor, contains(n.midiNumber % 12), reason: n.pitch);
+      }
+    });
   });
 
   test('ABC guitar chords convert to <harmony> and parse as chord symbols', () {
