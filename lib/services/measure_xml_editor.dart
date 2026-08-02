@@ -12,6 +12,16 @@ import '../models/parsed_piece.dart';
 /// `<forward>` are out of scope (see `docs/plan.md` §6). Chords aren't editable
 /// as such, but a chord member's `<chord/>` marker round-trips so saving an
 /// edit doesn't silently break the stack into sequential notes.
+///
+/// **A rewritten measure keeps only what [NoteEvent] models.** Pitch, duration,
+/// dot, drawn accidental and fingering survive; grace notes are carried across
+/// as opaque elements (see [replaceMeasureNotes]); **slurs, ties, articulations,
+/// `<stem>` and `<lyric>` do not** — they live inside the `<note>` elements this
+/// rebuilds, and nothing holds them. Beams are the exception that proves the
+/// rule: they aren't carried either, because a beam belongs to a *group* that
+/// an edit can invalidate, so [MusicXmlBeamer] recomputes them afterwards
+/// instead. Carrying the rest would mean growing [NoteEvent], which is a
+/// different job.
 class MeasureXmlEditor {
   /// Builds a detached `<note>` element for [note]. `<duration>` is derived
   /// from the note value, dot, and the score's [divisions] (divisions per
@@ -24,6 +34,15 @@ class MeasureXmlEditor {
   /// [notes], leaving `<attributes>`/`<print>`/`<barline>` and any hidden
   /// pickup rests (`print-object="no"`) in place. Returns the re-serialized
   /// MusicXML string.
+  ///
+  /// Grace notes are carried across rather than rebuilt. They aren't in the
+  /// model — [MusicXmlParser] skips them, so they never reach [notes] — but
+  /// they are somebody's ornament, and a bar of Gossec's Gavotte has five of
+  /// them. Each is held against the timed note it precedes (the same way the
+  /// parser holds a `<harmony>` until a note consumes it) and put back in front
+  /// of whatever note ends up at that position. A group whose note is gone goes
+  /// with it: the ornament belonged to that note, and re-hanging it on the next
+  /// one would invent an ornament nobody wrote.
   static String replaceMeasureNotes(
       String musicXml, int measureNumber, List<NoteEvent> notes, int divisions) {
     final doc = XmlDocument.parse(musicXml);
@@ -34,26 +53,53 @@ class MeasureXmlEditor {
         );
 
     final children = measureEl.children;
-    bool isVisibleNote(XmlNode n) =>
-        n is XmlElement &&
-        n.name.local == 'note' &&
-        n.getAttribute('print-object') != 'no';
+    bool isNote(XmlNode n) => n is XmlElement && n.name.local == 'note';
+    bool isGrace(XmlNode n) =>
+        isNote(n) && (n as XmlElement).findElements('grace').isNotEmpty;
+    // The notes [notes] stands in for: everything timed and visible.
+    bool isReplaceable(XmlNode n) =>
+        isNote(n) &&
+        !isGrace(n) &&
+        (n as XmlElement).getAttribute('print-object') != 'no';
 
-    final visible = children.where(isVisibleNote).toList();
+    // Grace groups, keyed by the position of the timed note they ornament.
+    final graceBefore = <int, List<XmlElement>>{};
+    var position = 0;
+    var pending = <XmlElement>[];
+    for (final child in children) {
+      if (isGrace(child)) {
+        pending.add(child as XmlElement);
+      } else if (isReplaceable(child)) {
+        if (pending.isNotEmpty) {
+          graceBefore[position] = pending;
+          pending = <XmlElement>[];
+        }
+        position++;
+      }
+    }
+
+    // Both kinds go; the grace notes come back below, at their anchors.
+    bool isRemovable(XmlNode n) => isGrace(n) || isReplaceable(n);
+    final firstRemovable = children.indexWhere(isRemovable);
     final int insertIndex;
-    if (visible.isNotEmpty) {
-      insertIndex = children.indexOf(visible.first);
-      children.removeWhere(isVisibleNote);
+    if (firstRemovable != -1) {
+      // Everything removed sits at or after this index, so it survives removal
+      // as the slot the rebuilt notes belong in.
+      insertIndex = firstRemovable;
+      children.removeWhere(isRemovable);
     } else {
-      // No visible notes to replace: insert after the last existing <note>
-      // (e.g. hidden pickup rests), else at the end of the measure.
-      final lastNoteIdx = children
-          .lastIndexWhere((n) => n is XmlElement && n.name.local == 'note');
+      // Nothing to replace: insert after the last existing <note> (e.g. hidden
+      // pickup rests), else at the end of the measure.
+      final lastNoteIdx = children.lastIndexWhere(isNote);
       insertIndex = lastNoteIdx == -1 ? children.length : lastNoteIdx + 1;
     }
 
-    children.insertAll(
-        insertIndex, [for (final n in notes) buildNoteElement(n, divisions)]);
+    children.insertAll(insertIndex, [
+      for (var i = 0; i < notes.length; i++) ...[
+        ...?graceBefore[i]?.map((g) => g.copy()),
+        buildNoteElement(notes[i], divisions),
+      ],
+    ]);
     return doc.toXmlString();
   }
 
