@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../models/piece_library_view.dart';
 
-/// One row of the Manage screen: drag handle, title, and three actions.
+/// One row of the Manage screen: drag handle, title, and four actions.
 ///
-/// ## Why three inline buttons and not a `⋮` menu
+/// ## Why inline buttons and not a `⋮` menu
 ///
 /// A `PopupMenuButton` would be compact, but it is a widget class this codebase
-/// has never used, and it would hide all three actions behind a tap on a screen
-/// whose entire purpose is those three actions. Inline buttons cost width and
-/// buy visibility — and, crucially, let the third icon *be* the bundled-vs-user
+/// has never used, and it would hide every action behind a tap on a screen whose
+/// entire purpose is those actions. Inline buttons cost width and buy
+/// visibility — and, crucially, let the last icon *be* the bundled-vs-user
 /// signal rather than needing a separate badge:
 ///
 /// | origin | icon | colour | on tap |
@@ -35,6 +35,7 @@ class ManagePieceRow extends StatelessWidget {
     required this.labeledActions,
     required this.onTags,
     required this.onRename,
+    required this.onExportAbc,
     required this.onHideOrDelete,
   });
 
@@ -51,6 +52,7 @@ class ManagePieceRow extends StatelessWidget {
   final bool labeledActions;
   final VoidCallback onTags;
   final VoidCallback onRename;
+  final VoidCallback onExportAbc;
   final VoidCallback onHideOrDelete;
 
   @override
@@ -72,10 +74,20 @@ class ManagePieceRow extends StatelessWidget {
     }
     final (icon, color, tooltip, actionKey) = lastAction;
 
-    final actions = <(IconData, Color?, String, String, VoidCallback)>[
-      (Icons.sell_outlined, null, 'Collections', 'manage_tags_button_$id', onTags),
-      (Icons.edit_outlined, null, 'Rename', 'manage_rename_button_$id', onRename),
-      (icon, color, tooltip, actionKey, onHideOrDelete),
+    // (icon, colour, button label, tooltip, key, tap). Label and tooltip are
+    // separate because the compact layout has room for an icon's worth of text
+    // and its hover text can afford to be a full sentence.
+    final actions = <(IconData, Color?, String, String, String, VoidCallback)>[
+      (Icons.sell_outlined, null, 'Collections', 'Collections',
+          'manage_tags_button_$id', onTags),
+      (Icons.edit_outlined, null, 'Rename', 'Rename', 'manage_rename_button_$id',
+          onRename),
+      // Labelled "ABC" rather than "Export ABC": a fourth full-width label is
+      // what would finally crowd the title out of the labelled layout, and the
+      // format's name is the only word carrying meaning here anyway.
+      (Icons.text_snippet_outlined, null, 'ABC', 'Export ABC notation',
+          'manage_export_abc_button_$id', onExportAbc),
+      (icon, color, tooltip, tooltip, actionKey, onHideOrDelete),
     ];
 
     // No key here: ReorderableListView requires the key on the widget IT is
@@ -128,7 +140,7 @@ class ManagePieceRow extends StatelessWidget {
               ),
             ),
           ),
-          for (final (icon, color, label, key, onTap) in actions)
+          for (final (icon, color, label, hint, key, onTap) in actions)
             if (labeledActions)
               Padding(
                 padding: const EdgeInsets.only(left: 4),
@@ -146,7 +158,7 @@ class ManagePieceRow extends StatelessWidget {
                 onPressed: onTap,
                 icon: Icon(icon),
                 color: color,
-                tooltip: label,
+                tooltip: hint,
                 visualDensity: VisualDensity.compact,
               ),
         ],
