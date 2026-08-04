@@ -4,14 +4,17 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/chord_palette.dart';
+import '../models/fingering_density.dart';
 import '../models/note_event.dart';
+import '../models/note_number_mode.dart';
 import '../models/piece.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart'; // for PieceLayout type
 import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
-import '../models/tab_number_mode.dart';
+import '../models/violin_string_palette.dart';
+import '../services/fingering_annotation_builder.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
@@ -124,19 +127,38 @@ class PieceDetailScreen extends ConsumerWidget {
                         ref.read(showChordsProvider.notifier).state = v,
                   ),
                 ],
+                // Shared by the two views that put a number on a note: the tab
+                // staff's string lines and the annotation view's fingering
+                // channel. One preference, shown in whichever of them is open —
+                // see [NoteNumberMode].
+                if (displayMode == DisplayMode.staffFingering ||
+                    displayMode == DisplayMode.tab) ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const _NoteNumberPicker(),
+                  if (ref.watch(noteNumberModeProvider) ==
+                      NoteNumberMode.mandolinFret) ...[
+                    const SizedBox(height: 16),
+                    const _FretStylePicker(),
+                  ],
+                ],
                 if (displayMode == DisplayMode.staffFingering) ...[
                   const Divider(),
                   const SizedBox(height: 8),
-                  const _StringLabelPicker(),
-                ],
-                if (displayMode == DisplayMode.tab) ...[
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  const _TabNumberPicker(),
-                  if (ref.watch(tabNumberModeProvider) ==
-                      TabNumberMode.mandolinFret) ...[
+                  const _StringColourPicker(),
+                  // Only meaningful while the letter is actually drawn — while a
+                  // colour is carrying the string, the label doesn't repeat it.
+                  if (ref.watch(stringColourStyleProvider) ==
+                      StringColourStyle.off) ...[
                     const SizedBox(height: 16),
-                    const _TabFretStylePicker(),
+                    const _StringLabelPicker(),
+                  ],
+                  const SizedBox(height: 16),
+                  const _FingeringDensitySlider(),
+                  if (ref.watch(fingeringDensityProvider) !=
+                      FingeringDensity.all) ...[
+                    const SizedBox(height: 16),
+                    const _FingeringDensityPolicyPicker(),
                   ],
                 ],
                 const SizedBox(height: 16),
@@ -370,6 +392,46 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
   }
 }
 
+/// How the fingering channel shows the string: filled chips, a coloured rule
+/// under near-black numbers, or nothing.
+///
+/// Three styles side by side because which reads best at practice distance is a
+/// question about eyes, not logic — this is here to be A/B'd on real music, the
+/// same reason the density policies are.
+class _StringColourPicker extends ConsumerWidget {
+  const _StringColourPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(stringColourStyleProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('String colour'),
+        Text('G green · D blue · A red · E yellow',
+            style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
+        SegmentedButton<StringColourStyle>(
+          segments: const [
+            ButtonSegment(
+                value: StringColourStyle.chips, label: Text('Chips')),
+            ButtonSegment(
+                value: StringColourStyle.underline, label: Text('Underline')),
+            ButtonSegment(value: StringColourStyle.off, label: Text('Off')),
+          ],
+          selected: {style},
+          onSelectionChanged: (s) =>
+              ref.read(stringColourStyleProvider.notifier).state = s.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StringLabelPicker extends ConsumerWidget {
   const _StringLabelPicker();
 
@@ -400,27 +462,76 @@ class _StringLabelPicker extends ConsumerWidget {
   }
 }
 
-class _TabNumberPicker extends ConsumerWidget {
-  const _TabNumberPicker();
+/// How much fingering the annotation view shows, as a three-stop slider.
+///
+/// A slider rather than a segmented button because the three levels are ordered
+/// and nested — each shows a subset of the one before it — and "more/less" is the
+/// thing being chosen. Purely a display filter, so unlike
+/// [_MeasuresPerLineSlider] there's no preview/commit split: nothing is persisted
+/// and nothing re-engraves.
+class _FingeringDensitySlider extends ConsumerWidget {
+  const _FingeringDensitySlider();
+
+  static const _labels = ['All', 'Fewer', 'Least'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(tabNumberModeProvider);
+    final density = ref.watch(fingeringDensityProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Tab numbers'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Fingering detail'),
+            Text(_labels[density.index],
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+        Slider(
+          value: density.index.toDouble(),
+          min: 0,
+          max: (FingeringDensity.values.length - 1).toDouble(),
+          divisions: FingeringDensity.values.length - 1,
+          label: _labels[density.index],
+          onChanged: (v) => ref.read(fingeringDensityProvider.notifier).state =
+              FingeringDensity.values[v.round()],
+        ),
+      ],
+    );
+  }
+}
+
+/// Which rule decides what survives at "Fewer" and "Least".
+///
+/// Exposed in the UI, and only once the slider has left "All", because "crucial
+/// fingering" is a pedagogical judgement that needs playing feedback to settle —
+/// this control is how the two candidate definitions get compared on real music.
+/// The weights behind `Difficulty` live in `fingering_density.dart`.
+class _FingeringDensityPolicyPicker extends ConsumerWidget {
+  const _FingeringDensityPolicyPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final policy = ref.watch(fingeringDensityPolicyProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Which fingerings matter'),
         const SizedBox(height: 8),
-        SegmentedButton<TabNumberMode>(
+        SegmentedButton<FingeringDensityPolicy>(
           segments: const [
             ButtonSegment(
-                value: TabNumberMode.violinFingering, label: Text('Fingering')),
+                value: FingeringDensityPolicy.difficulty,
+                label: Text('Difficulty')),
             ButtonSegment(
-                value: TabNumberMode.mandolinFret, label: Text('Fret')),
+                value: FingeringDensityPolicy.changesAndLandmarks,
+                label: Text('Changes')),
           ],
-          selected: {mode},
-          onSelectionChanged: (s) =>
-              ref.read(tabNumberModeProvider.notifier).state = s.first,
+          selected: {policy},
+          onSelectionChanged: (s) => ref
+              .read(fingeringDensityPolicyProvider.notifier)
+              .state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -431,27 +542,69 @@ class _TabNumberPicker extends ConsumerWidget {
   }
 }
 
-class _TabFretStylePicker extends ConsumerWidget {
-  const _TabFretStylePicker();
+/// Violin fingering vs mandolin fret, for the tab staff and the annotation
+/// view's fingering channel alike — one preference, so the same control appears
+/// in both sections of the drawer showing the same value.
+class _NoteNumberPicker extends ConsumerWidget {
+  const _NoteNumberPicker();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final style = ref.watch(tabFretStyleProvider);
+    final mode = ref.watch(noteNumberModeProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Numbers'),
+        const SizedBox(height: 8),
+        SegmentedButton<NoteNumberMode>(
+          segments: const [
+            ButtonSegment(
+                value: NoteNumberMode.violinFingering,
+                label: Text('Fingering')),
+            ButtonSegment(
+                value: NoteNumberMode.mandolinFret, label: Text('Fret')),
+          ],
+          selected: {mode},
+          onSelectionChanged: (s) =>
+              ref.read(noteNumberModeProvider.notifier).state = s.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Which string a fret sits on. Only shown in fret mode, since it has nothing to
+/// say about fingerings.
+///
+/// In the fingering channel this also moves the chip COLOURS, because the colour
+/// follows the string: "Match fingering" leaves every chip where it was and only
+/// changes the digits, while "Open strings" can send a note to a different string
+/// (and so a different colour) to keep its fret low.
+class _FretStylePicker extends ConsumerWidget {
+  const _FretStylePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(fretStyleProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Fret positions'),
         const SizedBox(height: 8),
-        SegmentedButton<TabFretStyle>(
+        SegmentedButton<FretStyle>(
           segments: const [
             ButtonSegment(
-                value: TabFretStyle.openStrings, label: Text('Open strings')),
+                value: FretStyle.openStrings, label: Text('Open strings')),
             ButtonSegment(
-                value: TabFretStyle.matchFingering, label: Text('Match fingering')),
+                value: FretStyle.matchFingering, label: Text('Match fingering')),
           ],
           selected: {style},
           onSelectionChanged: (s) =>
-              ref.read(tabFretStyleProvider.notifier).state = s.first,
+              ref.read(fretStyleProvider.notifier).state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -981,6 +1134,35 @@ class _NotationView extends ConsumerWidget {
     final chordRuns = (parsed == null || !ref.watch(showChordsProvider))
         ? const <ChordRunRegion>[]
         : chordRunRegions(measureNumbers, parsed);
+    // Fingering labels as chips in a channel between the notes and the chord
+    // lane. Built for the annotation view only, and — like the chord runs — this
+    // list is now the ONLY thing that puts fingerings on the score: the XML
+    // provider strips them so Verovio engraves none.
+    final colourStyle = ref.watch(stringColourStyleProvider);
+    final annotations = (parsed == null || mode != DisplayMode.staffFingering)
+        ? const <FingeringAnnotation>[]
+        : fingeringAnnotations(
+            measureNumbers,
+            parsed,
+            density: ref.watch(fingeringDensityProvider),
+            policy: ref.watch(fingeringDensityPolicyProvider),
+            colourByString: colourStyle != StringColourStyle.off,
+            stringLabelStyle: ref.watch(stringLabelStyleProvider),
+            numberMode: ref.watch(noteNumberModeProvider),
+            fretStyle: ref.watch(fretStyleProvider),
+          );
+    // The underline's string track spans every note, so it needs its own pass
+    // over the piece — and only that style has any use for it.
+    final stringRuns = (parsed == null ||
+            mode != DisplayMode.staffFingering ||
+            colourStyle != StringColourStyle.underline)
+        ? const <StringRunRegion>[]
+        : stringRunRegions(
+            measureNumbers,
+            parsed,
+            numberMode: ref.watch(noteNumberModeProvider),
+            fretStyle: ref.watch(fretStyleProvider),
+          );
     // Minimap tap → scroll the staff to the (folded) run's first measure index.
     // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
@@ -993,7 +1175,11 @@ class _NotationView extends ConsumerWidget {
     // Build the staff via the selected renderer (native Verovio or OSMD
     // WebView), keeping one identical parameter set.
     final renderer = ref.watch(staffRendererProvider);
-    Widget buildStaff(String xml) {
+    // [fingeringChannel] reserves a second annotation lane and fills it with the
+    // fingering chips — the annotation view's whole layout difference, now that
+    // both views feed the same (fingering-stripped) xml. Reserved whether or not
+    // chords are showing, so toggling chords never re-flows the page.
+    Widget buildStaff(String xml, {bool fingeringChannel = false}) {
       if (renderer == StaffRenderer.verovio) {
         return StaffViewVerovio(
           musicXml: xml,
@@ -1004,6 +1190,10 @@ class _NotationView extends ConsumerWidget {
           measureNumbers: measureNumbers,
           sectionTints: sectionTints,
           chordRuns: chordRuns,
+          fingeringAnnotations: annotations,
+          stringColourStyle: colourStyle,
+          stringRuns: stringRuns,
+          annotationLanes: fingeringChannel ? 2 : 1,
           scrollNav: staffNav,
         );
       }
@@ -1032,7 +1222,7 @@ class _NotationView extends ConsumerWidget {
       case DisplayMode.staffFingering:
         return ref.watch(staffFingeringXmlProvider).when(
           data: (xml) => xml != null
-              ? buildStaff(xml)
+              ? buildStaff(xml, fingeringChannel: true)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/fingering_density.dart';
 import '../models/note_event.dart';
+import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart';
@@ -10,7 +12,7 @@ import '../models/piece_library.dart';
 import '../models/piece_library.dart' as plib;
 import '../models/section_run.dart';
 import '../models/string_label_style.dart';
-import '../models/tab_number_mode.dart';
+import '../models/violin_string_palette.dart';
 import 'fingering_mapper.dart';
 import 'tab_score_generator.dart';
 import 'jianpu_converter.dart';
@@ -416,9 +418,59 @@ final showChordsProvider = StateProvider<bool>((_) => true);
 /// The `<harmony>` elements are only stripped from the ENGRAVED xml — the parsed
 /// model still carries `NoteEvent.chordSymbol`, which is what the lane and the
 /// footer diagrams are built from.
-bool _stripHarmonyFor(Ref ref) =>
-    !ref.watch(showChordsProvider) ||
-    ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+///
+/// The renderer test comes FIRST, and deliberately returns without reading
+/// [showChordsProvider]: under the native renderer the answer is unconditionally
+/// yes, so watching the toggle would make it a dependency of the XML providers
+/// for no reason. That matters because these are `FutureProvider`s — invalidating
+/// one drops the staff to a loading spinner, which unmounts the render widget and
+/// throws away its engrave and calibration. The re-engrave then re-runs the
+/// auto-fit against whatever the viewport is now, so the page RE-FLOWS. Chord
+/// symbols only ever affect a Flutter overlay; they must not be able to do that.
+bool _stripHarmonyFor(Ref ref) {
+  if (ref.watch(staffRendererProvider) == StaffRenderer.verovio) return true;
+  return !ref.watch(showChordsProvider);
+}
+
+// ── Fingering-annotation display preferences ──────────────────────────────────
+// All three apply to the annotation view only, and none of them changes what is
+// ENGRAVED — the labels are drawn in a Flutter lane (`_FingeringLanePainter`), so
+// every one of these repaints without a re-engrave.
+// Session-only, matching the other display-preference providers.
+
+/// How the fingering channel shows the string (G green, D blue, A red, E
+/// yellow): as a filled chip, as a rule under near-black numbers, or not at all.
+///
+/// While a colour is carrying the string the label drops the letter; with
+/// [StringColourStyle.off] the [stringLabelStyleProvider] letter rules apply
+/// instead. Three styles so they can be compared on real music — see
+/// [StringColourStyle].
+final stringColourStyleProvider =
+    StateProvider<StringColourStyle>((_) => StringColourStyle.chips);
+
+/// How much fingering the annotation view shows.
+final fingeringDensityProvider =
+    StateProvider<FingeringDensity>((_) => FingeringDensity.all);
+
+/// Which rule decides what "crucial" fingering means at the lower densities.
+/// Surfaced in the UI because the definition needs playing feedback to settle —
+/// see [FingeringDensityPolicy].
+final fingeringDensityPolicyProvider =
+    StateProvider<FingeringDensityPolicy>((_) => FingeringDensityPolicy.difficulty);
+
+/// Whether `<fingering>` should be injected before the score is engraved.
+///
+/// Only for the OSMD fallback, which has no annotation lane — there the engraved
+/// labels are the only display. The native renderer draws them itself as coloured
+/// chips in a channel above the staff, so leaving them in would both duplicate
+/// every label and, worse, put the engraved copy back inside the measure bbox
+/// that the lane heights are measured from (which is what squeezed the chord lane
+/// out in the first place). Same shape of decision as [_stripHarmonyFor].
+///
+/// The parsed model still carries `NoteEvent.fingerString`/`fingerNumber`, which
+/// is what [fingeringAnnotations] builds the chips from.
+bool _injectFingeringFor(Ref ref) =>
+    ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
@@ -440,25 +492,44 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   if (piece == null) return null;
   final layout = await ref.watch(pieceLayoutProvider.future);
   if (layout == null) return null;
-  final style = ref.watch(stringLabelStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
-  final parsed = await ref.watch(parsedPieceProvider.future);
-  if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
+  if (_injectFingeringFor(ref)) {
+    // Watched inside the branch on purpose: only the OSMD path bakes the labels
+    // into the xml, so only there is the style an engraving input. Under the
+    // native renderer the lane owns the labels, and watching it here would
+    // re-engrave (and re-flow) on a change that repaints — see
+    // [_stripHarmonyFor] for the same reasoning about the chord toggle.
+    final style = ref.watch(stringLabelStyleProvider);
+    final parsed = await ref.watch(parsedPieceProvider.future);
+    if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
+  } else {
+    // Strip the publisher's own fingerings too, exactly as [staffXmlProvider]
+    // does: the lane is the only fingering display under this renderer, and a
+    // leftover engraved `<fing>` would contradict it note for note.
+    xml = FingeringXmlInjector.stripFingerings(xml);
+  }
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
-/// Tab view: violin fingering (default) vs true mandolin fret numbers.
+/// Violin fingering (default) vs true mandolin fret numbers, wherever a number
+/// labels a note: the tab staff's string lines AND the annotation view's
+/// fingering channel. ONE preference for both — see [NoteNumberMode].
+///
 /// Session-only, matching the other display-preference providers.
-final tabNumberModeProvider =
-    StateProvider<TabNumberMode>((_) => TabNumberMode.violinFingering);
+///
+/// Note the asymmetry in what a change costs: the tab staff carries its numbers
+/// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
+/// while the channel draws them in a Flutter overlay, so there it is a repaint.
+final noteNumberModeProvider =
+    StateProvider<NoteNumberMode>((_) => NoteNumberMode.violinFingering);
 
-/// Tab fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
-/// fret on the fingering's string. Session-only; only affects fret numbers.
-final tabFretStyleProvider =
-    StateProvider<TabFretStyle>((_) => TabFretStyle.openStrings);
+/// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
+/// fret on the fingering's string. Shared by the same two views as
+/// [noteNumberModeProvider]. Session-only; only affects fret numbers.
+final fretStyleProvider = StateProvider<FretStyle>((_) => FretStyle.openStrings);
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
 /// for the tab view. Reuses the same strip pipeline as [staffXmlProvider] so the
@@ -470,8 +541,8 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   if (layout == null) return null;
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
-  final numberMode = ref.watch(tabNumberModeProvider);
-  final fretStyle = ref.watch(tabFretStyleProvider);
+  final numberMode = ref.watch(noteNumberModeProvider);
+  final fretStyle = ref.watch(fretStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
@@ -482,8 +553,8 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   return TabScoreGenerator.generate(
     xml,
     parsed,
-    fretMode: numberMode == TabNumberMode.mandolinFret,
-    preferOpenFrets: fretStyle == TabFretStyle.openStrings,
+    fretMode: numberMode == NoteNumberMode.mandolinFret,
+    preferOpenFrets: fretStyle == FretStyle.openStrings,
   );
 });
 

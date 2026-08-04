@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,8 @@ import 'package:jovial_svg/jovial_svg.dart';
 
 import '../models/chord_palette.dart';
 import '../models/section_palette.dart';
+import '../models/violin_string_palette.dart';
+import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
@@ -47,6 +51,36 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// the XML so Verovio engraves no `<harm>` text to duplicate it.
   final List<ChordRunRegion> chordRuns;
 
+  /// Fingering labels, drawn as coloured chips in a channel between the notes and
+  /// the chord lane. As with the chords, this renderer owns them entirely — the
+  /// callers strip `<fingering>` from the XML so Verovio engraves none.
+  ///
+  /// Changing this list re-paints but never re-engraves, so the density slider
+  /// and the colour toggle are instant.
+  final List<FingeringAnnotation> fingeringAnnotations;
+
+  /// How the fingering channel expresses the string: coloured chips, a coloured
+  /// rule under near-black numbers, or not at all.
+  ///
+  /// The counterpart to the label: while a colour is carrying the string the
+  /// label drops the G/D/A/E letter, and with [StringColourStyle.off] the letter
+  /// comes back. Showing both would say the same thing twice.
+  final StringColourStyle stringColourStyle;
+
+  /// Unbroken spans on one string, for [StringColourStyle.underline]. Spans every
+  /// note, not just the labelled ones — see [stringRunRegions].
+  final List<StringRunRegion> stringRuns;
+
+  /// How many annotation lanes to reserve room for above each system. 1 = the
+  /// chord lane alone (staff and tab views). 2 = a fingering channel below it
+  /// (the annotation view).
+  ///
+  /// A layout input, not a decoration: it widens the engraved gap and top margin,
+  /// so a change re-engraves. Note that after the callers stopped injecting
+  /// fingerings the annotation view feeds the SAME xml as the plain staff view —
+  /// this is then the only thing that distinguishes the two layouts.
+  final int annotationLanes;
+
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
   final ({int index, int seq})? scrollNav;
@@ -78,6 +112,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.stretchLastSystem = true,
     this.sectionTints = const [],
     this.chordRuns = const [],
+    this.fingeringAnnotations = const [],
+    this.stringColourStyle = StringColourStyle.chips,
+    this.stringRuns = const [],
+    this.annotationLanes = 1,
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
@@ -153,8 +191,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // New content invalidates both the render and the calibration; clearing
     // _engravedWidth makes the build-time check below kick a fresh request, so
     // there's only one place that decides to engrave.
+    // The lane count belongs here and not in the build-time `stale()` check for
+    // the same reason tabMode does: it's a widget property, so this is the one
+    // place it can change. Clearing _engravedWidth kicks the fresh request.
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
+        old.annotationLanes != widget.annotationLanes ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _engravedWidth = 0;
       _calibratedFor = null;
@@ -172,11 +214,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   /// Key the calibration is valid for. Everything that changes the engraved
-  /// geometry counts: the tab variant (a second staff changes the system height)
-  /// and the staff spacing (which changes it directly, and so changes what the
-  /// auto-fit rule can afford).
+  /// geometry counts: the tab variant (a second staff changes the system height),
+  /// the staff spacing (which changes it directly, and so changes what the
+  /// auto-fit rule can afford), and the lane count (which is spent as extra
+  /// spacing, so it moves the system height exactly the same way).
   String _calibrationKeyFor(double staffSpacing) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$staffSpacing';
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$staffSpacing'
+      '|${widget.annotationLanes}';
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -304,6 +348,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       widthPx: widthPx,
       scale: scale,
       spacingSystem: verovioSpacingSystemFor(staffSpacing),
+      laneCount: widget.annotationLanes,
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
@@ -511,8 +556,23 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                       ),
                     ),
                   ),
-                  // Last, so a lane whose y-estimate drifts stays visible rather
-                  // than hiding under a stem or a bar number.
+                  // The two lanes last, so a lane whose y-estimate drifts stays
+                  // visible rather than hiding under a stem or a bar number.
+                  // Their bands never overlap, so the order between them is
+                  // arbitrary — fingering first only because it is the lower one.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _FingeringLanePainter(
+                          score: score,
+                          scale: scale,
+                          annotations: widget.fingeringAnnotations,
+                          stringRuns: widget.stringRuns,
+                          style: widget.stringColourStyle,
+                        ),
+                      ),
+                    ),
+                  ),
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -629,6 +689,281 @@ class _UnderlayPainter extends CustomPainter {
       old.sectionTints != sectionTints;
 }
 
+/// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
+/// per fingering label, every chip on a system at the same height.
+///
+/// The flat level is the entire point. These labels used to be engraved by
+/// Verovio as `<fing>` elements, which places each one above its own notehead —
+/// so the fingering rose and fell with the melody and had to be read as a
+/// contour rather than scanned as a row. A lane can't do that: the band comes
+/// from [EngravedScore.fingeringLaneBand], which is a property of the SYSTEM, so
+/// every chip on a line shares a y by construction.
+///
+/// The second thing it fixes is the collision. Engraved fingerings sat inside
+/// each `<g class="measure">`, so they inflated the measure bbox that
+/// [EngravedScore.annotationLaneHeight] measures its whitespace from — the taller
+/// the fingerings, the thinner the chord lane, until `chordLaneBand` returned
+/// null and the chord bars silently vanished. Nothing is engraved above the staff
+/// now, so both lanes draw into space that was reserved for them.
+///
+/// The chip's FILL is the string (see [ViolinStringPalette]) and its text is the
+/// finger, which is why the G/D/A/E letter can be dropped from the label — but
+/// that choice is made upstream in [fingeringAnnotations]; this painter draws
+/// whatever label it is handed, verbatim.
+class _FingeringLanePainter extends CustomPainter {
+  _FingeringLanePainter({
+    required this.score,
+    required this.scale,
+    required this.annotations,
+    required this.stringRuns,
+    required this.style,
+  });
+
+  final EngravedScore score;
+  final double scale;
+  final List<FingeringAnnotation> annotations;
+
+  /// Unbroken spans on one string, for [StringColourStyle.underline]. Empty for
+  /// the other styles, which say nothing about notes that carry no label.
+  final List<StringRunRegion> stringRuns;
+
+  final StringColourStyle style;
+
+  /// Chip height as a fraction of the channel height — the remainder is the
+  /// breathing room that stops the chips reading as one solid ribbon.
+  static const _chipHeightFraction = 0.80;
+
+  /// Horizontal padding inside a chip, and the minimum clear space between two
+  /// chips, both as fractions of the chip height.
+  static const _chipPadFraction = 0.26;
+  static const _chipGapFraction = 0.14;
+
+  /// Underline style, as fractions of the channel height: the rule's thickness,
+  /// and the clear space between the digits and the rule.
+  ///
+  /// The rule is deliberately chunky. A hairline would be tidier, but the whole
+  /// bargain of this style is trading colour area for number legibility, and
+  /// below about this weight dark green and blue stop being tellable apart.
+  static const _ruleHeightFraction = 0.20;
+  static const _ruleGapFraction = 0.08;
+
+  /// The digits' share of the channel in underline style — what's left after the
+  /// rule and its gap, so the two never collide however tight the band gets.
+  static const _underlineTextFraction =
+      1.0 - _ruleHeightFraction - _ruleGapFraction;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (annotations.isEmpty) return;
+
+    // Group by system line and sort by x: the channel is drawn per line, and the
+    // overlap guard has to walk each line left to right.
+    final byLine = <int, List<({double cx, FingeringAnnotation a})>>{};
+    for (final a in annotations) {
+      final line = score.lineOfMeasure(a.measureIndex);
+      if (line < 0) continue;
+      final note = score.noteAt(a.measureIndex, a.noteIndex);
+      if (note == null) continue;
+      (byLine[line] ??= []).add((cx: note.rect.center.dx, a: a));
+    }
+
+    if (style == StringColourStyle.underline) _paintStringRuns(canvas);
+
+    for (final entry in byLine.entries) {
+      final band = score.fingeringLaneBand(entry.key);
+      if (band == null) continue; // no channel reserved — skip, don't clash
+      final channel =
+          Rect.fromLTRB(0, band.top * scale, size.width, band.bottom * scale);
+      final items = entry.value..sort((p, q) => p.cx.compareTo(q.cx));
+      if (style == StringColourStyle.underline) {
+        _paintNumbers(canvas, items, channel);
+      } else {
+        _paintChannel(canvas, channel);
+        _paintChips(canvas, items, channel);
+      }
+    }
+  }
+
+  /// The channel itself, spanning the full render width.
+  ///
+  /// Full width rather than the system's ink extent: the channel reads as a
+  /// staff-wide register you scan along, and a strip that stopped at the last
+  /// measure of a short final system would look like a mistake rather than like a
+  /// lane. Squared off for the same reason — it's a rule, not a badge.
+  ///
+  /// Not drawn in [StringColourStyle.underline]: the grey exists to keep a
+  /// saturated chip (the E-string yellow especially) from dissolving into the
+  /// page, and near-black digits have no such problem. The band is still
+  /// RESERVED there — the engrave sees to that — it just isn't painted, so the
+  /// numbers sit on the page and the coloured rule is the only horizontal
+  /// element in the lane.
+  void _paintChannel(Canvas canvas, Rect channel) {
+    canvas.drawRect(channel, Paint()..color = fingeringChannelColor);
+  }
+
+  /// The string track: one coloured rule per run, low in the channel, joined for
+  /// as long as the playing stays on a string.
+  ///
+  /// Drawn from [stringRuns] rather than from [annotations], so it spans notes
+  /// whose number the density filter dropped — the rule answers "which string am
+  /// I on?" continuously, which is most of its value at the lower densities.
+  void _paintStringRuns(Canvas canvas) {
+    for (final run in stringRuns) {
+      final colour = ViolinStringPalette.rule(run.string);
+      for (final e in runRowExtents(
+        score,
+        startMeasureIndex: run.startMeasureIndex,
+        startNote: run.startNote,
+        endMeasureIndex: run.endMeasureIndex,
+        endNote: run.endNote,
+        clipStartToNote: true,
+      )) {
+        final band = score.fingeringLaneBand(e.line);
+        if (band == null) continue;
+        final channelH = (band.bottom - band.top) * scale;
+        final h = channelH * _ruleHeightFraction;
+        if (h <= 0) continue;
+        final bottom = band.bottom * scale;
+        // A hairline off each end, so two runs that meet at a string change read
+        // as two rules rather than one that changes colour mid-stroke.
+        final rect = Rect.fromLTRB(
+          e.left * scale + _runGap,
+          bottom - h,
+          e.right * scale - _runGap,
+          bottom,
+        );
+        if (rect.width <= 0) continue;
+        // Rounded only at the run's true ends; a wrap onto the next system is
+        // square-cut so it reads as "carries on". Same convention as the chord
+        // bars directly above.
+        final cap = Radius.circular(h / 2);
+        canvas.drawRRect(
+          RRect.fromRectAndCorners(
+            rect,
+            topLeft: e.isFirst ? cap : Radius.zero,
+            bottomLeft: e.isFirst ? cap : Radius.zero,
+            topRight: e.isLast ? cap : Radius.zero,
+            bottomRight: e.isLast ? cap : Radius.zero,
+          ),
+          Paint()..color = colour,
+        );
+      }
+    }
+  }
+
+  static const _runGap = 1.0;
+
+  /// Near-black numbers above the string track. No chip, no fill — the point of
+  /// this style is that nothing competes with the digits.
+  void _paintNumbers(
+    Canvas canvas,
+    List<({double cx, FingeringAnnotation a})> items,
+    Rect channel,
+  ) {
+    final textH = channel.height * _underlineTextFraction;
+    if (textH <= 0) return;
+    // The digits sit in the space above the rule, bottom-aligned to it so the
+    // number and its colour read as one mark.
+    final baseline = channel.bottom -
+        channel.height * (_ruleHeightFraction + _ruleGapFraction);
+    final gap = textH * _chipGapFraction;
+
+    var prevRight = double.negativeInfinity;
+    for (final item in items) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: item.a.label,
+          style: TextStyle(
+            fontSize: textH,
+            height: 1.0,
+            fontWeight: FontWeight.w700,
+            color: fingeringInk,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      final left = item.cx * scale - tp.width / 2;
+      // Same left-to-right first-come guard as the chips; without a chip's
+      // padding the numbers would otherwise touch.
+      if (left < prevRight + gap) continue;
+      prevRight = left + tp.width;
+      tp.paint(canvas, Offset(left, baseline - tp.height));
+    }
+  }
+
+  void _paintChips(
+    Canvas canvas,
+    List<({double cx, FingeringAnnotation a})> items,
+    Rect channel,
+  ) {
+    final chipH = channel.height * _chipHeightFraction;
+    if (chipH <= 0) return;
+    final pad = chipH * _chipPadFraction;
+    final gap = chipH * _chipGapFraction;
+    final cy = channel.center.dy;
+
+    var prevRight = double.negativeInfinity;
+    for (final item in items) {
+      // Neutral when the labels carry the string as a letter instead — the chip
+      // still needs a fill to read as a chip, it just mustn't claim to mean
+      // anything.
+      final fill = style == StringColourStyle.chips
+          ? ViolinStringPalette.of(item.a.string)
+          : fingeringChipNeutral;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: item.a.label,
+          style: TextStyle(
+            fontSize: chipH * chordLabelSizeFraction,
+            height: 1.0,
+            fontWeight: FontWeight.w700,
+            color: ViolinStringPalette.inkOn(fill),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+
+      // Square-ish minimum so a lone '2' isn't a thin sliver next to a '2L'.
+      final w = math.max(tp.width + pad * 2, chipH);
+      final left = item.cx * scale - w / 2;
+
+      // Left to right, first come first served. At a tight zoom (or one measure
+      // per line) the chips would otherwise smear into an unreadable band; the
+      // density slider is the user's control for having fewer of them.
+      if (left < prevRight + gap) continue;
+      prevRight = left + w;
+
+      final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, cy - chipH / 2, w, chipH),
+        Radius.circular(chipH * chordSwatchRadiusFraction),
+      );
+      canvas.drawRRect(rrect, Paint()..color = fill);
+      // A hairline edge in a darker shade of the fill, for the same reason the
+      // chord swatch has one: the E-string yellow on the grey channel needs its
+      // shape defined, and doing it in the fill's own hue costs no colour budget.
+      final edge = (chipH * 0.07).clamp(0.5, 1.5);
+      canvas.drawRRect(
+        rrect.deflate(edge / 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = edge
+          ..color = ChordPalette.dim(fill).withValues(alpha: 0.85),
+      );
+      tp.paint(canvas, Offset(left + (w - tp.width) / 2, cy - tp.height / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FingeringLanePainter old) =>
+      old.score != score ||
+      old.scale != scale ||
+      old.annotations != annotations ||
+      old.stringRuns != stringRuns ||
+      old.style != style;
+}
+
 /// Drawn in the lane ABOVE each system: one labelled colored bar per chord run,
 /// spanning exactly the notes the chord governs. The bar answers "until when?",
 /// which a chord letter on its own can't, and its color keys the run to its
@@ -700,57 +1035,25 @@ class _ChordLanePainter extends CustomPainter {
 
   /// One segment per system line the run touches, in line order.
   List<_LaneSegment> _runRowRects(ChordRunRegion r) {
-    // Last measure index that gets a bar: a whole-measure end (-1) or a
-    // mid-measure end (endNote>0) includes endMeasureIndex; endNote==0 stops at
-    // the measure before it. Same rule as the section wash.
-    final lastIdx = r.endNote == -1
-        ? r.endMeasureIndex
-        : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
-    if (lastIdx < r.startMeasureIndex) return const [];
-
-    final byLine = <int, ({double left, double right})>{};
-    for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
-      final m = score.measureAt(i);
-      if (m == null) continue;
-      var left = m.rect.left;
-      var right = m.rect.right;
-      if (i == r.startMeasureIndex && r.startNote > 0) {
-        final n = score.noteAt(i, r.startNote);
-        if (n != null) left = n.rect.left;
-      }
-      if (r.endNote > 0 && i == r.endMeasureIndex) {
-        final n = score.noteAt(i, r.endNote);
-        if (n != null) right = n.rect.left;
-      }
-      if (right <= left) continue;
-      final line = score.lineOfMeasure(i);
-      if (line < 0) continue;
-      final cur = byLine[line];
-      byLine[line] = cur == null
-          ? (left: left, right: right)
-          : (
-              left: left < cur.left ? left : cur.left,
-              right: right > cur.right ? right : cur.right,
-            );
-    }
-    if (byLine.isEmpty) return const [];
-
-    final lines = byLine.keys.toList()..sort();
     final out = <_LaneSegment>[];
-    for (final line in lines) {
-      final band = score.chordLaneBand(line);
+    for (final e in runRowExtents(
+      score,
+      startMeasureIndex: r.startMeasureIndex,
+      startNote: r.startNote,
+      endMeasureIndex: r.endMeasureIndex,
+      endNote: r.endNote,
+    )) {
+      final band = score.chordLaneBand(e.line);
       if (band == null) continue; // no whitespace on this line — skip, don't clash
-      final s = byLine[line]!;
-      final rect = Rect.fromLTRB(
-        s.left * scale + _gap,
-        band.top * scale,
-        s.right * scale - _gap,
-        band.bottom * scale,
-      );
       out.add(_LaneSegment(
-        rect: rect,
-        isFirst: line == lines.first,
-        isLast: line == lines.last,
+        rect: Rect.fromLTRB(
+          e.left * scale + _gap,
+          band.top * scale,
+          e.right * scale - _gap,
+          band.bottom * scale,
+        ),
+        isFirst: e.isFirst,
+        isLast: e.isLast,
       ));
     }
     return out;
@@ -759,6 +1062,84 @@ class _ChordLanePainter extends CustomPainter {
   @override
   bool shouldRepaint(_ChordLanePainter old) =>
       old.score != score || old.scale != scale || old.runs != runs;
+}
+
+/// The horizontal extent of a note-level run, split per system line.
+///
+/// The shared half of what the chord lane and the fingering channel's string
+/// underline both need: measures unioned within a line, note-level start/end
+/// edges, one entry per line so a run that wraps splits cleanly. Only the
+/// VERTICAL placement differs between the two, so only that is left to the
+/// callers — which is what stops the two lanes drifting apart on where a run
+/// begins and ends.
+///
+/// Coordinates are viewBox, unscaled. [isFirst]/[isLast] mark the run's true
+/// ends, so a caller can cap those and square-cut the wraps.
+///
+/// [endNote] is EXCLUSIVE, with -1 meaning "the whole of [endMeasureIndex]" —
+/// the [ChordRunRegion] / [StringRunRegion] / `SectionTintRegion` convention.
+///
+/// [clipStartToNote] pulls the very start of the run in to its first NOTE rather
+/// than to its measure's left edge. The two kinds of run want different answers
+/// here: a chord governs its whole bar, so its bar starts at the barline, but a
+/// string run describes playing, and starting at the barline drags it back under
+/// the clef and key signature on the first system — reading as a rule that
+/// begins before the music does.
+List<({int line, double left, double right, bool isFirst, bool isLast})>
+    runRowExtents(
+  EngravedScore score, {
+  required int startMeasureIndex,
+  required int startNote,
+  required int endMeasureIndex,
+  required int endNote,
+  bool clipStartToNote = false,
+}) {
+  // Last measure index that gets ink: a whole-measure end (-1) or a mid-measure
+  // end (endNote>0) includes endMeasureIndex; endNote==0 stops at the measure
+  // before it. Same rule as the section wash.
+  final lastIdx = endNote == -1
+      ? endMeasureIndex
+      : (endNote > 0 ? endMeasureIndex : endMeasureIndex - 1);
+  if (lastIdx < startMeasureIndex) return const [];
+
+  final byLine = <int, ({double left, double right})>{};
+  for (var i = startMeasureIndex; i <= lastIdx; i++) {
+    final m = score.measureAt(i);
+    if (m == null) continue;
+    var left = m.rect.left;
+    var right = m.rect.right;
+    if (i == startMeasureIndex && (startNote > 0 || clipStartToNote)) {
+      final n = score.noteAt(i, startNote);
+      if (n != null) left = n.rect.left;
+    }
+    if (endNote > 0 && i == endMeasureIndex) {
+      final n = score.noteAt(i, endNote);
+      if (n != null) right = n.rect.left;
+    }
+    if (right <= left) continue;
+    final line = score.lineOfMeasure(i);
+    if (line < 0) continue;
+    final cur = byLine[line];
+    byLine[line] = cur == null
+        ? (left: left, right: right)
+        : (
+            left: left < cur.left ? left : cur.left,
+            right: right > cur.right ? right : cur.right,
+          );
+  }
+  if (byLine.isEmpty) return const [];
+
+  final lines = byLine.keys.toList()..sort();
+  return [
+    for (final line in lines)
+      (
+        line: line,
+        left: byLine[line]!.left,
+        right: byLine[line]!.right,
+        isFirst: line == lines.first,
+        isLast: line == lines.last,
+      )
+  ];
 }
 
 /// One chord bar on one system line. [isFirst]/[isLast] mark the run's true ends,
