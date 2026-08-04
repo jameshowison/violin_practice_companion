@@ -1,5 +1,6 @@
 import 'package:xml/xml.dart';
 
+import '../models/gdae_tuning.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 
@@ -34,12 +35,6 @@ class TabScore {
 /// Assumes single-voice melodies (these practice pieces are) — one `<backup>`
 /// per measure replays its full duration onto staff 2.
 class TabScoreGenerator {
-  /// Open-string MIDI (from `assets/lookup_tables/fingering_first_position.json`).
-  static const _openMidi = {'E': 76, 'A': 69, 'D': 62, 'G': 55};
-
-  /// Violin string → tab string number (1 = top line = E, 4 = bottom = G).
-  static const _stringNum = {'E': 1, 'A': 2, 'D': 3, 'G': 4};
-
   // MusicXML child-order (schema sequence) for stable, importer-friendly output.
   static const _attrOrder = [
     'footnote', 'level', 'divisions', 'key', 'time', 'staves', 'part-symbol',
@@ -144,33 +139,25 @@ class TabScoreGenerator {
 
   /// Resolve a model note to its tab string/fret/label.
   ///
-  /// String choice: when [preferOpenFrets] (beginner fret mode), always use the
-  /// highest open string ([_deriveString], fret ≤6), ignoring the fingering's
-  /// string. Otherwise prefer the app's chosen `fingerString`, falling back to
-  /// the derived string for notes outside the first-position table.
+  /// String/fret come from [GdaeTuning.resolve] — the same calculation the
+  /// annotation view's fingering channel uses, so a note's fret can't read
+  /// differently in the two places.
   ///
   /// Label is the fingering (verbatim, incl. L/H) or, when none was computed,
   /// the fret number so the tab stays complete (used only for the fingering-mode
   /// text swap; fret mode shows the native fret).
   static _TabNote _resolve(NoteEvent? ne, bool preferOpenFrets) {
     if (ne == null || ne.isRest) return _TabNote.silent();
-    final letter = preferOpenFrets
-        ? _deriveString(ne.midiNumber)
-        : (ne.fingerString ?? _deriveString(ne.midiNumber));
-    final open = _openMidi[letter]!;
-    final fret = ne.midiNumber - open;
-    final stringNum = _stringNum[letter]!;
-    final label = ne.fingerNumber ?? '$fret';
-    return _TabNote(stringNum: stringNum, fret: fret, label: label);
-  }
-
-  /// Highest string on which [midi] plays with a small (first-position) fret.
-  static String _deriveString(int midi) {
-    for (final s in const ['E', 'A', 'D', 'G']) {
-      final fret = midi - _openMidi[s]!;
-      if (fret >= 0 && fret <= 6) return s;
-    }
-    return midi >= _openMidi['E']! ? 'E' : 'G';
+    final at = GdaeTuning.resolve(
+      ne.midiNumber,
+      fingerString: ne.fingerString,
+      preferOpenFrets: preferOpenFrets,
+    );
+    return _TabNote(
+      stringNum: GdaeTuning.stringNumber[at.string]!,
+      fret: at.fret,
+      label: ne.fingerNumber ?? '${at.fret}',
+    );
   }
 
   /// Add `<staves>2</staves>` to [stavesAttrs], and the staff-2 TAB clef +

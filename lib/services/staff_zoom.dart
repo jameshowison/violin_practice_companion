@@ -89,6 +89,76 @@ int verovioSpacingSystemFor(double staffSpacing) {
   return (16 * staffSpacing * staffSpacing).round().clamp(0, 48);
 }
 
+/// Verovio's default `pageMarginTop` in MEI units. Set explicitly (rather than
+/// left to the default) only so [verovioLaneMarginUnits] can be added to it.
+/// Verified by measurement: passing 50 back reproduces the 31.9px above the first
+/// system that the un-set option gave, so a 1-lane engrave is unchanged.
+const int verovioPageMarginTopDefault = 50;
+
+// ── Annotation-lane reservation ──────────────────────────────────────────────
+//
+// Room for annotation lanes past the first has to be asked of Verovio in TWO
+// places, because the lanes live in two different kinds of whitespace: the page's
+// top margin holds line 0's lanes, the inter-system gap holds every other line's.
+//
+// The first lane is free. Measurement (`[engraver] lane` debug line, 12-bar tune,
+// default staff spacing) put the default layout at `top0 = 0.51 × contentH` and
+// `gap1 = 0.38 × contentH`, against a per-lane appetite of
+// `annotationLaneHeightFraction` = 0.30 plus clearance — so one lane already fits
+// in both, which is what the chord lane has always drawn into. It's the SECOND
+// lane that needs asking for.
+//
+// Both ratios above are scale-invariant (confirmed at scale 40 and 52.4: `top0`,
+// `gap1` and `contentH` all move together), so these unit counts hold at every
+// zoom level.
+//
+// The two knobs are NOT interchangeable — measured at the probe scale, one unit of
+// `spacingSystem` is worth ~3.6px of gap while one unit of `pageMarginTop` is
+// worth only ~0.4px. Reserving the same number of units in both over-reserves the
+// gap by ~3×, so they get separately measured constants.
+//
+// ## Known consequence: the annotation view can reflow wider than the staff view
+//
+// Gap is not free. It inflates `systemHeightPx`, which is what
+// [autoMeasuresPerLine] budgets against — and that budget has a CLIFF, not a
+// slope: a piece whose whole-score height no longer fits the viewport doesn't
+// shrink a little, it falls straight through to [measuresPerLineForWidth].
+//
+// Measured on a 12-bar tune sitting right at that boundary (`sysH` 75.8 before,
+// budget somewhere under 80): a full-height channel takes it to 83.5 and the
+// annotation view goes from 8 measures per line to 4, doubling the note size and
+// making the piece scroll. A 1-unit reserve would have held 8, at the price of
+// squeezing both lanes to 0.65 of their height.
+//
+// Full height was chosen deliberately over keeping the layout. Note the cliff
+// only bites on AUTO measures-per-line; with an explicit setting from the slider
+// the reserve just makes the score a little taller.
+
+/// `spacingSystem` units per annotation lane past the first.
+///
+/// Two lanes need `gap ≥ 0.30 + 0.22 + 2×0.05 = 0.62 × contentH`, up from the
+/// default 0.38 — a 0.24 shortfall, and one unit buys 0.058, so ~4.2 units.
+/// Rounded up to 5 so both lanes clear their full proportional height
+/// (`EngravedScore.laneSqueeze` == 1.00) rather than landing a hair short.
+const int laneReserveSpacingUnitsPerLane = 5;
+
+/// `pageMarginTop` units per annotation lane past the first. Two lanes need
+/// `top0 ≥ 0.30 + 0.22 + 0.05 = 0.57 × contentH` (only one clearance pad up here,
+/// there being no system above to clear), up from the default 0.51 — a 0.06
+/// shortfall at 0.0064 per unit, so ~9.4 units, plus slack. Far more units than
+/// the gap needs for the same room, because a margin unit is worth ~9× less.
+const int laneReserveMarginUnitsPerLane = 14;
+
+/// Extra `spacingSystem` for [lanes] annotation lanes. 0 for one lane, so a
+/// staff- or tab-view engrave is bit-for-bit what it was before lanes stacked.
+/// Clamped because nothing sensible asks for more than a handful.
+int verovioLaneSpacingUnits(int lanes) =>
+    (lanes - 1).clamp(0, 4) * laneReserveSpacingUnitsPerLane;
+
+/// Extra `pageMarginTop` for [lanes] annotation lanes. 0 for one lane.
+int verovioLaneMarginUnits(int lanes) =>
+    (lanes - 1).clamp(0, 4) * laneReserveMarginUnitsPerLane;
+
 /// Size multiplier for the section minimap's A/B part markers at a given achieved
 /// measures-per-line, so they grow along with the notes.
 ///
