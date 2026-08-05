@@ -38,6 +38,14 @@ class VerovioEngraver {
   VerovioAsyncService? _svc;
   Future<VerovioAsyncService>? _spawning;
 
+  /// The interactive default (`note`, `rest`, `measure`) plus the meter
+  /// signature, which is an ANCHOR rather than a hit target: the count-in
+  /// display is specified as sitting just above the time signature, and only the
+  /// hit map knows where the engraver put it. Cheap — one more element per meter
+  /// change, and the parse is already walking the whole page.
+  static const _hitMapConfig = ParseConfig(
+      captureClasses: {'note', 'rest', 'measure', 'meterSig'});
+
   // Small LRU-ish cache keyed by (xmlHash, widthBucket, scale). Reflow on
   // rotation/resize and the live measure editor re-engrave hit the cache when
   // the inputs are unchanged. Sized to hold a handful of zoom levels alongside
@@ -199,7 +207,7 @@ class VerovioEngraver {
     await svc.setOptionsJson(jsonEncode(options));
     await svc.loadData(stripPartLabels(musicXml));
 
-    final res = await svc.renderPageWithHitMap(1);
+    final res = await svc.renderPageWithHitMap(1, config: _hitMapConfig);
     final hitMap = res.hitMap;
 
     // Optional timemap → qstamp per sounding note (cursor fallback).
@@ -315,6 +323,15 @@ class VerovioEngraver {
       }
     }
 
+    // Meter signatures in document order. Normally exactly one (Verovio engraves
+    // it on the first system only unless the meter changes mid-piece), so the
+    // count-in anchors to `meterSigs.first` and falls back to a measure's left
+    // edge when the score has none.
+    final meterSigs = <Rect>[
+      for (final h in hitMap.byType)
+        if (h.type == 'meterSig') h.bbox,
+    ];
+
     final measureRects = [for (final m in measures) m.rect];
     final (measureLine, lineBands) = systemLinesOf(measureRects);
     final lineContent = lineContentOf(measureRects, measureLine);
@@ -331,6 +348,7 @@ class VerovioEngraver {
       bboxById: bboxById,
       measures: measures,
       notes: notes,
+      meterSigs: meterSigs,
       measureLine: measureLine,
       lineBands: lineBands,
       lineContent: lineContent,
@@ -601,6 +619,11 @@ class EngravedScore {
   /// within that measure (rests counted — matching `HighlightEvent.noteIndex`).
   final List<NoteAnchor> notes;
 
+  /// Engraved meter signatures (viewBox coords) in document order — normally one,
+  /// on the first system. The count-in display anchors to these; see
+  /// [meterSigOnLine].
+  final List<Rect> meterSigs;
+
   /// Per measure index → its system-line index.
   final List<int> measureLine;
 
@@ -642,6 +665,7 @@ class EngravedScore {
     required this.lineContent,
     required this.pageWidthUnits,
     required this.renderMs,
+    this.meterSigs = const [],
     this.laneCount = 1,
   });
 
@@ -787,6 +811,21 @@ class EngravedScore {
   ({double top, double bottom})? bandForMeasure(int index) {
     final l = lineOfMeasure(index);
     return (l < 0 || l >= lineBands.length) ? null : lineBands[l];
+  }
+
+  /// The meter signature engraved on system line [l], or null when that line has
+  /// none — which is every line but the first, since Verovio only re-states the
+  /// meter where it changes.
+  ///
+  /// Matched by vertical overlap rather than by index, so a mid-piece meter
+  /// change resolves to whichever system actually carries it.
+  Rect? meterSigOnLine(int l) {
+    if (l < 0 || l >= lineContent.length) return null;
+    final c = lineContent[l];
+    for (final r in meterSigs) {
+      if (r.center.dy >= c.top && r.center.dy <= c.bottom) return r;
+    }
+    return null;
   }
 
   /// Anchor for the note at document measure [measureIndex], positional

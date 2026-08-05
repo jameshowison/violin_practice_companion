@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/count_in.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -20,6 +21,7 @@ import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
 import 'chord_xml_injector.dart';
+import 'count_in_store.dart';
 import 'palette_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_repository.dart';
@@ -621,4 +623,91 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 
 final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
   return ref.watch(playbackServiceProvider).state;
+});
+
+// ── Count-in ──────────────────────────────────────────────────────────────────
+
+final countInStoreProvider = Provider<CountInStore>((_) => CountInStore());
+
+/// The MINIMUM number of beats counted off when Play is pressed; 0 = off.
+///
+/// A minimum rather than an exact count, because the count always spans whole
+/// bars less the pickup — see `countInPlan`. So 3 (the default) asks for a bar of
+/// 4/4, two bars of 2/4, or a bar less the anacrusis, and only a bigger value
+/// forces a longer lead-in.
+///
+/// One setting for the whole app rather than per piece, so it is restored once
+/// per launch and not on every piece change (contrast [measuresPerLineProvider],
+/// which is rebuilt per piece and so needs a `restored` flag to hold off the
+/// first engrave). Nothing here has to wait for storage: the count-in matters
+/// only when Play is pressed, by which time the read has long since landed.
+final countInProvider = StateNotifierProvider<CountInNotifier, int>(
+    (ref) => CountInNotifier(ref.watch(countInStoreProvider)));
+
+class CountInNotifier extends StateNotifier<int> {
+  CountInNotifier(this._store) : super(countInMinBeats) {
+    _restore();
+  }
+
+  final CountInStore _store;
+  bool _touched = false;
+
+  Future<void> _restore() async {
+    final saved = await _store.load();
+    if (!mounted || _touched || saved == null) return; // a user change wins
+    state = saved;
+  }
+
+  /// Live slider position — state only, no write (a drag would otherwise write
+  /// once per stop it crosses).
+  void preview(int beats) {
+    _touched = true;
+    state = beats;
+  }
+
+  /// Settles on [beats] and persists it; 0 turns the count-in off.
+  void commit(int beats) {
+    preview(beats);
+    _store.save(beats);
+  }
+}
+
+/// The measure Play starts from: the practice selection's first bar, or — with
+/// nothing selected — the score's own first measure.
+///
+/// Deliberately NOT a literal 1. A pickup is commonly numbered 0 (MuseGroup's
+/// `<measure number="0" implicit="yes">`), and `play(fromMeasure: 1)` resolves
+/// that to the first FULL bar, silently dropping the anacrusis — which is both
+/// the wrong note to start on and the reason the count-in needs shortening.
+final playbackStartMeasureProvider = Provider<int>((ref) {
+  final selection = ref.watch(measureSelectionProvider);
+  if (selection != null) return selection.startMeasure;
+  final measures = ref.watch(parsedPieceProvider).valueOrNull?.measures;
+  return (measures == null || measures.isEmpty) ? 1 : measures.first.number;
+});
+
+/// The count-off Play will actually give: the preference resolved against this
+/// score's meter and shortened by a pickup at the start measure. Null = no count.
+///
+/// One provider so the Play button and the drawer's readout can't disagree — the
+/// setting says "3 beats" precisely when Play will count three.
+final resolvedCountInProvider = Provider<CountInPlan?>((ref) {
+  final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+  final beatsPerMeasure = parsed?.beatsPerMeasure ?? 4;
+  final beatType = parsed?.beatType ?? 4;
+  final start = ref.watch(playbackStartMeasureProvider);
+  Measure? startMeasure;
+  for (final m in parsed?.measures ?? const <Measure>[]) {
+    if (m.number == start) {
+      startMeasure = m;
+      break;
+    }
+  }
+  return countInPlan(
+    beatsPerMeasure: beatsPerMeasure,
+    beatType: beatType,
+    minBeats: ref.watch(countInProvider),
+    pickupUnits: pickupUnitsOf(startMeasure,
+        beatsPerMeasure: beatsPerMeasure, beatType: beatType),
+  );
 });
