@@ -8,9 +8,19 @@ Simulators are referred to by name, never by UDID: **`dev-iphone`** (iPhone 17) 
 
 **Start once:**
 ```bash
+bash scripts/dev_run.sh dev-iphone   # kills any existing run, boots the device,
+                                     # stamps the build, opens the control pipe
+```
+
+By hand, if you want to see the parts — note the **detached** pipe holder.
+`exec 3>/tmp/flutter_ctl` holds the write end open only as long as the shell that ran
+it, and each Bash tool call is a fresh shell, so a script or tool call that returns
+takes the fifo's only writer with it:
+```bash
 rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
-flutter run -d dev-iphone < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
-exec 3>/tmp/flutter_ctl  # hold the pipe open so the fifo doesn't close
+nohup sleep 86400 > /tmp/flutter_ctl 2>/dev/null &   # holds the write end open
+nohup bash -c 'flutter run -d dev-iphone < /tmp/flutter_ctl > flutter_run.log 2>&1' \
+  >/dev/null 2>&1 &
 ```
 
 **After code edits:**
@@ -28,16 +38,42 @@ tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 
 > **Why assets need a full restart on iOS:** Hot restart only re-executes the Dart VM — it does NOT rebuild or reinstall the native `.app` bundle. Static assets (including `osmd_bridge.html` and any JS files) are bundled into the `.app` at `flutter run` time and read from there by WKWebView. A hot restart will always serve the old asset. Always do a full restart after editing anything in `assets/`.
 
-**Before a full restart, regenerate build info:**
+**Before a full restart, regenerate build info** — `scripts/dev_run.sh` does this for
+you, so a full relaunch is just:
 ```bash
-bash scripts/gen_build_info.sh   # writes lib/build_info.dart (gitignored)
-pkill -f flutter_tools.snapshot
-rm -f /tmp/flutter_ctl && mkfifo /tmp/flutter_ctl
-flutter run -d dev-iphone < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
-exec 3>/tmp/flutter_ctl
+bash scripts/dev_run.sh dev-iphone   # stamps, kills the old run, relaunches
 ```
 
 The running git hash + timestamp is shown in the AppBar (debug builds only), so you can confirm which build is live without committing.
+
+**Verify the build is live — do not trust the reload output.**
+
+When a change appears to have no effect, suspect the build before the code.
+`Reloaded 0 libraries`, or a sub-second `Restarted application` after an edit you can't
+see on screen, means the tool did not compile your change. A `flutter run` inherited
+from an earlier session can stop noticing file changes for the rest of its life — and
+then every "verification" you do is against old code. This has cost a session ~40
+minutes and produced two false bug reports.
+
+The stamp is the only proof, and it only moves when you regenerate it, so re-stamp
+before **every** reload or restart:
+```bash
+bash scripts/gen_build_info.sh   # prints e.g. "build_info.dart: 1271eba* 11:06:21"
+echo "R" > /tmp/flutter_ctl
+tail -n 5 flutter_run.log        # want "Restarted application"
+```
+
+Then read the stamp back off the device. `kBuildRef` renders as a plain `Text` in the
+AppBar of the piece list and the piece detail screen (debug only), so Marionette can
+read it without a screenshot:
+```
+mcp__marionette__get_interactive_elements   # look for Text: "1271eba* 11:06:21"
+```
+
+Stamp on screen ≠ stamp just printed → the build is stale. Nothing but a cold relaunch
+reliably clears it (`bash scripts/dev_run.sh dev-ipad`). And since `build_info.dart`
+changes on every stamp, `Reloaded 0 libraries` *right after stamping* is proof on its
+own that the watcher is dead.
 
 **Never spawn a new `flutter run` without killing the existing one first.**
 
@@ -81,6 +117,41 @@ sips -r 90 /tmp/staff.png                            # raw capture is portrait; 
 Then read `/tmp/staff.png`. (See the README "Screenshots & UI debugging" section.)
 
 The main Marionette-visible alternatives would be `verovio_flutter` (FFI, outputs SVG rendered via `flutter_svg`) or exporting OSMD's SVG and displaying it with `flutter_svg` instead of a WebView. Both lose live cursor animation and require significant rework. We're staying with OSMD/WebView for rendering quality; accept the blank-screenshot limitation.
+
+**Capturing short-lived UI — arm the screenshots BEFORE the tap.**
+
+Anything transient (the playback count-in, the cursor on a fast note, autoscroll, a
+snackbar) can be over before you can look at it: the gap between two agent tool calls is
+seconds, and a 3-beat count-in at 115 bpm lasts 1.6. Tap-then-screenshot samples an
+arbitrary moment several seconds late — it will *look* like the feature never fired.
+
+Launch a detached burst first, then do the interaction. Each `simctl io screenshot` takes
+roughly half a second, so 20 shots cover about ten seconds and bracket the tap wherever
+it lands:
+```bash
+rm -rf /tmp/shots && mkdir -p /tmp/shots     # not `rm *.png` — zsh errors on an empty glob
+nohup bash -c 'sleep 2; for i in $(seq -w 1 20); do
+  xcrun simctl io dev-ipad screenshot /tmp/shots/f$i.png >/dev/null 2>&1; done' \
+  >/dev/null 2>&1 &
+# ...now send the Marionette tap...
+md5 -q /tmp/shots/f*.png | cat -n | uniq -f1   # which frames actually differ
+```
+Then rotate/crop only the interesting frames (`sips -r 90 f07.png`, then
+`sips -c <h> <w> --cropOffset <y> <x> f07.png --out f07c.png`), writing the crops
+somewhere else — a crop sitting next to its original doubles every entry in that dedupe
+list and the pattern reads like the screen alternating between two states.
+
+Better still, widen the window before capturing:
+- Slow the tempo — but with `mcp__marionette__swipe`, not `tap`. A synthetic tap on a
+  `Slider` moves the label without firing `onChangeEnd`, so the service never sees the
+  new value; a coordinate swipe is a real drag and does.
+- Or lengthen the thing itself (e.g. set the count-in minimum to 8 beats), verify the
+  visual there, and leave the short default to the unit tests.
+
+And prefer not to need a picture: `get_interactive_elements` returns `Text` contents, so
+a label can be asserted without an image — subject to the same latency, so widen the
+window first. Timing-sensitive *logic* belongs in a test (see `test/count_in_test.dart`,
+`test/count_in_providers_test.dart`); use the capture for the appearance only.
 
 **Troubleshooting:**
 - `Unknown method "ext.flutter.marionette.getVersion"` → version mismatch; ensure `marionette_flutter` in `pubspec.yaml` matches `marionette_mcp` (both should be `^0.5.0`).
