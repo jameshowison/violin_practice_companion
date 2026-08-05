@@ -21,6 +21,18 @@ class _PlaybackControlsState extends ConsumerState<PlaybackControls> {
     final selection = ref.watch(measureSelectionProvider);
     final isPlaying = playState == PlaybackState.playing;
 
+    // The service is handed a ready-made count-off and a plain measure number;
+    // the meter, the minimum and the pickup are all resolved in the providers,
+    // which is what keeps this button and the drawer's readout in agreement.
+    final countIn = ref.watch(resolvedCountInProvider);
+    final startMeasure = ref.watch(playbackStartMeasureProvider);
+
+    void start() => service.play(
+          fromMeasure: startMeasure,
+          toMeasure: selection?.endMeasure,
+          countIn: countIn,
+        );
+
     return Container(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -33,10 +45,7 @@ class _PlaybackControlsState extends ConsumerState<PlaybackControls> {
               tooltip: 'Rewind',
               onPressed: () {
                 service.stop();
-                service.play(
-                  fromMeasure: selection?.startMeasure ?? 1,
-                  toMeasure: selection?.endMeasure,
-                );
+                start();
               },
             ),
             // Play / Pause
@@ -47,16 +56,10 @@ class _PlaybackControlsState extends ConsumerState<PlaybackControls> {
               onPressed: () {
                 if (isPlaying) {
                   service.pause();
-                } else if (playState == PlaybackState.paused) {
-                  service.play(
-                    fromMeasure: selection?.startMeasure ?? 1,
-                    toMeasure: selection?.endMeasure,
-                  );
                 } else {
-                  service.play(
-                    fromMeasure: selection?.startMeasure ?? 1,
-                    toMeasure: selection?.endMeasure,
-                  );
+                  // Paused and stopped both resume with a fresh count-off: the
+                  // instrument has come down either way.
+                  start();
                 }
               },
             ),
