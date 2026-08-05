@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/chord_palette.dart';
+import '../models/count_in.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -22,6 +23,7 @@ import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
 import 'edit_measure_screen.dart';
+import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
@@ -97,6 +99,11 @@ class PieceDetailScreen extends ConsumerWidget {
               children: [
                 Text('Settings', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
+                // First, and never hidden behind a display mode: it's the one
+                // setting here that's about playing along rather than about how
+                // the notation looks.
+                const _CountInSlider(),
+                const Divider(),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -274,6 +281,8 @@ class PieceDetailScreen extends ConsumerWidget {
                             children: [
                               Positioned.fill(child: notationView),
                               _FloatingMeasureActions(selection: selection),
+                              _CountInOverlay(
+                                  service: service, mode: displayMode),
                             ],
                           ),
                         ),
@@ -326,6 +335,64 @@ class PieceDetailScreen extends ConsumerWidget {
 
   static String _prettyRoot(String root) =>
       root.replaceAll('b', '♭').replaceAll('#', '♯');
+}
+
+/// How long the count-off before playback is: Off, or a minimum of
+/// [countInMinBeats]…[countInMaxBeats] beats.
+///
+/// The setting is a MINIMUM because the count always spans whole bars less the
+/// pickup (see `countInPlan`) — so the readout shows what that came to for this
+/// score, which is the number the player will actually see counted. Stops below
+/// [countInMinBeats] aren't reachable: a one- or two-beat count doesn't establish
+/// a pulse.
+class _CountInSlider extends ConsumerWidget {
+  const _CountInSlider();
+
+  /// 0 is "Off"; the rest are minimum beat counts. `final`, not `const`, because
+  /// a `for` element can't appear in a const collection.
+  static final _stops = <int>[
+    0,
+    for (var b = countInMinBeats; b <= countInMaxBeats; b++) b,
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final minBeats = ref.watch(countInProvider);
+    // What Play will actually count: whole bars less any pickup at the start
+    // measure, so the readout never promises a four that comes out a three.
+    final plan = ref.watch(resolvedCountInProvider);
+    final counted = plan?.labels.length ?? 0;
+    final position = _stops.indexOf(minBeats);
+    final readout = plan == null
+        ? 'Off'
+        : (counted == minBeats ? '$counted beats' : '$counted beats (min $minBeats)');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Count-in'),
+            Text(readout, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+        Slider(
+          // A stale saved value outside the stops parks at the top rather than
+          // throwing.
+          value: (position < 0 ? _stops.length - 1 : position).toDouble(),
+          min: 0,
+          max: (_stops.length - 1).toDouble(),
+          divisions: _stops.length - 1,
+          label: readout,
+          onChanged: (v) =>
+              ref.read(countInProvider.notifier).preview(_stops[v.round()]),
+          onChangeEnd: (v) =>
+              ref.read(countInProvider.notifier).commit(_stops[v.round()]),
+        ),
+      ],
+    );
+  }
 }
 
 /// Staff zoom. Fewer measures per line ⇒ bigger notes: the score is always
@@ -718,6 +785,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                       ),
               ),
               _FloatingMeasureActions(selection: selection),
+              _CountInOverlay(service: widget.service, mode: displayMode),
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -1184,6 +1252,7 @@ class _NotationView extends ConsumerWidget {
         return StaffViewVerovio(
           musicXml: xml,
           highlightNotifier: service.currentHighlightNotifier,
+          countInNotifier: service.countInNotifier,
           selection: selection,
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
@@ -1291,6 +1360,7 @@ class _NotationView extends ConsumerWidget {
               ? StaffViewVerovio(
                   musicXml: tab.musicXml,
                   highlightNotifier: service.currentHighlightNotifier,
+                  countInNotifier: service.countInNotifier,
                   selection: selection,
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
                   flaggedMeasures: flaggedMeasures,
@@ -1309,6 +1379,49 @@ class _NotationView extends ConsumerWidget {
           error: (e, _) => Center(child: Text('Error: $e')),
         );
     }
+  }
+}
+
+/// The count-off for the views with no engraved time signature to sit above
+/// (jianpu, fingering, combined). The staff-based views draw their own, anchored
+/// to the meter — see [StaffViewVerovio]; without this the other three would
+/// answer a tap on Play with a couple of seconds of silence and nothing on screen
+/// to explain it.
+///
+/// Always returns a [Positioned], with an empty child when there is nothing to
+/// count — same requirement as [_FloatingMeasureActions], for the same reason.
+class _CountInOverlay extends StatelessWidget {
+  const _CountInOverlay({required this.service, required this.mode});
+
+  final PlaybackServiceBase service;
+  final DisplayMode mode;
+
+  static const _ownsItsCountIn = {
+    DisplayMode.staff,
+    DisplayMode.staffFingering,
+    DisplayMode.tab,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 8,
+      left: 0,
+      right: 0,
+      child: _ownsItsCountIn.contains(mode)
+          ? const SizedBox.shrink()
+          : Align(
+              alignment: Alignment.topCenter,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<CountInTick?>(
+                  valueListenable: service.countInNotifier,
+                  builder: (context, tick, _) => tick == null
+                      ? const SizedBox.shrink()
+                      : CountInLabel(tick: tick, height: 34),
+                ),
+              ),
+            ),
+    );
   }
 }
 

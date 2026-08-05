@@ -25,8 +25,18 @@ done
 rm -f "$FIFO"
 mkfifo "$FIFO"
 
+# Stamp the build before launching, so the AppBar says which build is live and the
+# expected value is right here in this script's output. See CLAUDE.md "Verify the
+# build is live".
+STAMP=$(bash "$(dirname "$0")/gen_build_info.sh")
+
 flutter run -d "$DEVICE" < "$FIFO" > "$LOG" 2>&1 &
-# Hold the write end open so the fifo doesn't close.
-exec 3>"$FIFO"
+
+# Hold the write end open so the fifo doesn't close. Detached on purpose: `exec 3>`
+# would last only as long as THIS shell, so the pipe would lose its only writer the
+# moment the script exits — and every later `echo "r" > $FIFO` would be shouting into
+# a closed pipe.
+nohup sleep 86400 > "$FIFO" 2>/dev/null &
 
 echo "launched (device=$DEVICE, log=$LOG)"
+echo "$STAMP"

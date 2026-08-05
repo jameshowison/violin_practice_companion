@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../models/count_in.dart';
 import '../models/parsed_piece.dart';
 import 'midi_generator.dart';
 
@@ -25,9 +26,21 @@ abstract class PlaybackServiceBase {
   int _hlPointer = 0;
   int _lastEmittedMeasure = 0;
 
+  // Count-in. Playback time runs from `_startOffset - _countInSeconds` up to
+  // `_startOffset`, so the count is simply the stretch where the time cursor sits
+  // BEHIND the first note — nothing else in the timing has to know it exists.
+  // The plan supplies the numbers and their spacing; this only keeps the clock.
+  CountInPlan? _countInPlan;
+  double _countInSeconds = 0;
+  double _countInBeatSeconds = 0;
+
   final Map<int, ValueNotifier<int?>> _measureNotifiers = {};
   final ValueNotifier<int?> currentMeasureNotifier = ValueNotifier(null);
   final ValueNotifier<HighlightEvent?> currentHighlightNotifier = ValueNotifier(null);
+
+  /// The count-off in progress, or null when the music is playing (or stopped).
+  /// Drives the "1 .. 2 .. 3" display above the time signature.
+  final ValueNotifier<CountInTick?> countInNotifier = ValueNotifier(null);
 
   final _stateCtrl = StreamController<PlaybackState>.broadcast();
 
@@ -48,7 +61,13 @@ abstract class PlaybackServiceBase {
     _data = generator.generate(piece, _bpm);
   }
 
-  void play({int fromMeasure = 1, int? toMeasure}) {
+  /// Starts (or resumes) playback of measures [fromMeasure]…[toMeasure].
+  ///
+  /// [countIn], when given, is counted off before the first note sounds; null
+  /// starts immediately. Only the Play/Rewind buttons ask for a count — a loop
+  /// repeat and a tempo change both re-enter [play] mid-practice, where counting
+  /// in again would be an interruption rather than a service.
+  void play({int fromMeasure = 1, int? toMeasure, CountInPlan? countIn}) {
     final d = _data;
     if (d == null) return;
     _stopInternal(silent: true);
@@ -59,7 +78,20 @@ abstract class PlaybackServiceBase {
     // non-1-based numbering resolve correctly. Falls back to the start.
     final fromIdx = d.indexOfMeasure(fromMeasure);
     _startOffset = d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
-    _t0 = DateTime.now();
+    _countInPlan = countIn;
+    final unitSeconds = countInUnitSeconds(_bpm);
+    _countInBeatSeconds = countIn == null ? 0 : countIn.unit * unitSeconds;
+    _countInSeconds = countIn == null ? 0 : countIn.totalUnits * unitSeconds;
+    // t0 goes into the FUTURE by the length of the count. Everything downstream
+    // reads `_startOffset + elapsed`, so this makes playback time run *up to*
+    // the first note instead of from it — no note sounds and no highlight
+    // advances while the cursor is behind the start, so the count-in needs no
+    // separate clock, no separate timer and no state machine.
+    _t0 = DateTime.now()
+        .add(Duration(microseconds: (_countInSeconds * 1e6).round()));
+    countInNotifier.value = countIn == null
+        ? null
+        : (labels: countIn.labels, index: 0, startMeasure: fromMeasure);
 
     final events = d.highlightEvents;
     if (events.isNotEmpty) {
@@ -79,6 +111,7 @@ abstract class PlaybackServiceBase {
     if (_state != PlaybackState.playing) return;
     _timer?.cancel();
     _timer = null;
+    countInNotifier.value = null;
     _emitState(PlaybackState.paused);
     onStopped();
   }
@@ -99,6 +132,9 @@ abstract class PlaybackServiceBase {
     _timer?.cancel();
     _timer = null;
     _t0 = null;
+    _countInPlan = null;
+    _countInSeconds = 0;
+    countInNotifier.value = null;
     if (!silent || _state != PlaybackState.stopped) {
       _emitState(PlaybackState.stopped);
       _clearNotifiers();
@@ -112,6 +148,23 @@ abstract class PlaybackServiceBase {
 
     final elapsed = DateTime.now().difference(_t0!).inMicroseconds / 1e6;
     final pt = _startOffset + elapsed;
+
+    // Still counting in: the time cursor is behind the first note, so nothing
+    // sounds and nothing advances — only the count itself moves on. The
+    // highlight already sits on the note we're counting towards (set in [play]),
+    // which is what makes the count read as leading into it.
+    final plan = _countInPlan;
+    if (plan != null && _countInBeatSeconds > 0 && pt < _startOffset) {
+      final elapsedInCount = _countInSeconds - (_startOffset - pt);
+      final index = (elapsedInCount ~/ _countInBeatSeconds)
+          .clamp(0, plan.labels.length - 1);
+      if (countInNotifier.value?.index != index) {
+        countInNotifier.value =
+            (labels: plan.labels, index: index, startMeasure: _fromMeasure);
+      }
+      return;
+    }
+    if (countInNotifier.value != null) countInNotifier.value = null;
 
     // Advance highlight pointer forward
     final events = d.highlightEvents;
@@ -209,6 +262,7 @@ abstract class PlaybackServiceBase {
     for (final n in _measureNotifiers.values) n.dispose();
     currentMeasureNotifier.dispose();
     currentHighlightNotifier.dispose();
+    countInNotifier.dispose();
     _stateCtrl.close();
   }
 }

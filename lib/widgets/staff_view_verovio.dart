@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 
 import '../models/chord_palette.dart';
+import '../models/count_in.dart';
 import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
@@ -14,6 +15,7 @@ import '../services/providers.dart';
 import '../services/staff_zoom.dart';
 import '../services/verovio_engraver.dart';
 import 'chord_swatch.dart';
+import 'count_in_label.dart';
 
 /// Native staff renderer: Verovio engraves (coordinates + per-element bboxes),
 /// jovial_svg draws the SVG in Flutter's own pipeline, and native CustomPaint
@@ -27,6 +29,11 @@ import 'chord_swatch.dart';
 class StaffViewVerovio extends ConsumerStatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
+
+  /// The count-off in progress, drawn as `1 .. 2 .. 3 ..` just above the time
+  /// signature. Null for the incidental previews (the measure editor, the note
+  /// palette), which have no playback of their own.
+  final ValueNotifier<CountInTick?>? countInNotifier;
 
   /// Kept for API parity with [StaffView]; the native renderer has no bridge.
   final String bridgeAsset;
@@ -104,6 +111,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     super.key,
     required this.musicXml,
     required this.highlightNotifier,
+    this.countInNotifier,
     this.bridgeAsset = 'assets/osmd/osmd_bridge.html',
     this.selection,
     this.onMeasureTapped,
@@ -441,6 +449,79 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     );
   }
 
+  // ── Count-in ───────────────────────────────────────────────────────────
+
+  /// Where the count-off goes, in screen pixels: the top annotation lane of the
+  /// system holding the measure playback is about to start on, left-aligned to
+  /// that system's time signature.
+  ///
+  /// The system comes from the START MEASURE rather than always being the first
+  /// one, so counting into a practice range at bar 30 puts the numbers on the
+  /// staff you are looking at instead of eight systems up. Only the first system
+  /// carries an engraved meter, so later ones fall back to the start measure's
+  /// own left edge — the point the music resumes from, which is the nearest thing
+  /// that line has to a signature.
+  ///
+  /// The rect stops at the first chord bar on that line: the chord name is what
+  /// the player needs to see while the count runs, so the count-off lives in the
+  /// blank space to its left (the clef/key/meter and, usually, the pickup bar)
+  /// and is scaled down to fit rather than allowed to cross into it.
+  Rect? _countInRect(
+      EngravedScore score, CountInTick tick, double scale, double width) {
+    final found = widget.measureNumbers.indexOf(tick.startMeasure);
+    final index = found < 0 ? 0 : found;
+    final line = score.lineOfMeasure(index);
+    if (line < 0 || line >= score.lineContent.length) return null;
+    final anchor = score.meterSigOnLine(line) ?? score.measureAt(index)?.rect;
+    if (anchor == null) return null;
+    final band = score.chordLaneBand(line);
+    final bottom = (band?.bottom ?? score.lineContent[line].top) * scale;
+    // A squeezed lane can be thinner than the numbers need; legibility wins, so
+    // a short lane grows upwards into the margin rather than shrinking the type.
+    final laneHeight = (band == null
+            ? score.contentHeightViewBox * EngravedScore.chordLaneHeightFraction
+            : band.bottom - band.top) *
+        scale;
+    final height = math.max(18.0, laneHeight);
+    final top = math.max(0.0, bottom - height);
+    final left = anchor.left * scale;
+    // A chord on the very first bar leaves no blank space at all (its bar starts
+    // at the barline, left of the clef). Rather than scale the count into
+    // nothing, give it a legible minimum and let it overlap in that one case —
+    // there is no layout answer there, only a choice of which thing to spoil.
+    final chordLeft = _firstChordLeftOnLine(score, line, scale);
+    final right = chordLeft == null
+        ? width
+        : math.min(width, math.max(chordLeft - _countInChordGap, left + _countInMinWidth));
+    return Rect.fromLTRB(left, top, right, top + height);
+  }
+
+  /// Left edge (screen px) of the leftmost chord bar on system line [l], or null
+  /// when that line carries no chord. Same geometry the chord lane paints with,
+  /// so the two can't disagree about where the bar begins.
+  double? _firstChordLeftOnLine(EngravedScore score, int l, double scale) {
+    double? best;
+    for (final run in widget.chordRuns) {
+      for (final e in runRowExtents(
+        score,
+        startMeasureIndex: run.startMeasureIndex,
+        startNote: run.startNote,
+        endMeasureIndex: run.endMeasureIndex,
+        endNote: run.endNote,
+      )) {
+        if (e.line != l) continue;
+        final left = e.left * scale;
+        if (best == null || left < best) best = left;
+      }
+    }
+    return best;
+  }
+
+  /// Clear space left between the count-off and the chord bar, and the width
+  /// below which squeezing the count is worse than overlapping.
+  static const _countInChordGap = 4.0;
+  static const _countInMinWidth = 84.0;
+
   // ── Taps ───────────────────────────────────────────────────────────────
 
   void _onTapDown(Offset local) {
@@ -584,6 +665,38 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                       ),
                     ),
                   ),
+                  // Above everything, and only for the couple of seconds it is
+                  // counting: it may well land on top of the first chord bar,
+                  // and while it's there it is the thing being read.
+                  if (widget.countInNotifier != null)
+                    ValueListenableBuilder<CountInTick?>(
+                      valueListenable: widget.countInNotifier!,
+                      builder: (context, tick, _) {
+                        final box = tick == null
+                            ? null
+                            : _countInRect(score, tick, scale, width);
+                        if (box == null) return const SizedBox.shrink();
+                        return Positioned(
+                          left: box.left,
+                          top: box.top,
+                          child: IgnorePointer(
+                            child: SizedBox(
+                              width: box.width,
+                              height: box.height,
+                              // Scale-down rather than clip: a count that loses
+                              // its last numbers stops answering "how long have
+                              // I got?", which is most of its job.
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: CountInLabel(
+                                    tick: tick!, height: box.height),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
