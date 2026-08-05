@@ -31,6 +31,29 @@ class ViolinStringPalette {
   /// A note whose string we don't know (no `fingerString` in the lookup table).
   static const unknown = Color(0xFF9E9E9E);
 
+  /// How many stagger steps above the channel's floor a string's rule (and its
+  /// number) sits, in [StringColourStyle.underline]: G 0, D 1, A 2, E 3.
+  ///
+  /// Pitch order, so up on the page is up in pitch — the same convention the
+  /// staff right below already uses. This is what makes the direction of a string
+  /// CHANGE visible: colour alone says "different string" but not which way the
+  /// hand went, and a step up or down at the join says it without being read.
+  ///
+  /// An unknown string shares G's level. It has no place in the order (it isn't
+  /// a pitch), and the floor is the one level that never implies a crossing it
+  /// can't support: a grey rule at the bottom reads as "no information", where a
+  /// grey rule floating mid-stack would read as a string between D and A.
+  static const stackOrder = <String, int>{'G': 0, 'D': 1, 'A': 2, 'E': 3};
+
+  /// The tallest step in [stackOrder] — the vertical range the stagger needs, in
+  /// steps. Derived rather than written down so the channel's budget can't drift
+  /// out of step with the table.
+  static final int maxStackOrder =
+      stackOrder.values.reduce((a, b) => a > b ? a : b);
+
+  /// [string]'s step in the stagger, or G's floor for anything off the four.
+  static int stepOf(String? string) => stackOrder[string] ?? 0;
+
   /// Fill for [string], or [unknown] for anything off the four.
   static Color of(String? string) => byString[string] ?? unknown;
 
@@ -70,7 +93,9 @@ enum StringColourStyle {
 
   /// A near-black number over a coloured rule that runs for as long as the
   /// playing stays on that string. Maximum number legibility; the colour is a
-  /// thinner cue, bought back by the length of the run.
+  /// thinner cue, bought back by the length of the run and by the height it is
+  /// drawn at — the four strings are staggered in pitch order (see [stackOrder]),
+  /// so a string change steps up or down as well as changing colour.
   underline,
 
   /// No colour at all — neutral chips, with the G/D/A/E letter carried by the
@@ -101,3 +126,43 @@ const fingeringChannelColor = Color(0xB3E8E8E8);
 /// bare glyph on grey wouldn't do. Light enough to take dark text, per
 /// [ViolinStringPalette.inkOn].
 const fingeringChipNeutral = Color(0xFFFAFAFA);
+
+// ── Underline geometry ───────────────────────────────────────────────────────
+//
+// [StringColourStyle.underline] divides the channel's height four ways: the
+// digits, a gap, the coloured rule, and the stagger the strings climb through.
+// Everything is a FRACTION of the channel, so the whole assembly scales with the
+// notes at every zoom (the same principle as the lane heights themselves).
+//
+// These live here rather than in the painter because they are the reason
+// `EngravedScore.fingeringLaneHeightFraction` is the size it is — the channel is
+// sized to hold exactly this stack — and a constraint spanning two files is one a
+// test should be able to read.
+
+/// The rule's thickness, as a fraction of the channel height.
+///
+/// Deliberately chunky. A hairline would be tidier, but the whole bargain of this
+/// style is trading colour area for number legibility, and below about this weight
+/// dark green and blue stop being tellable apart.
+const underlineRuleFraction = 0.15;
+
+/// Clear space between the digits and the rule under them.
+const underlineRuleGapFraction = 0.06;
+
+/// One string's worth of stagger: how far G→D→A→E lifts the rule AND its number
+/// (see [ViolinStringPalette.stackOrder]).
+///
+/// Small on purpose — a couple of pixels at practice zoom, well under the rule's
+/// own thickness. The step only has to be big enough that the JOIN between two
+/// runs reads as a jog rather than a straight line; make it much bigger and the
+/// numbers stop scanning as a row, which is the property the lane exists for.
+const underlineStringStepFraction = 0.085;
+
+/// The digits' share of the channel — what's left after the rule, its gap, and the
+/// room the topmost string needs to rise into. So nothing collides and no level
+/// pokes out of the band, however tight the squeeze gets.
+double get underlineTextFraction =>
+    1.0 -
+    underlineRuleFraction -
+    underlineRuleGapFraction -
+    ViolinStringPalette.maxStackOrder * underlineStringStepFraction;

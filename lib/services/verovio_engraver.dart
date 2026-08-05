@@ -708,15 +708,27 @@ class EngravedScore {
   /// [contentHeightViewBox]. Kept proportional so a lane scales with the notes at
   /// every zoom level, the same principle as `_OverlayPainter._bandPx`.
   ///
-  /// The two lanes are deliberately NOT the same height. A chord bar carries
-  /// `IV (G)` and is read as a span; a fingering chip carries `2L` and is read as
-  /// a point, so it can be shorter and still be the more legible of the two. That
-  /// isn't only cosmetic: every fraction spent here has to be bought back as
-  /// inter-system gap, and gap is what pushes a piece past the auto-fit budget
-  /// (see `verovioLaneSpacingUnits`). The channel is as short as it can be and
-  /// still hold a two-character chip.
+  /// Every fraction spent here has to be bought back as inter-system gap, and gap
+  /// is what pushes a piece past the auto-fit budget (see
+  /// `verovioLaneSpacingUnits`), so each lane is as short as its tallest content
+  /// allows and no shorter.
+  ///
+  /// The channel's tallest content is [StringColourStyle.underline], which stacks
+  /// a number, a gap and a coloured rule and then staggers the whole block over
+  /// four string levels ([ViolinStringPalette.stackOrder]) — that stagger is what
+  /// took the channel from 0.22 to 0.30. The chip styles have no use for the extra
+  /// room and don't take it: they draw in [fingeringChipZoneFraction], the slice at
+  /// the channel's floor that the channel used to be, so switching styles doesn't
+  /// move a chip.
   static const chordLaneHeightFraction = 0.30;
-  static const fingeringLaneHeightFraction = 0.22;
+  static const fingeringLaneHeightFraction = 0.30;
+
+  /// The chip styles' share of the channel, as a fraction of `contentHeight` —
+  /// i.e. the channel's whole height before the underline stagger needed more.
+  /// Anchored at the channel's floor, which is fixed relative to the notes, so a
+  /// chip lands exactly where it always did.
+  static const fingeringChipZoneFraction = 0.22;
+
   static const annotationLanePadFraction = 0.05;
 
   /// Lane height fractions bottom-up: `[fingering, chord]` with a channel,
