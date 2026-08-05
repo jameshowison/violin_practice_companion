@@ -92,7 +92,7 @@ class PieceDetailScreen extends ConsumerWidget {
       ),
       endDrawer: Drawer(
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

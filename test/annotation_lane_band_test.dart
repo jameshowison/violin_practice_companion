@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/violin_string_palette.dart';
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/services/verovio_engraver.dart';
 
@@ -95,16 +96,31 @@ void main() {
           reason: 'the lanes must touch exactly, with no gap or overlap');
     });
 
-    test('the channel is shorter than the chord lane, at its own fraction', () {
+    test('each lane gets its own fraction of the content height', () {
       final s = _score(gap: 60, topMargin: 60, laneCount: 2);
       final yard = s.contentHeightViewBox;
       expect(s.annotationLaneHeight(0),
           moreOrLessEquals(yard * EngravedScore.fingeringLaneHeightFraction));
       expect(s.annotationLaneHeight(1),
           moreOrLessEquals(yard * EngravedScore.chordLaneHeightFraction));
-      expect(s.annotationLaneHeight(0), lessThan(s.annotationLaneHeight(1)),
-          reason: 'a "2L" chip needs less height than an "IV (G)" bar, and the '
-              'saving is what keeps the gap reservation affordable');
+    });
+
+    test('the chips still draw in the shorter zone the channel used to be', () {
+      // The channel is full chord-lane height because the underline style stacks
+      // a number over a rule and staggers both across four string levels. The
+      // chip styles kept the old height, so growing the channel didn't silently
+      // grow the chips — see `_FingeringLanePainter._chipZone`.
+      expect(EngravedScore.fingeringChipZoneFraction,
+          lessThan(EngravedScore.fingeringLaneHeightFraction));
+      final s = _score(gap: 60, topMargin: 60, laneCount: 2);
+      final yard = s.contentHeightViewBox;
+      final zone = s.annotationLaneHeight(0) *
+          (EngravedScore.fingeringChipZoneFraction /
+              EngravedScore.fingeringLaneHeightFraction);
+      expect(zone,
+          moreOrLessEquals(yard * EngravedScore.fingeringChipZoneFraction));
+      expect(zone, lessThan(s.annotationLaneHeight(1)),
+          reason: 'a "2L" chip needs less height than an "IV (G)" bar');
     });
 
     test('adding a channel does not change the chord lane height', () {
@@ -163,8 +179,8 @@ void main() {
     test('a second lane in unreserved whitespace squeezes both, proportionally',
         () {
       // The degradation path when the reservation does not land: thinner lanes,
-      // never lanes over the notes. Both shrink by the same factor, so the
-      // channel stays the shorter of the two.
+      // never lanes over the notes. Both shrink by the same factor, so their
+      // proportions to each other hold.
       // This fixture's whitespace is the pre-change default, which is already a
       // hair tight for even one lane — the real score measures a 0.94 squeeze on
       // the chord lane alone, and has since the lane shipped.
@@ -174,7 +190,45 @@ void main() {
       expect(two.laneSqueeze, lessThan(1.0));
       expect(two.laneSqueeze, greaterThan(0));
       expect(two.annotationLaneHeight(1), lessThan(one.annotationLaneHeight(0)));
-      expect(two.annotationLaneHeight(0), lessThan(two.annotationLaneHeight(1)));
+      expect(two.annotationLaneHeight(0),
+          moreOrLessEquals(two.annotationLaneHeight(1)),
+          reason: 'the two lanes shrink by the same factor');
+    });
+
+    test('the channel is tall enough for the underline stagger', () {
+      // The budget the painter divides up: a number, the gap under it, the rule,
+      // and one step per string above G. If the channel were only the chip zone
+      // the top string's rule would climb out of the band and into the chord
+      // lane, so this is the constraint that set `fingeringLaneHeightFraction`.
+      final needed = underlineRuleFraction +
+          underlineRuleGapFraction +
+          ViolinStringPalette.maxStackOrder * underlineStringStepFraction;
+      expect(needed + underlineTextFraction, moreOrLessEquals(1.0),
+          reason: 'the four parts divide the channel exactly, no overflow');
+      expect(underlineTextFraction, greaterThan(0));
+      // And the digits must still be at least the size they were before the
+      // stagger, when they had the whole (shorter) channel bar rule and gap.
+      final digitsNow =
+          underlineTextFraction * EngravedScore.fingeringLaneHeightFraction;
+      const digitsBefore =
+          (1.0 - 0.20 - 0.08) * EngravedScore.fingeringChipZoneFraction;
+      expect(digitsNow, greaterThanOrEqualTo(digitsBefore),
+          reason: 'the stagger must not be paid for out of legibility');
+      // A step you can't see isn't a cue; one as thick as the rule is a staircase.
+      expect(underlineStringStepFraction, greaterThan(0.02));
+      expect(underlineStringStepFraction, lessThan(underlineRuleFraction));
+    });
+
+    test('the strings stagger in pitch order, G on the floor', () {
+      expect(ViolinStringPalette.stepOf('G'), 0);
+      expect(ViolinStringPalette.stepOf('D'), 1);
+      expect(ViolinStringPalette.stepOf('A'), 2);
+      expect(ViolinStringPalette.stepOf('E'), 3);
+      expect(ViolinStringPalette.maxStackOrder, 3);
+      // An unknown string shares the floor rather than floating mid-stack, where
+      // it would read as a string that doesn't exist.
+      expect(ViolinStringPalette.stepOf(null), 0);
+      expect(ViolinStringPalette.stepOf('B'), 0);
     });
 
     test('out-of-range lines and slots return null', () {

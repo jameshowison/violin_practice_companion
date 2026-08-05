@@ -842,8 +842,9 @@ class _FingeringLanePainter extends CustomPainter {
 
   final StringColourStyle style;
 
-  /// Chip height as a fraction of the channel height — the remainder is the
-  /// breathing room that stops the chips reading as one solid ribbon.
+  /// Chip height as a fraction of the CHIP ZONE (not the whole channel) — the
+  /// remainder is the breathing room that stops the chips reading as one solid
+  /// ribbon. See [_chipZone].
   static const _chipHeightFraction = 0.80;
 
   /// Horizontal padding inside a chip, and the minimum clear space between two
@@ -851,19 +852,9 @@ class _FingeringLanePainter extends CustomPainter {
   static const _chipPadFraction = 0.26;
   static const _chipGapFraction = 0.14;
 
-  /// Underline style, as fractions of the channel height: the rule's thickness,
-  /// and the clear space between the digits and the rule.
-  ///
-  /// The rule is deliberately chunky. A hairline would be tidier, but the whole
-  /// bargain of this style is trading colour area for number legibility, and
-  /// below about this weight dark green and blue stop being tellable apart.
-  static const _ruleHeightFraction = 0.20;
-  static const _ruleGapFraction = 0.08;
-
-  /// The digits' share of the channel in underline style — what's left after the
-  /// rule and its gap, so the two never collide however tight the band gets.
-  static const _underlineTextFraction =
-      1.0 - _ruleHeightFraction - _ruleGapFraction;
+  // The underline style's vertical budget — rule, gap, stagger step and what's
+  // left for the digits — lives with the palette (`violin_string_palette.dart`),
+  // next to the string order it staggers by and the channel height it sets.
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -891,13 +882,33 @@ class _FingeringLanePainter extends CustomPainter {
       if (style == StringColourStyle.underline) {
         _paintNumbers(canvas, items, channel);
       } else {
-        _paintChannel(canvas, channel);
-        _paintChips(canvas, items, channel);
+        final zone = _chipZone(channel);
+        _paintChannel(canvas, zone);
+        _paintChips(canvas, items, zone);
       }
     }
   }
 
-  /// The channel itself, spanning the full render width.
+  /// The slice of the channel the chip styles draw in: the bottom
+  /// [EngravedScore.fingeringChipZoneFraction] of it, which is the whole channel as
+  /// it was before the underline stagger asked for more height.
+  ///
+  /// Anchored at the FLOOR because that edge is the one fixed relative to the
+  /// notes (the channel grew upwards, into the chord lane's old clearance). So the
+  /// chips sit exactly where they did, and switching styles doesn't shuffle the
+  /// lane.
+  Rect _chipZone(Rect channel) => Rect.fromLTRB(
+        channel.left,
+        channel.bottom -
+            channel.height *
+                (EngravedScore.fingeringChipZoneFraction /
+                    EngravedScore.fingeringLaneHeightFraction),
+        channel.right,
+        channel.bottom,
+      );
+
+  /// The channel itself (the chip zone of it — see [_chipZone]), spanning the full
+  /// render width.
   ///
   /// Full width rather than the system's ink extent: the channel reads as a
   /// staff-wide register you scan along, and a strip that stopped at the last
@@ -915,7 +926,13 @@ class _FingeringLanePainter extends CustomPainter {
   }
 
   /// The string track: one coloured rule per run, low in the channel, joined for
-  /// as long as the playing stays on a string.
+  /// as long as the playing stays on a string — and lifted clear of the floor by
+  /// the run's string, so the four strings occupy four levels.
+  ///
+  /// The level is the second half of the cue. Colour says which string; the step at
+  /// a join says which WAY, up or down, which is the thing a player has to know
+  /// before the note rather than after it. The two are redundant on purpose: the
+  /// levels survive being unable to tell dark green from blue.
   ///
   /// Drawn from [stringRuns] rather than from [annotations], so it spans notes
   /// whose number the density filter dropped — the rule answers "which string am
@@ -934,9 +951,9 @@ class _FingeringLanePainter extends CustomPainter {
         final band = score.fingeringLaneBand(e.line);
         if (band == null) continue;
         final channelH = (band.bottom - band.top) * scale;
-        final h = channelH * _ruleHeightFraction;
+        final h = channelH * underlineRuleFraction;
         if (h <= 0) continue;
-        final bottom = band.bottom * scale;
+        final bottom = band.bottom * scale - _lift(run.string, channelH);
         // A hairline off each end, so two runs that meet at a string change read
         // as two rules rather than one that changes colour mid-stroke.
         final rect = Rect.fromLTRB(
@@ -966,23 +983,38 @@ class _FingeringLanePainter extends CustomPainter {
 
   static const _runGap = 1.0;
 
+  /// How far above the channel's floor [string]'s rule and number sit, in screen
+  /// pixels, for a channel [channelH] tall. G sits on the floor; each string above
+  /// it rises one [underlineStringStepFraction].
+  double _lift(String? string, double channelH) =>
+      ViolinStringPalette.stepOf(string) *
+      channelH *
+      underlineStringStepFraction;
+
   /// Near-black numbers above the string track. No chip, no fill — the point of
   /// this style is that nothing competes with the digits.
+  ///
+  /// Each number rides its own string's level, so it stays glued to the rule under
+  /// it. That means the row of numbers is no longer perfectly flat — deliberately:
+  /// a number that stayed put while its rule stepped away would be reading against
+  /// the cue instead of with it. The step is a fraction of the type size, so the
+  /// row still scans as a row (see [underlineStringStepFraction]).
   void _paintNumbers(
     Canvas canvas,
     List<({double cx, FingeringAnnotation a})> items,
     Rect channel,
   ) {
-    final textH = channel.height * _underlineTextFraction;
+    final textH = channel.height * underlineTextFraction;
     if (textH <= 0) return;
     // The digits sit in the space above the rule, bottom-aligned to it so the
     // number and its colour read as one mark.
-    final baseline = channel.bottom -
-        channel.height * (_ruleHeightFraction + _ruleGapFraction);
+    final floor = channel.bottom -
+        channel.height * (underlineRuleFraction + underlineRuleGapFraction);
     final gap = textH * _chipGapFraction;
 
     var prevRight = double.negativeInfinity;
     for (final item in items) {
+      final baseline = floor - _lift(item.a.string, channel.height);
       final tp = TextPainter(
         text: TextSpan(
           text: item.a.label,
