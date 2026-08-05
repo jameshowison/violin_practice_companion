@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../build_info.dart';
 import '../models/collection_palette.dart';
 import '../models/piece_library.dart';
 import '../models/piece_library_view.dart';
@@ -30,7 +32,23 @@ class PieceListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Violin Practice Companion'),
+        // The build stamp rides on the FIRST screen, not just the piece detail
+        // one, so "is my change actually running?" can be answered before
+        // navigating anywhere. See CLAUDE.md "Verify the build is live".
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Violin Practice Companion'),
+            if (kDebugMode)
+              Text(kBuildRef,
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.45))),
+          ],
+        ),
         centerTitle: true,
         actions: [
           IconButton(

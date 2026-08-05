@@ -191,6 +191,10 @@ flutter run -d dev-ipad < /tmp/flutter_ctl 2>&1 | tee flutter_run.log &
 exec 3>/tmp/flutter_ctl     # hold the pipe open so the fifo doesn't close
 ```
 
+`exec 3>` holds the pipe open only for the life of *that* shell, so this form needs
+an interactive one you keep around. The script uses a detached holder instead, which
+is why it works when invoked from a script or a tool call that returns.
+
 **6. Watch it come up.** The first build after a reboot is a cold one — a couple
 of minutes is normal:
 
@@ -208,6 +212,12 @@ the session rather than restarting it:
 echo "r" > /tmp/flutter_ctl    # hot reload — keeps widget state
 echo "R" > /tmp/flutter_ctl    # hot restart — resets state
 ```
+
+If a change doesn't show up, check the *build* before the code: re-run `bash
+scripts/gen_build_info.sh` before the reload and confirm the new stamp appears in
+the AppBar. `Reloaded 0 libraries` in `flutter_run.log` means the change was never
+compiled — a long-lived run can stop noticing edits, and only a relaunch
+(`scripts/dev_run.sh dev-ipad`) clears it.
 
 A full relaunch (steps 4–5 again) is needed for changes to `main()`,
 `pubspec.yaml`, or **anything under `assets/`** — assets are baked into the
@@ -247,6 +257,11 @@ Screen** (⌘S), which writes a PNG to the Desktop.
 
 This is the only reliable way to verify staff/notation rendering — beaming,
 accidentals, the playback cursor — that the WebView draws.
+
+Catching something that only lasts a moment (the count-in, the cursor on a fast
+note) needs the capture running *before* you trigger it — a single screenshot
+lands seconds too late. See `CLAUDE.md` ("Capturing short-lived UI") for the
+armed-burst pattern and for widening the window instead.
 
 ## Distribution
 
