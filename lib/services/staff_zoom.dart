@@ -132,22 +132,25 @@ const int verovioPageMarginTopDefault = 50;
 //
 // Full height was chosen deliberately over keeping the layout. Note the cliff
 // only bites on AUTO measures-per-line; with an explicit setting from the slider
-// the reserve just makes the score a little taller.
+// the reserve just makes the score a little taller. That measurement was taken
+// when the channel was 0.22; at 0.30 (the underline stagger) it costs one more
+// spacing unit, so a piece sitting right at the boundary is that much likelier to
+// fall through — the same trade, one notch further along.
 
 /// `spacingSystem` units per annotation lane past the first.
 ///
-/// Two lanes need `gap ≥ 0.30 + 0.22 + 2×0.05 = 0.62 × contentH`, up from the
-/// default 0.38 — a 0.24 shortfall, and one unit buys 0.058, so ~4.2 units.
-/// Rounded up to 5 so both lanes clear their full proportional height
+/// Two lanes need `gap ≥ 0.30 + 0.30 + 2×0.05 = 0.70 × contentH`, up from the
+/// default 0.38 — a 0.32 shortfall, and one unit buys 0.058, so ~5.5 units.
+/// Rounded up to 6 so both lanes clear their full proportional height
 /// (`EngravedScore.laneSqueeze` == 1.00) rather than landing a hair short.
-const int laneReserveSpacingUnitsPerLane = 5;
+const int laneReserveSpacingUnitsPerLane = 6;
 
 /// `pageMarginTop` units per annotation lane past the first. Two lanes need
-/// `top0 ≥ 0.30 + 0.22 + 0.05 = 0.57 × contentH` (only one clearance pad up here,
-/// there being no system above to clear), up from the default 0.51 — a 0.06
-/// shortfall at 0.0064 per unit, so ~9.4 units, plus slack. Far more units than
-/// the gap needs for the same room, because a margin unit is worth ~9× less.
-const int laneReserveMarginUnitsPerLane = 14;
+/// `top0 ≥ 0.30 + 0.30 + 0.05 = 0.65 × contentH` (only one clearance pad up here,
+/// there being no system above to clear), up from the default 0.51 — a 0.14
+/// shortfall at 0.0064 per unit, so ~22 units. Far more units than the gap needs
+/// for the same room, because a margin unit is worth ~9× less.
+const int laneReserveMarginUnitsPerLane = 22;
 
 /// Extra `spacingSystem` for [lanes] annotation lanes. 0 for one lane, so a
 /// staff- or tab-view engrave is bit-for-bit what it was before lanes stacked.
