@@ -78,15 +78,21 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// note, not just the labelled ones — see [stringRunRegions].
   final List<StringRunRegion> stringRuns;
 
-  /// How many annotation lanes to reserve room for above each system. 1 = the
-  /// chord lane alone (staff and tab views). 2 = a fingering channel below it
-  /// (the annotation view).
+  /// Which annotation lanes to reserve room for above each system: the chord
+  /// lane on top, the fingering channel below it.
   ///
-  /// A layout input, not a decoration: it widens the engraved gap and top margin,
+  /// Layout inputs, not decorations: they widen the engraved gap and top margin,
   /// so a change re-engraves. Note that after the callers stopped injecting
   /// fingerings the annotation view feeds the SAME xml as the plain staff view —
-  /// this is then the only thing that distinguishes the two layouts.
-  final int annotationLanes;
+  /// these are then the only thing that distinguishes the two layouts.
+  ///
+  /// Pass true only when the lane will actually be drawn into. Reserved
+  /// whitespace no one uses is precisely what the staff-spacing preference should
+  /// be free to close up, and a reserved lane puts a floor under the engraved gap
+  /// ([verovioSpacingSystemEngraved]) so that it can't be squeezed thin enough to
+  /// shrink the labels in it.
+  final bool chordLane;
+  final bool fingeringLane;
 
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
@@ -123,7 +129,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.fingeringAnnotations = const [],
     this.stringColourStyle = StringColourStyle.chips,
     this.stringRuns = const [],
-    this.annotationLanes = 1,
+    this.chordLane = false,
+    this.fingeringLane = false,
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
@@ -136,12 +143,19 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 
 /// One engrave request: the box to fill, the measures-per-line target (null =
 /// auto, resolved against [viewportHeightPx] once calibrated), and the vertical
-/// staff spacing.
+/// gap between systems.
+///
+/// [spacingUnits] is the EFFECTIVE Verovio `spacingSystem` — the staff-spacing
+/// preference with the lane reserve folded in and floored — not the raw
+/// preference. Carrying the resolved value is what lets the staleness check and
+/// the calibration key collapse every preference value that lands on the floor
+/// into one engrave, instead of re-probing on each tick of a slider drag that
+/// cannot change the layout.
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
   int? target,
-  double staffSpacing,
+  int spacingUnits,
 });
 
 class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
@@ -161,9 +175,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// the live provider to decide whether a re-engrave is needed.
   int? _engravedTarget;
 
-  /// The staff spacing the current [_score] was engraved with; a change means a
-  /// re-engrave (and a re-calibration, since it moves the system height).
-  double? _engravedSpacing;
+  /// The effective `spacingSystem` the current [_score] was engraved with; a
+  /// change means a re-engrave (and a re-calibration, since it moves the system
+  /// height).
+  int? _engravedSpacingUnits;
 
   /// The width the last build laid out at — the single denominator for the
   /// viewBox→screen scale, shared by the painters, hit testing and autoscroll.
@@ -204,7 +219,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // place it can change. Clearing _engravedWidth kicks the fresh request.
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
-        old.annotationLanes != widget.annotationLanes ||
+        old.chordLane != widget.chordLane ||
+        old.fingeringLane != widget.fingeringLane ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _engravedWidth = 0;
       _calibratedFor = null;
@@ -223,12 +239,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   /// Key the calibration is valid for. Everything that changes the engraved
   /// geometry counts: the tab variant (a second staff changes the system height),
-  /// the staff spacing (which changes it directly, and so changes what the
-  /// auto-fit rule can afford), and the lane count (which is spent as extra
-  /// spacing, so it moves the system height exactly the same way).
-  String _calibrationKeyFor(double staffSpacing) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$staffSpacing'
-      '|${widget.annotationLanes}';
+  /// the effective system spacing (which changes it directly, and so changes what
+  /// the auto-fit rule can afford), and the lanes (whose top-margin reserve moves
+  /// it too — their gap reserve is already inside [spacingUnits]).
+  String _calibrationKeyFor(int spacingUnits) =>
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits'
+      '|${widget.chordLane}${widget.fingeringLane}';
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -265,9 +281,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    later zoom level. The probe uses the pre-zoom option set, so an
       //    un-zoomed piece reuses the cache entry it always had.
       EngravedScore? probe;
-      if (_calibratedFor != _calibrationKeyFor(req.staffSpacing)) {
+      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
         probe = await _engraveAt(req.widthPx, staffScaleProbe,
-            staffSpacing: req.staffSpacing);
+            spacingSystem: req.spacingUnits);
         if (!mounted || seq != _engraveSeq) return;
         _unitsPerMeasure = unitsPerMeasureFrom(
           pageWidthUnits: probe.pageWidthUnits,
@@ -275,7 +291,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         );
         _systemHeightPx = probe.systemHeightViewBox;
         _measureCount = probe.measures.length;
-        _calibratedFor = _calibrationKeyFor(req.staffSpacing);
+        _calibratedFor = _calibrationKeyFor(req.spacingUnits);
       }
 
       // 2. Resolve the target and solve for Verovio's scale.
@@ -304,7 +320,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       final score = reusable
           ? probe
           : await _engraveAt(req.widthPx, scale,
-              measuresPerLine: target, staffSpacing: req.staffSpacing);
+              measuresPerLine: target, spacingSystem: req.spacingUnits);
       if (!mounted || seq != _engraveSeq) return;
 
       // jovial parse is synchronous and fast (a few ms); currentColor resolves
@@ -320,7 +336,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _error = null;
         _engravedWidth = req.widthPx;
         _engravedTarget = req.target;
-        _engravedSpacing = req.staffSpacing;
+        _engravedSpacingUnits = req.spacingUnits;
       });
       // Report what Verovio actually did — its break points are musical, so a
       // dense bar can land one short of the target. Drives the slider readout.
@@ -350,13 +366,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       );
 
   Future<EngravedScore> _engraveAt(double widthPx, double scale,
-      {int? measuresPerLine, required double staffSpacing}) {
+      {int? measuresPerLine, required int spacingSystem}) {
     return VerovioEngraver.instance.engrave(
       widget.musicXml,
       widthPx: widthPx,
       scale: scale,
-      spacingSystem: verovioSpacingSystemFor(staffSpacing),
-      laneCount: widget.annotationLanes,
+      spacingSystem: spacingSystem,
+      chordLane: widget.chordLane,
+      fingeringLane: widget.fingeringLane,
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
@@ -557,9 +574,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // otherwise every piece with an override engraves the auto default first and
     // throws it away. Previews don't read the setting, so they never wait.
     final waitingForZoom = widget.zoomable && !zoom.restored;
-    // Vertical gap between systems. Was wired only to the OSMD fallback, so it
-    // did nothing under this (default) renderer until now.
-    final staffSpacing = ref.watch(staffSpacingProvider);
+    // Vertical gap between systems: the preference, plus the reserve for the
+    // lanes this view is actually drawing, floored so a tight preference can't
+    // eat that reserve back and shrink every annotation label with it. Resolved
+    // here, once, so everything downstream keys on the effective value.
+    final spacingUnits = verovioSpacingSystemEngraved(
+      ref.watch(staffSpacingProvider),
+      (widget.chordLane ? 1 : 0) + (widget.fingeringLane ? 1 : 0),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -576,7 +598,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             _score == null ||
             _bucket(width) != _bucket(_engravedWidth) ||
             target != _engravedTarget ||
-            staffSpacing != _engravedSpacing;
+            spacingUnits != _engravedSpacingUnits;
         if (width > 0 && !waitingForZoom && stale()) {
           // Scheduled post-frame so we don't setState during layout.
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -585,7 +607,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 widthPx: width,
                 viewportHeightPx: viewportHeight,
                 target: target,
-                staffSpacing: staffSpacing,
+                spacingUnits: spacingUnits,
               ));
             }
           });
