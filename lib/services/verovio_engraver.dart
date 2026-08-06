@@ -102,14 +102,19 @@ class VerovioEngraver {
   ///   with `pageHeightUnitsFor`.
   /// - [mnumInterval]: bar-number interval; pass the measures-per-line target so
   ///   each system starts with a number.
-  /// - [spacingSystem]: vertical gap between systems in MEI units — the
-  ///   Verovio-side home of the "Staff spacing" preference. Verovio's own default
-  ///   is 12; see `verovioSpacingSystemFor`.
-  /// - [laneCount]: how many annotation lanes to leave room for above each
-  ///   system. 1 (the default) engraves exactly as before; 2 widens the gap and
-  ///   the top margin by one lane so the annotation view's fingering channel and
-  ///   the chord lane both fit. It is a LAYOUT input, not a decoration — which is
-  ///   why a lane count change has to re-engrave.
+  /// - [spacingSystem]: vertical gap between systems in MEI units, passed to
+  ///   Verovio verbatim — the "Staff spacing" preference WITH the annotation-lane
+  ///   reserve already folded in and floored. Compose it with
+  ///   `verovioSpacingSystemEngraved`, never with `verovioSpacingSystemFor` alone:
+  ///   the caller owns that sum so it can key its own caching and calibration on
+  ///   the effective value, instead of re-engraving identically for every
+  ///   preference value that lands on the floor.
+  /// - [chordLane] / [fingeringLane]: which annotation lanes to leave room for
+  ///   above each system. Every lane past the first widens the top margin
+  ///   ([verovioLaneMarginUnits]); the matching gap reserve is the caller's, in
+  ///   [spacingSystem]. LAYOUT inputs, not decorations — a change has to
+  ///   re-engrave. Reserve a lane only when it will actually be drawn into: unused
+  ///   whitespace is what the staff-spacing slider exists to reclaim.
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
@@ -117,13 +122,18 @@ class VerovioEngraver {
     int pageHeightUnits = 60000,
     int mnumInterval = 4,
     int spacingSystem = 12,
-    int laneCount = 1,
+    bool chordLane = true,
+    bool fingeringLane = false,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
   }) {
+    // Both lane flags go in the key, not just their count: a chords-only and a
+    // fingering-only score engrave identically, but the bands are read back off
+    // the returned object, so they must not share an entry.
     final variant = '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
-        '|$pageHeightUnits|$mnumInterval|$spacingSystem|$laneCount|'
+        '|$pageHeightUnits|$mnumInterval|$spacingSystem'
+        '|${chordLane ? 1 : 0}${fingeringLane ? 1 : 0}|'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
@@ -143,7 +153,8 @@ class VerovioEngraver {
           pageHeightUnits: pageHeightUnits,
           mnumInterval: mnumInterval,
           spacingSystem: spacingSystem,
-          laneCount: laneCount,
+          chordLane: chordLane,
+          fingeringLane: fingeringLane,
           tabFingerLabels: tabFingerLabels,
           tabMode: tabMode,
           stripRepeatClefs: stripRepeatClefs);
@@ -165,7 +176,8 @@ class VerovioEngraver {
     required int pageHeightUnits,
     required int mnumInterval,
     required int spacingSystem,
-    int laneCount = 1,
+    bool chordLane = true,
+    bool fingeringLane = false,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
@@ -175,11 +187,13 @@ class VerovioEngraver {
 
     // pageWidth is in MEI units; rendered viewBox px ≈ pageWidth * scale / 100.
     final pageWidthUnits = (widthPx * 100 / scale).round();
-    // Room for annotation lanes past the first, in the two kinds of whitespace
-    // the lanes live in. Separately calibrated — a `spacingSystem` unit buys ~9×
-    // more room than a `pageMarginTop` one. See `staff_zoom.dart`.
-    final laneGap = verovioLaneSpacingUnits(laneCount);
-    final laneMargin = verovioLaneMarginUnits(laneCount);
+    // Room for annotation lanes past the first. The lanes live in two kinds of
+    // whitespace and the two are separately calibrated — a `spacingSystem` unit
+    // buys ~9× more room than a `pageMarginTop` one. See `staff_zoom.dart`. Only
+    // the MARGIN half is ours: the gap half is already folded into the
+    // [spacingSystem] the caller composed.
+    final laneMargin = verovioLaneMarginUnits(
+        (chordLane ? 1 : 0) + (fingeringLane ? 1 : 0));
     final options = <String, Object>{
       'scale': scale.round(),
       'pageWidth': pageWidthUnits,
@@ -196,9 +210,9 @@ class VerovioEngraver {
       'footer': 'none',
       'header': 'none',
       'mnumInterval': mnumInterval,
-      // Vertical gap between systems — the "Staff spacing" preference, plus room
-      // for any annotation lane past the first.
-      'spacingSystem': spacingSystem + laneGap,
+      // Vertical gap between systems — the "Staff spacing" preference with the
+      // annotation-lane reserve already folded in and floored by the caller.
+      'spacingSystem': spacingSystem,
       // Line 0's lanes sit in the page's top margin, which has no gap above it
       // to borrow from.
       'pageMarginTop': verovioPageMarginTopDefault + laneMargin,
@@ -233,7 +247,8 @@ class VerovioEngraver {
       qstampById: qstampById,
       pageWidthUnits: pageWidthUnits,
       renderMs: sw.elapsedMilliseconds,
-      laneCount: laneCount,
+      chordLane: chordLane,
+      fingeringLane: fingeringLane,
       tabFingerLabels: tabFingerLabels,
       tabMode: tabMode,
       stripRepeatClefs: stripRepeatClefs,
@@ -250,11 +265,14 @@ class VerovioEngraver {
       // proportional height, anything less means the reservation didn't land and
       // the fallback is doing the work.
       final c = score.lineContent;
+      String bandH(({double top, double bottom})? b) =>
+          b == null ? '-' : (b.bottom - b.top).toStringAsFixed(1);
       debugPrint('[engraver] lane contentH=${score.contentHeightViewBox.toStringAsFixed(1)} '
-          'lanes=${score.laneCount} '
+          'lanes=${score.laneCount}'
+          '${score.chordLane ? 'c' : ''}${score.fingeringLane ? 'f' : ''} '
           'squeeze=${score.laneSqueeze.toStringAsFixed(2)} '
-          'chordH=${score.annotationLaneHeight(score.laneCount - 1).toStringAsFixed(1)} '
-          'fingerH=${score.annotationLaneHeight(0).toStringAsFixed(1)} '
+          'chordH=${bandH(score.chordLaneBand(0))} '
+          'fingerH=${bandH(score.fingeringLaneBand(0))} '
           'top0=${c.isEmpty ? -1 : c.first.top.toStringAsFixed(1)} '
           'gap1=${c.length > 1 ? (c[1].top - c[0].bottom).toStringAsFixed(1) : '-'} '
           'sysH=${score.systemHeightViewBox.toStringAsFixed(1)}');
@@ -268,7 +286,8 @@ class VerovioEngraver {
     required Map<String, double> qstampById,
     required int pageWidthUnits,
     required int renderMs,
-    int laneCount = 1,
+    bool chordLane = true,
+    bool fingeringLane = false,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
@@ -354,7 +373,8 @@ class VerovioEngraver {
       lineContent: lineContent,
       pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
-      laneCount: laneCount,
+      chordLane: chordLane,
+      fingeringLane: fingeringLane,
     );
   }
 
@@ -637,15 +657,26 @@ class EngravedScore {
   /// between two systems. See [annotationLaneBand].
   final List<({double top, double bottom})> lineContent;
 
-  /// How many annotation lanes the whitespace above each system is divided into.
+  /// Which annotation lanes the whitespace above each system is divided into: a
+  /// chord lane on top, a fingering channel below it, either or both or neither.
   ///
-  /// 1 for the staff and tab views (the chord lane alone). 2 for the annotation
-  /// view, which stacks a fingering channel below the chord lane. The engrave
-  /// reserves extra room for every lane past the first
-  /// ([verovioLaneReserveUnits]), so this has to be fixed BEFORE the layout —
-  /// which is why it's a property of the engraved score rather than something a
-  /// painter can decide.
-  final int laneCount;
+  /// Reserved ONLY for content that is actually going to be drawn. An unused
+  /// lane's whitespace is exactly what the staff-spacing slider should be able to
+  /// reclaim, so a staff view with the chords toggled off asks for no lane at all
+  /// and the slider gets its full downward reach — at the price of a re-engrave
+  /// when chords are toggled back on.
+  ///
+  /// A LAYOUT input, not a decoration: the engrave reserves room for every lane
+  /// past the first ([verovioLaneSpacingUnits] / [verovioLaneMarginUnits]) and
+  /// floors the gap so a tight staff spacing can't eat it back
+  /// ([verovioSpacingSystemEngraved]). Both must be fixed BEFORE the layout,
+  /// which is why they're properties of the engraved score rather than something
+  /// a painter can decide.
+  final bool chordLane;
+  final bool fingeringLane;
+
+  /// How many lanes are reserved — what the reservation maths is keyed on.
+  int get laneCount => (chordLane ? 1 : 0) + (fingeringLane ? 1 : 0);
 
   /// The Verovio `pageWidth` (MEI units) this score was laid out for. Together
   /// with the achieved measures-per-line it yields the piece's scale-invariant
@@ -666,7 +697,8 @@ class EngravedScore {
     required this.pageWidthUnits,
     required this.renderMs,
     this.meterSigs = const [],
-    this.laneCount = 1,
+    this.chordLane = true,
+    this.fingeringLane = false,
   });
 
   /// Number of system lines engraved.
@@ -731,12 +763,15 @@ class EngravedScore {
 
   static const annotationLanePadFraction = 0.05;
 
-  /// Lane height fractions bottom-up: `[fingering, chord]` with a channel,
-  /// `[chord]` without. A 1-lane score is therefore bit-for-bit what it was
-  /// before lanes could stack.
-  List<double> get _laneFractions => laneCount >= 2
-      ? const [fingeringLaneHeightFraction, chordLaneHeightFraction]
-      : const [chordLaneHeightFraction];
+  /// Lane height fractions bottom-up, one per RESERVED lane — so a chords-only
+  /// score is bit-for-bit what it was before lanes could stack, and a
+  /// fingering-only score puts its channel in the same slot 0 a chords-only score
+  /// puts its chord lane (the two are geometrically identical; only the content
+  /// differs).
+  List<double> get _laneFractions => [
+        if (fingeringLane) fingeringLaneHeightFraction,
+        if (chordLane) chordLaneHeightFraction,
+      ];
 
   /// How much the lanes had to be squeezed to fit the whitespace: 1.0 when they
   /// all got their full proportional height, less when they didn't.
@@ -801,15 +836,15 @@ class EngravedScore {
   }
 
   /// The chord-run lane: always the TOP slot, so adding a fingering channel
-  /// below it doesn't move the chords.
+  /// below it doesn't move the chords. Null in a score engraved without one.
   ({double top, double bottom})? chordLaneBand(int l) =>
-      annotationLaneBand(l, _laneFractions.length - 1);
+      !chordLane ? null : annotationLaneBand(l, _laneFractions.length - 1);
 
   /// The fingering channel: slot 0, directly above the notes. Null in a score
-  /// engraved without a channel (`laneCount == 1`), so a caller can't
-  /// accidentally draw one into space that was never reserved.
+  /// engraved without a channel, so a caller can't accidentally draw one into
+  /// space that was never reserved.
   ({double top, double bottom})? fingeringLaneBand(int l) =>
-      laneCount < 2 ? null : annotationLaneBand(l, 0);
+      !fingeringLane ? null : annotationLaneBand(l, 0);
 
   MeasureAnchor? measureAt(int index) =>
       (index < 0 || index >= measures.length) ? null : measures[index];
