@@ -64,24 +64,57 @@ class PieceDetailScreen extends ConsumerWidget {
       return const Scaffold(body: Center(child: Text('No piece selected')));
     }
 
+    // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
+    // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
+    // is outside it — reaches the same verdict as the layout beneath it.
+    final screen = MediaQuery.sizeOf(context);
+    final useCompact = screen.width < 600 || screen.height < 600;
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: kDebugMode ? 44 : 36,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        titleSpacing: 8,
+        centerTitle: true,
+        // The title line does triple duty on a tablet: what the piece is, what
+        // key and meter it's in, and the handle on the note vocabulary. All
+        // three used to own a strip of their own below the bar; none of them
+        // needs one.
+        title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(piece.title,
-                style: const TextStyle(fontSize: 14),
-                overflow: TextOverflow.ellipsis),
-            if (kDebugMode)
-              Text(kBuildRef,
-                  style: TextStyle(
-                      fontSize: 9,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+            // An invisible copy of the key block on the left, so the title
+            // lands on the true centre instead of being shoved off it by the
+            // key's width. The width has to be mirrored rather than guessed:
+            // it's as long as the key name, and "C♯ minor · 6/8" is half again
+            // "G · 4/4".
+            if (!useCompact) ...[
+              const _KeyMeterButton(mirror: true),
+              const SizedBox(width: 12),
+            ],
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(piece.title,
+                      style: const TextStyle(fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  if (kDebugMode)
+                    Text(kBuildRef,
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+                ],
+              ),
+            ),
+            if (!useCompact) ...[
+              const SizedBox(width: 12),
+              const _KeyMeterButton(),
+            ],
           ],
         ),
         actions: [
+          if (!useCompact) const _NotePaletteToggle(),
           Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.settings),
@@ -92,84 +125,106 @@ class PieceDetailScreen extends ConsumerWidget {
       ),
       endDrawer: Drawer(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Settings', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 24),
-                // First, and never hidden behind a display mode: it's the one
-                // setting here that's about playing along rather than about how
-                // the notation looks.
-                const _CountInSlider(),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Staff spacing'),
-                    Text(ref.watch(staffSpacingProvider).toStringAsFixed(1),
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-                Slider(
-                  value: ref.watch(staffSpacingProvider),
-                  min: staffSpacingMin,
-                  max: staffSpacingMax,
-                  divisions: ((staffSpacingMax - staffSpacingMin) / 0.05).round(),
-                  onChanged: (v) =>
-                      ref.read(staffSpacingProvider.notifier).state = v,
-                ),
-                if (displayMode == DisplayMode.staff ||
-                    displayMode == DisplayMode.staffFingering ||
-                    displayMode == DisplayMode.tab) ...[
-                  const Divider(),
-                  const _MeasuresPerLineSlider(),
-                  const Divider(),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Chord symbols'),
-                    value: ref.watch(showChordsProvider),
-                    onChanged: (v) =>
-                        ref.read(showChordsProvider.notifier).state = v,
+          // One place to make everything in the tray smaller. The tray gained
+          // the view picker and has to hold the whole fingering section under it
+          // without a scroll on a tablet, so the sliders give up the height they
+          // were spending on touch slop they don't need — this is a drawer, not
+          // a control you hit while playing.
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              visualDensity: VisualDensity.compact,
+              sliderTheme: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+              ),
+              dividerTheme: const DividerThemeData(space: 16),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // First because it's the setting that decides which of the
+                  // ones below it even apply. The gear icon is now the only way
+                  // to change view, so it can't be buried.
+                  const _DrawerLabel('View'),
+                  NotationSwitcher(
+                    current: displayMode,
+                    onChanged: (mode) =>
+                        ref.read(displayModeProvider.notifier).state = mode,
                   ),
-                ],
-                // Shared by the two views that put a number on a note: the tab
-                // staff's string lines and the annotation view's fingering
-                // channel. One preference, shown in whichever of them is open —
-                // see [NoteNumberMode].
-                if (displayMode == DisplayMode.staffFingering ||
-                    displayMode == DisplayMode.tab) ...[
                   const Divider(),
-                  const SizedBox(height: 8),
-                  const _NoteNumberPicker(),
-                  if (ref.watch(noteNumberModeProvider) ==
-                      NoteNumberMode.mandolinFret) ...[
-                    const SizedBox(height: 16),
-                    const _FretStylePicker(),
-                  ],
-                ],
-                if (displayMode == DisplayMode.staffFingering) ...[
+                  // Never hidden behind a display mode: it's the one setting
+                  // here that's about playing along rather than about how the
+                  // notation looks.
+                  const _CountInSlider(),
                   const Divider(),
-                  const SizedBox(height: 8),
-                  const _StringColourPicker(),
-                  // Only meaningful while the letter is actually drawn — while a
-                  // colour is carrying the string, the label doesn't repeat it.
-                  if (ref.watch(stringColourStyleProvider) ==
-                      StringColourStyle.off) ...[
-                    const SizedBox(height: 16),
-                    const _StringLabelPicker(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Staff spacing'),
+                      Text(ref.watch(staffSpacingProvider).toStringAsFixed(1),
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                  Slider(
+                    value: ref.watch(staffSpacingProvider),
+                    min: staffSpacingMin,
+                    max: staffSpacingMax,
+                    divisions:
+                        ((staffSpacingMax - staffSpacingMin) / 0.05).round(),
+                    onChanged: (v) =>
+                        ref.read(staffSpacingProvider.notifier).state = v,
+                  ),
+                  if (displayMode == DisplayMode.staff ||
+                      displayMode == DisplayMode.staffFingering ||
+                      displayMode == DisplayMode.tab) ...[
+                    const _MeasuresPerLineSlider(),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Chord symbols'),
+                      value: ref.watch(showChordsProvider),
+                      onChanged: (v) =>
+                          ref.read(showChordsProvider.notifier).state = v,
+                    ),
                   ],
-                  const SizedBox(height: 16),
-                  const _FingeringDensitySlider(),
-                  if (ref.watch(fingeringDensityProvider) !=
-                      FingeringDensity.all) ...[
-                    const SizedBox(height: 16),
-                    const _FingeringDensityPolicyPicker(),
+                  // Shared by the two views that put a number on a note: the tab
+                  // staff's string lines and the annotation view's fingering
+                  // channel. One preference, shown in whichever of them is open —
+                  // see [NoteNumberMode].
+                  if (displayMode == DisplayMode.staffFingering ||
+                      displayMode == DisplayMode.tab) ...[
+                    const Divider(),
+                    const _NoteNumberPicker(),
+                    if (ref.watch(noteNumberModeProvider) ==
+                        NoteNumberMode.mandolinFret) ...[
+                      const SizedBox(height: 12),
+                      const _FretStylePicker(),
+                    ],
+                  ],
+                  if (displayMode == DisplayMode.staffFingering) ...[
+                    const Divider(),
+                    const _StringColourPicker(),
+                    // Only meaningful while the letter is actually drawn — while
+                    // a colour is carrying the string, the label doesn't repeat
+                    // it.
+                    if (ref.watch(stringColourStyleProvider) ==
+                        StringColourStyle.off) ...[
+                      const SizedBox(height: 12),
+                      const _StringLabelPicker(),
+                    ],
+                    const SizedBox(height: 12),
+                    const _FingeringDensitySlider(),
+                    if (ref.watch(fingeringDensityProvider) !=
+                        FingeringDensity.all) ...[
+                      const SizedBox(height: 12),
+                      const _FingeringDensityPolicyPicker(),
+                    ],
                   ],
                 ],
-                const SizedBox(height: 16),
-              ],
+              ),
             ),
           ),
         ),
@@ -185,9 +240,6 @@ class PieceDetailScreen extends ConsumerWidget {
               ref.read(measuresPerRowProvider.notifier).state = n;
             }
           });
-          // Phone in any orientation: short side < 600pt. iPad min is 768pt.
-          final useCompact =
-              constraints.maxWidth < 600 || constraints.maxHeight < 600;
 
           return layoutAsync.when(
             data: (layout) {
@@ -264,15 +316,6 @@ class PieceDetailScreen extends ConsumerWidget {
               return Column(
                 children: [
                   const _PalettePanel(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    child: NotationSwitcher(
-                      current: displayMode,
-                      onChanged: (mode) =>
-                          ref.read(displayModeProvider.notifier).state = mode,
-                    ),
-                  ),
                   Expanded(
                     child: Row(
                       children: [
@@ -294,14 +337,9 @@ class PieceDetailScreen extends ConsumerWidget {
                       displayMode == DisplayMode.staffFingering ||
                       displayMode == DisplayMode.tab)
                     const NewChordsBlock(),
-                  SectionBar(
-                    sections: piece.sections,
-                    measures: parsedPiece?.measures ?? const [],
-                    selection: selection,
-                    onSectionTap: (sel) =>
-                        ref.read(measureSelectionProvider.notifier).state =
-                            sel,
-                  ),
+                  // No section pills here: the minimap down the right-hand edge
+                  // shows the same sections, unfolded and in proportion, and
+                  // selects the same practice range on a tap.
                   const PlaybackControls(),
                 ],
               );
@@ -335,6 +373,26 @@ class PieceDetailScreen extends ConsumerWidget {
 
   static String _prettyRoot(String root) =>
       root.replaceAll('b', '♭').replaceAll('#', '♯');
+}
+
+/// Small caps-ish heading for a group of tray controls. The tray's own controls
+/// mostly label themselves; this exists for the ones that are a bare row of
+/// chips with nothing to say what they choose between.
+class _DrawerLabel extends StatelessWidget {
+  const _DrawerLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(text,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600)),
+    );
+  }
 }
 
 /// How long the count-off before playback is: Off, or a minimum of
@@ -985,41 +1043,20 @@ class _CompactModeSwitcherState extends State<_CompactModeSwitcher>
   }
 }
 
-// ── Note palette panel (staff view of all unique notes in the piece) ──────────
+// ── Piece identity + note vocabulary (app bar controls, palette staff below) ──
 
-class _PalettePanel extends ConsumerStatefulWidget {
-  const _PalettePanel();
+/// Key and meter, on the title line. Tapping opens the meter editor; the pencil
+/// says so, since italic grey text otherwise reads as a label, not a control.
+///
+/// The meter travels with the key because together they're the piece's identity,
+/// and because a wrong meter is something you notice while looking at the staff —
+/// which is where this now is, instead of on a strip of its own.
+class _KeyMeterButton extends ConsumerWidget {
+  const _KeyMeterButton({this.mirror = false});
 
-  @override
-  ConsumerState<_PalettePanel> createState() => _PalettePanelState();
-}
-
-class _PalettePanelState extends ConsumerState<_PalettePanel> {
-  late final ValueNotifier<HighlightEvent?> _noHighlight;
-  bool _expanded = true;
-  bool _expandedInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _noHighlight = ValueNotifier(null);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_expandedInitialized) {
-      // Auto-collapse on short screens (landscape phone) to avoid overflow.
-      _expanded = MediaQuery.of(context).size.height > 500;
-      _expandedInitialized = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _noHighlight.dispose();
-    super.dispose();
-  }
+  /// Lay out and take up space, but draw nothing and take no taps — the
+  /// counterweight that centres the title. See the app bar's `title`.
+  final bool mirror;
 
   /// Relabels the score's meter. Note values are untouched — see
   /// [MeasureXmlEditor.setTimeSignature].
@@ -1062,79 +1099,107 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
-
-    // Watch unconditionally so the data is ready when _expanded becomes true.
-    final paletteXml = ref.watch(paletteMusicXmlProvider).valueOrNull;
-
     final keyTitle = PieceDetailScreen._formatKey(parsed.keySignature);
 
+    final body = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$keyTitle · ${parsed.beatsPerMeasure}/${parsed.beatType}',
+            style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(width: 5),
+          Icon(Icons.edit_outlined,
+              size: 13, color: Theme.of(context).hintColor),
+        ],
+      ),
+    );
+
+    if (mirror) {
+      return ExcludeSemantics(
+        child: IgnorePointer(child: Opacity(opacity: 0, child: body)),
+      );
+    }
+
+    return InkWell(
+      key: const ValueKey('piece_meter_button'),
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => _editTimeSignature(context, ref, parsed),
+      child: body,
+    );
+  }
+}
+
+/// Folds the note vocabulary in and out. Labelled rather than icon-only because
+/// the panel is folded by default now, so this is the only thing on screen that
+/// says the vocabulary exists.
+class _NotePaletteToggle extends ConsumerWidget {
+  const _NotePaletteToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expanded = ref.watch(notePaletteExpandedProvider);
+    return TextButton.icon(
+      onPressed: () =>
+          ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
+      icon: Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18),
+      label: const Text('Vocabulary', style: TextStyle(fontSize: 12)),
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+    );
+  }
+}
+
+/// The palette staff itself — every distinct note in the piece, engraved once.
+/// Occupies no height at all while folded, which is its default state; the
+/// header it used to carry now lives in the app bar.
+class _PalettePanel extends ConsumerStatefulWidget {
+  const _PalettePanel();
+
+  @override
+  ConsumerState<_PalettePanel> createState() => _PalettePanelState();
+}
+
+class _PalettePanelState extends ConsumerState<_PalettePanel> {
+  final _noHighlight = ValueNotifier<HighlightEvent?>(null);
+
+  @override
+  void dispose() {
+    _noHighlight.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!ref.watch(notePaletteExpandedProvider)) {
+      return const SizedBox.shrink();
+    }
+    if (ref.watch(parsedPieceProvider).valueOrNull == null) {
+      return const SizedBox.shrink();
+    }
+    final paletteXml = ref.watch(paletteMusicXmlProvider).valueOrNull;
+
     return Container(
+      height: 140,
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header: fixed-width spacer on left balances the button on the right
-          // so the title is truly centred.
-          Row(
-            children: [
-              const SizedBox(width: 48),
-              Expanded(
-                // The meter joins the key here because this strip is the
-                // piece's identity line, and because a wrong meter is something
-                // you notice while looking at the staff — which is where this
-                // is. Tapping opens the editor; the pencil says so, since
-                // italic grey text otherwise reads as a label, not a control.
-                child: InkWell(
-                  key: const ValueKey('piece_meter_button'),
-                  onTap: () => _editTimeSignature(context, ref, parsed),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$keyTitle · ${parsed.beatsPerMeasure}/${parsed.beatType}',
-                          style: const TextStyle(
-                              fontSize: 13, fontStyle: FontStyle.italic),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.edit_outlined,
-                            size: 13, color: Theme.of(context).hintColor),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 20),
-                tooltip: _expanded ? 'Hide palette' : 'Show palette',
-                onPressed: () => setState(() => _expanded = !_expanded),
-              ),
-            ],
-          ),
-          if (_expanded && paletteXml != null)
-            SizedBox(
-              height: 140,
-              child: StaffView(
-                musicXml: paletteXml,
-                highlightNotifier: _noHighlight,
-                bridgeAsset: 'assets/osmd/palette_bridge.html',
-              ),
+      child: paletteXml == null
+          ? const Center(child: CircularProgressIndicator())
+          : StaffView(
+              musicXml: paletteXml,
+              highlightNotifier: _noHighlight,
+              bridgeAsset: 'assets/osmd/palette_bridge.html',
             ),
-          if (_expanded && paletteXml == null)
-            const SizedBox(
-                height: 140,
-                child: Center(child: CircularProgressIndicator())),
-        ],
-      ),
     );
   }
 }
