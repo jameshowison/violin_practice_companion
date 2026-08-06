@@ -251,6 +251,13 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
 // Updated by _CompactPieceLayoutState; read by StaffView to inform scroll logic.
 final staffViewBottomInsetProvider = StateProvider<double>((_) => 0);
 
+// ── Note vocabulary panel (the palette staff above the score) ────────────────
+// Folded by default: on a tablet it costs ~170pt of the score's height, and it's
+// reference material you consult once rather than read while playing. Lifted out
+// of the panel's own State because the toggle now lives in the app bar, beside
+// the title, rather than on the panel itself.
+final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
+
 // ── Staff spacing (MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10) ──
 // Exposed as constants so tests can assert min < max (a zero-range slider
 // cannot claim drag gestures and they leak to parent handlers like Drawer close).
