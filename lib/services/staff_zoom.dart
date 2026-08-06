@@ -26,6 +26,7 @@
 /// The UI says "≈".
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' show Rect;
 
 /// Verovio `scale` used for the calibration probe — the value the engraver
@@ -89,6 +90,11 @@ int verovioSpacingSystemFor(double staffSpacing) {
   return (16 * staffSpacing * staffSpacing).round().clamp(0, 48);
 }
 
+/// Verovio's own `spacingSystem` default — 4, established by the measurement in
+/// [verovioSpacingSystemFor]. Also the gap the one-lane layout was tuned against,
+/// so it's the baseline the annotation-lane reserve sits on top of.
+const int verovioSpacingSystemDefault = 4;
+
 /// Verovio's default `pageMarginTop` in MEI units. Set explicitly (rather than
 /// left to the default) only so [verovioLaneMarginUnits] can be added to it.
 /// Verified by measurement: passing 50 back reproduces the 31.9px above the first
@@ -100,6 +106,12 @@ const int verovioPageMarginTopDefault = 50;
 // Room for annotation lanes past the first has to be asked of Verovio in TWO
 // places, because the lanes live in two different kinds of whitespace: the page's
 // top margin holds line 0's lanes, the inter-system gap holds every other line's.
+//
+// The reserve is a FLOOR, not a bonus — see [verovioSpacingSystemEngraved]. And
+// it is only asked for when the lane is actually going to be drawn into: a staff
+// view with the chords toggled off reserves nothing, which is what gives the
+// staff-spacing slider its full downward reach back. The price is that toggling
+// chords re-engraves.
 //
 // The first lane is free. Measurement (`[engraver] lane` debug line, 12-bar tune,
 // default staff spacing) put the default layout at `top0 = 0.51 × contentH` and
@@ -136,6 +148,12 @@ const int verovioPageMarginTopDefault = 50;
 // when the channel was 0.22; at 0.30 (the underline stagger) it costs one more
 // spacing unit, so a piece sitting right at the boundary is that much likelier to
 // fall through — the same trade, one notch further along.
+//
+// Staff spacing feeds the same cliff (it moves `systemHeightPx` too), but only
+// ABOVE the default now that the reserve is floored: below it the engraved gap no
+// longer moves, so the auto-fit budget can't change either. And when the cliff
+// does fire it re-solves `scale`, so the notes resize along with the labels —
+// which is the one coupling that IS wanted, annotation size tracking note size.
 
 /// `spacingSystem` units per annotation lane past the first.
 ///
@@ -161,6 +179,34 @@ int verovioLaneSpacingUnits(int lanes) =>
 /// Extra `pageMarginTop` for [lanes] annotation lanes. 0 for one lane.
 int verovioLaneMarginUnits(int lanes) =>
     (lanes - 1).clamp(0, 4) * laneReserveMarginUnitsPerLane;
+
+/// The smallest `spacingSystem` that still leaves [lanes] annotation lanes their
+/// full proportional height.
+///
+/// Zero lanes reserve nothing: a view with no annotation on it has no lane to
+/// protect, so the staff-spacing slider keeps its full downward reach there.
+int verovioSpacingSystemFloor(int lanes) =>
+    lanes <= 0 ? 0 : verovioSpacingSystemDefault + verovioLaneSpacingUnits(lanes);
+
+/// The `spacingSystem` to engrave with: the staff-spacing preference, plus the
+/// annotation-lane reserve, **floored** by [verovioSpacingSystemFloor].
+///
+/// The floor is the whole point. Without it the reserve is a bonus added on top
+/// of whatever the preference asks for, so any spacing below
+/// [verovioSpacingSystemDefault] eats straight back into it: the lanes no longer
+/// fit the gap, `EngravedScore.laneSqueeze` drops under 1, and every annotation
+/// label shrinks with it. That is the staff-spacing slider appearing to change
+/// the annotation font size — which it must not, because label size is meant to
+/// track the notes (i.e. measures-per-line) and nothing else.
+///
+/// The cost is that once lanes are reserved the bottom of the slider's range is
+/// a no-op — with two lanes, everything from the minimum up to the default
+/// engraves at the same gap. That's honest: the gap is fully spent on the lanes,
+/// so there is no unused space left to reclaim.
+int verovioSpacingSystemEngraved(double staffSpacing, int lanes) => math.max(
+      verovioSpacingSystemFor(staffSpacing) + verovioLaneSpacingUnits(lanes),
+      verovioSpacingSystemFloor(lanes),
+    );
 
 /// Size multiplier for the section minimap's A/B part markers at a given achieved
 /// measures-per-line, so they grow along with the notes.
