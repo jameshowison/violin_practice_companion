@@ -1308,10 +1308,15 @@ class _NotationView extends ConsumerWidget {
     // Build the staff via the selected renderer (native Verovio or OSMD
     // WebView), keeping one identical parameter set.
     final renderer = ref.watch(staffRendererProvider);
-    // [fingeringChannel] reserves a second annotation lane and fills it with the
-    // fingering chips — the annotation view's whole layout difference, now that
-    // both views feed the same (fingering-stripped) xml. Reserved whether or not
-    // chords are showing, so toggling chords never re-flows the page.
+    // [fingeringChannel] reserves the fingering lane and fills it with the
+    // chips — the annotation view's whole layout difference, now that both views
+    // feed the same (fingering-stripped) xml.
+    //
+    // Each lane is reserved only when something will be drawn in it: an empty
+    // [chordRuns] means the toggle is off or the piece has none, and reserving
+    // for it anyway would spend gap that the staff-spacing preference could
+    // otherwise close up. The trade is that toggling chords now re-flows the
+    // page, which it previously didn't.
     Widget buildStaff(String xml, {bool fingeringChannel = false}) {
       if (renderer == StaffRenderer.verovio) {
         return StaffViewVerovio(
@@ -1327,7 +1332,8 @@ class _NotationView extends ConsumerWidget {
           fingeringAnnotations: annotations,
           stringColourStyle: colourStyle,
           stringRuns: stringRuns,
-          annotationLanes: fingeringChannel ? 2 : 1,
+          chordLane: chordRuns.isNotEmpty,
+          fingeringLane: fingeringChannel,
           scrollNav: staffNav,
         );
       }
