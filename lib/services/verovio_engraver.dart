@@ -355,7 +355,7 @@ class VerovioEngraver {
     final (measureLine, lineBands) = systemLinesOf(measureRects);
     final lineContent = lineContentOf(measureRects, measureLine);
 
-    var processedSvg = stripRepeatClefs ? _clefKeySigFirstSystemOnly(svg) : svg;
+    var processedSvg = stripRepeatClefs ? clefKeySigFirstSystemOnly(svg) : svg;
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
     }
@@ -432,7 +432,7 @@ class VerovioEngraver {
   /// x positions, so later systems carry a small leading indent where the
   /// removed glyphs were — hitMap coordinates are untouched, so overlays,
   /// the cursor, and taps stay aligned.
-  static String _clefKeySigFirstSystemOnly(String svg) {
+  static String clefKeySigFirstSystemOnly(String svg) {
     final ranges = <(int, int)>[
       ..._repeatedGroupRanges(svg, 'clef'),
       ..._repeatedGroupRanges(svg, 'keySig'),
@@ -474,6 +474,13 @@ class VerovioEngraver {
   /// Index just past the `</g>` that closes the group opening at [open] (the
   /// index of its `<g`), accounting for nested `<g>`…`</g>`. Returns -1 if
   /// unbalanced.
+  ///
+  /// A childless group is written self-closing (`<g … />`) — Verovio's writer
+  /// collapses empty nodes, and an empty `<g class="keySig"/>` is exactly what a
+  /// score with no accidentals gets. Such a group ends at its own `/>`; scanning
+  /// on for a `</g>` would run into the following siblings and return the close
+  /// of the next non-empty one (the staff's `<g class="layer">`, i.e. every note
+  /// on that system).
   static int _matchCloseG(String s, int open) {
     var depth = 0;
     var i = open;
@@ -482,13 +489,20 @@ class VerovioEngraver {
         depth--;
         i += 4;
         if (depth == 0) return i;
+        if (depth < 0) return -1; // closed past our own group: malformed
         continue;
       }
       if (s.startsWith('<g', i) &&
           (i + 2 >= s.length || s[i + 2] == ' ' || s[i + 2] == '>')) {
         final gt = s.indexOf('>', i);
         if (gt < 0) return -1;
-        if (s[gt - 1] != '/') depth++; // self-closing `<g/>` opens nothing
+        if (s[gt - 1] == '/') {
+          // Self-closing `<g/>` opens nothing. If it's the group we were asked
+          // about, its own tag is the whole range.
+          if (i == open) return gt + 1;
+        } else {
+          depth++;
+        }
         i = gt + 1;
         continue;
       }
