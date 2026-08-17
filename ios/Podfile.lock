@@ -55,6 +55,8 @@ PODS:
     - onnxruntime-objc/Core (= 1.24.2)
   - onnxruntime-objc/Core (1.24.2):
     - onnxruntime-c (= 1.24.2)
+  - package_info_plus (0.4.5):
+    - Flutter
   - pdfx (1.0.0):
     - Flutter
   - SDWebImage (5.21.7):
@@ -68,6 +70,8 @@ PODS:
   - url_launcher_ios (0.0.1):
     - Flutter
   - verovio_flutter (0.0.1):
+    - Flutter
+  - wakelock_plus (0.0.1):
     - Flutter
   - webview_flutter_wkwebview (0.0.1):
     - Flutter
@@ -83,10 +87,12 @@ DEPENDENCIES:
   - flutter_onnxruntime (from `.symlinks/plugins/flutter_onnxruntime/ios`)
   - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - pdfx (from `.symlinks/plugins/pdfx/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - verovio_flutter (from `.symlinks/plugins/verovio_flutter/ios`)
+  - wakelock_plus (from `.symlinks/plugins/wakelock_plus/ios`)
   - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
 
 SPEC REPOS:
@@ -118,6 +124,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/image_cropper/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
+  package_info_plus:
+    :path: ".symlinks/plugins/package_info_plus/ios"
   pdfx:
     :path: ".symlinks/plugins/pdfx/ios"
   shared_preferences_foundation:
@@ -126,6 +134,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
   verovio_flutter:
     :path: ".symlinks/plugins/verovio_flutter/ios"
+  wakelock_plus:
+    :path: ".symlinks/plugins/wakelock_plus/ios"
   webview_flutter_wkwebview:
     :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
 
@@ -143,6 +153,7 @@ SPEC CHECKSUMS:
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
   onnxruntime-c: b58bafbc58707d165404665e46a7467a16e8e0e4
   onnxruntime-objc: 99e0fe4b6d606970c6c1350c194c7629ef6e6fc9
+  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   pdfx: 77f4dddc48361fbb01486fa2bdee4532cbb97ef3
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
@@ -150,6 +161,7 @@ SPEC CHECKSUMS:
   TOCropViewController: a916930c465b5d9445a74d95e0c0da931771b4df
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   verovio_flutter: 320509aa8efe5a9d8725b3f1fc97bc4d19aa2a7d
+  wakelock_plus: e29112ab3ef0b318e58cfa5c32326458be66b556
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
 PODFILE CHECKSUM: 77c918b63feb874b1494ff02fe288e3dac83843c

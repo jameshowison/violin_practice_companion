@@ -16,6 +16,7 @@ import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
+import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
@@ -29,21 +30,75 @@ import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/playback_controls.dart';
-import '../widgets/section_bar.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../widgets/time_signature_dialog.dart';
 
-class PieceDetailScreen extends ConsumerWidget {
+class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
+
+  @override
+  ConsumerState<PieceDetailScreen> createState() => _PieceDetailScreenState();
+
+  // "Am" → "A minor", "Bb" → "B♭ major", "G" → "G major"
+  // "Amix" → "A mixolydian", "F#m" → "F♯ minor", "Bb" → "B♭ major". The suffix
+  // is whatever MusicXmlParser.keyName appended for the mode.
+  //
+  // On the widget rather than its State because _KeyMeterButton calls it by
+  // name from outside, and a State class is private to the screen.
+  static const _modeWords = {
+    'dor': 'dorian', 'phr': 'phrygian', 'lyd': 'lydian',
+    'mix': 'mixolydian', 'loc': 'locrian', 'm': 'minor',
+  };
+
+  static String _formatKey(String sig) {
+    for (final e in _modeWords.entries) {
+      if (sig.length > e.key.length && sig.endsWith(e.key)) {
+        final root = sig.substring(0, sig.length - e.key.length);
+        return '${_prettyRoot(root)} ${e.value}';
+      }
+    }
+    return '${_prettyRoot(sig)} major';
+  }
+
+  static String _prettyRoot(String root) =>
+      root.replaceAll('b', '♭').replaceAll('#', '♯');
+}
+
+/// Stateful only to own the wakelock. The screen is read from for minutes at a
+/// time without a touch — the player is looking at the score, not the phone —
+/// so the idle timer has to be held off for as long as a piece is open, rather
+/// than only while the app's own playback runs. Most practice happens with the
+/// audio off.
+///
+/// The hook sits on the screen and not on either layout because the two
+/// branches disagree in shape: the compact one is a widget with state, the wide
+/// one is a bare `Column`. One owner above both is the only place that covers
+/// them equally and releases on every way out.
+///
+/// No `WidgetsBindingObserver`: iOS applies `isIdleTimerDisabled` only while
+/// the app is frontmost and Android scopes `FLAG_KEEP_SCREEN_ON` to the window,
+/// so backgrounding already suspends this without help.
+class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    KeepAwake.enable();
+  }
+
+  @override
+  void dispose() {
+    KeepAwake.disable();
+    super.dispose();
+  }
 
   Map<int, String> _sectionLabels(Piece piece) {
     return {for (final s in piece.sections) s.startMeasure: s.label};
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final piece = ref.watch(selectedPieceProvider);
     final layoutAsync = ref.watch(pieceLayoutProvider);
     final displayMode = ref.watch(displayModeProvider);
@@ -353,26 +408,6 @@ class PieceDetailScreen extends ConsumerWidget {
     );
   }
 
-  // "Am" → "A minor", "Bb" → "B♭ major", "G" → "G major"
-  // "Amix" → "A mixolydian", "F#m" → "F♯ minor", "Bb" → "B♭ major". The suffix
-  // is whatever MusicXmlParser.keyName appended for the mode.
-  static const _modeWords = {
-    'dor': 'dorian', 'phr': 'phrygian', 'lyd': 'lydian',
-    'mix': 'mixolydian', 'loc': 'locrian', 'm': 'minor',
-  };
-
-  static String _formatKey(String sig) {
-    for (final e in _modeWords.entries) {
-      if (sig.length > e.key.length && sig.endsWith(e.key)) {
-        final root = sig.substring(0, sig.length - e.key.length);
-        return '${_prettyRoot(root)} ${e.value}';
-      }
-    }
-    return '${_prettyRoot(sig)} major';
-  }
-
-  static String _prettyRoot(String root) =>
-      root.replaceAll('b', '♭').replaceAll('#', '♯');
 }
 
 /// Small caps-ish heading for a group of tray controls. The tray's own controls
@@ -802,15 +837,22 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
       if (mounted) ref.read(staffViewBottomInsetProvider.notifier).state = 72;
     });
     _measureTray();
-    if (!_hasPeeked) {
-      _hasPeeked = true;
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) setState(() { _sheetOpen = true; _measureTray(); });
-        Future.delayed(const Duration(milliseconds: 2500), () {
-          if (mounted) _closeSheet();
-        });
+  }
+
+  // The one-time peek that says "there is a drawer here". Driven from build
+  // rather than initState because what's IN the drawer now depends on the
+  // parsed piece, which is still a pending future when initState runs — peeking
+  // then would open an empty panel on every piece and teach the opposite of
+  // what it's for.
+  void _peekOnce() {
+    if (_hasPeeked) return;
+    _hasPeeked = true;
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() { _sheetOpen = true; _measureTray(); });
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (mounted) _closeSheet();
       });
-    }
+    });
   }
 
   @override
@@ -822,6 +864,27 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     ref.listen(playbackStateProvider, (_, next) {
       if (next.valueOrNull == PlaybackState.playing) _closeSheet();
     });
+
+    // What the drawer holds is now only the chord diagrams, and they aren't
+    // always there: the wrong view, the chord toggle off, or a tune whose
+    // chords aren't in the ten-shape library all leave it empty. So work out up
+    // front whether there is anything to open, and when there isn't, drop the
+    // handle and the peek entirely rather than offering a drawer onto nothing.
+    final showsChords = displayMode == DisplayMode.staff ||
+        displayMode == DisplayMode.staffFingering ||
+        displayMode == DisplayMode.tab;
+    final hasDrawer = showsChords &&
+        ref.watch(showChordsProvider) &&
+        ref.watch(pieceChordShapesProvider).isNotEmpty;
+
+    if (hasDrawer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _peekOnce();
+      });
+    }
+    // Guards the case where the drawer's contents go away while it's open —
+    // switching to Jianpu, or turning chords off from the settings drawer.
+    final sheetOpen = _sheetOpen && hasDrawer;
 
     return Column(
       children: [
@@ -857,79 +920,96 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // ── the handle, on the tray's own top edge ──
+                      //
+                      // Above the contents rather than between them and the
+                      // play bar. Sitting under the diagrams it stayed put at
+                      // the bottom of the screen while the panel grew up and
+                      // away from it, so the thing you reach for to close the
+                      // panel was nowhere near the panel. On the top edge it
+                      // travels with the panel, which is where a sheet's grab
+                      // handle belongs and where a downward flick means "put
+                      // this away".
+                      //
+                      // No handle when there's nothing behind it — an
+                      // affordance that opens onto an empty panel is worse than
+                      // no affordance.
+                      if (hasDrawer)
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            if (_sheetOpen) {
+                              _closeSheet();
+                            } else {
+                              setState(() => _sheetOpen = true);
+                              _measureTray();
+                            }
+                          },
+                          onVerticalDragUpdate: (d) {
+                            if (d.delta.dy < -6 && !_sheetOpen) {
+                              setState(() => _sheetOpen = true);
+                              _measureTray();
+                            } else if (d.delta.dy > 6 && _sheetOpen) {
+                              _closeSheet();
+                            }
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade400,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 6),
                       // ── drawer contents (slides up above play bar) ─
                       AnimatedSize(
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOut,
-                        child: _sheetOpen
+                        // The view picker and the section pills used to live
+                        // here. Both were retired on tablet in e7d2da4 and both
+                        // had a twin on the phone the whole time: the picker is
+                        // in the settings drawer as NotationSwitcher, spelled
+                        // out rather than abbreviated to "Ann."; the pills are
+                        // the minimap already drawn down the right edge, which
+                        // selects the same practice range on a tap. What the
+                        // phone was missing is what's here now.
+                        child: sheetOpen
                             ? ConstrainedBox(
                                 constraints:
                                     const BoxConstraints(maxHeight: 280),
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _CompactModeSwitcher(
-                                        current: displayMode,
-                                        onChanged: (mode) => ref
-                                            .read(displayModeProvider.notifier)
-                                            .state = mode,
-                                      ),
-                                      const Divider(height: 1),
-                                      SectionBar(
-                                        sections: widget.piece.sections,
-                                        measures: [
-                                          for (final row in widget.layout.rows)
-                                            ...row
-                                        ],
-                                        selection: selection,
-                                        onSectionTap: (sel) => ref
-                                            .read(measureSelectionProvider
-                                                .notifier)
-                                            .state = sel,
-                                      ),
-                                    ],
-                                  ),
+                                child: const SingleChildScrollView(
+                                  // The drag handle above is already the
+                                  // boundary, so no second rule under it.
+                                  child: NewChordsBlock(topBorder: false),
                                 ),
                               )
                             : const SizedBox.shrink(),
                       ),
-                      // ── always-visible: pill + full playback controls ──
+                      // ── always-visible: full playback controls ──
+                      //
+                      // Still drag-sensitive, so a flick up from the play bar
+                      // opens the panel without having to find the handle. Only
+                      // upward: a downward flick here would close a panel the
+                      // bar isn't part of.
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onVerticalDragUpdate: (d) {
-                          if (d.delta.dy < -6 && !_sheetOpen) {
-                            setState(() => _sheetOpen = true);
-                            _measureTray();
-                          } else if (d.delta.dy > 6 && _sheetOpen) {
-                            _closeSheet();
-                          }
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                if (_sheetOpen) {
-                                  _closeSheet();
-                                } else {
+                        onVerticalDragUpdate: !hasDrawer
+                            ? null
+                            : (d) {
+                                if (d.delta.dy < -6 && !_sheetOpen) {
                                   setState(() => _sheetOpen = true);
                                   _measureTray();
                                 }
                               },
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 5),
-                                child: Container(
-                                  width: 40,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade400,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                            ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             const PlaybackControls(),
                             // Spacer so interactive content sits above the
                             // home-indicator zone; Material background fills
@@ -947,98 +1027,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── Compact mode switcher (always-visible icon bar at top of compact layout) ──
-
-class _CompactModeSwitcher extends StatefulWidget {
-  final DisplayMode current;
-  final ValueChanged<DisplayMode> onChanged;
-
-  const _CompactModeSwitcher({
-    required this.current,
-    required this.onChanged,
-  });
-
-  static const _modes = [
-    (DisplayMode.staff, Icons.music_note, 'Staff'),
-    (DisplayMode.staffFingering, Icons.queue_music, 'Ann.'),
-    (DisplayMode.jianpu, Icons.format_list_numbered, 'Jianpu'),
-    (DisplayMode.fingering, Icons.back_hand, 'Finger'),
-    (DisplayMode.combined, Icons.layers, '+'),
-    (DisplayMode.tab, Icons.grid_4x4, 'Tab'),
-  ];
-
-  @override
-  State<_CompactModeSwitcher> createState() => _CompactModeSwitcherState();
-}
-
-class _CompactModeSwitcherState extends State<_CompactModeSwitcher>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  int _indexForMode(DisplayMode mode) =>
-      _CompactModeSwitcher._modes.indexWhere((m) => m.$1 == mode);
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: _CompactModeSwitcher._modes.length,
-      vsync: this,
-      initialIndex: _indexForMode(widget.current),
-    );
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        widget.onChanged(_CompactModeSwitcher._modes[_tabController.index].$1);
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(_CompactModeSwitcher old) {
-    super.didUpdateWidget(old);
-    if (old.current != widget.current) {
-      final idx = _indexForMode(widget.current);
-      if (idx != _tabController.index) {
-        _tabController.animateTo(idx);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final showLabels = constraints.maxWidth >= 500;
-        return TabBar(
-          controller: _tabController,
-          tabs: [
-            for (final (_, icon, label) in _CompactModeSwitcher._modes)
-              Tab(
-                height: 36,
-                child: showLabels
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, size: 14),
-                          const SizedBox(width: 4),
-                          Text(label, style: const TextStyle(fontSize: 12)),
-                        ],
-                      )
-                    : Icon(icon, size: 18),
-              ),
-          ],
-        );
-      },
     );
   }
 }
