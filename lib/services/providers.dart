@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/chord_shape.dart';
 import '../models/count_in.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
@@ -20,6 +21,7 @@ import 'jianpu_converter.dart';
 import 'midi_generator.dart';
 import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
+import 'chord_shape_library.dart';
 import 'chord_xml_injector.dart';
 import 'count_in_store.dart';
 import 'palette_xml_generator.dart';
@@ -414,6 +416,35 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 // toggling off hides them (and the "New chords" footer).
 // Session-only, matching the other display-preference providers.
 final showChordsProvider = StateProvider<bool>((_) => true);
+
+/// The chords this piece introduces, in order of first appearance, limited to
+/// the ones [ChordShapeLibrary] can draw.
+///
+/// Note what is NOT here: the [showChordsProvider] toggle and the display mode.
+/// This answers "what could be drawn", not "should it be" — the callers layer
+/// their own conditions on top, and keeping them out means a piece's chord list
+/// doesn't get recomputed every time a switch is flipped.
+///
+/// Two callers, which is the reason it exists as a provider rather than staying
+/// inline in the widget: `NewChordsBlock` renders it, and the phone's bottom
+/// tray has to know **in advance** whether that block will draw anything, so it
+/// can leave off the drag handle and the one-time peek rather than opening onto
+/// an empty panel.
+///
+/// Silently drops chords with no known shape — the library is ten triads and no
+/// sevenths, so a tune in D7/A7 legitimately yields an empty list.
+final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
+  final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+  if (parsed == null) return const [];
+
+  final seen = <String>{};
+  return [
+    for (final m in parsed.measures)
+      for (final n in m.notes)
+        if (n.chordSymbol case final c?)
+          if (seen.add(c)) ?ChordShapeLibrary.lookup(c),
+  ];
+});
 
 /// Whether `<harmony>` should be stripped before the score is engraved.
 ///

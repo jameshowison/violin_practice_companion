@@ -36,6 +36,33 @@ class PieceRepository {
       xml: 'assets/fixtures/gossec_gavotte.xml',
       sections: 'assets/fixtures/sections/gossec_gavotte_sections.json',
     ),
+    // Both converted from `docs/wellerman.abc` through the app's own ABC
+    // pipeline and then through [_repair], so they arrive in the same
+    // sounding-led, beamed form as the fixtures above — which is what keeps
+    // them byte-identical under the normalizer and beamer round-trip tests.
+    //
+    // Old Joe Clark is the only bundled piece carrying `<harmony>`, so it is
+    // the only one that exercises the chord lane and the "New chords" diagrams
+    // out of the box. It is also A MIXOLYDIAN, not D major: both spell two
+    // sharps, so a `<mode>` that goes missing still engraves correctly and
+    // surfaces only in the roman numerals, with A reading as V of D instead of
+    // I. That is a real bug this tune has already caught once — keep the mode.
+    //
+    // The Wellerman has no chords at all. It earns its place as the modal
+    // minor counterpart, and as the case where the phone's tray correctly
+    // declines to offer a drawer.
+    (
+      id: 'the_wellerman',
+      title: 'The Wellerman',
+      xml: 'assets/fixtures/the_wellerman.xml',
+      sections: 'assets/fixtures/sections/the_wellerman_sections.json',
+    ),
+    (
+      id: 'old_joe_clark',
+      title: 'Old Joe Clark',
+      xml: 'assets/fixtures/old_joe_clark.xml',
+      sections: 'assets/fixtures/sections/old_joe_clark_sections.json',
+    ),
     // OMR comparison pairs: abc (ground truth) then homr (engine output)
     (
       id: 'abc_05_o_come_little_children',
