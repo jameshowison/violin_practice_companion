@@ -28,6 +28,12 @@ dependencies:
   flutter_midi_pro: ^3.1.6
   marionette_flutter: ^0.5.0
   url_launcher: ^6.3.0
+  # The piece screen goes minutes at a time without a touch — the score is being
+  # read from while the instrument is being played — so the idle timer has to be
+  # held off for as long as a piece is open. Declares iOS/Android/macOS/Web
+  # (plus Windows/Linux), so no conditional-import sibling is needed; see
+  # lib/services/keep_awake.dart for the one place its failures are swallowed.
+  wakelock_plus: ^1.5.2
 
   # ABC-notation import: abcjs (MIT) parses ABC, a small bundled emitter
   # (assets/abc/abc_to_musicxml.js) turns its tree into MusicXML. Runs DOM-free

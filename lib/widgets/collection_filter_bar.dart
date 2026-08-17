@@ -5,16 +5,16 @@ import '../models/piece_library.dart';
 /// The horizontal "All / ●Suzuki 1 / ●This week" chip strip, shared by the piece
 /// list and the Manage screen.
 ///
-/// ## Why real `FilterChip`s and not `SectionBar`'s hand-rolled ones
+/// ## Why real `FilterChip`s and not hand-rolled ones
 ///
-/// `SectionBar` builds its chips from a `GestureDetector` at
+/// The retired `SectionBar` built its chips from a `GestureDetector` at
 /// `EdgeInsets.symmetric(horizontal: 10, vertical: 2)` — about a 24pt touch
-/// target. That is a defensible density trade for a strip crammed alongside
+/// target. That was a defensible density trade for a strip crammed alongside
 /// notation, and the wrong one here: this is the child's primary navigation
 /// control. `FilterChip` also announces its selected state to screen readers
-/// and picks up the correct M3 colour roles, neither of which the hand-rolled
-/// chip does. `SectionBar` is deliberately left alone — copying its density
-/// here would be a false consistency.
+/// and picks up the correct M3 colour roles, neither of which a hand-rolled
+/// chip does — so copying that density here would have been a false
+/// consistency even while it existed.
 ///
 /// A horizontal `ListView` rather than a `Wrap`, so any number of collections
 /// scrolls instead of pushing the list down, and "All" (index 0) is always
