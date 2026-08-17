@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/chord_shape.dart';
 import '../services/chord_analysis.dart';
-import '../services/chord_shape_library.dart';
 import '../services/providers.dart';
 import 'chord_diagram.dart';
 
 /// The "New chords" footer: a diagram per distinct chord in the piece, in order
 /// of first appearance — echoing the beginner-mandolin ebook's footer block.
 ///
-/// Renders nothing when chord display is off, no chords are present, or none of
-/// the piece's chords have a known shape (see [ChordShapeLibrary]).
+/// Renders nothing when chord display is off, or when none of the piece's
+/// chords have a known shape (see [pieceChordShapesProvider], which is also
+/// what the phone tray consults to decide whether to offer a drawer at all).
 class NewChordsBlock extends ConsumerWidget {
-  const NewChordsBlock({super.key});
+  /// Draws a hairline above the block. Wanted under the score on a tablet,
+  /// where this is a footer and the rule separates it from the staff; unwanted
+  /// in the phone's tray, where the drag handle is already the boundary and a
+  /// second line reads as a stray rule.
+  final bool topBorder;
+
+  const NewChordsBlock({super.key, this.topBorder = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,18 +25,7 @@ class NewChordsBlock extends ConsumerWidget {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
 
-    // Distinct chord names, first-appearance order.
-    final seen = <String>{};
-    final names = <String>[];
-    for (final m in parsed.measures) {
-      for (final n in m.notes) {
-        final c = n.chordSymbol;
-        if (c != null && seen.add(c)) names.add(c);
-      }
-    }
-    final shapes = <ChordShape>[
-      for (final name in names) ?ChordShapeLibrary.lookup(name),
-    ];
+    final shapes = ref.watch(pieceChordShapesProvider);
     if (shapes.isEmpty) return const SizedBox.shrink();
 
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -39,8 +33,10 @@ class NewChordsBlock extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
-        border: Border(
-            top: BorderSide(color: onSurface.withValues(alpha: 0.12))),
+        border: topBorder
+            ? Border(
+                top: BorderSide(color: onSurface.withValues(alpha: 0.12)))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
