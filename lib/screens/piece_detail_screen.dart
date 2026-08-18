@@ -491,7 +491,11 @@ class _CountInSlider extends ConsumerWidget {
 /// Staff zoom. Fewer measures per line ⇒ bigger notes: the score is always
 /// engraved to the viewport width, so the two are one knob (see `staff_zoom.dart`).
 ///
-/// Null override = auto, which fits a short piece into ~75% of the viewport.
+/// Null override = auto: the whole piece on one screen if that can be had
+/// without shrinking the notes past the device's minimum physical size, and that
+/// minimum otherwise (bigger notes and a scroll, rather than an illegible page).
+/// The floor is per device class — see `minStaffScaleFor` in `staff_zoom.dart`.
+///
 /// The readout shows what Verovio actually achieved — its break points are
 /// musical, so a dense bar can land one short of the target, hence "≈".
 class _MeasuresPerLineSlider extends ConsumerWidget {
