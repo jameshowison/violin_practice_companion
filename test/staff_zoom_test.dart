@@ -301,17 +301,246 @@ void main() {
     });
   });
 
+  group('tighterUnitsPerMeasure', () {
+    test('keeps the smaller of two upper bounds', () {
+      expect(tighterUnitsPerMeasure(447.5, 352.5), 352.5);
+    });
+
+    test('a looser observation cannot loosen the bound', () {
+      // The corrective engrave usually packs loosely — it was given the room it
+      // asked for — so this is the case that would oscillate if it were wrong.
+      expect(tighterUnitsPerMeasure(352.5, 470), 352.5);
+    });
+
+    test('either side being 0 means "no estimate yet"', () {
+      expect(tighterUnitsPerMeasure(0, 447.5), 447.5);
+      expect(tighterUnitsPerMeasure(447.5, 0), 447.5);
+      expect(tighterUnitsPerMeasure(0, 0), 0);
+    });
+  });
+
+  // The bug this whole feedback loop exists for, in the numbers it was found
+  // with: Old Joe Clark on `dev-iphone` in portrait, asked for 3 measures a line
+  // and engraved 4, notes a quarter smaller than the screen could show.
+  group('calibration refinement — measured on dev-iphone', () {
+    const widthPx = 358.0;
+    const phone = 402.0;
+
+    test('a probe at 2 bars a line over-estimates, the engrave corrects it', () {
+      // 1. Probe at scale 40 fit 2 bars in an 895-unit page.
+      var upm = tighterUnitsPerMeasure(
+          0, unitsPerMeasureFrom(pageWidthUnits: 895, measuresPerLine: 2));
+      expect(upm, 447.5);
+
+      final target = autoMeasuresPerLine(
+        widthPx: widthPx,
+        viewportHeightPx: 658,
+        shortestSidePx: phone,
+        unitsPerMeasure: upm,
+        systemHeightPx: 83.8,
+        measureCount: 18,
+      );
+      expect(target, 3);
+      final first = scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: target);
+      expect(first, closeTo(25.4, 0.1));
+
+      // 2. At that scale the page is 1410 units — and Verovio packed 4 bars into
+      //    it, which is the observation the probe could not make.
+      upm = tighterUnitsPerMeasure(
+          upm, unitsPerMeasureFrom(pageWidthUnits: 1410, measuresPerLine: 4));
+      expect(upm, closeTo(352.5, 0.1));
+
+      // 3. Same target, corrected scale: bigger notes, and 3 bars a line as
+      //    asked (measured: the corrective engrave achieved mpl 3).
+      final second = scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: target);
+      expect(second, closeTo(32.2, 0.2));
+      expect(second / first, greaterThan(1.25));
+      // Comfortably past the 3% threshold the widget requires to re-engrave.
+      expect((second - first) / first, greaterThan(0.03));
+    });
+
+    test('Happy Farmer needs no correction — its bars really are that wide', () {
+      // Same probe reading (895/2), but the engrave at scale 25.4 achieved
+      // exactly the 3 it was asked for, so 1410/3 = 470 is a LOOSER bound and
+      // the reference piece is left alone.
+      final upm = tighterUnitsPerMeasure(
+          447.5, unitsPerMeasureFrom(pageWidthUnits: 1410, measuresPerLine: 3));
+      expect(upm, 447.5);
+      expect(scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: 3),
+          closeTo(25.4, 0.1));
+    });
+  });
+
+  group('annotation type size', () {
+    // Will The Circle Be Unbroken, portrait, 4 measures a line: scale 34.0, so a
+    // staff space is 0.72 × 34 / 4 = 6.12 viewBox px, and the fingering channel
+    // came out 15.0px tall (contentH 53.2 × 0.30 × squeeze 0.94).
+    const space = 6.12;
+    const channel = 15.0;
+
+    /// Inked height of a digit at [fontSize], in staff spaces — the thing the
+    /// eye compares against a notehead (which is exactly one space).
+    double capSpaces(double fontSize) =>
+        fontSize * labelCapHeightRatio / space;
+
+    test('a digit inks slightly larger than a notehead', () {
+      final f = annotationFontSizeFor(space);
+      expect(capSpaces(f), closeTo(annotationCapHeightSpaces, 0.001));
+      expect(capSpaces(f), greaterThan(1.0)); // bigger than a notehead...
+      expect(capSpaces(f), lessThan(1.5)); // ...but not a second voice
+    });
+
+    test('beats what the old lane-derived chain produced', () {
+      // Old: channel → chip zone (×0.22/0.30) → chip (×0.80) → type (×0.66).
+      const old = channel * (0.22 / 0.30) * 0.80 * 0.66;
+      expect(capSpaces(old), closeTo(0.67, 0.02)); // two thirds of a notehead
+      expect(annotationFontSizeFor(space), greaterThan(old * 1.5));
+    });
+
+    test('the lane this piece has can host the wanted size', () {
+      // The whole point of the diagnosis: the room was already there.
+      expect(
+        annotationFontSizeIn(staffSpacePx: space, laneHeightPx: channel),
+        closeTo(annotationFontSizeFor(space), 0.001),
+      );
+    });
+
+    test('scale-invariant — a label holds its size against the notes', () {
+      // Two zoom levels, same relative type size. This is what the
+      // measures-per-line slider must not be able to break.
+      for (final s in [3.0, 6.12, 12.0, 25.0]) {
+        expect(annotationFontSizeFor(s) / s,
+            closeTo(annotationFontSizeFor(space) / space, 1e-9));
+      }
+    });
+
+    test('a lane too short clamps the type instead of overflowing it', () {
+      const short = 6.0; // e.g. a heavy laneSqueeze
+      final f = annotationFontSizeIn(
+          staffSpacePx: space, laneHeightPx: short, laneTypeShare: 0.78);
+      expect(f, lessThan(annotationFontSizeFor(space)));
+      expect(f, closeTo(short * 0.78, 0.001));
+      // Never taller than the lane it is drawn in.
+      expect(f, lessThan(short));
+    });
+
+    test('degenerate inputs are quiet', () {
+      expect(annotationFontSizeFor(0), 0);
+      expect(annotationFontSizeFor(-1), 0);
+      // No lane measured yet: fall back to the want rather than to zero.
+      expect(annotationFontSizeIn(staffSpacePx: space, laneHeightPx: 0),
+          annotationFontSizeFor(space));
+    });
+  });
+
+  group('minStaffScaleFor', () {
+    /// The physical staff height, in mm, that a Verovio [scale] comes out at on
+    /// a screen of [ptPerInch] — the inverse of the conversion under test.
+    double mmAt(double scale, double ptPerInch) =>
+        scale * staffHeightUnits / 100 / ptPerInch * 25.4;
+
+    test('round-trips the phone floor back to its millimetre constant', () {
+      expect(mmAt(minStaffScaleFor(402), phonePtPerInch),
+          closeTo(minStaffHeightMmPhone, 0.001));
+    });
+
+    test('round-trips the tablet floor back to its millimetre constant', () {
+      expect(mmAt(minStaffScaleFor(834), tabletPtPerInch),
+          closeTo(minStaffHeightMmTablet, 0.001));
+    });
+
+    test('a tablet floor is PHYSICALLY larger than a phone floor', () {
+      final phoneMm = mmAt(minStaffScaleFor(402), phonePtPerInch);
+      final tabletMm = mmAt(minStaffScaleFor(834), tabletPtPerInch);
+      expect(tabletMm, greaterThan(phoneMm));
+      // "Slightly" bigger — a different reading distance, not a different app.
+      expect(tabletMm / phoneMm, lessThan(1.5));
+    });
+
+    test('classifies by shortest side, so orientation cannot change it', () {
+      // iPhone 17: 402×874. iPad Pro 11: 834×1210.
+      expect(minStaffScaleFor(402), minStaffScaleFor(402));
+      expect(minStaffScaleFor(834), greaterThan(minStaffScaleFor(402)));
+      expect(minStaffScaleFor(tabletShortestSidePx), minStaffScaleFor(834));
+      expect(minStaffScaleFor(tabletShortestSidePx - 1), minStaffScaleFor(402));
+    });
+
+    test('the floor leaves the hard clamp room to work', () {
+      // staffScaleMin is the clamp on every solve, including an explicit slider
+      // setting; the auto floor sits above it, so the user can still ask for
+      // smaller by hand than auto will ever choose.
+      expect(minStaffScaleFor(402), greaterThan(staffScaleMin));
+      expect(minStaffScaleFor(834), lessThan(staffScaleMax));
+    });
+  });
+
+  group('maxMeasuresPerLineFor', () {
+    test('is the largest n whose scale still clears the floor', () {
+      const widthPx = 706.0;
+      const upm = 441.0;
+      const shortestSide = 402.0; // phone
+      final n = maxMeasuresPerLineFor(
+        widthPx: widthPx,
+        unitsPerMeasure: upm,
+        shortestSidePx: shortestSide,
+      );
+      expect(scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: n),
+          greaterThanOrEqualTo(minStaffScaleFor(shortestSide)));
+      if (n < measuresPerLineMax) {
+        expect(scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: n + 1),
+            lessThan(minStaffScaleFor(shortestSide)));
+      }
+    });
+
+    test('a tablet gets no more measures per line than its floor allows', () {
+      // Same piece, same render width, tablet class: the physically larger floor
+      // can only ever reduce the count.
+      int at(double shortestSide) => maxMeasuresPerLineFor(
+            widthPx: 900,
+            unitsPerMeasure: 441,
+            shortestSidePx: shortestSide,
+          );
+      expect(at(834), lessThanOrEqualTo(at(402)));
+    });
+
+    test('stays inside the slider range', () {
+      for (final w in [200.0, 706.0, 4000.0]) {
+        for (final upm in [90.0, 441.0, 9000.0]) {
+          final n = maxMeasuresPerLineFor(
+              widthPx: w, unitsPerMeasure: upm, shortestSidePx: 402);
+          expect(n, greaterThanOrEqualTo(measuresPerLineMin));
+          expect(n, lessThanOrEqualTo(measuresPerLineMax));
+        }
+      }
+    });
+
+    test('uncalibrated inputs impose no ceiling', () {
+      expect(
+        maxMeasuresPerLineFor(
+            widthPx: 0, unitsPerMeasure: 441, shortestSidePx: 402),
+        measuresPerLineMax,
+      );
+      expect(
+        maxMeasuresPerLineFor(
+            widthPx: 706, unitsPerMeasure: 0, shortestSidePx: 402),
+        measuresPerLineMax,
+      );
+    });
+  });
+
   group('autoMeasuresPerLine', () {
     // A calibration standing in for an iPad-landscape engrave: 1200pt wide,
     // 750 MEI units per measure, and a system 180px tall AT staffScaleProbe.
     const widthPx = 1200.0;
     const upm = 750.0;
     const systemH = 180.0; // pixels at staffScaleProbe
+    const iPadShortestSide = 834.0;
 
     test('a short piece takes the smallest n that fits 75% of the viewport', () {
       final n = autoMeasuresPerLine(
         widthPx: widthPx,
         viewportHeightPx: 800,
+        shortestSidePx: iPadShortestSide,
         unitsPerMeasure: upm,
         systemHeightPx: systemH,
         measureCount: 8,
@@ -342,6 +571,7 @@ void main() {
       int at(double h) => autoMeasuresPerLine(
             widthPx: widthPx,
             viewportHeightPx: h,
+            shortestSidePx: iPadShortestSide,
             unitsPerMeasure: upm,
             systemHeightPx: systemH,
             measureCount: 12,
@@ -349,15 +579,47 @@ void main() {
       expect(at(1200), lessThanOrEqualTo(at(600)));
     });
 
-    test('a piece too long to fit falls back to the width breakpoint', () {
+    test('a piece too long to fit stops at the note-size floor', () {
       final n = autoMeasuresPerLine(
         widthPx: widthPx,
         viewportHeightPx: 500,
+        shortestSidePx: iPadShortestSide,
         unitsPerMeasure: upm,
         systemHeightPx: systemH,
         measureCount: 400,
       );
-      expect(n, measuresPerLineForWidth(widthPx));
+      expect(
+        n,
+        maxMeasuresPerLineFor(
+          widthPx: widthPx,
+          unitsPerMeasure: upm,
+          shortestSidePx: iPadShortestSide,
+        ),
+      );
+    });
+
+    test('never resolves below the device floor, at any length', () {
+      for (final shortestSide in [402.0, 834.0]) {
+        final floor = minStaffScaleFor(shortestSide);
+        for (final count in [1, 8, 21, 32, 120, 400]) {
+          final n = autoMeasuresPerLine(
+            widthPx: widthPx,
+            viewportHeightPx: 500,
+            shortestSidePx: shortestSide,
+            unitsPerMeasure: upm,
+            systemHeightPx: systemH,
+            measureCount: count,
+          );
+          final scale =
+              scaleFor(widthPx: widthPx, unitsPerMeasure: upm, n: n);
+          // One measure per line is the end of the road: a piece dense enough
+          // that even that is below the floor has nowhere left to go.
+          if (n > measuresPerLineMin) {
+            expect(scale, greaterThanOrEqualTo(floor),
+                reason: 'count=$count shortestSide=$shortestSide n=$n');
+          }
+        }
+      }
     });
 
     test('an uncalibrated score falls back to the width breakpoint', () {
@@ -365,12 +627,69 @@ void main() {
         autoMeasuresPerLine(
           widthPx: 800,
           viewportHeightPx: 600,
+          shortestSidePx: 402,
           unitsPerMeasure: 0,
           systemHeightPx: 0,
           measureCount: 0,
         ),
         measuresPerLineForWidth(800),
       );
+    });
+  });
+
+  // Real calibrations, read off the `[engraver]` debug lines on `dev-iphone`, so
+  // the two reference pieces are pinned: the tune whose size defined the floor
+  // must not be made to scroll by it, and the tune that used to fall through the
+  // floor must now stop at it.
+  group('autoMeasuresPerLine — measured on dev-iphone', () {
+    const phone = 402.0; // iPhone 17 shortest side
+
+    test('Happy Farmer keeps its 3-per-line portrait layout', () {
+      // probe: pageW 895 / mpl 2 ⇒ 447.5 units per measure, sysH 86.2, 21 bars.
+      final n = autoMeasuresPerLine(
+        widthPx: 358,
+        viewportHeightPx: 686,
+        shortestSidePx: phone,
+        unitsPerMeasure: 447.5,
+        systemHeightPx: 86.2,
+        measureCount: 21,
+      );
+      expect(n, 3);
+      // It IS the floor — that is where the constant came from — so it has to
+      // land on the legal side of it.
+      expect(scaleFor(widthPx: 358, unitsPerMeasure: 447.5, n: n),
+          greaterThanOrEqualTo(minStaffScaleFor(phone)));
+    });
+
+    test('Happy Farmer keeps its 7-per-line landscape layout', () {
+      // probe: pageW 1765 / mpl 5 ⇒ 353 units per measure, sysH 85.7.
+      final n = autoMeasuresPerLine(
+        widthPx: 706,
+        viewportHeightPx: 282,
+        shortestSidePx: phone,
+        unitsPerMeasure: 353,
+        systemHeightPx: 85.7,
+        measureCount: 21,
+      );
+      expect(n, 7);
+    });
+
+    test('Gavotte stops at 6 rather than cramming 9 in at scale 20', () {
+      // probe: pageW 1765 / mpl 4 ⇒ 441 units per measure, sysH 92.4, 32 bars.
+      // Landscape phone; before the floor this resolved to 8 (Verovio engraved
+      // 9) at scale 20 — 2.2mm of staff.
+      const upm = 441.0;
+      final n = autoMeasuresPerLine(
+        widthPx: 706,
+        viewportHeightPx: 282,
+        shortestSidePx: phone,
+        unitsPerMeasure: upm,
+        systemHeightPx: 92.4,
+        measureCount: 32,
+      );
+      expect(n, 6);
+      expect(scaleFor(widthPx: 706, unitsPerMeasure: upm, n: n),
+          greaterThanOrEqualTo(minStaffScaleFor(phone)));
     });
   });
 
