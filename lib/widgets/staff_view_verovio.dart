@@ -145,6 +145,13 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 /// auto, resolved against [viewportHeightPx] once calibrated), and the vertical
 /// gap between systems.
 ///
+/// [shortestSidePx] is the screen's shortest side, which fixes the device class
+/// and so the auto-fit's minimum physical note size (`minStaffScaleFor`). It gets
+/// no term of its own in the staleness check: being orientation-invariant, it can
+/// only change on a genuine screen change (rotation to a different window size,
+/// an iPad split-view resize), and every one of those moves [widthPx] far more
+/// than the one width bucket that already triggers a re-engrave.
+///
 /// [spacingUnits] is the EFFECTIVE Verovio `spacingSystem` — the staff-spacing
 /// preference with the lane reserve folded in and floored — not the raw
 /// preference. Carrying the resolved value is what lets the staleness check and
@@ -154,6 +161,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
+  double shortestSidePx,
   int? target,
   int spacingUnits,
 });
@@ -189,9 +197,30 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// system height in pixels **at [staffScaleProbe]** (not invariant — callers
   /// convert by the scale ratio), and the measure count. See `staff_zoom.dart`.
   String? _calibratedFor;
+
+  /// Average measure width in MEI units — a running **upper bound** on Verovio's
+  /// natural minimum, tightened by [_tightenCalibration] after every engrave.
+  ///
+  /// One engrave can only ever say "N measures DID fit in W units", so the
+  /// estimate `W / N` is inflated by however much justification stretched that
+  /// line: up to half a measure, which at the probe's own 2-measures-per-line is
+  /// 25%. Measured on Old Joe Clark in portrait, the probe said 447.5 while the
+  /// score really packed 4 bars into 1410 units (352) — so the solve asked for 3
+  /// bars a line, got 4, and left the notes a quarter smaller than the screen
+  /// could have shown. [staffFitSlack] absorbs a few percent of this; it cannot
+  /// absorb 27%.
+  ///
+  /// Taking the minimum over every engrave seen fixes it with no search: each
+  /// observation is a hard fact, the bound falls monotonically, and one
+  /// corrective engrave is enough in practice.
   double _unitsPerMeasure = 0;
   double _systemHeightPx = 0; // measured at [staffScaleProbe]
   int _measureCount = 0;
+
+  /// Corrective re-engraves spent on the current calibration. Bounded purely as
+  /// a backstop: the bound must fall by a real margin to trigger one, so this
+  /// should never reach its limit.
+  int _refinements = 0;
 
   int _engraveSeq = 0; // discards out-of-order async results
   bool _engraving = false;
@@ -285,13 +314,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         probe = await _engraveAt(req.widthPx, staffScaleProbe,
             spacingSystem: req.spacingUnits);
         if (!mounted || seq != _engraveSeq) return;
-        _unitsPerMeasure = unitsPerMeasureFrom(
-          pageWidthUnits: probe.pageWidthUnits,
-          measuresPerLine: measuresPerLineOf(probe.measureLine),
-        );
+        _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
+        _refinements = 0;
         _systemHeightPx = probe.systemHeightViewBox;
         _measureCount = probe.measures.length;
         _calibratedFor = _calibrationKeyFor(req.spacingUnits);
+        _tightenCalibration(probe);
       }
 
       // 2. Resolve the target and solve for Verovio's scale.
@@ -299,6 +327,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           autoMeasuresPerLine(
             widthPx: req.widthPx,
             viewportHeightPx: req.viewportHeightPx,
+            shortestSidePx: req.shortestSidePx,
             unitsPerMeasure: _unitsPerMeasure,
             systemHeightPx: _systemHeightPx,
             measureCount: _measureCount,
@@ -308,15 +337,31 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         unitsPerMeasure: _unitsPerMeasure,
         n: target,
       );
+      // The zoom decision, in one line. Worth keeping: everything here is an
+      // input to a layout the user perceives as one thing ("how big are the
+      // notes"), and the failure that produced this logging — target 3 engraving
+      // as 4 — is invisible without seeing `target` next to the engraver's own
+      // achieved `mpl`. Read the two lines together.
+      if (VerovioEngraver.debugLogging) {
+        debugPrint('[auto] w=${req.widthPx.round()} '
+            'vh=${req.viewportHeightPx.round()} '
+            'budget=${(req.viewportHeightPx * staffAutoFillFraction).round()} '
+            'upm=${_unitsPerMeasure.toStringAsFixed(1)} '
+            'sysH=${_systemHeightPx.toStringAsFixed(1)} bars=$_measureCount '
+            'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
+            'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
+            '${req.target == null ? 'auto' : 'set'}=$target '
+            'scale=${scale.toStringAsFixed(1)} refine=$_refinements');
+      }
 
       // 3. Engrave for real — unless the probe already produced exactly this
-      //    layout. Every option must match, not just the scale: reusing a probe
-      //    whose page was shorter would silently clip a long score's tail (only
-      //    page 1 is ever rendered), and its bar numbering would be off-interval.
+      //    layout. Both remaining options must match, not just the scale: reusing
+      //    a probe whose page was shorter would silently clip a long score's tail
+      //    (only page 1 is ever rendered). Bar numbering used to be a third term
+      //    here; it no longer varies, both engraves passing mnumInterval 0.
       final reusable = probe != null &&
           (scale - staffScaleProbe).abs() < 0.05 &&
-          _pageHeightFor(target) == _probePageHeightUnits &&
-          target == _probeMnumInterval;
+          _pageHeightFor(target) == _probePageHeightUnits;
       final score = reusable
           ? probe
           : await _engraveAt(req.widthPx, scale,
@@ -347,15 +392,62 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             measuresPerLineOf(score.measureLine);
       }
       _onHighlight(); // re-place the cursor on the fresh layout
+
+      // 4. Learn from what just happened. This engrave is itself an observation
+      //    of how tightly Verovio packs these bars, and it is a tighter one than
+      //    the probe whenever it fit more measures per line than it was asked
+      //    for. If the bound moves enough to change the solve, engrave once more
+      //    at the corrected scale — that is the difference between "3 bars a
+      //    line, notes sized for 3" and "4 bars a line, notes sized for 3".
+      if (_tightenCalibration(score) &&
+          _refinements < _maxRefinements &&
+          _pending == null) {
+        final corrected = scaleFor(
+          widthPx: req.widthPx,
+          unitsPerMeasure: _unitsPerMeasure,
+          n: target,
+        );
+        if ((corrected - scale).abs() / scale > _refineScaleThreshold) {
+          _refinements++;
+          _request(req);
+        }
+      }
     } catch (e) {
       if (mounted && seq == _engraveSeq) setState(() => _error = '$e');
     }
   }
 
+  /// Backstop on corrective engraves per calibration (see [_refinements]).
+  static const _maxRefinements = 2;
+
+  /// How much the solved scale must move to be worth a corrective engrave. 3% is
+  /// below the threshold of noticing a size change but far under the ~25% error
+  /// a loose probe can produce, so a real miscalibration always clears it and
+  /// rounding never does.
+  static const _refineScaleThreshold = 0.03;
+
+  /// Folds [score] into the running measure-width bound: it proves that
+  /// `measuresPerLine` bars fit in `pageWidthUnits`, so the natural width is at
+  /// most their quotient. Returns whether the bound actually fell.
+  ///
+  /// Only ever tightens (never loosens), so a later engrave that happens to pack
+  /// loosely — the corrective one usually does, having been given the room it
+  /// asked for — cannot undo the correction and start it oscillating.
+  bool _tightenCalibration(EngravedScore score) {
+    final before = _unitsPerMeasure;
+    _unitsPerMeasure = tighterUnitsPerMeasure(
+      before,
+      unitsPerMeasureFrom(
+        pageWidthUnits: score.pageWidthUnits,
+        measuresPerLine: measuresPerLineOf(score.measureLine),
+      ),
+    );
+    return _unitsPerMeasure < before; // false on the first observation
+  }
+
   // The calibration probe's option set is deliberately the pre-zoom one, so an
   // un-zoomed piece reuses the engraver cache entry it always had.
   static const _probePageHeightUnits = 60000;
-  static const _probeMnumInterval = 4;
 
   /// Page height for a [measuresPerLine] layout. Only page 1 is ever rendered,
   /// so the page must hold every system — and zooming in multiplies them.
@@ -377,9 +469,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
-      // A bar number on every system beats a fixed every-4-bars once the line
-      // length is the thing being adjusted.
-      mnumInterval: measuresPerLine ?? _probeMnumInterval,
+      // mnumInterval is left at its 0 default — no engraved bar numbers. They
+      // were drawn into the same whitespace the annotation lanes use, so they
+      // landed on top of the fingering row.
       tabMode: widget.tabMode,
       tabFingerLabels: widget.tabFingerLabels,
       stripRepeatClefs: !widget.tabMode,
@@ -582,6 +674,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       ref.watch(staffSpacingProvider),
       (widget.chordLane ? 1 : 0) + (widget.fingeringLane ? 1 : 0),
     );
+    // Device class for the auto-fit's minimum physical note size. The SCREEN's
+    // shortest side, not this widget's box: it has to mean "phone or tablet",
+    // which the render width can't say (a phone in landscape is wider than an
+    // iPad in portrait) and a preview's little box certainly can't.
+    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -606,6 +703,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
               _request((
                 widthPx: width,
                 viewportHeightPx: viewportHeight,
+                shortestSidePx: shortestSide,
                 target: target,
                 spacingUnits: spacingUnits,
               ));
@@ -864,10 +962,22 @@ class _FingeringLanePainter extends CustomPainter {
 
   final StringColourStyle style;
 
-  /// Chip height as a fraction of the CHIP ZONE (not the whole channel) — the
-  /// remainder is the breathing room that stops the chips reading as one solid
-  /// ribbon. See [_chipZone].
-  static const _chipHeightFraction = 0.80;
+  /// Chip height as a fraction of the CHANNEL, capping how much of the lane a
+  /// chip may claim; the remainder is the air that stops the row reading as one
+  /// solid ribbon (and, in the annotation view, keeps it clear of the chord bar
+  /// directly above).
+  ///
+  /// A ceiling, not the size: the chip is sized to fit its TYPE
+  /// (`annotationFontSizeFor`), and only clamped by this. It was the other way
+  /// round — chip from the lane, type from the chip — which is what left the
+  /// digits at two thirds of a notehead. See the annotation-type notes in
+  /// `staff_zoom.dart`.
+  static const _chipChannelFraction = 0.88;
+
+  /// The type's share of the chip's height. What's left is the chip's vertical
+  /// padding, so this is really "how tight is the capsule around the digits" —
+  /// 0.78 puts a comfortable but not loose ring around a `2L`.
+  static const _chipTypeFraction = 0.78;
 
   /// Horizontal padding inside a chip, and the minimum clear space between two
   /// chips, both as fractions of the chip height.
@@ -904,9 +1014,11 @@ class _FingeringLanePainter extends CustomPainter {
       if (style == StringColourStyle.underline) {
         _paintNumbers(canvas, items, channel);
       } else {
-        final zone = _chipZone(channel);
-        _paintChannel(canvas, zone);
-        _paintChips(canvas, items, zone);
+        // The grey strip is the chips' background, so it takes the chips' own
+        // band — sized from the type (see [_paintChips]), not from [_chipZone].
+        // A strip shorter than the chips on it reads as a misalignment.
+        _paintChannel(canvas, _chipBand(channel));
+        _paintChips(canvas, items, channel);
       }
     }
   }
@@ -1026,7 +1138,15 @@ class _FingeringLanePainter extends CustomPainter {
     List<({double cx, FingeringAnnotation a})> items,
     Rect channel,
   ) {
-    final textH = channel.height * underlineTextFraction;
+    // Same want as the chips, but this style's ceiling is its own stack budget
+    // (rule + gap + four stagger steps + digits), not the whole channel — so the
+    // numbers grow toward "slightly larger than a notehead" only as far as the
+    // stagger leaves room, and never overrun the rule they sit on.
+    final textH = annotationFontSizeIn(
+      staffSpacePx: score.staffSpaceViewBox * scale,
+      laneHeightPx: channel.height,
+      laneTypeShare: underlineTextFraction,
+    );
     if (textH <= 0) return;
     // The digits sit in the space above the rule, bottom-aligned to it so the
     // number and its colour read as one mark.
@@ -1059,16 +1179,46 @@ class _FingeringLanePainter extends CustomPainter {
     }
   }
 
+  /// The type size for chips in [channel] (the WHOLE fingering channel, not
+  /// [_chipZone]): what the staff asks for, capped by what the lane can host.
+  ///
+  /// The cap cuts both ways — it keeps a tall channel (a wide-ranging melody, or
+  /// a generous staff spacing) from inflating the chips past "slightly larger
+  /// than a notehead", and a short one from letting them spill onto the staff.
+  double _fontSizeIn(Rect channel) => annotationFontSizeIn(
+        staffSpacePx: score.staffSpaceViewBox * scale,
+        laneHeightPx: channel.height,
+        laneTypeShare: _chipChannelFraction * _chipTypeFraction,
+      );
+
+  /// The band the chips occupy: sized from the type, and bottom-anchored on the
+  /// chip zone's floor — the edge that is fixed relative to the notes — so taller
+  /// chips grow UP into the lane's own slack rather than down onto the staff.
+  Rect _chipBand(Rect channel) {
+    final chipH = math.min(
+      _fontSizeIn(channel) / _chipTypeFraction,
+      channel.height * _chipChannelFraction,
+    );
+    final bottom = _chipZone(channel).bottom;
+    return Rect.fromLTRB(channel.left, bottom - chipH, channel.right, bottom);
+  }
+
+  /// [channel] is the WHOLE fingering channel (not [_chipZone]): the chips are
+  /// sized from the staff and may use any of it, up to [_chipChannelFraction].
   void _paintChips(
     Canvas canvas,
     List<({double cx, FingeringAnnotation a})> items,
     Rect channel,
   ) {
-    final chipH = channel.height * _chipHeightFraction;
-    if (chipH <= 0) return;
+    // Type first, chip around it — the inverse of the old chain, which sized the
+    // chip from the lane and then the type from the chip.
+    final fontSize = _fontSizeIn(channel);
+    final band = _chipBand(channel);
+    final chipH = band.height;
+    if (fontSize <= 0 || chipH <= 0) return;
     final pad = chipH * _chipPadFraction;
     final gap = chipH * _chipGapFraction;
-    final cy = channel.center.dy;
+    final cy = band.center.dy;
 
     var prevRight = double.negativeInfinity;
     for (final item in items) {
@@ -1082,7 +1232,7 @@ class _FingeringLanePainter extends CustomPainter {
         text: TextSpan(
           text: item.a.label,
           style: TextStyle(
-            fontSize: chipH * chordLabelSizeFraction,
+            fontSize: fontSize,
             height: 1.0,
             fontWeight: FontWeight.w700,
             color: ViolinStringPalette.inkOn(fill),
@@ -1156,6 +1306,22 @@ class _ChordLanePainter extends CustomPainter {
   /// rather than one continuous ribbon (their measure edges touch exactly).
   static const _gap = 1.0;
 
+  /// Clearance left under the pill, as a fraction of its own band height.
+  ///
+  /// The lane slots tile — slot 1's floor IS slot 0's ceiling — and the fingering
+  /// channel below uses its full height at the top of the string stagger: measured
+  /// on a 14.4px lane, the E-string number's top landed 0.01px under the pill, i.e.
+  /// touching. The pill gives up the space rather than the numbers, because the
+  /// numbers are the thing being read; nothing else needs the bottom of this band
+  /// (the count-in measures from `chordLaneBand` directly and is unaffected), and
+  /// there is nowhere else to take it from — a pad BETWEEN slots would raise what
+  /// the lanes ask for past what the engrave reserved, pushing `laneSqueeze` under
+  /// 1 and shrinking every label to buy the gap.
+  ///
+  /// The pill's own label scales with its height, so this costs the chord text the
+  /// same 12%. It has it to spare; the digits below did not.
+  static const _footClearanceFraction = 0.12;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (runs.isEmpty) return;
@@ -1212,12 +1378,16 @@ class _ChordLanePainter extends CustomPainter {
     )) {
       final band = score.chordLaneBand(e.line);
       if (band == null) continue; // no whitespace on this line — skip, don't clash
+      // Shortened from the BOTTOM only: the top edge stays put (there is no room
+      // above — the lane reserve is sized to the lanes), and the clearance appears
+      // exactly where the fingering numbers come up to meet it.
+      final foot = (band.bottom - band.top) * scale * _footClearanceFraction;
       out.add(_LaneSegment(
         rect: Rect.fromLTRB(
           e.left * scale + _gap,
           band.top * scale,
           e.right * scale - _gap,
-          band.bottom * scale,
+          band.bottom * scale - foot,
         ),
         isFirst: e.isFirst,
         isLast: e.isLast,
