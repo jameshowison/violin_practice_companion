@@ -76,9 +76,13 @@ flutter build macos          # macOS
 flutter build web            # Web / PWA
 ```
 
-iOS requires an Apple developer account for device installation. The web build
-works on iPhone Safari as a PWA with no account required. For the day-to-day
-simulator loop, see [From a cold Mac to the app on the iPad
+iOS requires an Apple developer account for device installation; on a free
+(personal) account the installed build stops launching after 7 days and has to be
+reinstalled. The web build works on iPhone Safari as a PWA with no account
+required. To put a build on a real phone or iPad, use `scripts/device_install.sh`
+— see [Installing on a physical
+device](#installing-on-a-physical-device) below. For the day-to-day simulator
+loop, see [From a cold Mac to the app on the iPad
 simulator](#from-a-cold-mac-to-the-app-on-the-ipad-simulator) below.
 
 The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
@@ -227,6 +231,73 @@ To screenshot the running iPad, including the notation WebView, see
 [Screenshots & UI debugging](#screenshots--ui-debugging-ios-simulator) below —
 `xcrun simctl io dev-ipad screenshot shot.png`.
 
+## Installing on a physical device
+
+```bash
+scripts/device_install.sh                 # defaults to the phone named Jamz
+scripts/device_install.sh JamzJamzJamzz   # or a device name / UDID
+```
+
+Signing is already configured in `ios/Runner.xcodeproj` (team `V8MB2893V6`,
+automatic), so this needs no Xcode round trip.
+
+### Why the device asks you to trust the developer *every* time
+
+Two separate mechanisms, and the usual suspect — certificate rotation — is not
+one of them. The signing certificate here is stable for a year
+(`security find-identity -v -p codesigning` shows one identity, valid May 2026 →
+May 2027).
+
+**The re-trust is caused by the uninstall.** iOS keys the "Developer App" trust
+record to the signing *certificate*, and drops that record the moment the last
+app signed by it leaves the device. `flutter install` and `flutter run -d <phone>`
+both print `Uninstalling old version...` before every install — so each one takes
+the trust with it, and the next launch is blocked with:
+
+> Unable to launch … because it has an invalid code signature, inadequate
+> entitlements or its profile has not been explicitly trusted by the user
+
+`scripts/device_install.sh` avoids this by installing with `devicectl`, which
+goes over the top without uninstalling:
+
+```bash
+xcrun devicectl device install app --device <udid> build/ios/iphoneos/Runner.app
+```
+
+Trust once, and it should then persist across installs. When you do need it:
+**Settings → General → VPN & Device Management → Developer App → Trust**.
+
+**Separately, the build expires after 7 days.** This is a free (personal) Apple
+ID team, not the paid Developer Program. The tell is in the provisioning profile:
+
+```bash
+security cms -D -i build/ios/iphoneos/Runner.app/embedded.mobileprovision \
+  | plutil -p - | grep -E "TimeToLive|ExpirationDate"
+#   "ExpirationDate" => 2026-08-22 18:08:52 +0000
+#   "TimeToLive" => 7
+```
+
+`TimeToLive = 7` is the free-team signature; a paid membership gives 365. So the
+app stops launching a week after each profile is minted and has to be rebuilt and
+reinstalled. Only a paid Apple Developer Program membership changes that — no
+amount of local configuration will.
+
+### `flutter install` does not rebuild
+
+Worth knowing on its own: `flutter install` reuses whatever is already in
+`build/ios/iphoneos/Runner.app` and does **not** build first. It will exit 0
+having put a binary from hours ago on the phone. Always build explicitly, and
+check the artifact's timestamp rather than trusting the exit code — which is what
+`scripts/device_install.sh` does:
+
+```bash
+stat -f '%Sm' build/ios/iphoneos/Runner.app/Frameworks/App.framework/App
+```
+
+Note also that a **release** build does not show the `kBuildRef` stamp in the
+AppBar — that is debug-only — so on a device, confirm the build by the feature you
+came to test rather than by reading the stamp.
+
 ## Screenshots & UI debugging (iOS Simulator)
 
 The staff is rendered by OSMD inside a `WKWebView` (a Flutter "platform view").
@@ -267,7 +338,9 @@ armed-burst pattern and for widening the window instead.
 
 - **Android**: F-Droid (pending submission) or direct APK
 - **Web**: self-host the `build/web` output; works as an installable PWA
-- **iOS**: build from source with your own developer account, or use AltStore
+- **iOS**: build from source with your own developer account, or use AltStore.
+  With a free account the build expires after 7 days — see [Installing on a
+  physical device](#installing-on-a-physical-device)
 
 ## Contributing
 
