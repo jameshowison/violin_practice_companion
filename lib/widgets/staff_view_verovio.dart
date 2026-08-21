@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -192,6 +193,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// viewBox→screen scale, shared by the painters, hit testing and autoscroll.
   double _layoutWidth = 0;
 
+  /// The height the last build drew the page at (`viewBox.height × _scale`) —
+  /// the counterpart to [_layoutWidth]. Only the pinch needs it, to turn a focal
+  /// point into a [Transform] alignment: the gesture's box is the page, which is
+  /// taller than this widget whenever the score scrolls.
+  double _renderHeight = 0;
+
   /// Calibration for [_calibratedFor] (the XML/variant it was measured on):
   /// average measure width in MEI units (scale- and width-invariant), average
   /// system height in pixels **at [staffScaleProbe]** (not invariant — callers
@@ -225,6 +232,74 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   int _engraveSeq = 0; // discards out-of-order async results
   bool _engraving = false;
   _EngraveRequest? _pending; // latest-wins queue
+
+  // ── Pinch ──────────────────────────────────────────────────────────────
+  //
+  // Zoom is an integer measures-per-line, and every change of it costs a full
+  // re-engrave. So the pinch does NOT drive the target continuously: it scales
+  // the already-rendered page with a Transform for as long as the fingers are
+  // down, and commits exactly one new target when they lift. One engrave per
+  // gesture, at 60fps throughout.
+  //
+  // The honest cost is that the preview does not reflow — measures don't move
+  // between systems until the release — so the layout visibly settles at the
+  // end. [pinchScaleLimits] at least keeps the *size* promise truthful by
+  // refusing to grow the picture past what the clamped target can deliver.
+
+  /// Live pinch factor applied to the rendered page; 1 at rest.
+  double _pinchScale = 1;
+
+  /// Measures-per-line the current pinch started from, and the bounds the
+  /// preview may be driven between. Captured once at [_onScaleStart] so the
+  /// gesture is measured against a fixed origin rather than drifting.
+  int _pinchFrom = measuresPerLineMin;
+  ({double min, double max}) _pinchLimits = (min: 1, max: 1);
+
+  /// Where the transform is anchored — the point between the fingers, so the
+  /// music under them stays put instead of sliding off.
+  Alignment _pinchAnchor = Alignment.center;
+
+  void _onScaleStart(ScaleStartDetails d) {
+    // Same expression the drawer's slider parks its thumb on: the explicit
+    // override if there is one, else what the renderer actually achieved.
+    _pinchFrom = (ref.read(measuresPerLineProvider).value ??
+            ref.read(effectiveMeasuresPerLineProvider) ??
+            measuresPerLineForWidth(_layoutWidth))
+        .clamp(measuresPerLineMin, measuresPerLineMax);
+    _pinchLimits = pinchScaleLimits(_pinchFrom);
+    _pinchAnchor = (_layoutWidth <= 0 || _renderHeight <= 0)
+        ? Alignment.center
+        : Alignment(
+            (d.localFocalPoint.dx / _layoutWidth) * 2 - 1,
+            (d.localFocalPoint.dy / _renderHeight) * 2 - 1,
+          );
+    setState(() => _pinchScale = 1);
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails d) {
+    // One finger is a scroll, not a zoom — see [_PinchOnlyScaleRecognizer].
+    if (d.pointerCount < 2) return;
+    final next = d.scale.clamp(_pinchLimits.min, _pinchLimits.max);
+    if (next == _pinchScale) return;
+    setState(() => _pinchScale = next);
+  }
+
+  void _onScaleEnd(ScaleEndDetails d) {
+    final target =
+        pinchTargetMeasuresPerLine(from: _pinchFrom, scale: _pinchScale);
+    final current = ref.read(measuresPerLineProvider).value;
+    if (target == current) {
+      // Nothing to engrave, so nothing will come along to clear the preview.
+      setState(() => _pinchScale = 1);
+      return;
+    }
+    // Hold the preview at the size the new target will render at — cleared when
+    // the fresh score is published (see [_engrave]). Dropping it at the release
+    // instead would snap back to the old size for the length of the engrave and
+    // then jump.
+    setState(() => _pinchScale = _pinchFrom / target);
+    ref.read(measuresPerLineProvider.notifier).commit(target);
+  }
 
   @override
   void initState() {
@@ -382,6 +457,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _engravedWidth = req.widthPx;
         _engravedTarget = req.target;
         _engravedSpacingUnits = req.spacingUnits;
+        // The real layout has landed, so a pinch preview standing in for it has
+        // nothing left to say. Cleared here rather than at the release so the
+        // page doesn't shrink back for the length of the engrave.
+        _pinchScale = 1;
       });
       // Report what Verovio actually did — its break points are musical, so a
       // dense bar can land one short of the target. Drives the slider readout.
@@ -413,7 +492,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         }
       }
     } catch (e) {
-      if (mounted && seq == _engraveSeq) setState(() => _error = '$e');
+      if (mounted && seq == _engraveSeq) {
+        setState(() {
+          _error = '$e';
+          _pinchScale = 1; // nothing is coming; don't strand the preview
+        });
+      }
     }
   }
 
@@ -665,7 +749,22 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // Hold off the first engrave until the piece's saved zoom has been read,
     // otherwise every piece with an override engraves the auto default first and
     // throws it away. Previews don't read the setting, so they never wait.
-    final waitingForZoom = widget.zoomable && !zoom.restored;
+    //
+    // The same gate covers rotation, which is the other way the setting can be
+    // in flight — and there it is load-bearing, not just an optimisation. The
+    // zoom is stored per orientation, but `staffOrientationProvider` is pushed
+    // from the screen's layout a frame later, so for that one frame the new
+    // width is paired with the OLD orientation's target. Left alone, every
+    // rotation engraves the other orientation's zoom (measured: a portrait
+    // setting of 1 engraved at `scale` 150 across the landscape width) and then
+    // throws it away. Holding off while the provider disagrees with MediaQuery
+    // costs a frame and saves that engrave.
+    final screen = MediaQuery.sizeOf(context);
+    final orientation = screen.width >= screen.height
+        ? StaffOrientation.landscape
+        : StaffOrientation.portrait;
+    final waitingForZoom = widget.zoomable &&
+        (!zoom.restored || ref.watch(staffOrientationProvider) != orientation);
     // Vertical gap between systems: the preference, plus the reserve for the
     // lanes this view is actually drawing, floored so a tight preference can't
     // eat that reserve back and shrink every annotation label with it. Resolved
@@ -678,7 +777,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // shortest side, not this widget's box: it has to mean "phone or tablet",
     // which the render width can't say (a phone in landscape is wider than an
     // iPad in portrait) and a preview's little box certainly can't.
-    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
+    final shortestSide = screen.shortestSide;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -718,106 +817,120 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         final scale = _scale;
         final renderH = score.viewBox.height * scale;
         final theme = Theme.of(context);
+        _renderHeight = renderH;
         return SingleChildScrollView(
           controller: _scrollController,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (d) => _onTapDown(d.localPosition),
-            child: SizedBox(
-              width: width,
-              height: renderH,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _UnderlayPainter(
-                        score: score,
-                        scale: scale,
-                        sectionTints: widget.sectionTints,
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: ScalableImageWidget(si: image, fit: BoxFit.fitWidth),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _OverlayPainter(
-                          repaint: widget.highlightNotifier,
-                          score: score,
-                          scale: scale,
-                          measureNumbers: widget.measureNumbers,
-                          selection: widget.selection,
-                          flaggedMeasures: widget.flaggedMeasures,
-                          highlight: widget.highlightNotifier,
-                          primary: theme.colorScheme.primary,
-                          flagColor: theme.colorScheme.error,
+          // The pinch preview. Transform.scale changes what is drawn without
+          // changing what is laid out, so the page grows past its box and the
+          // scroll view's own clip trims it — which is what "zoomed into the
+          // page" looks like. No ClipRect needed. It sits above the
+          // GestureDetector, so Flutter un-transforms tap coordinates for free,
+          // and every overlay below (cursor, lanes, count-in) tracks the preview
+          // without knowing about it.
+          child: _pinchable(
+            child: Transform.scale(
+              scale: _pinchScale,
+              alignment: _pinchAnchor,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (d) => _onTapDown(d.localPosition),
+                child: SizedBox(
+                  width: width,
+                  height: renderH,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _UnderlayPainter(
+                            score: score,
+                            scale: scale,
+                            sectionTints: widget.sectionTints,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  // The two lanes last, so a lane whose y-estimate drifts stays
-                  // visible rather than hiding under a stem or a bar number.
-                  // Their bands never overlap, so the order between them is
-                  // arbitrary — fingering first only because it is the lower one.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _FingeringLanePainter(
-                          score: score,
-                          scale: scale,
-                          annotations: widget.fingeringAnnotations,
-                          stringRuns: widget.stringRuns,
-                          style: widget.stringColourStyle,
-                        ),
+                      Positioned.fill(
+                        child: ScalableImageWidget(si: image, fit: BoxFit.fitWidth),
                       ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _ChordLanePainter(
-                          score: score,
-                          scale: scale,
-                          runs: widget.chordRuns,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Above everything, and only for the couple of seconds it is
-                  // counting: it may well land on top of the first chord bar,
-                  // and while it's there it is the thing being read.
-                  if (widget.countInNotifier != null)
-                    ValueListenableBuilder<CountInTick?>(
-                      valueListenable: widget.countInNotifier!,
-                      builder: (context, tick, _) {
-                        final box = tick == null
-                            ? null
-                            : _countInRect(score, tick, scale, width);
-                        if (box == null) return const SizedBox.shrink();
-                        return Positioned(
-                          left: box.left,
-                          top: box.top,
-                          child: IgnorePointer(
-                            child: SizedBox(
-                              width: box.width,
-                              height: box.height,
-                              // Scale-down rather than clip: a count that loses
-                              // its last numbers stops answering "how long have
-                              // I got?", which is most of its job.
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: CountInLabel(
-                                    tick: tick!, height: box.height),
-                              ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _OverlayPainter(
+                              repaint: widget.highlightNotifier,
+                              score: score,
+                              scale: scale,
+                              measureNumbers: widget.measureNumbers,
+                              selection: widget.selection,
+                              flaggedMeasures: widget.flaggedMeasures,
+                              highlight: widget.highlightNotifier,
+                              primary: theme.colorScheme.primary,
+                              flagColor: theme.colorScheme.error,
                             ),
                           ),
-                        );
-                      },
-                    ),
-                ],
+                        ),
+                      ),
+                      // The two lanes last, so a lane whose y-estimate drifts stays
+                      // visible rather than hiding under a stem or a bar number.
+                      // Their bands never overlap, so the order between them is
+                      // arbitrary — fingering first only because it is the lower one.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _FingeringLanePainter(
+                              score: score,
+                              scale: scale,
+                              annotations: widget.fingeringAnnotations,
+                              stringRuns: widget.stringRuns,
+                              style: widget.stringColourStyle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _ChordLanePainter(
+                              score: score,
+                              scale: scale,
+                              runs: widget.chordRuns,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Above everything, and only for the couple of seconds it is
+                      // counting: it may well land on top of the first chord bar,
+                      // and while it's there it is the thing being read.
+                      if (widget.countInNotifier != null)
+                        ValueListenableBuilder<CountInTick?>(
+                          valueListenable: widget.countInNotifier!,
+                          builder: (context, tick, _) {
+                            final box = tick == null
+                                ? null
+                                : _countInRect(score, tick, scale, width);
+                            if (box == null) return const SizedBox.shrink();
+                            return Positioned(
+                              left: box.left,
+                              top: box.top,
+                              child: IgnorePointer(
+                                child: SizedBox(
+                                  width: box.width,
+                                  height: box.height,
+                                  // Scale-down rather than clip: a count that loses
+                                  // its last numbers stops answering "how long have
+                                  // I got?", which is most of its job.
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: CountInLabel(
+                                        tick: tick!, height: box.height),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -826,7 +939,50 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     );
   }
 
+  /// Wraps the page in the two-finger zoom gesture — or doesn't, for the
+  /// previews (measure editor, palette), which opt out of the whole-piece zoom
+  /// via `zoomable: false` and would otherwise let a pinch resize their one bar.
+  ///
+  /// A RawGestureDetector rather than a GestureDetector because the recognizer
+  /// has to be the gated one: a stock ScaleGestureRecognizer treats a lone
+  /// pointer as a pan and would take one-finger drags away from the enclosing
+  /// SingleChildScrollView, costing the score its scrolling.
+  Widget _pinchable({required Widget child}) {
+    if (!widget.zoomable) return child;
+    return RawGestureDetector(
+      gestures: {
+        _PinchOnlyScaleRecognizer:
+            GestureRecognizerFactoryWithHandlers<_PinchOnlyScaleRecognizer>(
+          () => _PinchOnlyScaleRecognizer(debugOwner: this),
+          (r) => r
+            ..onStart = _onScaleStart
+            ..onUpdate = _onScaleUpdate
+            ..onEnd = _onScaleEnd,
+        ),
+      },
+      child: child,
+    );
+  }
+
   static int _bucket(double w) => (w / 48).round();
+}
+
+/// A [ScaleGestureRecognizer] that cannot win on a single pointer.
+///
+/// The staff sits inside a [SingleChildScrollView], so its vertical drag
+/// recognizer is in the arena on every touch. A stock scale recognizer treats
+/// one pointer as a pan, declares victory once it clears its slop, and the score
+/// stops scrolling. Withholding sub-two-pointer moves from the state machine is
+/// what keeps it from ever getting that far — it stays unresolved and is simply
+/// rejected when the scroll view claims the gesture.
+class _PinchOnlyScaleRecognizer extends ScaleGestureRecognizer {
+  _PinchOnlyScaleRecognizer({super.debugOwner});
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent && pointerCount < 2) return;
+    super.handleEvent(event);
+  }
 }
 
 /// Drawn UNDER the notation: per-section background washes. Each region paints
