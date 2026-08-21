@@ -47,6 +47,90 @@ const double staffScaleMax = 220;
 const int measuresPerLineMin = 1;
 const int measuresPerLineMax = 8;
 
+// ── Orientation ──────────────────────────────────────────────────────────────
+
+/// Which way up the screen is, for the purpose of storing a zoom.
+///
+/// The zoom preference is per orientation because measures-per-line means a
+/// different note size in each: a phone in landscape is roughly twice as wide as
+/// in portrait, and the score is engraved to the full width either way, so the
+/// same count gives glyphs of very different sizes. One saved value cannot serve
+/// both.
+///
+/// Deliberately NOT Flutter's `Orientation` — this file and [StaffZoomStore] are
+/// both plain Dart, and the widget layer converts at the one point where it
+/// reads `MediaQuery`.
+///
+/// Note this is a different question from the phone/tablet split that
+/// [minStaffScaleFor] asks, which is orientation-INVARIANT by design (see
+/// [tabletShortestSidePx]). Device class sets how small notes may get; this sets
+/// which saved number to get it from.
+enum StaffOrientation {
+  portrait,
+  landscape;
+
+  StaffOrientation get other => this == StaffOrientation.portrait
+      ? StaffOrientation.landscape
+      : StaffOrientation.portrait;
+}
+
+// ── Pinch ────────────────────────────────────────────────────────────────────
+//
+// A pinch has to be expressed in the one unit this app has: measures per line.
+// There is no free-floating zoom factor to turn — note size IS `scale`, and
+// `scale` is fixed by how many measures have to fit across the viewport.
+
+/// The measures-per-line a pinch of accumulated factor [scale] is asking for,
+/// having started from [from].
+///
+/// Inverse, because the two are one knob: [scaleFor] makes the Verovio `scale`
+/// (hence the glyph size) proportional to `1/n`, so notes [scale] times bigger
+/// want `n / scale` measures on a line. Pinching OUT therefore packs FEWER
+/// measures per line, which is what makes the gesture feel right — the page
+/// under the fingers grows.
+///
+/// Clamped to the same [measuresPerLineMin]..[measuresPerLineMax] the slider
+/// uses, so a pinch can't reach a zoom the slider then can't represent.
+int pinchTargetMeasuresPerLine({required int from, required double scale}) {
+  if (from <= 0 || scale <= 0 || !scale.isFinite) {
+    return from.clamp(measuresPerLineMin, measuresPerLineMax);
+  }
+  return (from / scale).round().clamp(measuresPerLineMin, measuresPerLineMax);
+}
+
+/// The range a pinch preview may usefully be drawn over, starting from [from]:
+/// the scales beyond which [pinchTargetMeasuresPerLine] stops moving.
+///
+/// The preview is a plain `Transform.scale` of the already-engraved page, so
+/// nothing stops it growing forever — but the release can only deliver a target
+/// inside the clamp. Past the ends of this range the picture would be promising
+/// a zoom that is not coming, and the layout would visibly spring back on
+/// release. Bounding the transform here means what is on screen when the fingers
+/// lift is what gets engraved.
+///
+/// The ends are the factors at which the picture is *exactly* the size the
+/// extreme layouts engrave at — `from/min` and `from/max`, the same ratio the
+/// widget holds the preview at while it waits for the new score. Stopping at the
+/// midpoint where [num.round] flips would be a little easier on the fingers, but
+/// it lands the preview on a size no layout has, and at `from == 2` the tie
+/// rounds the wrong way and the outermost target becomes unreachable.
+///
+/// Both ends therefore include 1 (the rest position) for free, since [from] is
+/// itself inside the clamp — and the degenerate ends fall out right: at
+/// `from == 1` the score is already as large as it goes, so the range is
+/// `(…, 1]`, pinch in but not out.
+///
+/// Reaching an extreme takes a full-range pinch (4× to get from 4 measures a
+/// line to 1). That is fine, and normal: each release commits, so a second pinch
+/// starts from the new count.
+({double min, double max}) pinchScaleLimits(int from) {
+  if (from <= 0) return (min: 1, max: 1);
+  return (
+    min: math.min(1, from / measuresPerLineMax),
+    max: math.max(1, from / measuresPerLineMin),
+  );
+}
+
 /// Fraction of the viewport the auto default aims to fill, leaving the rest as
 /// breathing room. Only applies when the whole piece fits — see
 /// [autoMeasuresPerLine].

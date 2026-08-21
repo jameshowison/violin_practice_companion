@@ -29,6 +29,7 @@ import 'piece_library_store.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
+import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
@@ -282,6 +283,15 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 
 final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore());
 
+/// Which way up the screen is, pushed from the piece detail screen's layout —
+/// the same shape as [measuresPerRowProvider], and for the same reason: a
+/// provider cannot read `MediaQuery` itself.
+///
+/// The zoom is stored per orientation because measures-per-line means a
+/// different note size in each (see [StaffZoomStore]).
+final staffOrientationProvider =
+    StateProvider<StaffOrientation>((_) => StaffOrientation.portrait);
+
 /// The user's measures-per-line override ([value]; null = auto, meaning fit a
 /// short piece to ~75% of the viewport), plus whether the per-piece setting has
 /// been read back from storage yet.
@@ -292,18 +302,25 @@ final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore())
 /// visible reflow on every piece that has a saved zoom.
 typedef MeasuresPerLineState = ({int? value, bool restored});
 
-/// Persisted per piece, so the notifier is rebuilt — and re-read — whenever the
-/// selected piece changes.
+/// Persisted per piece AND per orientation, so the notifier is rebuilt — and
+/// re-read — whenever either changes.
+///
+/// Watching the orientation is what makes rotation cost a single engrave rather
+/// than two: the rebuild drops `restored` back to false, and the staff view
+/// already holds off its first engrave until the read returns (see
+/// `staff_view_verovio.dart`), so the old orientation's value is never rendered
+/// and thrown away.
 final measuresPerLineProvider =
     StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
   return MeasuresPerLineNotifier(
     ref.watch(staffZoomStoreProvider),
     ref.watch(selectedPieceProvider)?.id,
+    ref.watch(staffOrientationProvider),
   );
 });
 
 class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
-  MeasuresPerLineNotifier(this._store, this._pieceId)
+  MeasuresPerLineNotifier(this._store, this._pieceId, this._orientation)
       // With no piece there is nothing to read, so we're trivially restored.
       : super((value: null, restored: _pieceId == null)) {
     if (_pieceId != null) _restore();
@@ -311,10 +328,11 @@ class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
 
   final StaffZoomStore _store;
   final String? _pieceId;
+  final StaffOrientation _orientation;
   bool _touched = false;
 
   Future<void> _restore() async {
-    final saved = await _store.load(_pieceId!);
+    final saved = await _store.load(_pieceId!, _orientation);
     if (!mounted) return;
     // A user move that landed before the async read returned wins.
     state = (value: _touched ? state.value : saved, restored: true);
@@ -332,7 +350,7 @@ class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
     _touched = true;
     state = (value: v, restored: state.restored);
     final id = _pieceId;
-    if (id != null) _store.save(id, v);
+    if (id != null) _store.save(id, _orientation, v);
   }
 }
 
