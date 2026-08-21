@@ -179,6 +179,35 @@ After each commit, **agents should run this quick checklist and flag anything th
 
 Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving to a conditional-import split (see `playback_service_web.dart` / `playback_service_io.dart` for the pattern)."*
 
-### Mobile build milestone (deferred, not abandoned)
+### Mobile build milestone (iOS done; Android/macOS outstanding)
 
-Before any "v1 / feature freeze" moment, do the first real mobile build: `flutter build apk` + `flutter build ios --no-codesign` (+ `flutter build macos`). This is when the `ios/Podfile`, `macos/Podfile`, and the `Pods-Runner.*.xcconfig` includes in `ios/Flutter/*.xcconfig` and `macos/Flutter/Flutter-*.xcconfig` should be **committed** — they exist in the working tree today as pod-install side effects, but they're only meaningful once a verified mobile build has produced them. Don't commit them speculatively.
+**iOS is done.** `flutter build ios --release` succeeds and installs on a physical
+phone with no source changes (signed automatically, team `V8MB2893V6`), so the
+`ios/Podfile` and `ios/Flutter/*.xcconfig` files already in the repo are now backed
+by a verified build rather than being speculative pod-install side effects.
+
+Still outstanding before any "v1 / feature freeze" moment: `flutter build apk` and
+`flutter build macos`. The `macos/` pod files are committed but unverified — that
+build is the thing that would confirm them.
+
+### Installing on a physical device
+
+Use `scripts/device_install.sh` (defaults to the phone named `Jamz`). Two traps it
+exists to avoid — full reasoning in the README, "Installing on a physical device":
+
+1. **`flutter install` does not rebuild.** It reuses `build/ios/iphoneos/Runner.app`
+   as-is and exits 0, so it will cheerfully install a binary from hours ago. This
+   has already happened once. Build explicitly, then check the artifact timestamp
+   (`stat -f '%Sm' build/ios/iphoneos/Runner.app/Frameworks/App.framework/App`) —
+   the exit code proves nothing.
+2. **Install with `devicectl`, not `flutter install`.** flutter uninstalls the old
+   copy first, and iOS drops the developer-trust record when the last app signed by
+   that certificate leaves the device — which is why the phone demands a re-trust
+   every time. `xcrun devicectl device install app` goes over the top and preserves
+   it.
+
+Two further facts worth not re-deriving: a **release** build does not render
+`kBuildRef` (debug-only), so the stamp trick doesn't work on a device — confirm by
+the feature instead. And this is a **free** Apple ID team (`TimeToLive = 7` on the
+provisioning profile), so an installed build stops launching a week after it is
+signed.
