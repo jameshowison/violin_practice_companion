@@ -8,6 +8,7 @@ import 'package:violin_practice_companion/models/piece_library.dart';
 import 'package:violin_practice_companion/services/piece_repository.dart';
 import 'package:violin_practice_companion/services/piece_storage_io.dart';
 import 'package:violin_practice_companion/services/providers.dart';
+import 'package:violin_practice_companion/services/staff_zoom.dart';
 
 /// The first provider-level test in the repo.
 ///
@@ -202,15 +203,21 @@ void main() {
       final id = await newCollection(withSaved, lib, 'This week');
       await lib.setTags(saved.id, {id});
       await lib.renamePiece(saved.id, 'Renamed');
-      await withSaved.read(staffZoomStoreProvider).save(saved.id, 3);
+      // Both orientations, since the zoom is stored per orientation — deleting
+      // a piece has to take every one of its keys, or the next piece to reuse
+      // the id inherits a zoom.
+      final zoom = withSaved.read(staffZoomStoreProvider);
+      await zoom.save(saved.id, StaffOrientation.portrait, 3);
+      await zoom.save(saved.id, StaffOrientation.landscape, 6);
 
       await withSaved.read(libraryActionsProvider).deletePiece(saved.id);
 
       final after = withSaved.read(libraryProvider).value!;
       expect(after.collectionById(id)!.pieceIds, isEmpty);
       expect(after.titleOverrides, isEmpty);
-      expect(await withSaved.read(staffZoomStoreProvider).load(saved.id),
-          isNull);
+      for (final o in StaffOrientation.values) {
+        expect(await zoom.load(saved.id, o), isNull, reason: '$o');
+      }
       expect(await PieceStorage(root: root).loadScannedPieces(), isEmpty,
           reason: 'the MusicXML itself is gone from the store');
     });

@@ -822,4 +822,99 @@ void main() {
       }
     });
   });
+
+  // A pinch drives the same integer measures-per-line the slider does — there is
+  // no second, continuous zoom. What these pin down is the direction (pinching
+  // out must make notes BIGGER, which means fewer measures) and the promise that
+  // the preview transform can't outrun what the release will deliver.
+  group('pinchTargetMeasuresPerLine', () {
+    test('a pinch that goes nowhere changes nothing', () {
+      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
+        expect(pinchTargetMeasuresPerLine(from: n, scale: 1), n, reason: 'n=$n');
+      }
+    });
+
+    test('pinching out packs fewer measures per line', () {
+      expect(pinchTargetMeasuresPerLine(from: 6, scale: 2), 3);
+      expect(pinchTargetMeasuresPerLine(from: 8, scale: 4), 2);
+    });
+
+    test('pinching in packs more', () {
+      expect(pinchTargetMeasuresPerLine(from: 2, scale: 0.5), 4);
+      expect(pinchTargetMeasuresPerLine(from: 3, scale: 0.5), 6);
+    });
+
+    test('is monotone non-increasing in the pinch factor', () {
+      var previous = measuresPerLineMax + 1;
+      for (var s = 0.2; s <= 6.0; s += 0.1) {
+        final n = pinchTargetMeasuresPerLine(from: 4, scale: s);
+        expect(n, lessThanOrEqualTo(previous),
+            reason: 'scale=${s.toStringAsFixed(1)}');
+        previous = n;
+      }
+    });
+
+    test('clamps to the slider range, so a pinch cannot outrun the slider', () {
+      expect(pinchTargetMeasuresPerLine(from: 8, scale: 100),
+          measuresPerLineMin);
+      expect(pinchTargetMeasuresPerLine(from: 1, scale: 0.001),
+          measuresPerLineMax);
+    });
+
+    test('degenerate input falls back to the starting point', () {
+      expect(pinchTargetMeasuresPerLine(from: 4, scale: 0), 4);
+      expect(pinchTargetMeasuresPerLine(from: 4, scale: double.nan), 4);
+      expect(pinchTargetMeasuresPerLine(from: 4, scale: double.infinity), 4);
+    });
+  });
+
+  group('pinchScaleLimits', () {
+    test('always contains the rest position', () {
+      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
+        final l = pinchScaleLimits(n);
+        expect(l.min, lessThanOrEqualTo(1), reason: 'n=$n');
+        expect(l.max, greaterThanOrEqualTo(1), reason: 'n=$n');
+      }
+    });
+
+    // The point of the bounds: at the limit the picture is exactly the size the
+    // extreme layout engraves at, so what is on screen when the fingers lift is
+    // what gets engraved.
+    test('the ends of the range are exactly the ends of the target range', () {
+      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
+        final l = pinchScaleLimits(n);
+        expect(pinchTargetMeasuresPerLine(from: n, scale: l.max),
+            measuresPerLineMin,
+            reason: 'n=$n pinched all the way out');
+        expect(pinchTargetMeasuresPerLine(from: n, scale: l.min),
+            measuresPerLineMax,
+            reason: 'n=$n pinched all the way in');
+      }
+    });
+
+    test('at the largest notes there is no room to pinch out further', () {
+      expect(pinchScaleLimits(measuresPerLineMin).max, 1);
+    });
+
+    test('at the smallest notes there is no room to pinch in further', () {
+      expect(pinchScaleLimits(measuresPerLineMax).min, 1);
+    });
+  });
+
+  group('StaffOrientation', () {
+    test('other is the opposite, and an involution', () {
+      expect(StaffOrientation.portrait.other, StaffOrientation.landscape);
+      expect(StaffOrientation.landscape.other, StaffOrientation.portrait);
+      for (final o in StaffOrientation.values) {
+        expect(o.other.other, o);
+      }
+    });
+
+    // The names go straight into the preferences key, so renaming a value would
+    // silently orphan every saved zoom.
+    test('names are the stored key suffixes', () {
+      expect(StaffOrientation.portrait.name, 'portrait');
+      expect(StaffOrientation.landscape.name, 'landscape');
+    });
+  });
 }

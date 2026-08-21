@@ -125,6 +125,20 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final screen = MediaQuery.sizeOf(context);
     final useCompact = screen.width < 600 || screen.height < 600;
 
+    // The staff zoom is saved per orientation, so the provider that reads it
+    // needs to know which way up we are. Pushed from here rather than read in
+    // the provider, which has no MediaQuery — the same arrangement as
+    // measuresPerRowProvider below. Taken from the SCREEN, not the body's box:
+    // it has to mean "how is the device being held".
+    final orientation = screen.width >= screen.height
+        ? StaffOrientation.landscape
+        : StaffOrientation.portrait;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(staffOrientationProvider) != orientation) {
+        ref.read(staffOrientationProvider.notifier).state = orientation;
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: kDebugMode ? 44 : 36,
@@ -498,6 +512,12 @@ class _CountInSlider extends ConsumerWidget {
 ///
 /// The readout shows what Verovio actually achieved — its break points are
 /// musical, so a dense bar can land one short of the target, hence "≈".
+///
+/// Saved per piece AND per orientation: the same count is a very different note
+/// size in landscape, where the score has nearly twice the width to fill. A
+/// caption under the label names which one is being edited. Pinching the staff
+/// drives this same setting (see `staff_view_verovio.dart`), so the thumb tracks
+/// a pinch.
 class _MeasuresPerLineSlider extends ConsumerWidget {
   const _MeasuresPerLineSlider();
 
@@ -505,6 +525,7 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final override = ref.watch(measuresPerLineProvider).value;
     final achieved = ref.watch(effectiveMeasuresPerLineProvider);
+    final orientation = ref.watch(staffOrientationProvider);
     // On auto, park the thumb on whatever the renderer settled at.
     final position = (override ?? achieved ?? measuresPerLineForWidth(
             MediaQuery.sizeOf(context).width))
@@ -519,7 +540,27 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Measures per line'),
+            // The orientation is named because the setting is saved per
+            // orientation: without it, setting a zoom and then rotating to find
+            // a different one reads as a bug rather than as the feature.
+            //
+            // Flexible, and on its own line rather than appended to the label:
+            // the drawer is only ~218pt wide on a phone in landscape, and
+            // "Measures per line, landscape" on one line overflows the row and
+            // pushes the Auto button off the edge.
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Measures per line'),
+                  Text(orientation.name,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
             Row(
               children: [
                 Text(readout, style: Theme.of(context).textTheme.bodySmall),
