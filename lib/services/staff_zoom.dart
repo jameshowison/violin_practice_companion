@@ -258,118 +258,11 @@ int verovioSpacingSystemFor(double staffSpacing) {
 /// so it's the baseline the annotation-lane reserve sits on top of.
 const int verovioSpacingSystemDefault = 4;
 
-/// Verovio's default `pageMarginTop` in MEI units. Set explicitly (rather than
-/// left to the default) only so [verovioLaneMarginUnits] can be added to it.
+/// Verovio's default `pageMarginTop` in MEI units, passed explicitly so the
+/// engrave states its own margin rather than inheriting one.
 /// Verified by measurement: passing 50 back reproduces the 31.9px above the first
 /// system that the un-set option gave, so a 1-lane engrave is unchanged.
 const int verovioPageMarginTopDefault = 50;
-
-// ── Annotation-lane reservation ──────────────────────────────────────────────
-//
-// Room for annotation lanes past the first has to be asked of Verovio in TWO
-// places, because the lanes live in two different kinds of whitespace: the page's
-// top margin holds line 0's lanes, the inter-system gap holds every other line's.
-//
-// The reserve is a FLOOR, not a bonus — see [verovioSpacingSystemEngraved]. And
-// it is only asked for when the lane is actually going to be drawn into: a staff
-// view with the chords toggled off reserves nothing, which is what gives the
-// staff-spacing slider its full downward reach back. The price is that toggling
-// chords re-engraves.
-//
-// The first lane is free. Measurement (`[engraver] lane` debug line, 12-bar tune,
-// default staff spacing) put the default layout at `top0 = 0.51 × contentH` and
-// `gap1 = 0.38 × contentH`, against a per-lane appetite of
-// `annotationLaneHeightFraction` = 0.30 plus clearance — so one lane already fits
-// in both, which is what the chord lane has always drawn into. It's the SECOND
-// lane that needs asking for.
-//
-// Both ratios above are scale-invariant (confirmed at scale 40 and 52.4: `top0`,
-// `gap1` and `contentH` all move together), so these unit counts hold at every
-// zoom level.
-//
-// The two knobs are NOT interchangeable — measured at the probe scale, one unit of
-// `spacingSystem` is worth ~3.6px of gap while one unit of `pageMarginTop` is
-// worth only ~0.4px. Reserving the same number of units in both over-reserves the
-// gap by ~3×, so they get separately measured constants.
-//
-// ## Known consequence: the annotation view can reflow wider than the staff view
-//
-// Gap is not free. It inflates `systemHeightPx`, which is what
-// [autoMeasuresPerLine] budgets against — and that budget has a CLIFF, not a
-// slope: a piece whose whole-score height no longer fits the viewport doesn't
-// shrink a little, it falls straight through to [measuresPerLineForWidth].
-//
-// Measured on a 12-bar tune sitting right at that boundary (`sysH` 75.8 before,
-// budget somewhere under 80): a full-height channel takes it to 83.5 and the
-// annotation view goes from 8 measures per line to 4, doubling the note size and
-// making the piece scroll. A 1-unit reserve would have held 8, at the price of
-// squeezing both lanes to 0.65 of their height.
-//
-// Full height was chosen deliberately over keeping the layout. Note the cliff
-// only bites on AUTO measures-per-line; with an explicit setting from the slider
-// the reserve just makes the score a little taller. That measurement was taken
-// when the channel was 0.22; at 0.30 (the underline stagger) it costs one more
-// spacing unit, so a piece sitting right at the boundary is that much likelier to
-// fall through — the same trade, one notch further along.
-//
-// Staff spacing feeds the same cliff (it moves `systemHeightPx` too), but only
-// ABOVE the default now that the reserve is floored: below it the engraved gap no
-// longer moves, so the auto-fit budget can't change either. And when the cliff
-// does fire it re-solves `scale`, so the notes resize along with the labels —
-// which is the one coupling that IS wanted, annotation size tracking note size.
-
-/// `spacingSystem` units per annotation lane past the first.
-///
-/// Two lanes need `gap ≥ 0.30 + 0.30 + 2×0.05 = 0.70 × contentH`, up from the
-/// default 0.38 — a 0.32 shortfall, and one unit buys 0.058, so ~5.5 units.
-/// Rounded up to 6 so both lanes clear their full proportional height
-/// (`EngravedScore.laneSqueeze` == 1.00) rather than landing a hair short.
-const int laneReserveSpacingUnitsPerLane = 6;
-
-/// `pageMarginTop` units per annotation lane past the first. Two lanes need
-/// `top0 ≥ 0.30 + 0.30 + 0.05 = 0.65 × contentH` (only one clearance pad up here,
-/// there being no system above to clear), up from the default 0.51 — a 0.14
-/// shortfall at 0.0064 per unit, so ~22 units. Far more units than the gap needs
-/// for the same room, because a margin unit is worth ~9× less.
-const int laneReserveMarginUnitsPerLane = 22;
-
-/// Extra `spacingSystem` for [lanes] annotation lanes. 0 for one lane, so a
-/// staff- or tab-view engrave is bit-for-bit what it was before lanes stacked.
-/// Clamped because nothing sensible asks for more than a handful.
-int verovioLaneSpacingUnits(int lanes) =>
-    (lanes - 1).clamp(0, 4) * laneReserveSpacingUnitsPerLane;
-
-/// Extra `pageMarginTop` for [lanes] annotation lanes. 0 for one lane.
-int verovioLaneMarginUnits(int lanes) =>
-    (lanes - 1).clamp(0, 4) * laneReserveMarginUnitsPerLane;
-
-/// The smallest `spacingSystem` that still leaves [lanes] annotation lanes their
-/// full proportional height.
-///
-/// Zero lanes reserve nothing: a view with no annotation on it has no lane to
-/// protect, so the staff-spacing slider keeps its full downward reach there.
-int verovioSpacingSystemFloor(int lanes) =>
-    lanes <= 0 ? 0 : verovioSpacingSystemDefault + verovioLaneSpacingUnits(lanes);
-
-/// The `spacingSystem` to engrave with: the staff-spacing preference, plus the
-/// annotation-lane reserve, **floored** by [verovioSpacingSystemFloor].
-///
-/// The floor is the whole point. Without it the reserve is a bonus added on top
-/// of whatever the preference asks for, so any spacing below
-/// [verovioSpacingSystemDefault] eats straight back into it: the lanes no longer
-/// fit the gap, `EngravedScore.laneSqueeze` drops under 1, and every annotation
-/// label shrinks with it. That is the staff-spacing slider appearing to change
-/// the annotation font size — which it must not, because label size is meant to
-/// track the notes (i.e. measures-per-line) and nothing else.
-///
-/// The cost is that once lanes are reserved the bottom of the slider's range is
-/// a no-op — with two lanes, everything from the minimum up to the default
-/// engraves at the same gap. That's honest: the gap is fully spent on the lanes,
-/// so there is no unused space left to reclaim.
-int verovioSpacingSystemEngraved(double staffSpacing, int lanes) => math.max(
-      verovioSpacingSystemFor(staffSpacing) + verovioLaneSpacingUnits(lanes),
-      verovioSpacingSystemFloor(lanes),
-    );
 
 // ── Annotation type size ─────────────────────────────────────────────────────
 //
@@ -409,17 +302,80 @@ const double annotationCapHeightSpaces = 1.2;
 /// the engraving scale — so a label holds its size relative to the notes at every
 /// zoom level, which is the property the measures-per-line slider must not be
 /// able to break.
-double annotationFontSizeFor(double staffSpacePx) =>
-    staffSpacePx <= 0 ? 0 : staffSpacePx * annotationCapHeightSpaces / labelCapHeightRatio;
+double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
+    ? 0
+    : staffSpacePx * annotationCapHeightSpaces / labelCapHeightRatio;
+
+/// The height an annotation channel wants, given the staff it sits over.
+///
+/// Derived, not chosen: the channel exists to hold type at
+/// [annotationFontSizeFor]'s size, and the tallest customer is the underline
+/// style, which spends only [typeShare] of its channel on type (the rest goes to
+/// the coloured rule and the four-level string stagger). So the channel is
+/// exactly as tall as it must be for the type to come out full size — pass
+/// `ViolinStringPalette`'s `underlineTextFraction` as [typeShare].
+///
+/// The chip styles are never the binding constraint: they want
+/// `fontSize / 0.78 / 0.88`, which is comfortably less.
+///
+/// This replaces the old `contentHeightViewBox × 0.30 × laneSqueeze`, and the
+/// difference is the whole point. That was a fraction of the system's ink extent,
+/// so it grew with the melody's RANGE and was then scaled by the tightest gap in
+/// the entire score. This is a multiple of the staff space — scale-invariant,
+/// piece-invariant, and answerable without looking at any other system.
+double annotationChannelHeightFor({
+  required double staffSpacePx,
+  required double typeShare,
+}) {
+  if (staffSpacePx <= 0 || typeShare <= 0) return 0;
+  return annotationFontSizeFor(staffSpacePx) / typeShare;
+}
+
+/// The channel an annotation register is drawn in: it sits ON [registerPx], the
+/// baseline Verovio engraved, and rises as far as [annotationChannelHeightFor]
+/// wants or [ceilingPx] allows, whichever is less.
+///
+/// [ceilingPx] is the bottom of the PREVIOUS system's ink (0 for the first
+/// system, where the page margin is the only thing above). That makes the clamp a
+/// per-system fact, which is the whole difference from the `laneSqueeze` this
+/// replaces: that took the tightest gap anywhere in the score and applied it to
+/// every system, so one cramped line flattened every label in the piece.
+///
+/// Measured, the clamp almost never binds — the tightest case across the whole
+/// staff-spacing slider leaves 3.13 staff spaces against the 2.17 a chip wants.
+/// It exists so that when it does bind, the labels get thinner instead of
+/// colliding with the system above.
+///
+/// Null when there is no room at all, which a caller must treat as "draw
+/// nothing" rather than as zero height.
+({double top, double bottom})? annotationChannel({
+  required double registerPx,
+  required double ceilingPx,
+  required double staffSpacePx,
+  required double typeShare,
+}) {
+  final want = annotationChannelHeightFor(
+    staffSpacePx: staffSpacePx,
+    typeShare: typeShare,
+  );
+  if (want <= 0) return null;
+  final height = math.min(want, registerPx - ceilingPx);
+  if (height <= 0) return null;
+  return (top: registerPx - height, bottom: registerPx);
+}
 
 /// [annotationFontSizeFor], capped to what a [laneHeightPx]-tall lane can host
 /// when [laneTypeShare] of its height goes to type.
 ///
-/// The want is a target, the lane is a hard ceiling: a label that overflowed its
-/// lane would land on the notes (or on the chord bar above), which is worse than
-/// a label that is a little small. So on the rare score whose lane is too short —
-/// a very narrow melodic range, or a `laneSqueeze` well under 1 — this degrades
-/// quietly instead of colliding.
+/// The want is a target, the channel is a hard ceiling: a label that overflowed
+/// would land on the notes (or on the chord bar above), which is worse than a
+/// label that is a little small.
+///
+/// Worth keeping now that the channel is MEASURED rather than derived from a
+/// fraction — the clamp used to fire routinely, because `laneSqueeze` scaled every
+/// lane in the score by its tightest gap, and that is how the fingering row ended
+/// up at a 5px font. Against [annotationChannel] it only fires where the room
+/// genuinely is not there, and then it degrades quietly instead of colliding.
 double annotationFontSizeIn({
   required double staffSpacePx,
   required double laneHeightPx,
@@ -459,7 +415,8 @@ double sectionMarkerScaleFor(int? measuresPerLine) {
 ///
 /// [measureRects] must be in document order (as Verovio emits them).
 (List<int>, List<({double top, double bottom})>) systemLinesOf(
-    List<Rect> measureRects) {
+  List<Rect> measureRects,
+) {
   if (measureRects.isEmpty) return (const [], const []);
   final measureLine = List<int>.filled(measureRects.length, 0);
   final contentTop = <double>[];
@@ -493,11 +450,13 @@ double sectionMarkerScaleFor(int? measuresPerLine) {
   final bands = <({double top, double bottom})>[
     for (var l = 0; l < n; l++)
       (
-        top: l == 0 ? contentTop[0] : (contentBottom[l - 1] + contentTop[l]) / 2,
+        top: l == 0
+            ? contentTop[0]
+            : (contentBottom[l - 1] + contentTop[l]) / 2,
         bottom: l == n - 1
             ? contentBottom[n - 1]
             : (contentBottom[l] + contentTop[l + 1]) / 2,
-      )
+      ),
   ];
   return (measureLine, bands);
 }
@@ -513,7 +472,9 @@ double sectionMarkerScaleFor(int? measuresPerLine) {
 /// `content[l].top - content[l-1].bottom` is the real gap between two systems:
 /// the space the chord-run lane is drawn in.
 List<({double top, double bottom})> lineContentOf(
-    List<Rect> measureRects, List<int> measureLine) {
+  List<Rect> measureRects,
+  List<int> measureLine,
+) {
   final tops = <int, double>{};
   final bottoms = <int, double>{};
   var lines = 0;
@@ -529,7 +490,7 @@ List<({double top, double bottom})> lineContentOf(
   }
   return [
     for (var l = 0; l < lines; l++)
-      (top: tops[l] ?? 0.0, bottom: bottoms[l] ?? 0.0)
+      (top: tops[l] ?? 0.0, bottom: bottoms[l] ?? 0.0),
   ];
 }
 
@@ -544,7 +505,8 @@ int measuresPerLineOf(List<int> measureLine) {
   for (final line in measureLine) {
     perLine[line] = (perLine[line] ?? 0) + 1;
   }
-  final counts = perLine.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  final counts = perLine.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
   // Drop the final (partial) system, unless it's all we have.
   final usable = counts.length > 1
       ? [for (final e in counts.take(counts.length - 1)) e.value]
@@ -626,9 +588,14 @@ double predictedHeightPx({
   required int n,
   double measuredAtScale = staffScaleProbe,
 }) {
-  if (measureCount <= 0 || systemHeightPx <= 0 || measuredAtScale <= 0) return 0;
+  if (measureCount <= 0 || systemHeightPx <= 0 || measuredAtScale <= 0)
+    return 0;
   final lines = (measureCount / n).ceil();
-  final scale = scaleFor(widthPx: widthPx, unitsPerMeasure: unitsPerMeasure, n: n);
+  final scale = scaleFor(
+    widthPx: widthPx,
+    unitsPerMeasure: unitsPerMeasure,
+    n: n,
+  );
   return lines * systemHeightPx * (scale / measuredAtScale);
 }
 

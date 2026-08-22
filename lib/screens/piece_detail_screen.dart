@@ -1365,8 +1365,6 @@ class _NotationView extends ConsumerWidget {
           fingeringAnnotations: annotations,
           stringColourStyle: colourStyle,
           stringRuns: stringRuns,
-          chordLane: chordRuns.isNotEmpty,
-          fingeringLane: fingeringChannel,
           scrollNav: staffNav,
         );
       }
@@ -1471,10 +1469,6 @@ class _NotationView extends ConsumerWidget {
                   measureNumbers: measureNumbers,
                   sectionTints: sectionTints,
                   chordRuns: chordRuns,
-                  // Without this the chord bars have no reserved band to draw
-                  // into and every segment is silently skipped — the tab view
-                  // showed no chords at all. Matches the staff path above.
-                  chordLane: chordRuns.isNotEmpty,
                   scrollNav: staffNav,
                   tabMode: true,
                   // Provider returns labels only in fingering mode (empty in

@@ -49,7 +49,9 @@ void main() {
   /// own [systemLinesOf] over the (accurately measured) measure boxes, which is
   /// exactly how the real code will have to do it.
   List<List<double>> baselinesByLine(
-      PageHitMap map, List<ElementHit> annotations) {
+    PageHitMap map,
+    List<ElementHit> annotations,
+  ) {
     final measures = of(map, 'measure')
       ..sort((a, b) {
         final v = a.bbox.top.compareTo(b.bbox.top);
@@ -62,7 +64,9 @@ void main() {
     final bounds = <int, Rect>{};
     for (var i = 0; i < rects.length; i++) {
       final l = lineOf[i];
-      bounds[l] = bounds[l] == null ? rects[i] : bounds[l]!.expandToInclude(rects[i]);
+      bounds[l] = bounds[l] == null
+          ? rects[i]
+          : bounds[l]!.expandToInclude(rects[i]);
     }
     final out = [for (var l = 0; l < lines; l++) <double>[]];
     for (final a in annotations) {
@@ -87,9 +91,7 @@ void main() {
     setUp(() {
       map = HitMapParser.parseSync(
         File('test/fixtures/verovio_fing.svg').readAsStringSync(),
-        config: const ParseConfig(
-          captureClasses: {'fing', 'note', 'measure'},
-        ),
+        config: const ParseConfig(captureClasses: {'fing', 'note', 'measure'}),
       );
     });
 
@@ -120,21 +122,29 @@ void main() {
         // Measured 1.7–1.8 spaces on Happy Farmer. A drawn flat register is
         // viable at this spread; it would not be if fingerings tracked pitch
         // across the staff's whole range.
-        expect(spread, lessThan(3.0),
-            reason: 'spread ${spread.toStringAsFixed(2)} staff spaces');
+        expect(
+          spread,
+          lessThan(3.0),
+          reason: 'spread ${spread.toStringAsFixed(2)} staff spaces',
+        );
       }
     });
 
     // Guards the quirk the design deliberately relies on. If a plugin upgrade
     // ever fixes <tspan> handling this fails, and the extent becomes usable.
-    test('reported extent is the bogus font-size fallback, not the real glyph',
-        () {
-      final space = staffSpaceOf(map);
-      for (final f in of(map, 'fing')) {
-        expect(f.bbox.height, lessThan(space * 0.25),
-            reason: 'extent looks real now — revisit annotationFontSizeFor');
-      }
-    });
+    test(
+      'reported extent is the bogus font-size fallback, not the real glyph',
+      () {
+        final space = staffSpaceOf(map);
+        for (final f in of(map, 'fing')) {
+          expect(
+            f.bbox.height,
+            lessThan(space * 0.25),
+            reason: 'extent looks real now — revisit annotationFontSizeFor',
+          );
+        }
+      },
+    );
   });
 
   group('chord symbols', () {
@@ -159,8 +169,44 @@ void main() {
       for (final ys in populated) {
         // Chord symbols share one baseline per system — a true register, which
         // is stronger than the fingerings' near-flat one.
-        expect(ys.last - ys.first, lessThan(0.5),
-            reason: 'chord baselines differ within a system: $ys');
+        expect(
+          ys.last - ys.first,
+          lessThan(0.5),
+          reason: 'chord baselines differ within a system: $ys',
+        );
+      }
+    });
+  });
+
+  // The two-staff case, which is why annotations are assigned to a system by
+  // BAND and not by the measure they fall inside.
+  group('chord symbols on a two-staff (tab) score', () {
+    late PageHitMap map;
+
+    setUp(() {
+      map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_tab_harm.svg').readAsStringSync(),
+        config: const ParseConfig(captureClasses: {'harm', 'measure'}),
+      );
+    });
+
+    test('are still engraved and capturable', () {
+      expect(of(map, 'harm'), hasLength(9));
+    });
+
+    test('are the topmost ink on their system, as on a single staff', () {
+      final measures = of(map, 'measure');
+      for (final h in of(map, 'harm')) {
+        final owner = measures.where(
+          (m) => h.bbox.left >= m.bbox.left && h.bbox.left <= m.bbox.right,
+        );
+        if (owner.isEmpty) continue;
+        // Adding the tab staff does NOT hoist the chord symbol clear of its
+        // measure box — it still defines that box's top edge, exactly as on a
+        // single staff. Worth pinning: it was briefly believed otherwise, and
+        // that belief was the supposed reason the tab view drew no chord bars.
+        // The real reason was that the score carried no <harmony> at all.
+        expect(h.bbox.top, greaterThanOrEqualTo(owner.first.bbox.top - 0.01));
       }
     });
   });
@@ -179,8 +225,11 @@ void stripTests() {
     test('removes every engraved fingering and chord symbol', () {
       for (final name in ['fing', 'harm']) {
         final svg = File('test/fixtures/verovio_$name.svg').readAsStringSync();
-        expect(tokens(svg, name), greaterThan(0),
-            reason: 'fixture should carry $name to begin with');
+        expect(
+          tokens(svg, name),
+          greaterThan(0),
+          reason: 'fixture should carry $name to begin with',
+        );
         final out = VerovioEngraver.stripAnnotationGlyphs(svg);
         expect(tokens(out, name), 0, reason: '$name survived the strip');
       }
@@ -210,46 +259,59 @@ void registerTests() {
     List<AnnotationAnchor> fing = const [],
     List<AnnotationAnchor> harm = const [],
     int lines = 2,
-  }) =>
-      EngravedScore(
-        viewBox: const Size(400, 400),
-        svg: '',
-        bboxById: const {},
-        measures: const [],
-        notes: const [],
-        measureLine: [for (var l = 0; l < lines; l++) l],
-        lineBands: [for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60)],
-        lineContent: [for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60)],
-        pageWidthUnits: 1000,
-        renderMs: 0,
-        fingAnchors: fing,
-        harmAnchors: harm,
-      );
+  }) => EngravedScore(
+    viewBox: const Size(400, 400),
+    svg: '',
+    bboxById: const {},
+    measures: const [],
+    notes: const [],
+    measureLine: [for (var l = 0; l < lines; l++) l],
+    lineBands: [
+      for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60),
+    ],
+    lineContent: [
+      for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60),
+    ],
+    pageWidthUnits: 1000,
+    renderMs: 0,
+    fingAnchors: fing,
+    harmAnchors: harm,
+  );
 
   group('register', () {
-    test('is the topmost baseline on the system, so labels clear every note', () {
-      final s = scoreWith(fing: const [
-        (line: 0, x: 10, y: 50),
-        (line: 0, x: 20, y: 42), // highest on line 0
-        (line: 0, x: 30, y: 47),
-      ]);
-      expect(s.fingRegister(0), 42);
-    });
+    test(
+      'is the topmost baseline on the system, so labels clear every note',
+      () {
+        final s = scoreWith(
+          fing: const [
+            (line: 0, x: 10, y: 50),
+            (line: 0, x: 20, y: 42), // highest on line 0
+            (line: 0, x: 30, y: 47),
+          ],
+        );
+        expect(s.fingRegister(0), 42);
+      },
+    );
 
-    test('is independent per system — one cramped line cannot flatten another',
-        () {
-      final s = scoreWith(fing: const [
-        (line: 0, x: 10, y: 40),
-        (line: 1, x: 10, y: 148),
-      ]);
-      expect(s.fingRegister(0), 40);
-      expect(s.fingRegister(1), 148);
-    });
+    test(
+      'is independent per system — one cramped line cannot flatten another',
+      () {
+        final s = scoreWith(
+          fing: const [(line: 0, x: 10, y: 40), (line: 1, x: 10, y: 148)],
+        );
+        expect(s.fingRegister(0), 40);
+        expect(s.fingRegister(1), 148);
+      },
+    );
 
     test('null when the engrave carried no annotation on that system', () {
       final s = scoreWith(fing: const [(line: 0, x: 10, y: 40)]);
       expect(s.fingRegister(1), isNull);
-      expect(s.harmRegister(0), isNull, reason: 'no harmony was engraved at all');
+      expect(
+        s.harmRegister(0),
+        isNull,
+        reason: 'no harmony was engraved at all',
+      );
     });
 
     test('the two classes keep separate registers', () {
