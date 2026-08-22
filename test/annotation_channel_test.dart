@@ -155,6 +155,76 @@ void main() {
     });
   });
 
+  // The bug the user found on the iPad: the two registers Verovio hands back are
+  // only ~2.1 staff spaces apart, and the fingering channel is taller than that,
+  // so it grows up past the chord register. The old lane slots tiled and could not
+  // overlap; registers don't, so the rule has to be enforced.
+  group('chordBarBand gives way to the fingering row', () {
+    const footShare = 0.12;
+    final barH = annotationFontSizeFor(space) / 0.66;
+
+    ({double top, double bottom})? bar({double? fingeringTopPx}) => chordBarBand(
+      registerPx: 100,
+      ceilingPx: 0,
+      heightPx: barH,
+      footShare: footShare,
+      fingeringTopPx: fingeringTopPx,
+    );
+
+    test('sits just under its register when nothing is in the way', () {
+      final b = bar()!;
+      expect(b.bottom, closeTo(100 - barH * footShare, 1e-9));
+      expect(b.bottom - b.top, closeTo(barH, 1e-9));
+    });
+
+    test('never overlaps the fingering channel', () {
+      // The measured geometry: the fingering channel's top lands ~1.1 staff
+      // spaces ABOVE the chord register, which is what used to collide.
+      final channelTop = 100 - space * 1.1;
+      final b = bar(fingeringTopPx: channelTop)!;
+      expect(b.bottom, lessThanOrEqualTo(channelTop));
+    });
+
+    test('moves up, keeping its height, while there is room above', () {
+      final channelTop = 100 - space * 1.1;
+      final b = bar(fingeringTopPx: channelTop)!;
+      expect(b.bottom - b.top, closeTo(barH, 1e-9),
+          reason: 'room above, so the bar should shift rather than shrink');
+    });
+
+    test('shrinks rather than reaching into the system above', () {
+      final channelTop = 100 - space * 1.1;
+      // A ceiling just above the displaced bar, so it cannot keep its height.
+      final b = chordBarBand(
+        registerPx: 100,
+        ceilingPx: channelTop - barH / 2,
+        heightPx: barH,
+        footShare: footShare,
+        fingeringTopPx: channelTop,
+      )!;
+      expect(b.bottom - b.top, closeTo(barH / 2, 1e-9));
+      expect(b.top, greaterThanOrEqualTo(channelTop - barH / 2));
+      expect(b.bottom, lessThanOrEqualTo(channelTop));
+    });
+
+    test('leaves the bar alone when the row stays below it', () {
+      final b = bar(fingeringTopPx: 100.0)!;
+      expect(b.bottom, closeTo(100 - barH * footShare, 1e-9),
+          reason: 'a row that never rises past the register changes nothing');
+    });
+
+    test('nothing to draw yields null, not an inverted rect', () {
+      expect(chordBarBand(
+        registerPx: 100,
+        ceilingPx: 100,
+        heightPx: barH,
+        footShare: footShare,
+        fingeringTopPx: 100,
+      ), isNull);
+      expect(bar(fingeringTopPx: -50), isNull);
+    });
+  });
+
   group('staff spacing no longer touches the row', () {
     // The old design folded an annotation reserve into spacingSystem and floored
     // it, which is what put a dead zone at the bottom of the slider: every value

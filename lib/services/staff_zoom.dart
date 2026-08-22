@@ -364,6 +364,39 @@ double annotationChannelHeightFor({
   return (top: registerPx - height, bottom: registerPx);
 }
 
+/// The chord bar's band on a system, given the fingering row that may have come
+/// up to meet it.
+///
+/// [registerPx] is the chord register Verovio engraved. The bar's bottom sits
+/// just under it — a foot clearance of [footShare] of its own height, so the row
+/// below has somewhere to come up to — and it rises [heightPx] from there,
+/// clamped by [ceilingPx] (the previous system's ink).
+///
+/// [fingeringTopPx], when given, is the top of the fingering channel on the same
+/// system, and it WINS: the bar's bottom is pulled up to it rather than allowed
+/// to overlap. Verovio places its two registers only ~2.1 staff spaces apart
+/// (measured, and `harmDist` does not widen it), which is less than the fingering
+/// channel is tall, so without this the row and the bar collide — as they did.
+///
+/// The bar losing rather than the numbers is deliberate and not new: the foot
+/// clearance already exists because "the pill gives up the space rather than the
+/// numbers, because the numbers are the thing being read".
+///
+/// Null when nothing is left to draw.
+({double top, double bottom})? chordBarBand({
+  required double registerPx,
+  required double ceilingPx,
+  required double heightPx,
+  required double footShare,
+  double? fingeringTopPx,
+}) {
+  if (heightPx <= 0) return null;
+  var bottom = registerPx - heightPx * footShare;
+  if (fingeringTopPx != null && fingeringTopPx < bottom) bottom = fingeringTopPx;
+  final top = math.max(ceilingPx, bottom - heightPx);
+  return bottom - top <= 0 ? null : (top: top, bottom: bottom);
+}
+
 /// [annotationFontSizeFor], capped to what a [laneHeightPx]-tall lane can host
 /// when [laneTypeShare] of its height goes to type.
 ///
