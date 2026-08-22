@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show Rect;
+import 'dart:ui' show Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 // ignore: implementation_imports — parseSync is the only pure-Dart entry point
@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:verovio_flutter/src/hit_map/parser.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
 import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:violin_practice_companion/services/verovio_engraver.dart';
 
 /// What the hit map actually reports for Verovio's own annotation elements.
 ///
@@ -161,6 +162,73 @@ void main() {
         expect(ys.last - ys.first, lessThan(0.5),
             reason: 'chord baselines differ within a system: $ys');
       }
+    });
+  });
+
+  registerTests();
+}
+
+/// The register accessors, as pure geometry over synthetic anchors — the
+/// counterpart to the fixture tests above, which prove the anchors are real.
+void registerTests() {
+  EngravedScore scoreWith({
+    List<AnnotationAnchor> fing = const [],
+    List<AnnotationAnchor> harm = const [],
+    int lines = 2,
+  }) =>
+      EngravedScore(
+        viewBox: const Size(400, 400),
+        svg: '',
+        bboxById: const {},
+        measures: const [],
+        notes: const [],
+        measureLine: [for (var l = 0; l < lines; l++) l],
+        lineBands: [for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60)],
+        lineContent: [for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60)],
+        pageWidthUnits: 1000,
+        renderMs: 0,
+        fingAnchors: fing,
+        harmAnchors: harm,
+      );
+
+  group('register', () {
+    test('is the topmost baseline on the system, so labels clear every note', () {
+      final s = scoreWith(fing: const [
+        (line: 0, x: 10, y: 50),
+        (line: 0, x: 20, y: 42), // highest on line 0
+        (line: 0, x: 30, y: 47),
+      ]);
+      expect(s.fingRegister(0), 42);
+    });
+
+    test('is independent per system — one cramped line cannot flatten another',
+        () {
+      final s = scoreWith(fing: const [
+        (line: 0, x: 10, y: 40),
+        (line: 1, x: 10, y: 148),
+      ]);
+      expect(s.fingRegister(0), 40);
+      expect(s.fingRegister(1), 148);
+    });
+
+    test('null when the engrave carried no annotation on that system', () {
+      final s = scoreWith(fing: const [(line: 0, x: 10, y: 40)]);
+      expect(s.fingRegister(1), isNull);
+      expect(s.harmRegister(0), isNull, reason: 'no harmony was engraved at all');
+    });
+
+    test('the two classes keep separate registers', () {
+      final s = scoreWith(
+        fing: const [(line: 0, x: 10, y: 45)],
+        harm: const [(line: 0, x: 10, y: 20)],
+      );
+      expect(s.fingRegister(0), 45);
+      expect(s.harmRegister(0), 20);
+    });
+
+    test('no anchors at all yields no register, not a crash', () {
+      expect(scoreWith().fingRegister(0), isNull);
+      expect(scoreWith().harmRegister(0), isNull);
     });
   });
 }

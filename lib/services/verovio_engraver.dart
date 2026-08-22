@@ -45,8 +45,12 @@ class VerovioEngraver {
   /// display is specified as sitting just above the time signature, and only the
   /// hit map knows where the engraver put it. Cheap — one more element per meter
   /// change, and the parse is already walking the whole page.
+  ///
+  /// Plus `fing` and `harm` — Verovio's own engraved fingerings and chord
+  /// symbols. Those are captured for their ANCHOR only; see [AnnotationAnchor]
+  /// for why their reported extent is useless and why that doesn't matter.
   static const _hitMapConfig = ParseConfig(
-      captureClasses: {'note', 'rest', 'measure', 'meterSig'});
+      captureClasses: {'note', 'rest', 'measure', 'meterSig', 'fing', 'harm'});
 
   // Small LRU-ish cache keyed by (xmlHash, widthBucket, scale). Reflow on
   // rotation/resize and the live measure editor re-engrave hit the cache when
@@ -362,6 +366,24 @@ class VerovioEngraver {
     final (measureLine, lineBands) = systemLinesOf(measureRects);
     final lineContent = lineContentOf(measureRects, measureLine);
 
+    // Verovio's own annotations, reduced to their anchors. Assigned to a system
+    // via the measure they were engraved inside — which works precisely BECAUSE
+    // an engraved annotation inflates its measure's bbox. That inflation used to
+    // be the bug (it ate the whitespace the old lane maths measured); now it is
+    // the mechanism.
+    List<AnnotationAnchor> anchorsOf(String type) => [
+          for (final h in hitMap.byType)
+            if (h.type == type)
+              if (_measureIndexFor(h.bbox, measures) case final mi when mi >= 0)
+                (
+                  line: mi < measureLine.length ? measureLine[mi] : 0,
+                  x: h.bbox.left,
+                  y: h.bbox.top,
+                ),
+        ];
+    final fingAnchors = anchorsOf('fing');
+    final harmAnchors = anchorsOf('harm');
+
     var processedSvg = stripMeasureNumbers(svg);
     if (stripRepeatClefs) processedSvg = clefKeySigFirstSystemOnly(processedSvg);
     if (tabFingerLabels != null) {
@@ -379,6 +401,8 @@ class VerovioEngraver {
       measureLine: measureLine,
       lineBands: lineBands,
       lineContent: lineContent,
+      fingAnchors: fingAnchors,
+      harmAnchors: harmAnchors,
       pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
       chordLane: chordLane,
@@ -702,6 +726,32 @@ class VerovioEngraver {
   }
 }
 
+/// Where Verovio put one of its own annotations — and nothing else.
+///
+/// The position only, deliberately. The hit map's reported WIDTH and HEIGHT for
+/// any text element are meaningless: its walker has no `<tspan>` handling and
+/// reads `font-size` off the `<text>`, which Verovio always writes as `"0px"`, so
+/// it falls back to 16 units and describes a ~0.6x0.7px box for a glyph that
+/// really inks ~12px. The `x` and `y` attributes, by contrast, are read straight
+/// off the element and correctly transformed, so they are exact.
+///
+/// That asymmetry is fine, because size is not wanted here: annotation type is
+/// sized from the staff space by `annotationFontSizeFor`, which is
+/// scale-invariant and independent of anything Verovio chose. What is wanted is
+/// the one thing only Verovio knows — how far it pushed the annotation off the
+/// staff, and therefore how much room it reserved.
+///
+/// `x` is the glyph's horizontal ANCHOR, which is its centre for `fing`
+/// (`text-anchor="middle"`) and its left edge for `harm`. Nothing reads it today;
+/// the fingering chips take their x from the notehead they belong to, via
+/// `noteAt`, so a chip stays put whether or not the engrave carried fingerings.
+/// It is kept because it is the honest record of what the engraver said.
+///
+/// Pinned by `test/verovio_annotation_anchor_test.dart` against real Verovio
+/// output, so a toolkit or plugin upgrade that changes any of this fails there
+/// rather than quietly moving the annotations.
+typedef AnnotationAnchor = ({int line, double x, double y});
+
 /// One engraved page: the renderer-ready SVG plus geometric anchors in page
 /// viewBox coordinates. Domain-free — anchors carry document indices, which the
 /// widget maps to model measure numbers via its `measureNumbers` list.
@@ -739,6 +789,12 @@ class EngravedScore {
   /// `lineContent[l].top - lineContent[l-1].bottom` is the true whitespace
   /// between two systems. See [annotationLaneBand].
   final List<({double top, double bottom})> lineContent;
+
+  /// Where Verovio engraved its own fingerings and chord symbols, per system.
+  /// Empty when the engrave carried none. See [AnnotationAnchor], and
+  /// [fingRegister] / [harmRegister] for the register these collapse to.
+  final List<AnnotationAnchor> fingAnchors;
+  final List<AnnotationAnchor> harmAnchors;
 
   /// Which annotation lanes the whitespace above each system is divided into: a
   /// chord lane on top, a fingering channel below it, either or both or neither.
@@ -778,6 +834,8 @@ class EngravedScore {
     required this.lineBands,
     required this.lineContent,
     required this.pageWidthUnits,
+    this.fingAnchors = const [],
+    this.harmAnchors = const [],
     required this.renderMs,
     this.meterSigs = const [],
     this.chordLane = true,
@@ -786,6 +844,33 @@ class EngravedScore {
 
   /// Number of system lines engraved.
   int get lineCount => lineBands.length;
+
+  /// The register line for system [l]: the topmost baseline Verovio used for
+  /// that class of annotation on that system, or null when it engraved none
+  /// there.
+  ///
+  /// The TOPMOST rather than the mean, because a drawn label grows upward from
+  /// its baseline: sitting every label on the highest baseline the engraver
+  /// chose puts the row clear of every notehead on the system, which drawing at
+  /// the mean would not. Verovio anchors each fingering to its own note, so the
+  /// baselines vary a little with pitch — measured at 1.7-1.8 staff spaces of
+  /// spread, against a hard floor of +0.61 spaces above the staff. Chord symbols
+  /// already share one baseline exactly, so for those this is a no-op.
+  ///
+  /// Per system, which is the whole point: the old `laneSqueeze` took the
+  /// tightest gap in the entire score, so one cramped system flattened every
+  /// label on every other one.
+  double? fingRegister(int l) => _register(fingAnchors, l);
+  double? harmRegister(int l) => _register(harmAnchors, l);
+
+  static double? _register(List<AnnotationAnchor> anchors, int l) {
+    double? top;
+    for (final a in anchors) {
+      if (a.line != l) continue;
+      if (top == null || a.y < top) top = a.y;
+    }
+    return top;
+  }
 
   /// The Verovio `scale` this score came out of, recovered from its own geometry:
   /// the page is `pageWidthUnits` MEI units wide and renders `viewBox.width`
