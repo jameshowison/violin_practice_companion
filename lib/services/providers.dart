@@ -34,13 +34,21 @@ import 'staff_zoom_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
-final pieceRepositoryProvider = Provider<PieceRepository>((_) => PieceRepository());
+final pieceRepositoryProvider = Provider<PieceRepository>(
+  (_) => PieceRepository(),
+);
 
-final musicXmlParserProvider = Provider<MusicXmlParser>((_) => MusicXmlParser());
+final musicXmlParserProvider = Provider<MusicXmlParser>(
+  (_) => MusicXmlParser(),
+);
 
-final jianpuConverterProvider = Provider<JianpuConverter>((_) => JianpuConverter());
+final jianpuConverterProvider = Provider<JianpuConverter>(
+  (_) => JianpuConverter(),
+);
 
-final fingeringMapperProvider = Provider<FingeringMapper>((_) => FingeringMapper());
+final fingeringMapperProvider = Provider<FingeringMapper>(
+  (_) => FingeringMapper(),
+);
 
 // ── Piece list ────────────────────────────────────────────────────────────────
 
@@ -63,12 +71,14 @@ final selectedPieceProvider = StateProvider<Piece?>((ref) => null);
 
 // ── Piece library (collections, hidden pieces, renames) ──────────────────────
 
-final pieceLibraryStoreProvider =
-    Provider<PieceLibraryStore>((_) => PieceLibraryStore());
+final pieceLibraryStoreProvider = Provider<PieceLibraryStore>(
+  (_) => PieceLibraryStore(),
+);
 
 final libraryProvider =
     AsyncNotifierProvider<PieceLibraryNotifier, PieceLibrary>(
-        PieceLibraryNotifier.new);
+      PieceLibraryNotifier.new,
+    );
 
 class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
   @override
@@ -100,8 +110,13 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     await ref.read(pieceLibraryStoreProvider).save(next);
   }
 
-  Future<void> createCollection(String name) => _mutate((l) => addCollection(l,
-      name: name, nowMillis: DateTime.now().millisecondsSinceEpoch));
+  Future<void> createCollection(String name) => _mutate(
+    (l) => addCollection(
+      l,
+      name: name,
+      nowMillis: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 
   Future<void> renameCollection(String id, String name) =>
       _mutate((l) => plib.renameCollection(l, id, name));
@@ -110,7 +125,8 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
       _mutate((l) => removeCollection(l, id));
 
   Future<void> setTags(String pieceId, Set<String> collectionIds) => _mutate(
-      (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds));
+    (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds),
+  );
 
   /// [visibleIds] is the collection as displayed; see [reorderInCollection].
   Future<void> reorderInCollection(
@@ -118,9 +134,15 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     List<String> visibleIds,
     int oldIndex,
     int newIndex,
-  ) =>
-      _mutate((l) => plib.reorderInCollection(
-          l, collectionId, visibleIds, oldIndex, newIndex));
+  ) => _mutate(
+    (l) => plib.reorderInCollection(
+      l,
+      collectionId,
+      visibleIds,
+      oldIndex,
+      newIndex,
+    ),
+  );
 
   Future<void> setHidden(String pieceId, bool hidden) =>
       _mutate((l) => plib.setHidden(l, pieceId, hidden));
@@ -165,13 +187,17 @@ final libraryPiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
 final visiblePiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
   final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
   final collectionId = ref.watch(activeCollectionProvider);
-  return ref.watch(piecesProvider).whenData(
-      (pieces) => applyLibrary(lib, pieces, collectionId: collectionId));
+  return ref
+      .watch(piecesProvider)
+      .whenData(
+        (pieces) => applyLibrary(lib, pieces, collectionId: collectionId),
+      );
 });
 
 /// The chip row's collections, in display order. Empty while loading.
 final collectionsProvider = Provider<List<Collection>>(
-    (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const []);
+  (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const [],
+);
 
 /// The count behind "10 hidden pieces", scoped to the active collection so the
 /// footer never promises pieces that showing hidden wouldn't reveal. 0 hides the
@@ -179,16 +205,22 @@ final collectionsProvider = Provider<List<Collection>>(
 final hiddenPieceCountProvider = Provider<int>((ref) {
   final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
   final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
-  return hiddenCount(lib, pieces,
-      collectionId: ref.watch(activeCollectionProvider));
+  return hiddenCount(
+    lib,
+    pieces,
+    collectionId: ref.watch(activeCollectionProvider),
+  );
 });
 
 /// Which collections a piece belongs to — the tag dialog's initial checkboxes.
 /// Derived, never stored: a persisted reverse index would be a second copy of
 /// the membership, free to disagree with the first.
-final pieceCollectionsProvider =
-    Provider.family<Set<String>, String>((ref, pieceId) => collectionIdsOf(
-        ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty, pieceId));
+final pieceCollectionsProvider = Provider.family<Set<String>, String>(
+  (ref, pieceId) => collectionIdsOf(
+    ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty,
+    pieceId,
+  ),
+);
 
 final libraryActionsProvider = Provider<LibraryActions>(LibraryActions.new);
 
@@ -215,8 +247,11 @@ class LibraryActions {
   Future<void> deletePiece(String pieceId) async {
     final repo = _ref.read(pieceRepositoryProvider);
     if (repo.isBundled(pieceId)) {
-      throw ArgumentError.value(pieceId, 'pieceId',
-          'Bundled fixtures are hidden, not deleted');
+      throw ArgumentError.value(
+        pieceId,
+        'pieceId',
+        'Bundled fixtures are hidden, not deleted',
+      );
     }
     await repo.deletePiece(pieceId);
     await _ref.read(staffZoomStoreProvider).clear(pieceId);
@@ -281,7 +316,9 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 // Note this is NOT [measuresPerRowProvider], which is derived purely from screen
 // width and drives the jianpu/fingering row layout.
 
-final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore());
+final staffZoomStoreProvider = Provider<StaffZoomStore>(
+  (_) => StaffZoomStore(),
+);
 
 /// Which way up the screen is, pushed from the piece detail screen's layout —
 /// the same shape as [measuresPerRowProvider], and for the same reason: a
@@ -289,8 +326,9 @@ final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore())
 ///
 /// The zoom is stored per orientation because measures-per-line means a
 /// different note size in each (see [StaffZoomStore]).
-final staffOrientationProvider =
-    StateProvider<StaffOrientation>((_) => StaffOrientation.portrait);
+final staffOrientationProvider = StateProvider<StaffOrientation>(
+  (_) => StaffOrientation.portrait,
+);
 
 /// The user's measures-per-line override ([value]; null = auto, meaning fit a
 /// short piece to ~75% of the viewport), plus whether the per-piece setting has
@@ -312,17 +350,17 @@ typedef MeasuresPerLineState = ({int? value, bool restored});
 /// and thrown away.
 final measuresPerLineProvider =
     StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
-  return MeasuresPerLineNotifier(
-    ref.watch(staffZoomStoreProvider),
-    ref.watch(selectedPieceProvider)?.id,
-    ref.watch(staffOrientationProvider),
-  );
-});
+      return MeasuresPerLineNotifier(
+        ref.watch(staffZoomStoreProvider),
+        ref.watch(selectedPieceProvider)?.id,
+        ref.watch(staffOrientationProvider),
+      );
+    });
 
 class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
   MeasuresPerLineNotifier(this._store, this._pieceId, this._orientation)
-      // With no piece there is nothing to read, so we're trivially restored.
-      : super((value: null, restored: _pieceId == null)) {
+    // With no piece there is nothing to read, so we're trivially restored.
+    : super((value: null, restored: _pieceId == null)) {
     if (_pieceId != null) _restore();
   }
 
@@ -370,8 +408,11 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
   final measuresPerRow = ref.watch(measuresPerRowProvider);
-  return PieceLayout.compute(parsed.measures, piece.sections,
-      measuresPerRow: measuresPerRow);
+  return PieceLayout.compute(
+    parsed.measures,
+    piece.sections,
+    measuresPerRow: measuresPerRow,
+  );
 });
 
 // ── Unfolded section runs (drives the minimap) ────────────────────────────────
@@ -387,7 +428,9 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
 
 // ── Display mode ──────────────────────────────────────────────────────────────
 
-final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff);
+final displayModeProvider = StateProvider<DisplayMode>(
+  (_) => DisplayMode.staff,
+);
 
 // ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
 // `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays
@@ -402,8 +445,9 @@ final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff)
 // `verovio`. Background: `docs/explore.md` §10.
 enum StaffRenderer { osmd, verovio }
 
-final staffRendererProvider =
-    StateProvider<StaffRenderer>((_) => StaffRenderer.verovio);
+final staffRendererProvider = StateProvider<StaffRenderer>(
+  (_) => StaffRenderer.verovio,
+);
 
 // ── Section navigation (minimap) ──────────────────────────────────────────────
 // Top-most visible MEASURE number in the jianpu/fingering views, pushed on
@@ -421,8 +465,8 @@ final navTargetRunProvider = StateProvider<({int run, int seq})?>((_) => null);
 
 final stringLabelStyleProvider =
     StateNotifierProvider<StringLabelStyleNotifier, StringLabelStyle>(
-  (_) => StringLabelStyleNotifier(),
-);
+      (_) => StringLabelStyleNotifier(),
+    );
 
 class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
   StringLabelStyleNotifier() : super(StringLabelStyle.always);
@@ -519,18 +563,21 @@ bool _keepHarmonyForAnnotated(Ref ref) =>
 /// [StringColourStyle.off] the [stringLabelStyleProvider] letter rules apply
 /// instead. Three styles so they can be compared on real music — see
 /// [StringColourStyle].
-final stringColourStyleProvider =
-    StateProvider<StringColourStyle>((_) => StringColourStyle.chips);
+final stringColourStyleProvider = StateProvider<StringColourStyle>(
+  (_) => StringColourStyle.chips,
+);
 
 /// How much fingering the annotation view shows.
-final fingeringDensityProvider =
-    StateProvider<FingeringDensity>((_) => FingeringDensity.all);
+final fingeringDensityProvider = StateProvider<FingeringDensity>(
+  (_) => FingeringDensity.all,
+);
 
 /// Which rule decides what "crucial" fingering means at the lower densities.
 /// Surfaced in the UI because the definition needs playing feedback to settle —
 /// see [FingeringDensityPolicy].
-final fingeringDensityPolicyProvider =
-    StateProvider<FingeringDensityPolicy>((_) => FingeringDensityPolicy.difficulty);
+final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
+  (_) => FingeringDensityPolicy.difficulty,
+);
 
 /// Whether the engraved `<fingering>` labels are the DISPLAY (OSMD) rather than
 /// a space reserver (Verovio).
@@ -601,13 +648,16 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
 /// Note the asymmetry in what a change costs: the tab staff carries its numbers
 /// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
 /// while the channel draws them in a Flutter overlay, so there it is a repaint.
-final noteNumberModeProvider =
-    StateProvider<NoteNumberMode>((_) => NoteNumberMode.violinFingering);
+final noteNumberModeProvider = StateProvider<NoteNumberMode>(
+  (_) => NoteNumberMode.violinFingering,
+);
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
 /// fret on the fingering's string. Shared by the same two views as
 /// [noteNumberModeProvider]. Session-only; only affects fret numbers.
-final fretStyleProvider = StateProvider<FretStyle>((_) => FretStyle.openStrings);
+final fretStyleProvider = StateProvider<FretStyle>(
+  (_) => FretStyle.openStrings,
+);
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
 /// for the tab view. Reuses the same strip pipeline as [staffXmlProvider] so the
@@ -627,7 +677,15 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).
-  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
+  //
+  // Kept in for the native renderer for the same reason as the annotated view:
+  // the bars are drawn from `EngravedScore.harmRegister`, so with no engraved
+  // `<harm>` there is no register and every bar is silently skipped. That is
+  // exactly what this comment used to claim was happening while the view in fact
+  // showed no chords at all.
+  if (!_keepHarmonyForAnnotated(ref) && _stripHarmonyFor(ref)) {
+    xml = ChordXmlInjector.stripHarmony(xml);
+  }
   return TabScoreGenerator.generate(
     xml,
     parsed,
@@ -684,8 +742,7 @@ class MeasureSelection {
   int get hashCode => Object.hash(startMeasure, endMeasure);
 }
 
-final measureSelectionProvider =
-    StateProvider<MeasureSelection?>((_) => null);
+final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
 
 // ── Playback ──────────────────────────────────────────────────────────────────
 
@@ -718,7 +775,8 @@ final countInStoreProvider = Provider<CountInStore>((_) => CountInStore());
 /// first engrave). Nothing here has to wait for storage: the count-in matters
 /// only when Play is pressed, by which time the read has long since landed.
 final countInProvider = StateNotifierProvider<CountInNotifier, int>(
-    (ref) => CountInNotifier(ref.watch(countInStoreProvider)));
+  (ref) => CountInNotifier(ref.watch(countInStoreProvider)),
+);
 
 class CountInNotifier extends StateNotifier<int> {
   CountInNotifier(this._store) : super(countInMinBeats) {
@@ -783,7 +841,10 @@ final resolvedCountInProvider = Provider<CountInPlan?>((ref) {
     beatsPerMeasure: beatsPerMeasure,
     beatType: beatType,
     minBeats: ref.watch(countInProvider),
-    pickupUnits: pickupUnitsOf(startMeasure,
-        beatsPerMeasure: beatsPerMeasure, beatType: beatType),
+    pickupUnits: pickupUnitsOf(
+      startMeasure,
+      beatsPerMeasure: beatsPerMeasure,
+      beatType: beatType,
+    ),
   );
 });

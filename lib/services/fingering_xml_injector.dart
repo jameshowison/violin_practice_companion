@@ -3,7 +3,11 @@ import '../models/parsed_piece.dart';
 import '../models/string_label_style.dart';
 
 class FingeringXmlInjector {
-  static String inject(String musicXml, ParsedPiece parsed, StringLabelStyle style) {
+  static String inject(
+    String musicXml,
+    ParsedPiece parsed,
+    StringLabelStyle style,
+  ) {
     final doc = XmlDocument.parse(musicXml);
     final noteEvents = parsed.measures.expand((m) => m.notes).toList();
 
@@ -14,12 +18,14 @@ class FingeringXmlInjector {
       if (idx >= noteEvents.length) break;
       final ne = noteEvents[idx++];
 
-      if (ne.isRest || ne.fingerString == null || ne.fingerNumber == null) continue;
+      if (ne.isRest || ne.fingerString == null || ne.fingerNumber == null)
+        continue;
 
       final strPart = switch (style) {
-        StringLabelStyle.always   => ne.fingerString!,
-        StringLabelStyle.onChange => ne.fingerString != prevString ? ne.fingerString! : '',
-        StringLabelStyle.never    => '',
+        StringLabelStyle.always => ne.fingerString!,
+        StringLabelStyle.onChange =>
+          ne.fingerString != prevString ? ne.fingerString! : '',
+        StringLabelStyle.never => '',
       };
       final label = '$strPart${ne.fingerNumber}';
       prevString = ne.fingerString;
