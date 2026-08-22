@@ -306,95 +306,46 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
     ? 0
     : staffSpacePx * annotationCapHeightSpaces / labelCapHeightRatio;
 
-/// The height an annotation channel wants, given the staff it sits over.
+/// How tall the chord bar and the fingering channel are, given the room the
+/// tightest system offers. ONE answer for the whole score.
 ///
-/// Derived, not chosen: the channel exists to hold type at
-/// [annotationFontSizeFor]'s size, and the tallest customer is the underline
-/// style, which spends only [typeShare] of its channel on type (the rest goes to
-/// the coloured rule and the four-level string stagger). So the channel is
-/// exactly as tall as it must be for the type to come out full size — pass
-/// `ViolinStringPalette`'s `underlineTextFraction` as [typeShare].
+/// Uniform by construction, and that is the point: a register whose thickness
+/// changes from line to line does not read as a register. Sizing each system to
+/// its own room produced exactly that — measured on Old Joe Clark, bar heights of
+/// 23.0, 5.3, 9.3, 9.3 and 22.2px down the same page, so the bar looked present on
+/// the first and last systems and absent in the middle.
 ///
-/// The chip styles are never the binding constraint: they want
-/// `fontSize / 0.78 / 0.88`, which is comfortably less.
+/// The two rows want `font / labelShare` and `font / typeShare` between them, plus
+/// a hairline gap. Verovio's own reservation is usually LESS than that — measured
+/// 3.67 to 5.39 staff spaces available against 5.72 wanted — so they are scaled
+/// down together, in proportion, rather than one of them absorbing the whole
+/// shortfall.
 ///
-/// This replaces the old `contentHeightViewBox × 0.30 × laneSqueeze`, and the
-/// difference is the whole point. That was a fraction of the system's ink extent,
-/// so it grew with the melody's RANGE and was then scaled by the tightest gap in
-/// the entire score. This is a multiple of the staff space — scale-invariant,
-/// piece-invariant, and answerable without looking at any other system.
-double annotationChannelHeightFor({
+/// [budgetPx] is the room the tightest system has between the previous system's
+/// ink and its own fingering register. [minShare] floors the shrink so a
+/// pathologically tight score gets small labels rather than invisible ones; past
+/// that point the rows would rather overlap the system above than disappear, and
+/// the staff-spacing slider is the user's lever for buying the room back.
+({double barHeight, double channelHeight, double gap}) annotationStackFor({
+  required double budgetPx,
   required double staffSpacePx,
+  required double labelShare,
   required double typeShare,
+  double gapShare = 0.12,
+  double minShare = 0.55,
 }) {
-  if (staffSpacePx <= 0 || typeShare <= 0) return 0;
-  return annotationFontSizeFor(staffSpacePx) / typeShare;
-}
-
-/// The channel an annotation register is drawn in: it sits ON [registerPx], the
-/// baseline Verovio engraved, and rises as far as [annotationChannelHeightFor]
-/// wants or [ceilingPx] allows, whichever is less.
-///
-/// [ceilingPx] is the bottom of the PREVIOUS system's ink (0 for the first
-/// system, where the page margin is the only thing above). That makes the clamp a
-/// per-system fact, which is the whole difference from the `laneSqueeze` this
-/// replaces: that took the tightest gap anywhere in the score and applied it to
-/// every system, so one cramped line flattened every label in the piece.
-///
-/// Measured, the clamp almost never binds — the tightest case across the whole
-/// staff-spacing slider leaves 3.13 staff spaces against the 2.17 a chip wants.
-/// It exists so that when it does bind, the labels get thinner instead of
-/// colliding with the system above.
-///
-/// Null when there is no room at all, which a caller must treat as "draw
-/// nothing" rather than as zero height.
-({double top, double bottom})? annotationChannel({
-  required double registerPx,
-  required double ceilingPx,
-  required double staffSpacePx,
-  required double typeShare,
-}) {
-  final want = annotationChannelHeightFor(
-    staffSpacePx: staffSpacePx,
-    typeShare: typeShare,
-  );
-  if (want <= 0) return null;
-  final height = math.min(want, registerPx - ceilingPx);
-  if (height <= 0) return null;
-  return (top: registerPx - height, bottom: registerPx);
-}
-
-/// The chord bar's band on a system, given the fingering row that may have come
-/// up to meet it.
-///
-/// [registerPx] is the chord register Verovio engraved. The bar's bottom sits
-/// just under it — a foot clearance of [footShare] of its own height, so the row
-/// below has somewhere to come up to — and it rises [heightPx] from there,
-/// clamped by [ceilingPx] (the previous system's ink).
-///
-/// [fingeringTopPx], when given, is the top of the fingering channel on the same
-/// system, and it WINS: the bar's bottom is pulled up to it rather than allowed
-/// to overlap. Verovio places its two registers only ~2.1 staff spaces apart
-/// (measured, and `harmDist` does not widen it), which is less than the fingering
-/// channel is tall, so without this the row and the bar collide — as they did.
-///
-/// The bar losing rather than the numbers is deliberate and not new: the foot
-/// clearance already exists because "the pill gives up the space rather than the
-/// numbers, because the numbers are the thing being read".
-///
-/// Null when nothing is left to draw.
-({double top, double bottom})? chordBarBand({
-  required double registerPx,
-  required double ceilingPx,
-  required double heightPx,
-  required double footShare,
-  double? fingeringTopPx,
-}) {
-  if (heightPx <= 0) return null;
-  var bottom = registerPx - heightPx * footShare;
-  if (fingeringTopPx != null && fingeringTopPx < bottom) bottom = fingeringTopPx;
-  final top = math.max(ceilingPx, bottom - heightPx);
-  return bottom - top <= 0 ? null : (top: top, bottom: bottom);
+  final font = annotationFontSizeFor(staffSpacePx);
+  if (font <= 0 || labelShare <= 0 || typeShare <= 0) {
+    return (barHeight: 0, channelHeight: 0, gap: 0);
+  }
+  final bar = font / labelShare;
+  final channel = font / typeShare;
+  final gap = bar * gapShare;
+  final want = bar + channel + gap;
+  final k = budgetPx <= 0 || budgetPx >= want
+      ? 1.0
+      : math.max(minShare, budgetPx / want);
+  return (barHeight: bar * k, channelHeight: channel * k, gap: gap * k);
 }
 
 /// [annotationFontSizeFor], capped to what a [laneHeightPx]-tall lane can host

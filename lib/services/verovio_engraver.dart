@@ -268,6 +268,22 @@ class VerovioEngraver {
       String reg(double? y, int l) => (y == null || space <= 0 || l >= c.length)
           ? '-'
           : ((c[l].top - y) / space).toStringAsFixed(2);
+      // Per system, the two registers the app draws on and the room above them.
+      // This is the line that diagnoses a bad annotation layout: `harm`/`fing`
+      // absent means the injection didn't land on that system, and roomAboveFing
+      // is the budget `annotationStackFor` has to divide between the chord bar
+      // and the fingering row. A row that looks present at the top and bottom of
+      // a page and missing in the middle is this number varying.
+      for (var l = 0; l < score.lineCount; l++) {
+        final h = score.harmRegister(l);
+        final f = score.fingRegister(l);
+        final prev = l == 0 ? 0.0 : score.lineContent[l - 1].bottom;
+        debugPrint('[engraver] L$l inkTop=${c[l].top.toStringAsFixed(1)} '
+            'harm=${h?.toStringAsFixed(1) ?? "-"} '
+            'fing=${f?.toStringAsFixed(1) ?? "-"} '
+            'prevBot=${prev.toStringAsFixed(1)} '
+            'roomAboveFing=${f == null ? "-" : ((f - prev) / space).toStringAsFixed(2)}sp');
+      }
       debugPrint(
         '[engraver] annot fing=${score.fingAnchors.length} '
         'harm=${score.harmAnchors.length} space=${space.toStringAsFixed(2)} '

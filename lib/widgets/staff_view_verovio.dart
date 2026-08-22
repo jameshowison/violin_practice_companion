@@ -1102,30 +1102,59 @@ class _UnderlayPainter extends CustomPainter {
 /// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
 /// per fingering label, every chip on a system at the same height.
 ///
+/// The room the tightest system offers for the annotation stack, in screen px:
+/// from the previous system's ink down to that system's own annotation register.
+///
+/// Score-wide MINIMUM, deliberately, because [annotationStackFor] has to give one
+/// answer for every system — see there for why uniformity matters more here than
+/// letting each system use what it happens to have.
+double _annotationBudget(EngravedScore score, double scale) {
+  var budget = double.infinity;
+  for (var l = 0; l < score.lineCount; l++) {
+    final register = score.fingRegister(l) ?? score.harmRegister(l);
+    if (register == null) continue;
+    final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+    final room = (register - prev) * scale;
+    if (room < budget) budget = room;
+  }
+  return budget.isFinite ? budget : 0;
+}
+
+/// The annotation stack for [score] — one chord-bar height and one fingering
+/// channel height, used on every system. See [annotationStackFor].
+({double barHeight, double channelHeight, double gap}) annotationStackOf(
+  EngravedScore score,
+  double scale,
+) => annotationStackFor(
+  budgetPx: _annotationBudget(score, scale),
+  staffSpacePx: score.staffSpaceViewBox * scale,
+  labelShare: chordLabelSizeFraction,
+  typeShare: underlineTextFraction,
+);
+
 /// The fingering channel on system [line], in screen px — or null when that
 /// system carries no engraved fingering.
 ///
-/// Top-level because BOTH lane painters need it: the chord bar consults it so it
-/// can give way. That rule used to be structural — the old lane slots tiled, so
-/// slot 1's floor WAS slot 0's ceiling and overlap was impossible. Registers
-/// don't tile, so the rule has to be stated, and this is where.
+/// Top-level because BOTH lane painters need it: the chord bar sits directly on
+/// top of this, so it has to know where the row ends. That relationship used to
+/// be structural — the old lane slots tiled, so slot 1's floor WAS slot 0's
+/// ceiling — and registers don't tile, so it has to be stated.
 ///
-/// The bottom edge is [EngravedScore.fingRegister] — the topmost baseline Verovio
-/// chose on that system — so the row clears every notehead on it. The height is
-/// [annotationChannelHeightFor], a multiple of the staff space, clamped to the
-/// room above by [annotationChannel].
+/// The bottom edge is [EngravedScore.fingRegister], the topmost baseline Verovio
+/// chose on that system, so the row clears every notehead on it. The height is
+/// the score-wide one, so the row is the same thickness on every system.
 Rect? fingeringChannelOn(
-    EngravedScore score, int line, double scale, double width) {
+  EngravedScore score,
+  int line,
+  double scale,
+  double width,
+) {
   final register = score.fingRegister(line);
   if (register == null) return null;
-  final band = annotationChannel(
-    registerPx: register * scale,
-    ceilingPx: line <= 0 ? 0.0 : score.lineContent[line - 1].bottom * scale,
-    staffSpacePx: score.staffSpaceViewBox * scale,
-    typeShare: underlineTextFraction,
-  );
-  if (band == null) return null;
-  return Rect.fromLTRB(0, band.top, width, band.bottom);
+  final h = annotationStackOf(score, scale).channelHeight;
+  if (h <= 0) return null;
+  final bottom = register * scale;
+  return Rect.fromLTRB(0, bottom - h, width, bottom);
 }
 
 /// The flat level is the entire point. These labels used to be engraved by
@@ -1498,17 +1527,6 @@ class _ChordLanePainter extends CustomPainter {
   /// rather than one continuous ribbon (their measure edges touch exactly).
   static const _gap = 1.0;
 
-  /// Clearance left under the pill, as a fraction of its own band height.
-  ///
-  /// The chord bar and the fingering row sit on their own registers, and the
-  /// fingering channel uses its full height at the top of the string stagger:
-  /// measured on a 14.4px lane, the E-string number's top landed 0.01px under the
-  /// pill, i.e. touching. The pill gives up the space rather than the numbers,
-  /// because the numbers are the thing being read.
-  ///
-  /// The pill's own label scales with its height, so this costs the chord text the
-  /// same 12%. It has it to spare; the digits below did not.
-  static const _footClearanceFraction = 0.12;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1566,17 +1584,21 @@ class _ChordLanePainter extends CustomPainter {
   /// A foot clearance is kept, still shortening from the BOTTOM only, so the
   /// fingering row below has somewhere to come up to.
   ({double top, double bottom})? _barFor(int line, double width) {
-    final register = score.harmRegister(line);
-    if (register == null) return null;
-    return chordBarBand(
-      registerPx: register * scale,
-      ceilingPx: line <= 0 ? 0.0 : score.lineContent[line - 1].bottom * scale,
-      heightPx:
-          annotationFontSizeFor(score.staffSpaceViewBox * scale) /
-          chordLabelSizeFraction,
-      footShare: _footClearanceFraction,
-      fingeringTopPx: fingeringChannelOn(score, line, scale, width)?.top,
-    );
+    final stack = annotationStackOf(score, scale);
+    if (stack.barHeight <= 0) return null;
+    // The bar sits directly on the fingering row where there is one, so the two
+    // read as a stack rather than as two independently placed things; otherwise
+    // it hangs off its own register.
+    final channel = fingeringChannelOn(score, line, scale, width);
+    final double bottom;
+    if (channel != null) {
+      bottom = channel.top - stack.gap;
+    } else {
+      final register = score.harmRegister(line);
+      if (register == null) return null;
+      bottom = register * scale - stack.gap;
+    }
+    return (top: bottom - stack.barHeight, bottom: bottom);
   }
 
   /// One segment per system line the run touches, in line order.
