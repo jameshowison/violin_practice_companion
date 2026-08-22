@@ -1102,6 +1102,32 @@ class _UnderlayPainter extends CustomPainter {
 /// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
 /// per fingering label, every chip on a system at the same height.
 ///
+/// The fingering channel on system [line], in screen px — or null when that
+/// system carries no engraved fingering.
+///
+/// Top-level because BOTH lane painters need it: the chord bar consults it so it
+/// can give way. That rule used to be structural — the old lane slots tiled, so
+/// slot 1's floor WAS slot 0's ceiling and overlap was impossible. Registers
+/// don't tile, so the rule has to be stated, and this is where.
+///
+/// The bottom edge is [EngravedScore.fingRegister] — the topmost baseline Verovio
+/// chose on that system — so the row clears every notehead on it. The height is
+/// [annotationChannelHeightFor], a multiple of the staff space, clamped to the
+/// room above by [annotationChannel].
+Rect? fingeringChannelOn(
+    EngravedScore score, int line, double scale, double width) {
+  final register = score.fingRegister(line);
+  if (register == null) return null;
+  final band = annotationChannel(
+    registerPx: register * scale,
+    ceilingPx: line <= 0 ? 0.0 : score.lineContent[line - 1].bottom * scale,
+    staffSpacePx: score.staffSpaceViewBox * scale,
+    typeShare: underlineTextFraction,
+  );
+  if (band == null) return null;
+  return Rect.fromLTRB(0, band.top, width, band.bottom);
+}
+
 /// The flat level is the entire point. These labels used to be engraved by
 /// Verovio as `<fing>` elements, which places each one above its own notehead —
 /// so the fingering rose and fell with the melody and had to be read as a
@@ -1200,33 +1226,8 @@ class _FingeringLanePainter extends CustomPainter {
     }
   }
 
-  /// The channel to draw system [line]'s fingerings in: it sits ON the register
-  /// Verovio engraved, and is as tall as the type needs.
-  ///
-  /// The bottom edge is [EngravedScore.fingRegister] — the topmost baseline
-  /// Verovio chose on that system — so the row clears every notehead on it. The
-  /// height is [annotationChannelHeightFor], a multiple of the staff space,
-  /// clamped to the room actually above the register.
-  ///
-  /// That clamp is the honest descendant of `laneSqueeze`, and the difference is
-  /// the point: the ceiling is the PREVIOUS system's ink bottom, so it is a
-  /// per-system fact. The old squeeze took the tightest gap in the whole score and
-  /// applied it everywhere, which is how one cramped system flattened every label
-  /// on every other one. Measured, the clamp almost never bites: the tightest case
-  /// across the whole staff-spacing slider leaves 3.13 staff spaces against the
-  /// 2.17 a chip wants.
-  Rect? _channelFor(int line, double width) {
-    final register = score.fingRegister(line);
-    if (register == null) return null;
-    final band = annotationChannel(
-      registerPx: register * scale,
-      ceilingPx: line <= 0 ? 0.0 : score.lineContent[line - 1].bottom * scale,
-      staffSpacePx: score.staffSpaceViewBox * scale,
-      typeShare: underlineTextFraction,
-    );
-    if (band == null) return null;
-    return Rect.fromLTRB(0, band.top, width, band.bottom);
-  }
+  Rect? _channelFor(int line, double width) =>
+      fingeringChannelOn(score, line, scale, width);
 
   /// The chips' own band (see [_chipBand]), spanning the full render width.
   ///
@@ -1513,7 +1514,7 @@ class _ChordLanePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (runs.isEmpty) return;
     for (final run in runs) {
-      for (final seg in _runRowRects(run)) {
+      for (final seg in _runRowRects(run, size.width)) {
         _paintSegment(canvas, seg, run);
       }
     }
@@ -1564,19 +1565,22 @@ class _ChordLanePainter extends CustomPainter {
   ///
   /// A foot clearance is kept, still shortening from the BOTTOM only, so the
   /// fingering row below has somewhere to come up to.
-  ({double top, double bottom})? _barFor(int line) {
+  ({double top, double bottom})? _barFor(int line, double width) {
     final register = score.harmRegister(line);
     if (register == null) return null;
-    final bottom = register * scale;
-    final height =
-        annotationFontSizeFor(score.staffSpaceViewBox * scale) /
-        chordLabelSizeFraction;
-    final foot = height * _footClearanceFraction;
-    return (top: bottom - height, bottom: bottom - foot);
+    return chordBarBand(
+      registerPx: register * scale,
+      ceilingPx: line <= 0 ? 0.0 : score.lineContent[line - 1].bottom * scale,
+      heightPx:
+          annotationFontSizeFor(score.staffSpaceViewBox * scale) /
+          chordLabelSizeFraction,
+      footShare: _footClearanceFraction,
+      fingeringTopPx: fingeringChannelOn(score, line, scale, width)?.top,
+    );
   }
 
   /// One segment per system line the run touches, in line order.
-  List<_LaneSegment> _runRowRects(ChordRunRegion r) {
+  List<_LaneSegment> _runRowRects(ChordRunRegion r, double width) {
     final out = <_LaneSegment>[];
     for (final e in runRowExtents(
       score,
@@ -1585,7 +1589,7 @@ class _ChordLanePainter extends CustomPainter {
       endMeasureIndex: r.endMeasureIndex,
       endNote: r.endNote,
     )) {
-      final bar = _barFor(e.line);
+      final bar = _barFor(e.line, width);
       if (bar == null) continue; // nothing engraved here — skip, don't clash
       out.add(
         _LaneSegment(
