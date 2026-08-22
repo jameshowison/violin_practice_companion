@@ -1778,5 +1778,8 @@ class _OverlayPainter extends CustomPainter {
       old.selection != selection ||
       old.flaggedMeasures != flaggedMeasures ||
       old.measureNumbers != measureNumbers ||
-      old.primary != primary;
+      old.primary != primary ||
+      // flagColor too: a theme change that moves only the error colour would
+      // otherwise leave every flag painted in the old one.
+      old.flagColor != flagColor;
 }
