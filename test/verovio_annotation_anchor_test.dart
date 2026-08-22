@@ -166,6 +166,41 @@ void main() {
   });
 
   registerTests();
+  stripTests();
+}
+
+/// The glyphs come out; the space they reserved stays. Against the real
+/// fixtures, so this is a claim about Verovio's actual output.
+void stripTests() {
+  int tokens(String svg, String cls) =>
+      RegExp('class="$cls[ "]').allMatches(svg).length;
+
+  group('stripAnnotationGlyphs', () {
+    test('removes every engraved fingering and chord symbol', () {
+      for (final name in ['fing', 'harm']) {
+        final svg = File('test/fixtures/verovio_$name.svg').readAsStringSync();
+        expect(tokens(svg, name), greaterThan(0),
+            reason: 'fixture should carry $name to begin with');
+        final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+        expect(tokens(out, name), 0, reason: '$name survived the strip');
+      }
+    });
+
+    test('leaves the music alone', () {
+      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+      for (final cls in ['note', 'staff', 'measure', 'system']) {
+        expect(tokens(out, cls), tokens(svg, cls), reason: 'lost some $cls');
+      }
+    });
+
+    test('the page keeps its size — the reservation is not reclaimed', () {
+      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+      final vb = RegExp(r'viewBox="0 0 (\d+) (\d+)"');
+      expect(vb.firstMatch(out)!.group(2), vb.firstMatch(svg)!.group(2));
+    });
+  });
 }
 
 /// The register accessors, as pure geometry over synthetic anchors — the

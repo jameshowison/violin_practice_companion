@@ -385,6 +385,9 @@ class VerovioEngraver {
     final harmAnchors = anchorsOf('harm');
 
     var processedSvg = stripMeasureNumbers(svg);
+    // After the hit map: the anchors are already recorded, and the reserved
+    // space stays. See [stripAnnotationGlyphs].
+    processedSvg = stripAnnotationGlyphs(processedSvg);
     if (stripRepeatClefs) processedSvg = clefKeySigFirstSystemOnly(processedSvg);
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
@@ -487,6 +490,23 @@ class VerovioEngraver {
   static String stripMeasureNumbers(String svg) => _removeGroups(svg, [
         ..._allGroupRanges(svg, 'mNum'),
         ..._allGroupRanges(svg, 'measureNum'),
+      ]);
+
+  /// Removes Verovio's engraved fingerings and chord symbols, keeping the space
+  /// they reserved.
+  ///
+  /// The elements are injected precisely so Verovio will lay them out and grow
+  /// the page for them; their INK is then unwanted, because the app draws its own
+  /// coloured chips and bars in that space. Cutting the glyphs out of the SVG
+  /// after the hit map has been read leaves the reservation intact — the layout
+  /// is already decided, and `AnnotationAnchor` already recorded where each one
+  /// went.
+  ///
+  /// Must run AFTER the hit map parse, which is why it lives here in
+  /// `_buildScore` rather than in `_engraveNow`.
+  static String stripAnnotationGlyphs(String svg) => _removeGroups(svg, [
+        ..._allGroupRanges(svg, 'fing'),
+        ..._allGroupRanges(svg, 'harm'),
       ]);
 
   /// Cuts [ranges] (start, end-exclusive) out of [svg], back to front so earlier

@@ -490,6 +490,22 @@ bool _stripHarmonyFor(Ref ref) {
   return !ref.watch(showChordsProvider);
 }
 
+/// Whether the ANNOTATED view should keep `<harmony>` in, so Verovio engraves
+/// the chord symbols and reserves their row.
+///
+/// Under the native renderer, always. The app hides the engraved glyphs and
+/// paints its own bars, but only Verovio can say how much room a chord symbol
+/// needs and where it ended up — so the elements stay in and
+/// `EngravedScore.harmRegister` reads the answer back.
+///
+/// Note this does NOT consult [showChordsProvider], for the reason spelled out
+/// on [_stripHarmonyFor]: the row is reserved whether or not the bars are
+/// currently drawn, so toggling chord symbols is a repaint and can never re-flow
+/// the page. The price is a little whitespace when they are off; the old design
+/// paid for reclaiming it with a re-engrave and a reflow on every toggle.
+bool _keepHarmonyForAnnotated(Ref ref) =>
+    ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+
 // ── Fingering-annotation display preferences ──────────────────────────────────
 // All three apply to the annotation view only, and none of them changes what is
 // ENGRAVED — the labels are drawn in a Flutter lane (`_FingeringLanePainter`), so
@@ -516,17 +532,21 @@ final fingeringDensityProvider =
 final fingeringDensityPolicyProvider =
     StateProvider<FingeringDensityPolicy>((_) => FingeringDensityPolicy.difficulty);
 
-/// Whether `<fingering>` should be injected before the score is engraved.
+/// Whether the engraved `<fingering>` labels are the DISPLAY (OSMD) rather than
+/// a space reserver (Verovio).
 ///
-/// Only for the OSMD fallback, which has no annotation lane — there the engraved
-/// labels are the only display. The native renderer draws them itself as coloured
-/// chips in a channel above the staff, so leaving them in would both duplicate
-/// every label and, worse, put the engraved copy back inside the measure bbox
-/// that the lane heights are measured from (which is what squeezed the chord lane
-/// out in the first place). Same shape of decision as [_stripHarmonyFor].
+/// OSMD has no annotation lane, so there the engraved labels are all the user
+/// sees and they must carry the real, styled text — which is why
+/// [stringLabelStyleProvider] is watched inside that branch, and why a style
+/// change legitimately re-engraves there.
 ///
-/// The parsed model still carries `NoteEvent.fingerString`/`fingerNumber`, which
-/// is what [fingeringAnnotations] builds the chips from.
+/// The native renderer hides the engraved glyph and paints its own coloured
+/// chips, so it injects style-independent placeholders instead
+/// ([FingeringXmlInjector.injectPlaceholders]) purely so Verovio reserves the
+/// row. Both paths inject; they differ only in what the text says.
+///
+/// The parsed model carries `NoteEvent.fingerString`/`fingerNumber` either way,
+/// which is what [fingeringAnnotations] builds the chips from.
 bool _injectFingeringFor(Ref ref) =>
     ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
@@ -553,22 +573,22 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  // Both renderers inject; see [_injectFingeringFor] for why the text differs.
+  // The publisher's own fingerings are replaced either way, so a leftover
+  // engraved label can never contradict the app's note for note.
+  final parsed = await ref.watch(parsedPieceProvider.future);
   if (_injectFingeringFor(ref)) {
-    // Watched inside the branch on purpose: only the OSMD path bakes the labels
-    // into the xml, so only there is the style an engraving input. Under the
-    // native renderer the lane owns the labels, and watching it here would
-    // re-engrave (and re-flow) on a change that repaints — see
-    // [_stripHarmonyFor] for the same reasoning about the chord toggle.
+    // Watched inside the branch on purpose: only here is the style an engraving
+    // input, because only here is the engraved label the display.
     final style = ref.watch(stringLabelStyleProvider);
-    final parsed = await ref.watch(parsedPieceProvider.future);
     if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
-  } else {
-    // Strip the publisher's own fingerings too, exactly as [staffXmlProvider]
-    // does: the lane is the only fingering display under this renderer, and a
-    // leftover engraved `<fing>` would contradict it note for note.
-    xml = FingeringXmlInjector.stripFingerings(xml);
+  } else if (parsed != null) {
+    xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
   }
-  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
+  // Keep `<harmony>` for the native renderer so the chord row is reserved too.
+  if (!_keepHarmonyForAnnotated(ref) && _stripHarmonyFor(ref)) {
+    xml = ChordXmlInjector.stripHarmony(xml);
+  }
   return xml;
 });
 
