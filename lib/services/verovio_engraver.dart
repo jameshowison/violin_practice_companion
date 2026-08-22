@@ -19,7 +19,8 @@ import 'staff_zoom.dart'
 ///
 /// Verovio does layout/coordinates; a Flutter renderer (jovial_svg) draws the
 /// returned SVG and native overlays draw selection/highlight/cursor on top.
-/// See `docs/verovio_custompaint_migration_plan.md`.
+/// The migration plan itself is gone; the surviving record of what the spike
+/// established is `docs/explore.md` §10.
 ///
 /// Phase 0 proved jovial_svg renders Verovio's SVG faithfully and that
 /// `hitMap` bboxes are in the OUTER page viewBox space (shared with the render),

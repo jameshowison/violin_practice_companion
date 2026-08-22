@@ -399,7 +399,7 @@ final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff)
 // macOS build, but webview_flutter does). It is deliberately NOT surfaced in
 // the UI: there's no user toggle. A future task selects `osmd` per-platform
 // (e.g. on macOS) when that target is revisited; until then the default is
-// `verovio`. See docs/verovio_custompaint_migration_plan.md.
+// `verovio`. Background: `docs/explore.md` §10.
 enum StaffRenderer { osmd, verovio }
 
 final staffRendererProvider =
