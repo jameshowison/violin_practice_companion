@@ -165,6 +165,27 @@ void main() {
       expect(of(map, 'harm'), hasLength(9));
     });
 
+    // The premise the chordRegister fallback rests on: where a chord symbol IS
+    // engraved it is the highest thing on that system, so the system's ink top is
+    // the right stand-in where one isn't.
+    test('an engraved chord symbol is the topmost ink on its system', () {
+      final measures = of(map, 'measure')
+        ..sort((a, b) {
+          final v = a.bbox.top.compareTo(b.bbox.top);
+          return v != 0 ? v : a.bbox.left.compareTo(b.bbox.left);
+        });
+      final rects = [for (final m in measures) m.bbox];
+      final (lineOf, _) = systemLinesOf(rects);
+      final content = lineContentOf(rects, lineOf);
+      final byLine = baselinesByLine(map, of(map, 'harm'));
+      for (var l = 0; l < byLine.length && l < content.length; l++) {
+        if (byLine[l].isEmpty) continue;
+        expect(byLine[l].first, closeTo(content[l].top, 0.01),
+            reason: 'harm on line $l is not the ink top, so the fallback would '
+                'put the bar somewhere the real register does not');
+      }
+    });
+
     test('baselines are exactly level on each system', () {
       final byLine = baselinesByLine(map, of(map, 'harm'));
       final populated = byLine.where((l) => l.length > 1).toList();
@@ -434,6 +455,50 @@ void registerTests() {
       );
       expect(s.fingRegister(0), 45);
       expect(s.harmRegister(0), 20);
+    });
+
+    // The bug: MusicXML declares <harmony> only where the chord CHANGES, so a run
+    // carrying across a system break leaves the continuation system with nothing
+    // engraved. Measured on Old Joe Clark at three measures a line, bars 10-12
+    // continued the A from bar 9 and that system drew no chord bar at all.
+    test('a system with no engraved chord symbol still gets a register', () {
+      final s = scoreWith(
+        harm: const [
+          (line: 0, x: 10, y: 20),
+          // nothing on line 1 — the chord simply continues
+        ],
+        lines: 2,
+      );
+      expect(s.harmRegister(1), isNull, reason: 'nothing was engraved there');
+      expect(s.chordRegister(1), isNotNull, reason: 'but the bar must still draw');
+      expect(s.chordRegister(1), s.lineContent[1].top);
+    });
+
+    test('the fallback never overrides a real register', () {
+      final s = scoreWith(harm: const [(line: 0, x: 10, y: 20)]);
+      expect(s.chordRegister(0), 20, reason: 'line 0 has one; use it');
+      expect(s.chordRegister(0), s.harmRegister(0));
+    });
+
+    test('every system gets a chord register, whatever was engraved', () {
+      // The property the chord painter depends on: it may skip a run for want of
+      // a RUN, never for want of a register.
+      for (final harm in <List<AnnotationAnchor>>[
+        const [],
+        const [(line: 0, x: 1, y: 5)],
+        const [(line: 1, x: 1, y: 105)],
+      ]) {
+        final s = scoreWith(harm: harm, lines: 2);
+        for (var l = 0; l < s.lineCount; l++) {
+          expect(s.chordRegister(l), isNotNull, reason: 'line $l of $harm');
+        }
+      }
+    });
+
+    test('out-of-range lines still yield null rather than throwing', () {
+      final s = scoreWith(harm: const [(line: 0, x: 10, y: 20)], lines: 2);
+      expect(s.chordRegister(9), isNull);
+      expect(s.chordRegister(-1), isNull);
     });
 
     test('no anchors at all yields no register, not a crash', () {

@@ -1623,7 +1623,10 @@ class _ChordLanePainter extends CustomPainter {
     if (channel != null) {
       bottom = channel.top - stack.gap;
     } else {
-      final register = score.harmRegister(line);
+      // chordRegister, not harmRegister: a chord run carrying across a system
+      // break leaves the continuation system with no engraved symbol, and the bar
+      // has to be drawn anyway. See EngravedScore.chordRegister.
+      final register = score.chordRegister(line);
       if (register == null) return null;
       bottom = register * scale - stack.gap;
     }
