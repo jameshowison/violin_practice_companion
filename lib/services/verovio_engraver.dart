@@ -903,6 +903,34 @@ class EngravedScore {
   double? fingRegister(int l) => _register(fingAnchors, l);
   double? harmRegister(int l) => _register(harmAnchors, l);
 
+  /// Where to draw the chord bar on system [l] — [harmRegister], or the system's
+  /// own ink top when Verovio engraved no chord symbol there.
+  ///
+  /// The fallback is not an edge case. MusicXML declares `<harmony>` only where
+  /// the chord CHANGES, so a run that carries across a system break leaves the
+  /// continuation system with nothing engraved: measured on Old Joe Clark at three
+  /// measures a line, the A established in bar 9 continues through bars 10-12 and
+  /// that whole system had `harmRegister == null`, so every segment handed to the
+  /// chord painter was skipped and the bar simply wasn't there. The run itself was
+  /// fine — runs come from the parsed model, not the engraved xml — it had no
+  /// anchor to hang on.
+  ///
+  /// The ink top is the right stand-in because on every system that DOES carry a
+  /// chord symbol, that symbol IS the ink top (measured: the register sits exactly
+  /// at `lineContent[l].top` on all of them, since it is the highest thing
+  /// Verovio drew). So the bar keeps the same relationship to the music either
+  /// way.
+  ///
+  /// The cost, stated plainly: on a continuation system the ink top is the topmost
+  /// NOTE rather than a chord symbol, so a system with a high note carries its bar
+  /// a little higher than its neighbours. Uneven, but present — and a missing bar
+  /// reads as a bug where a slightly high one does not. Pinning it to the staff
+  /// instead would need a staff reference this class does not carry: the
+  /// `class="staff"` bbox includes the notes, so it is not one.
+  double? chordRegister(int l) =>
+      harmRegister(l) ??
+      (l >= 0 && l < lineContent.length ? lineContent[l].top : null);
+
   static double? _register(List<AnnotationAnchor> anchors, int l) {
     double? top;
     for (final a in anchors) {
