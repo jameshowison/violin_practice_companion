@@ -10,6 +10,9 @@ import 'package:verovio_flutter/src/hit_map/parser.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:violin_practice_companion/widgets/chord_swatch.dart';
+import 'package:violin_practice_companion/widgets/staff_view_verovio.dart';
+import 'package:violin_practice_companion/models/violin_string_palette.dart';
 
 /// What the hit map actually reports for Verovio's own annotation elements.
 ///
@@ -208,6 +211,116 @@ void main() {
         // The real reason was that the score carried no <harmony> at all.
         expect(h.bbox.top, greaterThanOrEqualTo(owner.first.bbox.top - 0.01));
       }
+    });
+  });
+
+  // The reserve, end to end against real Verovio output. Everything else in this
+  // file measures what Verovio reports; this asks the question the app actually
+  // cares about — is the room it reported ENOUGH?
+  group('the room the annotation reserve buys', () {
+    // Old Joe Clark as the annotated view really engraves it: a `<fingering>`
+    // placeholder on every non-rest note (the fingering table covers every
+    // playable pitch, so `injectPlaceholders` reaches all 78) and its 8
+    // `<harmony>` kept, at the engraver's probe options PLUS the reserve —
+    // `spacingSystem` 4 + annotationSpacingSystemUnits, `pageMarginTop`
+    // 50 + annotationPageMarginTopUnits.
+    //
+    // This piece because it is the one every number in this design was measured
+    // against, and because it carries BOTH rows, which is the binding case: the
+    // chord bar, the gap and the fingering channel want 6.03 staff spaces
+    // between them, and at Verovio's own default spacing this score offered
+    // 3.62.
+    late EngravedScore score;
+
+    setUp(() {
+      final map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync(),
+        config: const ParseConfig(
+          captureClasses: {'measure', 'fing', 'harm'},
+        ),
+      );
+      final rects = [
+        for (final h in map.byType)
+          if (h.type == 'measure') h.bbox,
+      ];
+      final (measureLine, lineBands) = systemLinesOf(rects);
+      int lineForY(double y) {
+        for (var l = 0; l < lineBands.length; l++) {
+          if (y <= lineBands[l].bottom) return l;
+        }
+        return lineBands.isEmpty ? 0 : lineBands.length - 1;
+      }
+
+      List<AnnotationAnchor> anchors(String type) => [
+        for (final h in map.byType)
+          if (h.type == type)
+            (line: lineForY(h.bbox.top), x: h.bbox.left, y: h.bbox.top),
+      ];
+      score = EngravedScore(
+        viewBox: map.viewBox,
+        svg: '',
+        bboxById: const {},
+        measures: const [],
+        notes: const [],
+        measureLine: measureLine,
+        lineBands: lineBands,
+        lineContent: lineContentOf(rects, measureLine),
+        pageWidthUnits: pageWidthUnits,
+        fingAnchors: anchors('fing'),
+        harmAnchors: anchors('harm'),
+        renderMs: 0,
+      );
+    });
+
+    /// The stack with no budget pressure at all — what the rows want.
+    ({double barHeight, double channelHeight, double gap}) unconstrained() =>
+        annotationStackFor(
+          budgetPx: double.infinity,
+          staffSpacePx: score.staffSpaceViewBox,
+          labelShare: chordLabelSizeFraction,
+          typeShare: underlineTextFraction,
+        );
+
+    test('the injection landed on every system', () {
+      expect(score.lineCount, greaterThan(1));
+      for (var l = 0; l < score.lineCount; l++) {
+        expect(score.fingRegister(l), isNotNull, reason: 'no fing on line $l');
+        expect(score.harmRegister(l), isNotNull, reason: 'no harm on line $l');
+      }
+    });
+
+    test('every system has room for the full stack — nothing shrinks', () {
+      final want = unconstrained();
+      final got = annotationStackOf(score, 1);
+      expect(got.barHeight, closeTo(want.barHeight, 1e-9));
+      expect(got.channelHeight, closeTo(want.channelHeight, 1e-9));
+      expect(got.gap, closeTo(want.gap, 1e-9));
+    });
+
+    test('and it is the reserve doing it, not luck', () {
+      // The room the tightest system actually offers, computed the way
+      // `_annotationBudget` does: previous system's ink bottom down to this
+      // system's register.
+      var budget = double.infinity;
+      for (var l = 0; l < score.lineCount; l++) {
+        final reg = score.fingRegister(l) ?? score.harmRegister(l);
+        if (reg == null) continue;
+        final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+        budget = math.min(budget, reg - prev);
+      }
+      final space = score.staffSpaceViewBox;
+      final want = unconstrained();
+      final wanted = want.barHeight + want.channelHeight + want.gap;
+      expect(budget / space, greaterThanOrEqualTo(wanted / space));
+      // Take the reserve back off — by the measured yield, not by re-engraving —
+      // and the same score is short, which is the state this replaces. Measured
+      // 3.62 spaces against 6.03 wanted, i.e. the rows at 61% of their size.
+      expect(
+        (budget - annotationRoomSpaces * space) / space,
+        lessThan(wanted / space),
+        reason: 'without the reserve this score already fit, so the reserve is '
+            'not what is carrying the stack and this test proves nothing',
+      );
     });
   });
 

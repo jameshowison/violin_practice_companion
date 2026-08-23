@@ -119,11 +119,12 @@ class VerovioEngraver {
   ///   anything. Kept as a parameter because it is a legitimate Verovio option,
   ///   not because anything passes it.
   /// - [spacingSystem]: vertical gap between systems in MEI units, passed to
-  ///   Verovio verbatim — the "Staff spacing" preference WITH the annotation-lane
-  ///   reserve already folded in and floored. Compose it with
-  ///   `verovioSpacingSystemFor`. Nothing is folded into it any more: annotation
-  ///   space is reserved by engraving the annotations themselves, so this is the
-  ///   user's staff-spacing preference and nothing else.
+  ///   Verovio verbatim. Compose it with `verovioSpacingSystemForEngrave`: the
+  ///   "Staff spacing" preference, plus the annotation-room reserve when the
+  ///   score carries annotations to reserve for.
+  /// - [pageMarginTop]: the page's top margin in MEI units — the room system 0's
+  ///   annotation rows are drawn in, there being no system above it to borrow
+  ///   from. Compose with `verovioPageMarginTopForEngrave`.
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
@@ -131,6 +132,7 @@ class VerovioEngraver {
     int pageHeightUnits = 60000,
     int mnumInterval = 0,
     int spacingSystem = 12,
+    int pageMarginTop = verovioPageMarginTopDefault,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
@@ -140,7 +142,7 @@ class VerovioEngraver {
     // the returned object, so they must not share an entry.
     final variant =
         '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
-        '|$pageHeightUnits|$mnumInterval|$spacingSystem'
+        '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop'
         '|'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
@@ -162,6 +164,7 @@ class VerovioEngraver {
         pageHeightUnits: pageHeightUnits,
         mnumInterval: mnumInterval,
         spacingSystem: spacingSystem,
+        pageMarginTop: pageMarginTop,
         tabFingerLabels: tabFingerLabels,
         tabMode: tabMode,
         stripRepeatClefs: stripRepeatClefs,
@@ -184,6 +187,7 @@ class VerovioEngraver {
     required int pageHeightUnits,
     required int mnumInterval,
     required int spacingSystem,
+    required int pageMarginTop,
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
@@ -209,12 +213,14 @@ class VerovioEngraver {
       'footer': 'none',
       'header': 'none',
       'mnumInterval': mnumInterval,
-      // Vertical gap between systems — the "Staff spacing" preference with the
-      // annotation-lane reserve already folded in and floored by the caller.
+      // Vertical gap between systems — the "Staff spacing" preference plus the
+      // caller's annotation-room reserve. One unit is half a staff space; see
+      // `spacesPerSpacingSystemUnit`.
       'spacingSystem': spacingSystem,
-      // Line 0's lanes sit in the page's top margin, which has no gap above it
-      // to borrow from.
-      'pageMarginTop': verovioPageMarginTopDefault,
+      // System 0's annotation rows sit in the page's top margin, which has no
+      // gap above it to borrow from, so the reserve has to be asked for here
+      // separately — and at 1/18 of a space per unit, in very different money.
+      'pageMarginTop': pageMarginTop,
       'svgViewBox': true, // root viewBox so the renderer can scale
     };
     await svc.setOptionsJson(jsonEncode(options));
@@ -274,6 +280,14 @@ class VerovioEngraver {
       // is the budget `annotationStackFor` has to divide between the chord bar
       // and the fingering row. A row that looks present at the top and bottom of
       // a page and missing in the middle is this number varying.
+      //
+      // With the reserve applied it should read ~7 spaces on a score carrying
+      // both rows and ~5.5 on one carrying fingerings alone (see
+      // `annotationRoomSpaces` for the measured table). Anything much under 6 on
+      // a chord-carrying score means the reserve did not reach Verovio — check
+      // that `scoreReservesAnnotationRoom` said yes for this xml, and that
+      // pageMarginTop came out at or under 500, past which Verovio silently
+      // ignores it.
       for (var l = 0; l < score.lineCount; l++) {
         final h = score.harmRegister(l);
         final f = score.fingRegister(l);
