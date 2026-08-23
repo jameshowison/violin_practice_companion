@@ -136,11 +136,16 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 /// than the one width bucket that already triggers a re-engrave.
 ///
 /// [spacingUnits] is the EFFECTIVE Verovio `spacingSystem` — the staff-spacing
-/// preference with the lane reserve folded in and floored — not the raw
-/// preference. Carrying the resolved value is what lets the staleness check and
-/// the calibration key collapse every preference value that lands on the floor
-/// into one engrave, instead of re-probing on each tick of a slider drag that
-/// cannot change the layout.
+/// preference plus the annotation-room reserve where the score needs one (see
+/// `verovioSpacingSystemForEngrave`) — not the raw preference. Carrying the
+/// resolved value is what lets the staleness check and the calibration key
+/// collapse every preference value that rounds to the same gap into one engrave,
+/// instead of re-probing on each tick of a slider drag that cannot change the
+/// layout.
+///
+/// The reserve's other half, `pageMarginTop`, is deliberately NOT here: it is a
+/// function of the xml alone, and it cannot move the system height, so neither
+/// the request nor the calibration key needs a term for it.
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
@@ -286,9 +291,19 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     ref.read(measuresPerLineProvider.notifier).commit(target);
   }
 
+  /// Whether the score being engraved carries the annotations the app draws its
+  /// own rows on, and so needs the room reserved from Verovio. See
+  /// [scoreReservesAnnotationRoom].
+  ///
+  /// Cached rather than asked per build: it is a scan of the whole MusicXML and
+  /// `build` runs on every highlight tick, but it can only change when
+  /// [StaffViewVerovio.musicXml] does, which is a widget property.
+  late bool _reservesAnnotationRoom;
+
   @override
   void initState() {
     super.initState();
+    _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
     widget.highlightNotifier.addListener(_onHighlight);
   }
 
@@ -309,6 +324,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
+      _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
       _calibratedFor = null;
     }
@@ -550,6 +566,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       widthPx: widthPx,
       scale: scale,
       spacingSystem: spacingSystem,
+      // Derived from the xml, like tabMode, so it isn't carried in the request:
+      // only didUpdateWidget can change it. It also cannot move the system
+      // height, so it stays out of the calibration key too.
+      pageMarginTop: verovioPageMarginTopForEngrave(
+        annotationRoom: _reservesAnnotationRoom,
+      ),
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
@@ -777,12 +799,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final waitingForZoom =
         widget.zoomable &&
         (!zoom.restored || ref.watch(staffOrientationProvider) != orientation);
-    // Vertical gap between systems: the preference, plus the reserve for the
-    // lanes this view is actually drawing, floored so a tight preference can't
-    // eat that reserve back and shrink every annotation label with it. Resolved
-    // here, once, so everything downstream keys on the effective value.
-    final spacingUnits = verovioSpacingSystemFor(
+    // Vertical gap between systems: the preference, plus the room the annotation
+    // rows need where this score has any to draw. Additive, so the preference
+    // keeps its whole range — a tight setting still gives a tight page, and the
+    // rows shrink to it. Resolved here, once, so everything downstream (the
+    // staleness check, the calibration key) keys on the effective value.
+    final spacingUnits = verovioSpacingSystemForEngrave(
       ref.watch(staffSpacingProvider),
+      annotationRoom: _reservesAnnotationRoom,
     );
     // Device class for the auto-fit's minimum physical note size. The SCREEN's
     // shortest side, not this widget's box: it has to mean "phone or tablet",
@@ -1130,6 +1154,11 @@ double _annotationBudget(EngravedScore score, double scale) {
   staffSpacePx: score.staffSpaceViewBox * scale,
   labelShare: chordLabelSizeFraction,
   typeShare: underlineTextFraction,
+  // Only the rows this score will actually draw get to claim room. Verovio
+  // engraved no `<harm>` ⇒ `harmRegister` is null on every system ⇒ no bar is
+  // ever painted, and the same for the channel in the tab view.
+  withChordBar: score.harmAnchors.isNotEmpty,
+  withFingeringRow: score.fingAnchors.isNotEmpty,
 );
 
 /// The fingering channel on system [line], in screen px — or null when that
