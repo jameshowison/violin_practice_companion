@@ -510,45 +510,38 @@ final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
 
 /// Whether `<harmony>` should be stripped before the score is engraved.
 ///
-/// Two independent reasons to strip. The obvious one is the user turning chords
-/// off. The other is that the **native renderer draws chords itself**, as
-/// labelled colored bars in a lane above the staff (`ChordRunRegion` /
-/// `_ChordLanePainter`), so leaving the harmony in would have Verovio engrave a
-/// second, unspanned copy of every symbol as `<harm>` text. The OSMD fallback has
-/// no lane, so there it stays in and Verovio's own symbols are the display.
+/// Never under the native renderer, whichever view is asking. The chord bars are
+/// drawn from [EngravedScore.harmRegister] — the baseline Verovio engraved its own
+/// chord symbols at — so an engrave with no `<harm>` yields no register and every
+/// bar is silently skipped. Verovio's own `<harm>` glyphs are cut back out of the
+/// SVG afterwards ([VerovioEngraver.stripAnnotationGlyphs]), so keeping them in
+/// costs no duplicate ink — they are there for their geometry alone.
 ///
-/// The `<harmony>` elements are only stripped from the ENGRAVED xml — the parsed
-/// model still carries `NoteEvent.chordSymbol`, which is what the lane and the
-/// footer diagrams are built from.
+/// Only the ENGRAVED xml is at stake either way: the parsed model keeps
+/// `NoteEvent.chordSymbol`, which is what the bars and the footer diagrams are
+/// built from.
 ///
-/// The renderer test comes FIRST, and deliberately returns without reading
-/// [showChordsProvider]: under the native renderer the answer is unconditionally
-/// yes, so watching the toggle would make it a dependency of the XML providers
-/// for no reason. That matters because these are `FutureProvider`s — invalidating
-/// one drops the staff to a loading spinner, which unmounts the render widget and
-/// throws away its engrave and calibration. The re-engrave then re-runs the
-/// auto-fit against whatever the viewport is now, so the page RE-FLOWS. Chord
-/// symbols only ever affect a Flutter overlay; they must not be able to do that.
-bool _stripHarmonyFor(Ref ref) {
-  if (ref.watch(staffRendererProvider) == StaffRenderer.verovio) return true;
-  return !ref.watch(showChordsProvider);
-}
-
-/// Whether the ANNOTATED view should keep `<harmony>` in, so Verovio engraves
-/// the chord symbols and reserves their row.
+/// That is not hypothetical. This used to answer "yes, strip" for the native
+/// renderer while a second predicate answered "no, keep" for the annotated view,
+/// and the two were combined at two of the three call sites and not the third. The
+/// result: the tab view and then the plain staff view each drew no chord bars at
+/// all, silently, while the annotated view was fine. One question deserves one
+/// answer, so there is now one function.
 ///
-/// Under the native renderer, always. The app hides the engraved glyphs and
-/// paints its own bars, but only Verovio can say how much room a chord symbol
-/// needs and where it ended up — so the elements stay in and
-/// `EngravedScore.harmRegister` reads the answer back.
+/// The chord-symbol toggle does NOT reach the xml under the native renderer: the
+/// row is reserved whether or not the bars are painted, so toggling is a repaint.
+/// The renderer test comes first and short-circuits, so [showChordsProvider] is
+/// not even watched there — which matters because these are `FutureProvider`s.
+/// Invalidating one drops the staff to a spinner, unmounts the render widget and
+/// throws away its engrave and calibration; the re-engrave then re-runs the
+/// auto-fit against whatever the viewport is now, and the page REFLOWS. A chord
+/// toggle must never be able to do that.
 ///
-/// Note this does NOT consult [showChordsProvider], for the reason spelled out
-/// on [_stripHarmonyFor]: the row is reserved whether or not the bars are
-/// currently drawn, so toggling chord symbols is a repaint and can never re-flow
-/// the page. The price is a little whitespace when they are off; the old design
-/// paid for reclaiming it with a re-engrave and a reflow on every toggle.
-bool _keepHarmonyForAnnotated(Ref ref) =>
-    ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+/// Under OSMD the engraved symbols ARE the display — there is no lane — so there
+/// the toggle genuinely does belong in the xml.
+bool _stripHarmonyFor(Ref ref) =>
+    ref.watch(staffRendererProvider) == StaffRenderer.osmd &&
+    !ref.watch(showChordsProvider);
 
 // ── Fingering-annotation display preferences ──────────────────────────────────
 // All three apply to the annotation view only, and none of them changes what is
@@ -633,9 +626,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
     xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
   }
   // Keep `<harmony>` for the native renderer so the chord row is reserved too.
-  if (!_keepHarmonyForAnnotated(ref) && _stripHarmonyFor(ref)) {
-    xml = ChordXmlInjector.stripHarmony(xml);
-  }
+  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
 
@@ -683,9 +674,7 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   // `<harm>` there is no register and every bar is silently skipped. That is
   // exactly what this comment used to claim was happening while the view in fact
   // showed no chords at all.
-  if (!_keepHarmonyForAnnotated(ref) && _stripHarmonyFor(ref)) {
-    xml = ChordXmlInjector.stripHarmony(xml);
-  }
+  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return TabScoreGenerator.generate(
     xml,
     parsed,
