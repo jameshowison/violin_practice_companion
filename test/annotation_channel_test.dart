@@ -174,18 +174,25 @@ void main() {
       // wrong and everything downstream quietly under-reserves, so pin them.
       expect(spacesPerSpacingSystemUnit, 0.5);
       expect(spacesPerPageMarginTopUnit, closeTo(1 / 18, 1e-12));
-      expect(annotationSpacingSystemUnits, 7);
-      expect(annotationPageMarginTopUnits, 63);
+      expect(annotationSpacingSystemUnits, 3);
+      expect(annotationPageMarginTopUnits, 36);
     });
 
-    test('buys the same room in both places', () {
+    test('each place buys at least the room it is priced for', () {
+      // Deliberately NOT the same number in both: system 0 is short by more and
+      // its room is charged once rather than once per gap. See
+      // [annotationRoomSpacesFirstSystem].
       expect(
         annotationSpacingSystemUnits * spacesPerSpacingSystemUnit,
         greaterThanOrEqualTo(annotationRoomSpaces),
       );
       expect(
         annotationPageMarginTopUnits * spacesPerPageMarginTopUnit,
-        greaterThanOrEqualTo(annotationRoomSpaces),
+        greaterThanOrEqualTo(annotationRoomSpacesFirstSystem),
+      );
+      expect(
+        annotationRoomSpacesFirstSystem,
+        greaterThan(annotationRoomSpaces),
       );
     });
 
@@ -278,33 +285,41 @@ void main() {
     // fixture in assets/fixtures, engraved headlessly with a `<fingering>`
     // placeholder on every non-rest note (Verovio 6.2.0, scale 40).
     //
+    // Re-measured from Verovio's OWN bounding boxes
+    // (`VerovioEngraver.systemInkBoxes`). The previous version of this table came
+    // from the hit map's measure boxes and was wrong — by +0.12 on a
+    // fingering-only score but by +0.94 and +1.68 on the two carrying chord
+    // symbols, because the error was in `<text>` boxes and harmony adds more
+    // text. Reading a uniform correction into it would be the wrong lesson.
+    //
     // The two entries carrying `<harmony>` draw BOTH rows; every other fixture
     // draws the fingering row alone, because with no engraved `<harm>` there is
     // no register and no bar is ever painted.
     const roomAtDefault = <String, double>{
-      'abc_05_o_come_little_children': 2.31,
-      'abc_10_allegretto': 2.26,
-      'abc_14_minuet_no_2': 2.26,
-      'abc_15_minuet_no_3': 2.26,
-      'abc_17_gavotte': 2.26,
-      'gossec_gavotte': 2.25,
-      'happy_farmer_musescore': 2.03,
-      'homr_05_o_come_little_children': 2.82,
-      'homr_10_allegretto': 2.81,
-      'homr_14_minuet_no_2': 1.84, // the tightest in the library
-      'homr_15_minuet_no_3': 2.81,
-      'homr_17_gavotte': 2.81,
-      'the_wellerman': 3.06,
-      'lightly_row_musescore': 4.06, // + harmony
-      'old_joe_clark': 3.62, // + harmony
+      'abc_05_o_come_little_children': 2.01,
+      'abc_10_allegretto': 1.96,
+      'abc_14_minuet_no_2': 1.96,
+      'abc_15_minuet_no_3': 1.96,
+      'abc_17_gavotte': 1.96,
+      'gossec_gavotte': 1.96,
+      'happy_farmer_musescore': 1.96,
+      'homr_05_o_come_little_children': 3.32,
+      'homr_10_allegretto': 3.19,
+      'homr_14_minuet_no_2': 1.96,
+      'homr_15_minuet_no_3': 2.89,
+      'homr_17_gavotte': 2.54,
+      'the_wellerman': 3.57,
+      'lightly_row_musescore': 5.74, // + harmony
+      'old_joe_clark': 4.56, // + harmony, and the worst shortfall at 1.47
     };
     const withHarmony = {'lightly_row_musescore', 'old_joe_clark'};
 
     // Room above the FIRST system at Verovio's default pageMarginTop of 50, same
-    // engraves. Its own case because system 0 has no system above it to borrow
-    // from — the page's top margin is all it has, and this is the number that
-    // becomes the score-wide minimum if the margin is not reserved for too.
-    const firstSystemRoomAtDefault = 3.92;
+    // engraves — the tightest one that draws a chord bar, which is Old Joe
+    // Clark's. Its own case because system 0 has no system above it to borrow
+    // from, and it is why [annotationRoomSpacesFirstSystem] is the larger of the
+    // two constants.
+    const firstSystemRoomAtDefault = 4.22;
 
     test('every fixture reaches its full stack once the reserve is added', () {
       for (final e in roomAtDefault.entries) {
@@ -333,16 +348,56 @@ void main() {
       }
     });
 
+    test('and is no more generous than the library requires', () {
+      // The reserve used to be 3.5, sized against a table measured through the
+      // hit map's inflated measure boxes. 1.5 is the ceil of the real worst
+      // shortfall (Old Joe Clark, 1.47), and this pins it as the corner: drop it
+      // by one spacingSystem unit and at least one fixture stops reaching its
+      // full stack. Every extra half-space here is charged to every gap on the
+      // page, which is a scroll the reader pays for mid-tune.
+      bool allFullAt(double reserve) {
+        for (final e in roomAtDefault.entries) {
+          final harmony = withHarmony.contains(e.key);
+          final full = annotationStackFor(
+            budgetPx: double.infinity,
+            staffSpacePx: space,
+            labelShare: chordLabelSizeFraction,
+            typeShare: typeShare,
+            withChordBar: harmony,
+          );
+          final got = annotationStackFor(
+            budgetPx: (e.value + reserve) * space,
+            staffSpacePx: space,
+            labelShare: chordLabelSizeFraction,
+            typeShare: typeShare,
+            withChordBar: harmony,
+          );
+          if ((got.channelHeight - full.channelHeight).abs() > 1e-9) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      expect(allFullAt(annotationRoomSpaces), isTrue);
+      expect(
+        allFullAt(annotationRoomSpaces - spacesPerSpacingSystemUnit),
+        isFalse,
+        reason: 'the reserve has slack in it; spend it on page height instead',
+      );
+    });
+
     test('and the tightest of them would NOT without it', () {
       final full = stack(double.infinity);
-      final short = stack(1.84 * space);
+      final short = stack(1.96 * space);
       expect(short.channelHeight, lessThan(full.channelHeight));
     });
 
-    test('the first system is covered too', () {
+    test('the first system is covered too, by its own larger reserve', () {
       final full = stack(double.infinity);
-      final got =
-          stack((firstSystemRoomAtDefault + annotationRoomSpaces) * space);
+      final got = stack(
+        (firstSystemRoomAtDefault + annotationRoomSpacesFirstSystem) * space,
+      );
       expect(got.channelHeight, closeTo(full.channelHeight, 1e-9));
       expect(got.barHeight, closeTo(full.barHeight, 1e-9));
     });
