@@ -288,13 +288,14 @@ class VerovioEngraver {
       // and the fingering row. A row that looks present at the top and bottom of
       // a page and missing in the middle is this number varying.
       //
-      // With the reserve applied it should read ~7 spaces on a score carrying
-      // both rows and ~5.5 on one carrying fingerings alone (see
-      // `annotationRoomSpaces` for the measured table). Anything much under 6 on
-      // a chord-carrying score means the reserve did not reach Verovio — check
-      // that `scoreReservesAnnotationRoom` said yes for this xml, and that
-      // pageMarginTop came out at or under 500, past which Verovio silently
-      // ignores it.
+      // With the reserve applied this should read at or just above what the
+      // stack wants — 6.03 spaces for a score carrying both rows, 3.16 for one
+      // carrying fingerings alone. Materially under that means the reserve did
+      // not reach Verovio: check `scoreReservesAnnotationRoom` said yes for this
+      // xml, that `annotationReserveFor` was given the probe's rooms and not the
+      // real engrave's, and that pageMarginTop came out at or under 500, past
+      // which Verovio silently ignores it. Materially OVER it means we are
+      // buying whitespace, which is the bug this all exists to remove.
       for (var l = 0; l < score.lineCount; l++) {
         final h = score.harmRegister(l);
         final f = score.fingRegister(l);

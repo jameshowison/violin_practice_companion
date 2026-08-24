@@ -334,10 +334,15 @@ void main() {
       final wanted = want.barHeight + want.channelHeight + want.gap;
       expect(budget / space, greaterThanOrEqualTo(wanted / space));
       // Take the reserve back off — by the measured yield, not by re-engraving —
-      // and the same score is short, which is the state this replaces. Measured
-      // 3.62 spaces against 6.03 wanted, i.e. the rows at 61% of their size.
+      // and the same score is short, which is the state this replaces.
+      //
+      // 3.5 spaces because that is what THIS FIXTURE was engraved with, back
+      // when the reserve was a worst-case constant. It is a property of the
+      // recorded SVG, not of the code: the reserve is now derived per score by
+      // `annotationReserveFor`, and on this layout it comes out at 1.5.
+      const fixtureReserveSpaces = 3.5;
       expect(
-        (budget - annotationRoomSpaces * space) / space,
+        (budget - fixtureReserveSpaces * space) / space,
         lessThan(wanted / space),
         reason: 'without the reserve this score already fit, so the reserve is '
             'not what is carrying the stack and this test proves nothing',
