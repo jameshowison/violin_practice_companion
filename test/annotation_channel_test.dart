@@ -164,137 +164,18 @@ void main() {
     });
   });
 
-  // ── The reserve: asking Verovio for the room instead of shrinking to fit ────
+  // ── The reserve: measured off a probe, not chosen ───────────────────────────
 
-  group('the annotation reserve', () {
-    test('is priced from the measured per-unit yields', () {
-      // One spacingSystem unit = half a staff space, one pageMarginTop unit =
-      // 1/18. Both measured across every fixture, both orientations, at Verovio
-      // scale 40 and 80. If Verovio ever changes these the constants below are
-      // wrong and everything downstream quietly under-reserves, so pin them.
-      expect(spacesPerSpacingSystemUnit, 0.5);
-      expect(spacesPerPageMarginTopUnit, closeTo(1 / 18, 1e-12));
-      expect(annotationSpacingSystemUnits, 3);
-      expect(annotationPageMarginTopUnits, 36);
-    });
-
-    test('each place buys at least the room it is priced for', () {
-      // Deliberately NOT the same number in both: system 0 is short by more and
-      // its room is charged once rather than once per gap. See
-      // [annotationRoomSpacesFirstSystem].
-      expect(
-        annotationSpacingSystemUnits * spacesPerSpacingSystemUnit,
-        greaterThanOrEqualTo(annotationRoomSpaces),
-      );
-      expect(
-        annotationPageMarginTopUnits * spacesPerPageMarginTopUnit,
-        greaterThanOrEqualTo(annotationRoomSpacesFirstSystem),
-      );
-      expect(
-        annotationRoomSpacesFirstSystem,
-        greaterThan(annotationRoomSpaces),
-      );
-    });
-
-    test('is ADDED to the preference, never floored over it', () {
-      // The distinction that killed the previous version of this: a floor made
-      // every staff spacing below the default engrave the same gap, so the bottom
-      // half of that slider did nothing.
-      for (var v = staffSpacingMin; v <= staffSpacingMax + 1e-9; v += 0.05) {
-        expect(
-          verovioSpacingSystemForEngrave(v, annotationRoom: true),
-          verovioSpacingSystemFor(v) + annotationSpacingSystemUnits,
-        );
-      }
-    });
-
-    test('leaves the slider its whole range, with no dead zone', () {
-      var previous = -1;
-      final distinct = <int>{};
-      for (var v = staffSpacingMin; v <= staffSpacingMax + 1e-9; v += 0.05) {
-        final units = verovioSpacingSystemForEngrave(v, annotationRoom: true);
-        expect(units, greaterThanOrEqualTo(previous));
-        previous = units;
-        distinct.add(units);
-      }
-      expect(distinct.length, greaterThan(8));
-    });
-
-    test('a score with nothing to draw pays nothing', () {
-      for (final v in [staffSpacingMin, staffSpacingDefault, staffSpacingMax]) {
-        expect(
-          verovioSpacingSystemForEngrave(v, annotationRoom: false),
-          verovioSpacingSystemFor(v),
-        );
-      }
-      expect(
-        verovioPageMarginTopForEngrave(annotationRoom: false),
-        verovioPageMarginTopDefault,
-      );
-    });
-
-    test('the top margin stays inside what Verovio honours', () {
-      // Measured: 500 works, 510 silently reverts to the default layout — no
-      // warning, so an over-large value reads as "the reserve does not work".
-      expect(
-        verovioPageMarginTopForEngrave(annotationRoom: true),
-        lessThanOrEqualTo(verovioPageMarginTopMax),
-      );
-      expect(
-        verovioPageMarginTopForEngrave(annotationRoom: true),
-        verovioPageMarginTopDefault + annotationPageMarginTopUnits,
-      );
-    });
-
-    test('stays inside the 0..48 Verovio accepts, even at the top', () {
-      expect(
-        verovioSpacingSystemForEngrave(staffSpacingMax, annotationRoom: true),
-        inInclusiveRange(0, 48),
-      );
-    });
-  });
-
-  group('who gets the reserve', () {
-    // A property of the score, so no display toggle can move it — that is what
-    // keeps the chord-symbol switch a repaint rather than a re-engrave.
-    test('the annotated view does: it injects fingerings and keeps harmony', () {
-      expect(
-        scoreReservesAnnotationRoom(
-          '<note><notations><technical><fingering>0</fingering>'
-          '</technical></notations></note>',
-        ),
-        isTrue,
-      );
-    });
-
-    test('the tab view does: harmony alone is still a row to draw', () {
-      expect(
-        scoreReservesAnnotationRoom('<harmony><root/></harmony><note/>'),
-        isTrue,
-      );
-    });
-
-    test('the plain staff view does not — it strips both', () {
-      expect(scoreReservesAnnotationRoom('<note><pitch/></note>'), isFalse);
-    });
-  });
-
-  group('the reserve against the measured library', () {
+  group('annotationReserveFor', () {
     // Room from the previous system's ink to the annotation register, in staff
     // spaces, at Verovio's own default spacingSystem of 4 — measured on every
-    // fixture in assets/fixtures, engraved headlessly with a `<fingering>`
-    // placeholder on every non-rest note (Verovio 6.2.0, scale 40).
+    // fixture in assets/fixtures from Verovio's OWN bounding boxes
+    // (`VerovioEngraver.systemInkBoxes`), engraved headlessly with a
+    // `<fingering>` placeholder on every non-rest note (Verovio 6.2.0, scale 40).
     //
-    // Re-measured from Verovio's OWN bounding boxes
-    // (`VerovioEngraver.systemInkBoxes`). The previous version of this table came
-    // from the hit map's measure boxes and was wrong — by +0.12 on a
-    // fingering-only score but by +0.94 and +1.68 on the two carrying chord
-    // symbols, because the error was in `<text>` boxes and harmony adds more
-    // text. Reading a uniform correction into it would be the wrong lesson.
-    //
-    // The two entries carrying `<harmony>` draw BOTH rows; every other fixture
-    // draws the fingering row alone, because with no engraved `<harm>` there is
-    // no register and no bar is ever painted.
+    // The two entries carrying `<harmony>` draw BOTH rows and want 6.03 spaces;
+    // every other fixture draws the fingering row alone and wants 3.16, because
+    // with no engraved `<harm>` there is no register and no bar is ever painted.
     const roomAtDefault = <String, double>{
       'abc_05_o_come_little_children': 2.01,
       'abc_10_allegretto': 1.96,
@@ -314,14 +195,84 @@ void main() {
     };
     const withHarmony = {'lightly_row_musescore', 'old_joe_clark'};
 
-    // Room above the FIRST system at Verovio's default pageMarginTop of 50, same
-    // engraves — the tightest one that draws a chord bar, which is Old Joe
-    // Clark's. Its own case because system 0 has no system above it to borrow
-    // from, and it is why [annotationRoomSpacesFirstSystem] is the larger of the
-    // two constants.
-    const firstSystemRoomAtDefault = 4.22;
+    test('is priced from the measured per-unit yields', () {
+      // One spacingSystem unit = half a staff space, one pageMarginTop unit =
+      // 1/18. Both measured across every fixture, both orientations, at Verovio
+      // scale 40 and 80. If Verovio ever changes these, every reserve derived
+      // from them is quietly wrong, so pin them.
+      expect(spacesPerSpacingSystemUnit, 0.5);
+      expect(spacesPerPageMarginTopUnit, closeTo(1 / 18, 1e-12));
+    });
 
-    test('every fixture reaches its full stack once the reserve is added', () {
+    test('asks for nothing when the layout already has room', () {
+      // The case a worst-case constant cannot express. Note that no fixture
+      // measured so far actually reaches it — every layout tried is short by
+      // 1.4 to 1.8 spaces — so this is the function being correct rather than a
+      // behaviour observed on the device.
+      final r = annotationReserveFor(
+        interSystemRoomSpaces: 6.20,
+        firstSystemRoomSpaces: 6.10,
+        wantSpaces: 6.03,
+      );
+      expect(r.spacingUnits, 0);
+      expect(r.pageMarginTopUnits, 0);
+    });
+
+    test('a room that does not exist asks for nothing, not everything', () {
+      // No engraved annotation on any interior system ⇒ nothing is drawn there.
+      final r = annotationReserveFor(
+        interSystemRoomSpaces: double.infinity,
+        firstSystemRoomSpaces: double.infinity,
+        wantSpaces: 6.03,
+      );
+      expect(r.spacingUnits, 0);
+      expect(r.pageMarginTopUnits, 0);
+    });
+
+    test('buys the shortfall, rounded UP to whole units', () {
+      // 6.03 - 4.56 = 1.47 spaces short; a unit is half a space, so 3 units.
+      final r = annotationReserveFor(
+        interSystemRoomSpaces: 4.56,
+        firstSystemRoomSpaces: 4.22,
+        wantSpaces: 6.03,
+      );
+      expect(r.spacingUnits, 3);
+      expect(
+        r.spacingUnits * spacesPerSpacingSystemUnit,
+        greaterThanOrEqualTo(6.03 - 4.56),
+      );
+      // 1.81 spaces short at 1/18 a unit = 33 units. Nine times the money for
+      // the same room, which is why the two are priced apart.
+      expect(r.pageMarginTopUnits, 33);
+      expect(
+        r.pageMarginTopUnits * spacesPerPageMarginTopUnit,
+        greaterThanOrEqualTo(6.03 - 4.22),
+      );
+    });
+
+    test('never asks for more than the shortfall', () {
+      // The whole point. Every extra half-space is charged to every gap on the
+      // page, and the reader pays for it as a scroll.
+      for (final e in roomAtDefault.entries) {
+        final want = withHarmony.contains(e.key) ? 6.03 : 3.16;
+        final r = annotationReserveFor(
+          interSystemRoomSpaces: e.value,
+          firstSystemRoomSpaces: double.infinity,
+          wantSpaces: want,
+        );
+        final bought = r.spacingUnits * spacesPerSpacingSystemUnit;
+        final short = want - e.value;
+        expect(bought, greaterThanOrEqualTo(short), reason: e.key);
+        // Never more than one unit of rounding beyond what was needed.
+        expect(
+          bought - short,
+          lessThan(spacesPerSpacingSystemUnit),
+          reason: '${e.key} over-reserves by ${bought - short}',
+        );
+      }
+    });
+
+    test('every fixture reaches its full stack on what it is given', () {
       for (final e in roomAtDefault.entries) {
         final harmony = withHarmony.contains(e.key);
         final full = annotationStackFor(
@@ -331,75 +282,63 @@ void main() {
           typeShare: typeShare,
           withChordBar: harmony,
         );
-        final want = full.barHeight + full.channelHeight + full.gap;
+        final want = (full.barHeight + full.channelHeight + full.gap) / space;
+        final r = annotationReserveFor(
+          interSystemRoomSpaces: e.value,
+          firstSystemRoomSpaces: double.infinity,
+          wantSpaces: want,
+        );
         final got = annotationStackFor(
-          budgetPx: (e.value + annotationRoomSpaces) * space,
+          budgetPx:
+              (e.value + r.spacingUnits * spacesPerSpacingSystemUnit) * space,
           staffSpacePx: space,
           labelShare: chordLabelSizeFraction,
           typeShare: typeShare,
           withChordBar: harmony,
         );
-        expect(
-          got.channelHeight,
-          closeTo(full.channelHeight, 1e-9),
-          reason: '${e.key}: ${e.value} + $annotationRoomSpaces spaces still '
-              'short of ${(want / space).toStringAsFixed(2)}',
-        );
+        expect(got.channelHeight, closeTo(full.channelHeight, 1e-9),
+            reason: e.key);
+        expect(got.barHeight, closeTo(full.barHeight, 1e-9), reason: e.key);
       }
     });
 
-    test('and is no more generous than the library requires', () {
-      // The reserve used to be 3.5, sized against a table measured through the
-      // hit map's inflated measure boxes. 1.5 is the ceil of the real worst
-      // shortfall (Old Joe Clark, 1.47), and this pins it as the corner: drop it
-      // by one spacingSystem unit and at least one fixture stops reaching its
-      // full stack. Every extra half-space here is charged to every gap on the
-      // page, which is a scroll the reader pays for mid-tune.
-      bool allFullAt(double reserve) {
-        for (final e in roomAtDefault.entries) {
-          final harmony = withHarmony.contains(e.key);
-          final full = annotationStackFor(
-            budgetPx: double.infinity,
-            staffSpacePx: space,
-            labelShare: chordLabelSizeFraction,
-            typeShare: typeShare,
-            withChordBar: harmony,
-          );
-          final got = annotationStackFor(
-            budgetPx: (e.value + reserve) * space,
-            staffSpacePx: space,
-            labelShare: chordLabelSizeFraction,
-            typeShare: typeShare,
-            withChordBar: harmony,
-          );
-          if ((got.channelHeight - full.channelHeight).abs() > 1e-9) {
-            return false;
-          }
-        }
-        return true;
-      }
-
-      expect(allFullAt(annotationRoomSpaces), isTrue);
-      expect(
-        allFullAt(annotationRoomSpaces - spacesPerSpacingSystemUnit),
-        isFalse,
-        reason: 'the reserve has slack in it; spend it on page height instead',
-      );
-    });
-
-    test('and the tightest of them would NOT without it', () {
+    test('the tightest fixture would NOT without it', () {
       final full = stack(double.infinity);
       final short = stack(1.96 * space);
       expect(short.channelHeight, lessThan(full.channelHeight));
     });
 
-    test('the first system is covered too, by its own larger reserve', () {
-      final full = stack(double.infinity);
-      final got = stack(
-        (firstSystemRoomAtDefault + annotationRoomSpacesFirstSystem) * space,
+    test('the top margin stays inside what Verovio honours', () {
+      // Measured: 500 works, 510 silently reverts to the default layout — no
+      // warning, so an over-large value reads as "the reserve does not work".
+      // The reserve is ADDED to the default, so it is the sum that is capped.
+      final r = annotationReserveFor(
+        interSystemRoomSpaces: 0,
+        firstSystemRoomSpaces: -1000, // absurd, to drive the clamp
+        wantSpaces: 6.03,
       );
-      expect(got.channelHeight, closeTo(full.channelHeight, 1e-9));
-      expect(got.barHeight, closeTo(full.barHeight, 1e-9));
+      expect(
+        verovioPageMarginTopDefault + r.pageMarginTopUnits,
+        lessThanOrEqualTo(verovioPageMarginTopMax),
+      );
+      expect(r.spacingUnits, lessThanOrEqualTo(verovioSpacingSystemMax));
+    });
+
+    test('the staff-spacing slider keeps its whole range underneath', () {
+      // The reserve is added to the preference, never floored over it — a floor
+      // made every spacing below the default engrave the same gap, so the bottom
+      // half of that slider did nothing. Since the reserve is now a single
+      // per-score addend, the preference's own curve has to stay monotonic and
+      // varied on its own.
+      var previous = -1;
+      final distinct = <int>{};
+      for (var v = staffSpacingMin; v <= staffSpacingMax + 1e-9; v += 0.05) {
+        final units = verovioSpacingSystemFor(v);
+        expect(units, greaterThanOrEqualTo(previous));
+        previous = units;
+        distinct.add(units);
+      }
+      expect(distinct.length, greaterThan(8));
     });
   });
 
@@ -422,21 +361,26 @@ void main() {
         one.channelHeight,
         closeTo(stack(double.infinity).channelHeight, 1e-9),
       );
-      // The room a fingering-only score has at Verovio's default (2.03 on Happy
-      // Farmer) plus the reserve clears the channel outright, where against the
-      // two-row appetite it would still have been shrinking.
+      // A fingering-only score has 1.96 spaces at Verovio's default (Happy
+      // Farmer). Because it draws ONE row, the reserve derived for it is priced
+      // against 3.16 spaces and not 6.03 — and that clears the channel outright,
+      // where the two-row appetite on the same budget is still shrinking.
+      final r = annotationReserveFor(
+        interSystemRoomSpaces: 1.96,
+        firstSystemRoomSpaces: double.infinity,
+        wantSpaces: one.channelHeight / space,
+      );
+      final budget =
+          (1.96 + r.spacingUnits * spacesPerSpacingSystemUnit) * space;
       final got = annotationStackFor(
-        budgetPx: (2.03 + annotationRoomSpaces) * space,
+        budgetPx: budget,
         staffSpacePx: space,
         labelShare: chordLabelSizeFraction,
         typeShare: typeShare,
         withChordBar: false,
       );
       expect(got.channelHeight, closeTo(one.channelHeight, 1e-9));
-      expect(
-        stack((2.03 + annotationRoomSpaces) * space).channelHeight,
-        lessThan(one.channelHeight),
-      );
+      expect(stack(budget).channelHeight, lessThan(one.channelHeight));
     });
 
     test('the tab view is the mirror image: a bar and no channel', () {

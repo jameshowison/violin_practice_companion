@@ -135,17 +135,16 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 /// an iPad split-view resize), and every one of those moves [widthPx] far more
 /// than the one width bucket that already triggers a re-engrave.
 ///
-/// [spacingUnits] is the EFFECTIVE Verovio `spacingSystem` — the staff-spacing
-/// preference plus the annotation-room reserve where the score needs one (see
-/// `verovioSpacingSystemForEngrave`) — not the raw preference. Carrying the
-/// resolved value is what lets the staleness check and the calibration key
-/// collapse every preference value that rounds to the same gap into one engrave,
-/// instead of re-probing on each tick of a slider drag that cannot change the
-/// layout.
+/// [spacingUnits] is the staff-spacing preference resolved to Verovio units (see
+/// `verovioSpacingSystemFor`). Carrying the resolved value rather than the raw
+/// preference is what lets the staleness check and the calibration key collapse
+/// every preference value that rounds to the same gap into one engrave, instead
+/// of re-probing on each tick of a slider drag that cannot change the layout.
 ///
-/// The reserve's other half, `pageMarginTop`, is deliberately NOT here: it is a
-/// function of the xml alone, and it cannot move the system height, so neither
-/// the request nor the calibration key needs a term for it.
+/// The annotation reserve is NOT in here, in either of its halves. It is derived
+/// from the probe inside [_engrave] and is a function of the preference and the
+/// xml, both of which are already keyed — so adding it would key the calibration
+/// on something the calibration itself produces.
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
@@ -215,6 +214,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// a backstop: the bound must fall by a real margin to trigger one, so this
   /// should never reach its limit.
   int _refinements = 0;
+
+  /// The reserve derived from the calibration probe — extra `spacingSystem` and
+  /// `pageMarginTop` units for the annotation rows, or zeros when this score's
+  /// own layout already has room. Derived, not preferred, so it lives beside the
+  /// calibration it comes from and is refreshed with it.
+  int _reserveSpacingUnits = 0;
+  int _reservePageMarginUnits = 0;
 
   int _engraveSeq = 0; // discards out-of-order async results
   bool _engraving = false;
@@ -389,6 +395,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    un-zoomed piece reuses the cache entry it always had.
       EngravedScore? probe;
       if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
+        // BARE — the staff-spacing preference and Verovio's own page margin,
+        // with no annotation reserve. The probe's job now includes measuring how
+        // much room this score's layout already leaves, and it cannot measure
+        // that through a reserve it was given up front.
         probe = await _engraveAt(
           req.widthPx,
           staffScaleProbe,
@@ -397,10 +407,35 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         if (!mounted || seq != _engraveSeq) return;
         _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
         _refinements = 0;
-        _systemHeightPx = probe.systemHeightViewBox;
         _measureCount = probe.measures.length;
         _calibratedFor = _calibrationKeyFor(req.spacingUnits);
         _tightenCalibration(probe);
+
+        // What the rows are short of, if anything, at Verovio's own spacing.
+        if (_reservesAnnotationRoom) {
+          final room = annotationRoomOf(probe);
+          final reserve = annotationReserveFor(
+            interSystemRoomSpaces: room.inter,
+            firstSystemRoomSpaces: room.first,
+            wantSpaces: annotationWantSpaces(probe, staffScaleProbe),
+          );
+          _reserveSpacingUnits = reserve.spacingUnits;
+          _reservePageMarginUnits = reserve.pageMarginTopUnits;
+        } else {
+          _reserveSpacingUnits = 0;
+          _reservePageMarginUnits = 0;
+        }
+
+        // The auto-fit predicts total height from this, and
+        // `systemHeightViewBox` INCLUDES the inter-system gap — so a bare probe
+        // under-reports by exactly the reserve the real engrave is about to add.
+        // Add it back before `autoMeasuresPerLine` reads it, or the fit
+        // overfills the viewport and the score runs off the bottom.
+        _systemHeightPx =
+            probe.systemHeightViewBox +
+            _reserveSpacingUnits *
+                spacesPerSpacingSystemUnit *
+                probe.staffSpaceViewBox;
       }
 
       // 2. Resolve the target and solve for Verovio's scale.
@@ -431,6 +466,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           'budget=${(req.viewportHeightPx * staffAutoFillFraction).round()} '
           'upm=${_unitsPerMeasure.toStringAsFixed(1)} '
           'sysH=${_systemHeightPx.toStringAsFixed(1)} bars=$_measureCount '
+          'reserve=${_reserveSpacingUnits}u/${_reservePageMarginUnits}m '
           'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
           'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
           '${req.target == null ? 'auto' : 'set'}=$target '
@@ -443,17 +479,26 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    a probe whose page was shorter would silently clip a long score's tail
       //    (only page 1 is ever rendered). Bar numbering used to be a third term
       //    here; it no longer varies, both engraves passing mnumInterval 0.
+      //    The probe is engraved BARE, so it is only reusable when the score
+      //    turned out to need no reserve at all — otherwise it is a different
+      //    layout from the one we are about to ask for.
       final reusable =
           probe != null &&
           (scale - staffScaleProbe).abs() < 0.05 &&
-          _pageHeightFor(target) == _probePageHeightUnits;
+          _pageHeightFor(target) == _probePageHeightUnits &&
+          _reserveSpacingUnits == 0 &&
+          _reservePageMarginUnits == 0;
       final score = reusable
           ? probe
           : await _engraveAt(
               req.widthPx,
               scale,
               measuresPerLine: target,
-              spacingSystem: req.spacingUnits,
+              spacingSystem: (req.spacingUnits + _reserveSpacingUnits).clamp(
+                0,
+                verovioSpacingSystemMax,
+              ),
+              pageMarginTopReserve: _reservePageMarginUnits,
             );
       if (!mounted || seq != _engraveSeq) return;
 
@@ -560,17 +605,21 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     double scale, {
     int? measuresPerLine,
     required int spacingSystem,
+    int pageMarginTopReserve = 0,
   }) {
     return VerovioEngraver.instance.engrave(
       widget.musicXml,
       widthPx: widthPx,
       scale: scale,
       spacingSystem: spacingSystem,
-      // Derived from the xml, like tabMode, so it isn't carried in the request:
-      // only didUpdateWidget can change it. It also cannot move the system
-      // height, so it stays out of the calibration key too.
-      pageMarginTop: verovioPageMarginTopForEngrave(
-        annotationRoom: _reservesAnnotationRoom,
+      // System 0's rows come out of the page's top margin, there being no
+      // system above it to borrow from. Passed in rather than derived here: the
+      // probe engraves bare so it can MEASURE what the margin already gives,
+      // and only the real engrave carries the reserve that measurement asked
+      // for. See [annotationReserveFor].
+      pageMarginTop: (verovioPageMarginTopDefault + pageMarginTopReserve).clamp(
+        0,
+        verovioPageMarginTopMax,
       ),
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
@@ -799,14 +848,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final waitingForZoom =
         widget.zoomable &&
         (!zoom.restored || ref.watch(staffOrientationProvider) != orientation);
-    // Vertical gap between systems: the preference, plus the room the annotation
-    // rows need where this score has any to draw. Additive, so the preference
-    // keeps its whole range — a tight setting still gives a tight page, and the
-    // rows shrink to it. Resolved here, once, so everything downstream (the
-    // staleness check, the calibration key) keys on the effective value.
-    final spacingUnits = verovioSpacingSystemForEngrave(
+    // Vertical gap between systems: the preference ALONE. The annotation
+    // reserve used to be added here, from a constant; it is now measured off the
+    // calibration probe in [_engrave] and added to the real engrave only. Which
+    // also makes this the honest key for the staleness check and the calibration
+    // key — they now key on an input the user controls rather than on a derived
+    // value that moves underneath them.
+    final spacingUnits = verovioSpacingSystemFor(
       ref.watch(staffSpacingProvider),
-      annotationRoom: _reservesAnnotationRoom,
     );
     // Device class for the auto-fit's minimum physical note size. The SCREEN's
     // shortest side, not this widget's box: it has to mean "phone or tablet",
@@ -1132,6 +1181,54 @@ class _UnderlayPainter extends CustomPainter {
 /// Score-wide MINIMUM, deliberately, because [annotationStackFor] has to give one
 /// answer for every system — see there for why uniformity matters more here than
 /// letting each system use what it happens to have.
+/// The room the annotation stack has, in staff spaces, split by what Verovio
+/// charges for it: system 0's comes out of `pageMarginTop`, everything else out
+/// of `spacingSystem`. `infinity` means "no system of that kind draws anything",
+/// which asks for no reserve rather than an infinite one.
+///
+/// Staff spaces, not px, because the caller compares this against a probe engrave
+/// at a different scale — see [annotationReserveFor].
+({double first, double inter}) annotationRoomOf(EngravedScore score) {
+  var first = double.infinity;
+  var inter = double.infinity;
+  final space = score.staffSpaceViewBox;
+  if (space <= 0) return (first: first, inter: inter);
+  for (var l = 0; l < score.lineCount; l++) {
+    // The same register [_annotationBudget] sizes the stack against, so the
+    // reserve is priced for the thing it actually has to make fit.
+    final register = score.fingRegister(l) ?? score.harmRegister(l);
+    if (register == null) continue;
+    final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+    final room = (register - prev) / space;
+    if (l == 0) {
+      if (room < first) first = room;
+    } else if (room < inter) {
+      inter = room;
+    }
+  }
+  return (first: first, inter: inter);
+}
+
+/// What the stack wants when nothing is in the way, in staff spaces — the target
+/// [annotationReserveFor] measures the shortfall against.
+///
+/// Scale-invariant, so it can be read off the probe: every term in
+/// [annotationStackFor] is a fraction of `staffSpacePx`, so dividing back out by
+/// it cancels the scale.
+double annotationWantSpaces(EngravedScore score, double scale) {
+  final space = score.staffSpaceViewBox * scale;
+  if (space <= 0) return 0;
+  final full = annotationStackFor(
+    budgetPx: double.infinity,
+    staffSpacePx: space,
+    labelShare: chordLabelSizeFraction,
+    typeShare: underlineTextFraction,
+    withChordBar: score.harmAnchors.isNotEmpty,
+    withFingeringRow: score.fingAnchors.isNotEmpty,
+  );
+  return (full.barHeight + full.channelHeight + full.gap) / space;
+}
+
 double _annotationBudget(EngravedScore score, double scale) {
   var budget = double.infinity;
   for (var l = 0; l < score.lineCount; l++) {
