@@ -1365,8 +1365,6 @@ class _NotationView extends ConsumerWidget {
           fingeringAnnotations: annotations,
           stringColourStyle: colourStyle,
           stringRuns: stringRuns,
-          chordLane: chordRuns.isNotEmpty,
-          fingeringLane: fingeringChannel,
           scrollNav: staffNav,
         );
       }

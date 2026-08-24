@@ -79,22 +79,6 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// note, not just the labelled ones — see [stringRunRegions].
   final List<StringRunRegion> stringRuns;
 
-  /// Which annotation lanes to reserve room for above each system: the chord
-  /// lane on top, the fingering channel below it.
-  ///
-  /// Layout inputs, not decorations: they widen the engraved gap and top margin,
-  /// so a change re-engraves. Note that after the callers stopped injecting
-  /// fingerings the annotation view feeds the SAME xml as the plain staff view —
-  /// these are then the only thing that distinguishes the two layouts.
-  ///
-  /// Pass true only when the lane will actually be drawn into. Reserved
-  /// whitespace no one uses is precisely what the staff-spacing preference should
-  /// be free to close up, and a reserved lane puts a floor under the engraved gap
-  /// ([verovioSpacingSystemEngraved]) so that it can't be squeezed thin enough to
-  /// shrink the labels in it.
-  final bool chordLane;
-  final bool fingeringLane;
-
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
   final ({int index, int seq})? scrollNav;
@@ -130,8 +114,6 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.fingeringAnnotations = const [],
     this.stringColourStyle = StringColourStyle.chips,
     this.stringRuns = const [],
-    this.chordLane = false,
-    this.fingeringLane = false,
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
@@ -153,12 +135,16 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 /// an iPad split-view resize), and every one of those moves [widthPx] far more
 /// than the one width bucket that already triggers a re-engrave.
 ///
-/// [spacingUnits] is the EFFECTIVE Verovio `spacingSystem` — the staff-spacing
-/// preference with the lane reserve folded in and floored — not the raw
-/// preference. Carrying the resolved value is what lets the staleness check and
-/// the calibration key collapse every preference value that lands on the floor
-/// into one engrave, instead of re-probing on each tick of a slider drag that
-/// cannot change the layout.
+/// [spacingUnits] is the staff-spacing preference resolved to Verovio units (see
+/// `verovioSpacingSystemFor`). Carrying the resolved value rather than the raw
+/// preference is what lets the staleness check and the calibration key collapse
+/// every preference value that rounds to the same gap into one engrave, instead
+/// of re-probing on each tick of a slider drag that cannot change the layout.
+///
+/// The annotation reserve is NOT in here, in either of its halves. It is derived
+/// from the probe inside [_engrave] and is a function of the preference and the
+/// xml, both of which are already keyed — so adding it would key the calibration
+/// on something the calibration itself produces.
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
@@ -229,6 +215,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// should never reach its limit.
   int _refinements = 0;
 
+  /// The reserve derived from the calibration probe — extra `spacingSystem` and
+  /// `pageMarginTop` units for the annotation rows, or zeros when this score's
+  /// own layout already has room. Derived, not preferred, so it lives beside the
+  /// calibration it comes from and is refreshed with it.
+  int _reserveSpacingUnits = 0;
+  int _reservePageMarginUnits = 0;
+
   int _engraveSeq = 0; // discards out-of-order async results
   bool _engraving = false;
   _EngraveRequest? _pending; // latest-wins queue
@@ -262,10 +255,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   void _onScaleStart(ScaleStartDetails d) {
     // Same expression the drawer's slider parks its thumb on: the explicit
     // override if there is one, else what the renderer actually achieved.
-    _pinchFrom = (ref.read(measuresPerLineProvider).value ??
-            ref.read(effectiveMeasuresPerLineProvider) ??
-            measuresPerLineForWidth(_layoutWidth))
-        .clamp(measuresPerLineMin, measuresPerLineMax);
+    _pinchFrom =
+        (ref.read(measuresPerLineProvider).value ??
+                ref.read(effectiveMeasuresPerLineProvider) ??
+                measuresPerLineForWidth(_layoutWidth))
+            .clamp(measuresPerLineMin, measuresPerLineMax);
     _pinchLimits = pinchScaleLimits(_pinchFrom);
     _pinchAnchor = (_layoutWidth <= 0 || _renderHeight <= 0)
         ? Alignment.center
@@ -285,8 +279,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    final target =
-        pinchTargetMeasuresPerLine(from: _pinchFrom, scale: _pinchScale);
+    final target = pinchTargetMeasuresPerLine(
+      from: _pinchFrom,
+      scale: _pinchScale,
+    );
     final current = ref.read(measuresPerLineProvider).value;
     if (target == current) {
       // Nothing to engrave, so nothing will come along to clear the preview.
@@ -301,9 +297,19 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     ref.read(measuresPerLineProvider.notifier).commit(target);
   }
 
+  /// Whether the score being engraved carries the annotations the app draws its
+  /// own rows on, and so needs the room reserved from Verovio. See
+  /// [scoreReservesAnnotationRoom].
+  ///
+  /// Cached rather than asked per build: it is a scan of the whole MusicXML and
+  /// `build` runs on every highlight tick, but it can only change when
+  /// [StaffViewVerovio.musicXml] does, which is a widget property.
+  late bool _reservesAnnotationRoom;
+
   @override
   void initState() {
     super.initState();
+    _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
     widget.highlightNotifier.addListener(_onHighlight);
   }
 
@@ -323,9 +329,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // place it can change. Clearing _engravedWidth kicks the fresh request.
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
-        old.chordLane != widget.chordLane ||
-        old.fingeringLane != widget.fingeringLane ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
+      _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
       _calibratedFor = null;
     }
@@ -342,13 +347,17 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   /// Key the calibration is valid for. Everything that changes the engraved
-  /// geometry counts: the tab variant (a second staff changes the system height),
-  /// the effective system spacing (which changes it directly, and so changes what
-  /// the auto-fit rule can afford), and the lanes (whose top-margin reserve moves
-  /// it too — their gap reserve is already inside [spacingUnits]).
+  /// geometry counts: the xml (which now differs between the plain and annotated
+  /// views, since only the latter carries injected annotations), the tab variant
+  /// (a second staff changes the system height), and the system spacing (which
+  /// changes it directly, and so changes what the auto-fit rule can afford).
+  ///
+  /// The annotation lanes used to have a term here. They no longer do: they add
+  /// nothing to the margins, so the only way they can move the geometry is
+  /// through the xml, which is already in the key. That is what makes toggling
+  /// chord symbols a repaint rather than a re-engrave.
   String _calibrationKeyFor(int spacingUnits) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits'
-      '|${widget.chordLane}${widget.fingeringLane}';
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits';
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -386,19 +395,52 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    un-zoomed piece reuses the cache entry it always had.
       EngravedScore? probe;
       if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
-        probe = await _engraveAt(req.widthPx, staffScaleProbe,
-            spacingSystem: req.spacingUnits);
+        // BARE — the staff-spacing preference and Verovio's own page margin,
+        // with no annotation reserve. The probe's job now includes measuring how
+        // much room this score's layout already leaves, and it cannot measure
+        // that through a reserve it was given up front.
+        probe = await _engraveAt(
+          req.widthPx,
+          staffScaleProbe,
+          spacingSystem: req.spacingUnits,
+        );
         if (!mounted || seq != _engraveSeq) return;
         _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
         _refinements = 0;
-        _systemHeightPx = probe.systemHeightViewBox;
         _measureCount = probe.measures.length;
         _calibratedFor = _calibrationKeyFor(req.spacingUnits);
         _tightenCalibration(probe);
+
+        // What the rows are short of, if anything, at Verovio's own spacing.
+        if (_reservesAnnotationRoom) {
+          final room = annotationRoomOf(probe);
+          final reserve = annotationReserveFor(
+            interSystemRoomSpaces: room.inter,
+            firstSystemRoomSpaces: room.first,
+            wantSpaces: annotationWantSpaces(probe, staffScaleProbe),
+          );
+          _reserveSpacingUnits = reserve.spacingUnits;
+          _reservePageMarginUnits = reserve.pageMarginTopUnits;
+        } else {
+          _reserveSpacingUnits = 0;
+          _reservePageMarginUnits = 0;
+        }
+
+        // The auto-fit predicts total height from this, and
+        // `systemHeightViewBox` INCLUDES the inter-system gap — so a bare probe
+        // under-reports by exactly the reserve the real engrave is about to add.
+        // Add it back before `autoMeasuresPerLine` reads it, or the fit
+        // overfills the viewport and the score runs off the bottom.
+        _systemHeightPx =
+            probe.systemHeightViewBox +
+            _reserveSpacingUnits *
+                spacesPerSpacingSystemUnit *
+                probe.staffSpaceViewBox;
       }
 
       // 2. Resolve the target and solve for Verovio's scale.
-      final target = req.target ??
+      final target =
+          req.target ??
           autoMeasuresPerLine(
             widthPx: req.widthPx,
             viewportHeightPx: req.viewportHeightPx,
@@ -418,15 +460,18 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       // as 4 — is invisible without seeing `target` next to the engraver's own
       // achieved `mpl`. Read the two lines together.
       if (VerovioEngraver.debugLogging) {
-        debugPrint('[auto] w=${req.widthPx.round()} '
-            'vh=${req.viewportHeightPx.round()} '
-            'budget=${(req.viewportHeightPx * staffAutoFillFraction).round()} '
-            'upm=${_unitsPerMeasure.toStringAsFixed(1)} '
-            'sysH=${_systemHeightPx.toStringAsFixed(1)} bars=$_measureCount '
-            'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
-            'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
-            '${req.target == null ? 'auto' : 'set'}=$target '
-            'scale=${scale.toStringAsFixed(1)} refine=$_refinements');
+        debugPrint(
+          '[auto] w=${req.widthPx.round()} '
+          'vh=${req.viewportHeightPx.round()} '
+          'budget=${(req.viewportHeightPx * staffAutoFillFraction).round()} '
+          'upm=${_unitsPerMeasure.toStringAsFixed(1)} '
+          'sysH=${_systemHeightPx.toStringAsFixed(1)} bars=$_measureCount '
+          'reserve=${_reserveSpacingUnits}u/${_reservePageMarginUnits}m '
+          'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
+          'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
+          '${req.target == null ? 'auto' : 'set'}=$target '
+          'scale=${scale.toStringAsFixed(1)} refine=$_refinements',
+        );
       }
 
       // 3. Engrave for real — unless the probe already produced exactly this
@@ -434,13 +479,27 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    a probe whose page was shorter would silently clip a long score's tail
       //    (only page 1 is ever rendered). Bar numbering used to be a third term
       //    here; it no longer varies, both engraves passing mnumInterval 0.
-      final reusable = probe != null &&
+      //    The probe is engraved BARE, so it is only reusable when the score
+      //    turned out to need no reserve at all — otherwise it is a different
+      //    layout from the one we are about to ask for.
+      final reusable =
+          probe != null &&
           (scale - staffScaleProbe).abs() < 0.05 &&
-          _pageHeightFor(target) == _probePageHeightUnits;
+          _pageHeightFor(target) == _probePageHeightUnits &&
+          _reserveSpacingUnits == 0 &&
+          _reservePageMarginUnits == 0;
       final score = reusable
           ? probe
-          : await _engraveAt(req.widthPx, scale,
-              measuresPerLine: target, spacingSystem: req.spacingUnits);
+          : await _engraveAt(
+              req.widthPx,
+              scale,
+              measuresPerLine: target,
+              spacingSystem: (req.spacingUnits + _reserveSpacingUnits).clamp(
+                0,
+                verovioSpacingSystemMax,
+              ),
+              pageMarginTopReserve: _reservePageMarginUnits,
+            );
       if (!mounted || seq != _engraveSeq) return;
 
       // jovial parse is synchronous and fast (a few ms); currentColor resolves
@@ -536,20 +595,32 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// Page height for a [measuresPerLine] layout. Only page 1 is ever rendered,
   /// so the page must hold every system — and zooming in multiplies them.
   int _pageHeightFor(int measuresPerLine) => pageHeightUnitsFor(
-        measureCount: _measureCount,
-        measuresPerLine: measuresPerLine,
-        systemHeightPx: _systemHeightPx,
-      );
+    measureCount: _measureCount,
+    measuresPerLine: measuresPerLine,
+    systemHeightPx: _systemHeightPx,
+  );
 
-  Future<EngravedScore> _engraveAt(double widthPx, double scale,
-      {int? measuresPerLine, required int spacingSystem}) {
+  Future<EngravedScore> _engraveAt(
+    double widthPx,
+    double scale, {
+    int? measuresPerLine,
+    required int spacingSystem,
+    int pageMarginTopReserve = 0,
+  }) {
     return VerovioEngraver.instance.engrave(
       widget.musicXml,
       widthPx: widthPx,
       scale: scale,
       spacingSystem: spacingSystem,
-      chordLane: widget.chordLane,
-      fingeringLane: widget.fingeringLane,
+      // System 0's rows come out of the page's top margin, there being no
+      // system above it to borrow from. Passed in rather than derived here: the
+      // probe engraves bare so it can MEASURE what the margin already gives,
+      // and only the real engrave carries the reserve that measurement asked
+      // for. See [annotationReserveFor].
+      pageMarginTop: (verovioPageMarginTopDefault + pageMarginTopReserve).clamp(
+        0,
+        verovioPageMarginTopMax,
+      ),
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
@@ -601,7 +672,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// two differ for a frame, and taps/overlays must follow what is on screen.
   double get _scale {
     final score = _score;
-    if (score == null || _layoutWidth <= 0 || score.viewBox.width <= 0) return 1;
+    if (score == null || _layoutWidth <= 0 || score.viewBox.width <= 0)
+      return 1;
     return _layoutWidth / score.viewBox.width;
   }
 
@@ -633,8 +705,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     if (score == null || !_scrollController.hasClients) return;
     final m = score.measureAt(index);
     if (m == null) return;
-    final target = (m.rect.top * _scale - 12)
-        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    final target = (m.rect.top * _scale - 12).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
     _scrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 280),
@@ -660,22 +734,27 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// blank space to its left (the clef/key/meter and, usually, the pickup bar)
   /// and is scaled down to fit rather than allowed to cross into it.
   Rect? _countInRect(
-      EngravedScore score, CountInTick tick, double scale, double width) {
+    EngravedScore score,
+    CountInTick tick,
+    double scale,
+    double width,
+  ) {
     final found = widget.measureNumbers.indexOf(tick.startMeasure);
     final index = found < 0 ? 0 : found;
     final line = score.lineOfMeasure(index);
     if (line < 0 || line >= score.lineContent.length) return null;
     final anchor = score.meterSigOnLine(line) ?? score.measureAt(index)?.rect;
     if (anchor == null) return null;
-    final band = score.chordLaneBand(line);
-    final bottom = (band?.bottom ?? score.lineContent[line].top) * scale;
-    // A squeezed lane can be thinner than the numbers need; legibility wins, so
-    // a short lane grows upwards into the margin rather than shrinking the type.
-    final laneHeight = (band == null
-            ? score.contentHeightViewBox * EngravedScore.chordLaneHeightFraction
-            : band.bottom - band.top) *
-        scale;
-    final height = math.max(18.0, laneHeight);
+    // The top of this system's ink, which after injection already includes the
+    // annotation rows — so the count sits above everything rather than needing a
+    // lane of its own. Legibility wins over fitting: a tight system grows the
+    // count upward into the margin rather than shrinking the type.
+    final bottom = score.lineContent[line].top * scale;
+    final height = math.max(
+      18.0,
+      annotationFontSizeFor(score.staffSpaceViewBox * scale) /
+          chordLabelSizeFraction,
+    );
     final top = math.max(0.0, bottom - height);
     final left = anchor.left * scale;
     // A chord on the very first bar leaves no blank space at all (its bar starts
@@ -685,7 +764,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final chordLeft = _firstChordLeftOnLine(score, line, scale);
     final right = chordLeft == null
         ? width
-        : math.min(width, math.max(chordLeft - _countInChordGap, left + _countInMinWidth));
+        : math.min(
+            width,
+            math.max(chordLeft - _countInChordGap, left + _countInMinWidth),
+          );
     return Rect.fromLTRB(left, top, right, top + height);
   }
 
@@ -763,15 +845,17 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final orientation = screen.width >= screen.height
         ? StaffOrientation.landscape
         : StaffOrientation.portrait;
-    final waitingForZoom = widget.zoomable &&
+    final waitingForZoom =
+        widget.zoomable &&
         (!zoom.restored || ref.watch(staffOrientationProvider) != orientation);
-    // Vertical gap between systems: the preference, plus the reserve for the
-    // lanes this view is actually drawing, floored so a tight preference can't
-    // eat that reserve back and shrink every annotation label with it. Resolved
-    // here, once, so everything downstream keys on the effective value.
-    final spacingUnits = verovioSpacingSystemEngraved(
+    // Vertical gap between systems: the preference ALONE. The annotation
+    // reserve used to be added here, from a constant; it is now measured off the
+    // calibration probe in [_engrave] and added to the real engrave only. Which
+    // also makes this the honest key for the staleness check and the calibration
+    // key — they now key on an input the user controls rather than on a derived
+    // value that moves underneath them.
+    final spacingUnits = verovioSpacingSystemFor(
       ref.watch(staffSpacingProvider),
-      (widget.chordLane ? 1 : 0) + (widget.fingeringLane ? 1 : 0),
     );
     // Device class for the auto-fit's minimum physical note size. The SCREEN's
     // shortest side, not this widget's box: it has to mean "phone or tablet",
@@ -849,7 +933,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                         ),
                       ),
                       Positioned.fill(
-                        child: ScalableImageWidget(si: image, fit: BoxFit.fitWidth),
+                        child: ScalableImageWidget(
+                          si: image,
+                          fit: BoxFit.fitWidth,
+                        ),
                       ),
                       Positioned.fill(
                         child: IgnorePointer(
@@ -921,7 +1008,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                                     fit: BoxFit.scaleDown,
                                     alignment: Alignment.centerLeft,
                                     child: CountInLabel(
-                                        tick: tick!, height: box.height),
+                                      tick: tick!,
+                                      height: box.height,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -953,12 +1042,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       gestures: {
         _PinchOnlyScaleRecognizer:
             GestureRecognizerFactoryWithHandlers<_PinchOnlyScaleRecognizer>(
-          () => _PinchOnlyScaleRecognizer(debugOwner: this),
-          (r) => r
-            ..onStart = _onScaleStart
-            ..onUpdate = _onScaleUpdate
-            ..onEnd = _onScaleEnd,
-        ),
+              () => _PinchOnlyScaleRecognizer(debugOwner: this),
+              (r) => r
+                ..onStart = _onScaleStart
+                ..onUpdate = _onScaleUpdate
+                ..onEnd = _onScaleEnd,
+            ),
       },
       child: child,
     );
@@ -1030,7 +1119,8 @@ class _UnderlayPainter extends CustomPainter {
         : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
     if (lastIdx < r.startMeasureIndex) return const [];
 
-    final byLine = <int, ({double left, double right, double top, double bottom})>{};
+    final byLine =
+        <int, ({double left, double right, double top, double bottom})>{};
     for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
       final m = score.measureAt(i);
       final band = score.bandForMeasure(i);
@@ -1059,12 +1149,16 @@ class _UnderlayPainter extends CustomPainter {
     }
     return [
       for (final s in byLine.values)
-        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom))
+        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom)),
     ];
   }
 
-  Rect _scaled(Rect r) =>
-      Rect.fromLTRB(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale);
+  Rect _scaled(Rect r) => Rect.fromLTRB(
+    r.left * scale,
+    r.top * scale,
+    r.right * scale,
+    r.bottom * scale,
+  );
 
   static Color _parseHex(String hex) {
     final v = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0x888888;
@@ -1081,19 +1175,126 @@ class _UnderlayPainter extends CustomPainter {
 /// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
 /// per fingering label, every chip on a system at the same height.
 ///
+/// The room the tightest system offers for the annotation stack, in screen px:
+/// from the previous system's ink down to that system's own annotation register.
+///
+/// Score-wide MINIMUM, deliberately, because [annotationStackFor] has to give one
+/// answer for every system — see there for why uniformity matters more here than
+/// letting each system use what it happens to have.
+/// The room the annotation stack has, in staff spaces, split by what Verovio
+/// charges for it: system 0's comes out of `pageMarginTop`, everything else out
+/// of `spacingSystem`. `infinity` means "no system of that kind draws anything",
+/// which asks for no reserve rather than an infinite one.
+///
+/// Staff spaces, not px, because the caller compares this against a probe engrave
+/// at a different scale — see [annotationReserveFor].
+({double first, double inter}) annotationRoomOf(EngravedScore score) {
+  var first = double.infinity;
+  var inter = double.infinity;
+  final space = score.staffSpaceViewBox;
+  if (space <= 0) return (first: first, inter: inter);
+  for (var l = 0; l < score.lineCount; l++) {
+    // The same register [_annotationBudget] sizes the stack against, so the
+    // reserve is priced for the thing it actually has to make fit.
+    final register = score.fingRegister(l) ?? score.harmRegister(l);
+    if (register == null) continue;
+    final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+    final room = (register - prev) / space;
+    if (l == 0) {
+      if (room < first) first = room;
+    } else if (room < inter) {
+      inter = room;
+    }
+  }
+  return (first: first, inter: inter);
+}
+
+/// What the stack wants when nothing is in the way, in staff spaces — the target
+/// [annotationReserveFor] measures the shortfall against.
+///
+/// Scale-invariant, so it can be read off the probe: every term in
+/// [annotationStackFor] is a fraction of `staffSpacePx`, so dividing back out by
+/// it cancels the scale.
+double annotationWantSpaces(EngravedScore score, double scale) {
+  final space = score.staffSpaceViewBox * scale;
+  if (space <= 0) return 0;
+  final full = annotationStackFor(
+    budgetPx: double.infinity,
+    staffSpacePx: space,
+    labelShare: chordLabelSizeFraction,
+    typeShare: underlineTextFraction,
+    withChordBar: score.harmAnchors.isNotEmpty,
+    withFingeringRow: score.fingAnchors.isNotEmpty,
+  );
+  return (full.barHeight + full.channelHeight + full.gap) / space;
+}
+
+double _annotationBudget(EngravedScore score, double scale) {
+  var budget = double.infinity;
+  for (var l = 0; l < score.lineCount; l++) {
+    final register = score.fingRegister(l) ?? score.harmRegister(l);
+    if (register == null) continue;
+    final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+    final room = (register - prev) * scale;
+    if (room < budget) budget = room;
+  }
+  return budget.isFinite ? budget : 0;
+}
+
+/// The annotation stack for [score] — one chord-bar height and one fingering
+/// channel height, used on every system. See [annotationStackFor].
+({double barHeight, double channelHeight, double gap}) annotationStackOf(
+  EngravedScore score,
+  double scale,
+) => annotationStackFor(
+  budgetPx: _annotationBudget(score, scale),
+  staffSpacePx: score.staffSpaceViewBox * scale,
+  labelShare: chordLabelSizeFraction,
+  typeShare: underlineTextFraction,
+  // Only the rows this score will actually draw get to claim room. Verovio
+  // engraved no `<harm>` ⇒ `harmRegister` is null on every system ⇒ no bar is
+  // ever painted, and the same for the channel in the tab view.
+  withChordBar: score.harmAnchors.isNotEmpty,
+  withFingeringRow: score.fingAnchors.isNotEmpty,
+);
+
+/// The fingering channel on system [line], in screen px — or null when that
+/// system carries no engraved fingering.
+///
+/// Top-level because BOTH lane painters need it: the chord bar sits directly on
+/// top of this, so it has to know where the row ends. That relationship used to
+/// be structural — the old lane slots tiled, so slot 1's floor WAS slot 0's
+/// ceiling — and registers don't tile, so it has to be stated.
+///
+/// The bottom edge is [EngravedScore.fingRegister], the topmost baseline Verovio
+/// chose on that system, so the row clears every notehead on it. The height is
+/// the score-wide one, so the row is the same thickness on every system.
+Rect? fingeringChannelOn(
+  EngravedScore score,
+  int line,
+  double scale,
+  double width,
+) {
+  final register = score.fingRegister(line);
+  if (register == null) return null;
+  final h = annotationStackOf(score, scale).channelHeight;
+  if (h <= 0) return null;
+  final bottom = register * scale;
+  return Rect.fromLTRB(0, bottom - h, width, bottom);
+}
+
 /// The flat level is the entire point. These labels used to be engraved by
 /// Verovio as `<fing>` elements, which places each one above its own notehead —
 /// so the fingering rose and fell with the melody and had to be read as a
-/// contour rather than scanned as a row. A lane can't do that: the band comes
-/// from [EngravedScore.fingeringLaneBand], which is a property of the SYSTEM, so
-/// every chip on a line shares a y by construction.
+/// contour rather than scanned as a row. Drawing on
+/// [EngravedScore.fingRegister] — the topmost baseline Verovio chose on that
+/// system — keeps the row flat while still clearing every notehead on it.
 ///
-/// The second thing it fixes is the collision. Engraved fingerings sat inside
-/// each `<g class="measure">`, so they inflated the measure bbox that
-/// [EngravedScore.annotationLaneHeight] measures its whitespace from — the taller
-/// the fingerings, the thinner the chord lane, until `chordLaneBand` returned
-/// null and the chord bars silently vanished. Nothing is engraved above the staff
-/// now, so both lanes draw into space that was reserved for them.
+/// The fingerings ARE engraved again, but their ink is cut back out
+/// ([VerovioEngraver.stripAnnotationGlyphs]); they exist only so Verovio reserves
+/// the row and reports where it put it. That inflates each measure's bbox, which
+/// is what used to squeeze the old whitespace-derived lane to nothing — here it is
+/// the mechanism rather than the bug.
 ///
 /// The chip's FILL is the string (see [ViolinStringPalette]) and its text is the
 /// finger, which is why the G/D/A/E letter can be dropped from the label — but
@@ -1159,19 +1360,20 @@ class _FingeringLanePainter extends CustomPainter {
       (byLine[line] ??= []).add((cx: note.rect.center.dx, a: a));
     }
 
-    if (style == StringColourStyle.underline) _paintStringRuns(canvas);
+    if (style == StringColourStyle.underline) {
+      _paintStringRuns(canvas, size.width);
+    }
 
     for (final entry in byLine.entries) {
-      final band = score.fingeringLaneBand(entry.key);
-      if (band == null) continue; // no channel reserved — skip, don't clash
-      final channel =
-          Rect.fromLTRB(0, band.top * scale, size.width, band.bottom * scale);
+      final channel = _channelFor(entry.key, size.width);
+      if (channel == null)
+        continue; // nothing engraved here — skip, don't clash
       final items = entry.value..sort((p, q) => p.cx.compareTo(q.cx));
       if (style == StringColourStyle.underline) {
         _paintNumbers(canvas, items, channel);
       } else {
         // The grey strip is the chips' background, so it takes the chips' own
-        // band — sized from the type (see [_paintChips]), not from [_chipZone].
+        // band — sized from the type (see [_paintChips]), not the whole channel.
         // A strip shorter than the chips on it reads as a misalignment.
         _paintChannel(canvas, _chipBand(channel));
         _paintChips(canvas, items, channel);
@@ -1179,26 +1381,10 @@ class _FingeringLanePainter extends CustomPainter {
     }
   }
 
-  /// The slice of the channel the chip styles draw in: the bottom
-  /// [EngravedScore.fingeringChipZoneFraction] of it, which is the whole channel as
-  /// it was before the underline stagger asked for more height.
-  ///
-  /// Anchored at the FLOOR because that edge is the one fixed relative to the
-  /// notes (the channel grew upwards, into the chord lane's old clearance). So the
-  /// chips sit exactly where they did, and switching styles doesn't shuffle the
-  /// lane.
-  Rect _chipZone(Rect channel) => Rect.fromLTRB(
-        channel.left,
-        channel.bottom -
-            channel.height *
-                (EngravedScore.fingeringChipZoneFraction /
-                    EngravedScore.fingeringLaneHeightFraction),
-        channel.right,
-        channel.bottom,
-      );
+  Rect? _channelFor(int line, double width) =>
+      fingeringChannelOn(score, line, scale, width);
 
-  /// The channel itself (the chip zone of it — see [_chipZone]), spanning the full
-  /// render width.
+  /// The chips' own band (see [_chipBand]), spanning the full render width.
   ///
   /// Full width rather than the system's ink extent: the channel reads as a
   /// staff-wide register you scan along, and a strip that stopped at the last
@@ -1227,7 +1413,7 @@ class _FingeringLanePainter extends CustomPainter {
   /// Drawn from [stringRuns] rather than from [annotations], so it spans notes
   /// whose number the density filter dropped — the rule answers "which string am
   /// I on?" continuously, which is most of its value at the lower densities.
-  void _paintStringRuns(Canvas canvas) {
+  void _paintStringRuns(Canvas canvas, double width) {
     for (final run in stringRuns) {
       final colour = ViolinStringPalette.rule(run.string);
       for (final e in runRowExtents(
@@ -1238,12 +1424,14 @@ class _FingeringLanePainter extends CustomPainter {
         endNote: run.endNote,
         clipStartToNote: true,
       )) {
-        final band = score.fingeringLaneBand(e.line);
-        if (band == null) continue;
-        final channelH = (band.bottom - band.top) * scale;
+        // The same channel the numbers use, so the rule and the digits above it
+        // cannot disagree about where the register is.
+        final channel = _channelFor(e.line, width);
+        if (channel == null) continue;
+        final channelH = channel.height;
         final h = channelH * underlineRuleFraction;
         if (h <= 0) continue;
-        final bottom = band.bottom * scale - _lift(run.string, channelH);
+        final bottom = channel.bottom - _lift(run.string, channelH);
         // A hairline off each end, so two runs that meet at a string change read
         // as two rules rather than one that changes colour mid-stroke.
         final rect = Rect.fromLTRB(
@@ -1306,7 +1494,8 @@ class _FingeringLanePainter extends CustomPainter {
     if (textH <= 0) return;
     // The digits sit in the space above the rule, bottom-aligned to it so the
     // number and its colour read as one mark.
-    final floor = channel.bottom -
+    final floor =
+        channel.bottom -
         channel.height * (underlineRuleFraction + underlineRuleGapFraction);
     final gap = textH * _chipGapFraction;
 
@@ -1336,16 +1525,16 @@ class _FingeringLanePainter extends CustomPainter {
   }
 
   /// The type size for chips in [channel] (the WHOLE fingering channel, not
-  /// [_chipZone]): what the staff asks for, capped by what the lane can host.
+  /// what the staff asks for, capped by what the channel can host.
   ///
   /// The cap cuts both ways — it keeps a tall channel (a wide-ranging melody, or
   /// a generous staff spacing) from inflating the chips past "slightly larger
   /// than a notehead", and a short one from letting them spill onto the staff.
   double _fontSizeIn(Rect channel) => annotationFontSizeIn(
-        staffSpacePx: score.staffSpaceViewBox * scale,
-        laneHeightPx: channel.height,
-        laneTypeShare: _chipChannelFraction * _chipTypeFraction,
-      );
+    staffSpacePx: score.staffSpaceViewBox * scale,
+    laneHeightPx: channel.height,
+    laneTypeShare: _chipChannelFraction * _chipTypeFraction,
+  );
 
   /// The band the chips occupy: sized from the type, and bottom-anchored on the
   /// chip zone's floor — the edge that is fixed relative to the notes — so taller
@@ -1355,11 +1544,13 @@ class _FingeringLanePainter extends CustomPainter {
       _fontSizeIn(channel) / _chipTypeFraction,
       channel.height * _chipChannelFraction,
     );
-    final bottom = _chipZone(channel).bottom;
+    // The channel floor IS the register Verovio engraved, so the chips sit on
+    // the line it chose and grow upward from it.
+    final bottom = channel.bottom;
     return Rect.fromLTRB(channel.left, bottom - chipH, channel.right, bottom);
   }
 
-  /// [channel] is the WHOLE fingering channel (not [_chipZone]): the chips are
+  /// [channel] is the WHOLE fingering channel: the chips are
   /// sized from the staff and may use any of it, up to [_chipChannelFraction].
   void _paintChips(
     Canvas canvas,
@@ -1445,8 +1636,8 @@ class _FingeringLanePainter extends CustomPainter {
 /// Horizontal geometry mirrors [_UnderlayPainter._regionRowRects] — measures
 /// unioned within a system line, note-level start/end edges, one segment per line
 /// so a run that wraps splits cleanly. The vertical extent comes from
-/// [EngravedScore.chordLaneBand] instead of the tiled system band, since the lane
-/// must land in the whitespace above the ink rather than over it.
+/// [EngravedScore.harmRegister] — the baseline Verovio engraved its own chord
+/// symbols at — so the bar lands exactly in the room reserved for it.
 class _ChordLanePainter extends CustomPainter {
   _ChordLanePainter({
     required this.score,
@@ -1462,27 +1653,12 @@ class _ChordLanePainter extends CustomPainter {
   /// rather than one continuous ribbon (their measure edges touch exactly).
   static const _gap = 1.0;
 
-  /// Clearance left under the pill, as a fraction of its own band height.
-  ///
-  /// The lane slots tile — slot 1's floor IS slot 0's ceiling — and the fingering
-  /// channel below uses its full height at the top of the string stagger: measured
-  /// on a 14.4px lane, the E-string number's top landed 0.01px under the pill, i.e.
-  /// touching. The pill gives up the space rather than the numbers, because the
-  /// numbers are the thing being read; nothing else needs the bottom of this band
-  /// (the count-in measures from `chordLaneBand` directly and is unaffected), and
-  /// there is nowhere else to take it from — a pad BETWEEN slots would raise what
-  /// the lanes ask for past what the engrave reserved, pushing `laneSqueeze` under
-  /// 1 and shrinking every label to buy the gap.
-  ///
-  /// The pill's own label scales with its height, so this costs the chord text the
-  /// same 12%. It has it to spare; the digits below did not.
-  static const _footClearanceFraction = 0.12;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (runs.isEmpty) return;
     for (final run in runs) {
-      for (final seg in _runRowRects(run)) {
+      for (final seg in _runRowRects(run, size.width)) {
         _paintSegment(canvas, seg, run);
       }
     }
@@ -1513,8 +1689,7 @@ class _ChordLanePainter extends CustomPainter {
     // (a short mid-measure run), where the color alone carries the identity.
     final inset = r.height * chordLabelInsetFraction;
     final tp = TextPainter(
-      text: TextSpan(
-          text: run.label, style: chordLabelStyle(r.height, fill)),
+      text: TextSpan(text: run.label, style: chordLabelStyle(r.height, fill)),
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout();
@@ -1522,8 +1697,41 @@ class _ChordLanePainter extends CustomPainter {
     tp.paint(canvas, Offset(r.left + inset, r.center.dy - tp.height / 2));
   }
 
+  /// The vertical extent of the bar on system [line]: it sits ON the register
+  /// Verovio engraved its chord symbols at, and is as tall as the label needs.
+  ///
+  /// [EngravedScore.harmRegister] is a true register — Verovio gives every chord
+  /// symbol on a system the same baseline — so unlike the fingering channel there
+  /// is nothing to reconcile here. The bar's height follows from the label:
+  /// [chordLabelStyle] takes [chordLabelSizeFraction] of it for type, so the bar
+  /// is `annotationFontSizeFor / chordLabelSizeFraction` tall and the chord name
+  /// comes out at the same size as a fingering digit.
+  ///
+  /// A foot clearance is kept, still shortening from the BOTTOM only, so the
+  /// fingering row below has somewhere to come up to.
+  ({double top, double bottom})? _barFor(int line, double width) {
+    final stack = annotationStackOf(score, scale);
+    if (stack.barHeight <= 0) return null;
+    // The bar sits directly on the fingering row where there is one, so the two
+    // read as a stack rather than as two independently placed things; otherwise
+    // it hangs off its own register.
+    final channel = fingeringChannelOn(score, line, scale, width);
+    final double bottom;
+    if (channel != null) {
+      bottom = channel.top - stack.gap;
+    } else {
+      // chordRegister, not harmRegister: a chord run carrying across a system
+      // break leaves the continuation system with no engraved symbol, and the bar
+      // has to be drawn anyway. See EngravedScore.chordRegister.
+      final register = score.chordRegister(line);
+      if (register == null) return null;
+      bottom = register * scale - stack.gap;
+    }
+    return (top: bottom - stack.barHeight, bottom: bottom);
+  }
+
   /// One segment per system line the run touches, in line order.
-  List<_LaneSegment> _runRowRects(ChordRunRegion r) {
+  List<_LaneSegment> _runRowRects(ChordRunRegion r, double width) {
     final out = <_LaneSegment>[];
     for (final e in runRowExtents(
       score,
@@ -1532,22 +1740,20 @@ class _ChordLanePainter extends CustomPainter {
       endMeasureIndex: r.endMeasureIndex,
       endNote: r.endNote,
     )) {
-      final band = score.chordLaneBand(e.line);
-      if (band == null) continue; // no whitespace on this line — skip, don't clash
-      // Shortened from the BOTTOM only: the top edge stays put (there is no room
-      // above — the lane reserve is sized to the lanes), and the clearance appears
-      // exactly where the fingering numbers come up to meet it.
-      final foot = (band.bottom - band.top) * scale * _footClearanceFraction;
-      out.add(_LaneSegment(
-        rect: Rect.fromLTRB(
-          e.left * scale + _gap,
-          band.top * scale,
-          e.right * scale - _gap,
-          band.bottom * scale - foot,
+      final bar = _barFor(e.line, width);
+      if (bar == null) continue; // nothing engraved here — skip, don't clash
+      out.add(
+        _LaneSegment(
+          rect: Rect.fromLTRB(
+            e.left * scale + _gap,
+            bar.top,
+            e.right * scale - _gap,
+            bar.bottom,
+          ),
+          isFirst: e.isFirst,
+          isLast: e.isLast,
         ),
-        isFirst: e.isFirst,
-        isLast: e.isLast,
-      ));
+      );
     }
     return out;
   }
@@ -1579,7 +1785,7 @@ class _ChordLanePainter extends CustomPainter {
 /// the clef and key signature on the first system — reading as a rule that
 /// begins before the music does.
 List<({int line, double left, double right, bool isFirst, bool isLast})>
-    runRowExtents(
+runRowExtents(
   EngravedScore score, {
   required int startMeasureIndex,
   required int startNote,
@@ -1631,7 +1837,7 @@ List<({int line, double left, double right, bool isFirst, bool isLast})>
         right: byLine[line]!.right,
         isFirst: line == lines.first,
         isLast: line == lines.last,
-      )
+      ),
   ];
 }
 
@@ -1641,8 +1847,11 @@ class _LaneSegment {
   final Rect rect;
   final bool isFirst;
   final bool isLast;
-  const _LaneSegment(
-      {required this.rect, required this.isFirst, required this.isLast});
+  const _LaneSegment({
+    required this.rect,
+    required this.isFirst,
+    required this.isLast,
+  });
 }
 
 /// Drawn OVER the notation: selection range, flagged markers, current-note
@@ -1669,15 +1878,20 @@ class _OverlayPainter extends CustomPainter {
   final Color primary;
   final Color flagColor;
 
-  Rect _scaled(Rect r) =>
-      Rect.fromLTRB(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale);
+  Rect _scaled(Rect r) => Rect.fromLTRB(
+    r.left * scale,
+    r.top * scale,
+    r.right * scale,
+    r.bottom * scale,
+  );
 
   int _indexOf(int measureNumber) => measureNumbers.indexOf(measureNumber);
 
   /// Scaled rects covering measure indices [startIdx]..[endIdx], one per system
   /// line: measures unioned horizontally, the line's tiled band as the height.
   List<Rect> _measureBandRects(int startIdx, int endIdx) {
-    final byLine = <int, ({double left, double right, double top, double bottom})>{};
+    final byLine =
+        <int, ({double left, double right, double top, double bottom})>{};
     for (var i = startIdx; i <= endIdx; i++) {
       final m = score.measureAt(i);
       final band = score.bandForMeasure(i);
@@ -1685,7 +1899,12 @@ class _OverlayPainter extends CustomPainter {
       final line = score.lineOfMeasure(i);
       final cur = byLine[line];
       byLine[line] = cur == null
-          ? (left: m.rect.left, right: m.rect.right, top: band.top, bottom: band.bottom)
+          ? (
+              left: m.rect.left,
+              right: m.rect.right,
+              top: band.top,
+              bottom: band.bottom,
+            )
           : (
               left: m.rect.left < cur.left ? m.rect.left : cur.left,
               right: m.rect.right > cur.right ? m.rect.right : cur.right,
@@ -1695,7 +1914,7 @@ class _OverlayPainter extends CustomPainter {
     }
     return [
       for (final s in byLine.values)
-        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom))
+        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom)),
     ];
   }
 
@@ -1767,8 +1986,11 @@ class _OverlayPainter extends CustomPainter {
       ..close();
     canvas.drawPath(path, Paint()..color = flagColor.withValues(alpha: 0.9));
     // Exclamation dot.
-    canvas.drawCircle(Offset(x + s / 2, y + s - s * 0.22), s * 0.09,
-        Paint()..color = Colors.white);
+    canvas.drawCircle(
+      Offset(x + s / 2, y + s - s * 0.22),
+      s * 0.09,
+      Paint()..color = Colors.white,
+    );
   }
 
   @override
@@ -1778,5 +2000,8 @@ class _OverlayPainter extends CustomPainter {
       old.selection != selection ||
       old.flaggedMeasures != flaggedMeasures ||
       old.measureNumbers != measureNumbers ||
-      old.primary != primary;
+      old.primary != primary ||
+      // flagColor too: a theme change that moves only the error colour would
+      // otherwise leave every flag painted in the old one.
+      old.flagColor != flagColor;
 }

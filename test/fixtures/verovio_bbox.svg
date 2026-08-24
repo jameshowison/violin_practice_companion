@@ -1,0 +1,3113 @@
+<svg viewBox="0 0 789 593" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" overflow="visible" id="b1tophl1">
+   <desc>Engraved by Verovio 6.2.0-43f8060</desc>
+   <defs><!-- glyph outlines stripped for size --></defs>
+   <style type="text/css">#b1tophl1 g.ending, #b1tophl1 g.fing, #b1tophl1 g.reh, #b1tophl1 g.tempo {font-weight:bold;}#b1tophl1 g.dir, #b1tophl1 g.dynam, #b1tophl1 g.mNum {font-style:italic;}#b1tophl1 g.label {font-weight:normal;}#b1tophl1 ellipse, #b1tophl1 path, #b1tophl1 polygon, #b1tophl1 polyline, #b1tophl1 rect {stroke:currentColor}</style>
+   <svg class="definition-scale" color="black" font-family="Times, serif" viewBox="0 0 10370 7800">
+      <g class="page-margin" transform="translate(500, 500)">
+         <g id="lt2mgi5" class="mdiv pageMilestone">
+            <g id="bbox-lt2mgi5" class="mdiv bounding-box" />
+         </g>
+         <g id="m1hyokn5" class="score pageMilestone">
+            <g id="bbox-m1hyokn5" class="score bounding-box" />
+         </g>
+         <g id="d12bo2aq" class="system">
+            <g id="bbox-d12bo2aq" class="system bounding-box" />
+            <g id="b1at2e8j" class="label">
+               <g id="bbox-b1at2e8j" class="label bounding-box" />
+               <text x="1201" y="1225" text-anchor="end" font-size="0px">
+                  <tspan id="c16re0nm" class="text">
+                     <g id="bbox-c16re0nm" class="text bounding-box">
+                        <rect x="180" y="947" height="366" width="1021" fill="transparent" stroke-width="0" />
+                     </g>
+                     <tspan font-size="405px">Violin</tspan>
+                  </tspan>
+               </text>
+            </g>
+            <g id="o4b9pxz" class="section systemMilestone" />
+            <g id="b1fphlbf" class="section systemMilestone" />
+            <g id="d1yn4h3" class="measure">
+               <g id="bbox-d1yn4h3" class="measure bounding-box" />
+               <g id="m16cgppr" class="mNum">
+                  <g id="bbox-m16cgppr" class="mNum bounding-box">
+                     <rect x="1381" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                  </g>
+                  <text x="1381" y="532" text-anchor="middle" font-size="0px" />
+               </g>
+               <g id="naulrmq" class="staff">
+                  <g id="bbox-naulrmq" class="staff bounding-box">
+                     <rect x="1374" y="769" height="733" width="2224" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M1381 775 L3592 775" stroke-width="13" />
+                  <path d="M1381 955 L3592 955" stroke-width="13" />
+                  <path d="M1381 1135 L3592 1135" stroke-width="13" />
+                  <path d="M1381 1315 L3592 1315" stroke-width="13" />
+                  <path d="M1381 1495 L3592 1495" stroke-width="13" />
+                  <g id="j1ms8whr" class="clef">
+                     <g id="bbox-j1ms8whr" class="clef bounding-box">
+                        <rect x="1471" y="535" height="1251" width="465" fill="transparent" stroke-width="0" />
+                     </g>
+                     <use xlink:href="#E050-b1tophl1" transform="translate(1471, 1315) scale(0.72, 0.72)" />
+                  </g>
+                  <g id="kqdrvht" class="keySig">
+                     <g id="bbox-kqdrvht" class="keySig bounding-box">
+                        <rect x="2116" y="520" height="769" width="319" fill="transparent" stroke-width="0" />
+                     </g>
+                     <g id="l16d5aa7" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(2116, 775) scale(0.72, 0.72)" />
+                     </g>
+                     <g id="m27kjkl" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(2294, 1045) scale(0.72, 0.72)" />
+                     </g>
+                  </g>
+                  <g id="nwmwu2t" class="meterSig">
+                     <g id="bbox-nwmwu2t" class="meterSig bounding-box">
+                        <rect x="2615" y="775" height="720" width="278" fill="transparent" stroke-width="0" />
+                     </g>
+                     <use xlink:href="#E084-b1tophl1" transform="translate(2601, 955) scale(0.72, 0.72)" />
+                     <use xlink:href="#E084-b1tophl1" transform="translate(2601, 1315) scale(0.72, 0.72)" />
+                  </g>
+                  <g id="qdj2ueu" class="layer">
+                     <g id="bbox-qdj2ueu" class="layer bounding-box" />
+                     <g id="r11dnhep" class="note">
+                        <g id="bbox-r11dnhep" class="note bounding-box">
+                           <rect x="3320" y="1129" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(3320, 1225) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="z1ywb698" class="stem">
+                           <g id="bbox-z1ywb698" class="stem bounding-box">
+                              <rect x="3528" y="586" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M3537 1197 L3537 595" stroke-width="18" />
+                        </g>
+                        <g id="s1gz46pg" class="accid">
+                           <g id="bbox-s1gz46pg" class="accid bounding-box">
+                              <rect x="3320" y="1225" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="ox6ezjt" class="harm">
+                  <g id="bbox-ox6ezjt" class="harm bounding-box" />
+                  <text x="3320" y="273" font-size="0px">
+                     <tspan id="pk2dtp8" class="text">
+                        <g id="bbox-pk2dtp8" class="text bounding-box">
+                           <rect x="3320" y="0" height="361" width="280" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="3320" y="273">A</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="t1k6injx" class="fing">
+                  <g id="bbox-t1k6injx" class="fing bounding-box" />
+                  <text x="3433" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="u1msg082" class="text">
+                        <g id="bbox-u1msg082" class="text bounding-box">
+                           <rect x="3357" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="kmo3zcq" class="barLine">
+                  <g id="bbox-kmo3zcq" class="barLine bounding-box">
+                     <rect x="3073" y="730" height="810" width="293" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M3118 775 L3118 1495" stroke-width="90" />
+                  <path d="M3248 775 L3248 1495" stroke-width="27" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(3294, 1045) scale(0.72, 0.72)" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(3294, 1225) scale(0.72, 0.72)" />
+               </g>
+               <g id="l1u42vf4" class="barLine">
+                  <g id="bbox-l1u42vf4" class="barLine bounding-box">
+                     <rect x="3565" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M3579 775 L3579 1495" stroke-width="27" />
+               </g>
+            </g>
+            <g id="vyf6gvz" class="measure">
+               <g id="bbox-vyf6gvz" class="measure bounding-box" />
+               <g id="e21ms0r" class="staff">
+                  <g id="bbox-e21ms0r" class="staff bounding-box">
+                     <rect x="3585" y="769" height="733" width="1228" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M3592 775 L4807 775" stroke-width="13" />
+                  <path d="M3592 955 L4807 955" stroke-width="13" />
+                  <path d="M3592 1135 L4807 1135" stroke-width="13" />
+                  <path d="M3592 1315 L4807 1315" stroke-width="13" />
+                  <path d="M3592 1495 L4807 1495" stroke-width="13" />
+                  <g id="f1ee5poy" class="layer">
+                     <g id="bbox-f1ee5poy" class="layer bounding-box" />
+                     <g id="g5srrfp" class="note">
+                        <g id="bbox-g5srrfp" class="note bounding-box">
+                           <rect x="3677" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(3677, 865) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="a3x90ui" class="stem">
+                           <g id="bbox-a3x90ui" class="stem bounding-box">
+                              <rect x="3677" y="884" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M3686 893 L3686 1495" stroke-width="18" />
+                        </g>
+                        <g id="h1k4pe60" class="accid">
+                           <g id="bbox-h1k4pe60" class="accid bounding-box">
+                              <rect x="3677" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="kjgutpn" class="beam">
+                        <g id="bbox-kjgutpn" class="beam bounding-box">
+                           <rect x="3937" y="1405" height="135" width="187" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="3937,1540 4124,1495 4124,1405 3937,1450" />
+                        <g id="l14orl77" class="note">
+                           <g id="bbox-l14orl77" class="note bounding-box">
+                              <rect x="3937" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(3937, 865) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="b1yp8r22" class="stem">
+                              <g id="bbox-b1yp8r22" class="stem bounding-box">
+                                 <rect x="3937" y="884" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M3946 893 L3946 1522" stroke-width="18" />
+                           </g>
+                           <g id="m1gzr86m" class="accid">
+                              <g id="bbox-m1gzr86m" class="accid bounding-box">
+                                 <rect x="3937" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="p32g4kz" class="note">
+                           <g id="bbox-p32g4kz" class="note bounding-box">
+                              <rect x="4106" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4106, 775) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="ctzilfk" class="stem">
+                              <g id="bbox-ctzilfk" class="stem bounding-box">
+                                 <rect x="4106" y="794" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4115 803 L4115 1477" stroke-width="18" />
+                           </g>
+                           <g id="qxn0nnr" class="accid">
+                              <g id="bbox-qxn0nnr" class="accid bounding-box">
+                                 <rect x="4106" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="t1e5kybm" class="note">
+                        <g id="bbox-t1e5kybm" class="note bounding-box">
+                           <rect x="4275" y="589" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(4275, 685) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="d196na2b" class="stem">
+                           <g id="bbox-d196na2b" class="stem bounding-box">
+                              <rect x="4275" y="704" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M4284 713 L4284 1315" stroke-width="18" />
+                        </g>
+                        <g id="u1j4447w" class="accid">
+                           <g id="bbox-u1j4447w" class="accid bounding-box">
+                              <rect x="4275" y="685" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="x12ziscg" class="note">
+                        <g id="bbox-x12ziscg" class="note bounding-box">
+                           <rect x="4534" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(4534, 775) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="ew1shkv" class="stem">
+                           <g id="bbox-ew1shkv" class="stem bounding-box">
+                              <rect x="4534" y="794" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M4543 803 L4543 1405" stroke-width="18" />
+                        </g>
+                        <g id="yru6jrl" class="accid">
+                           <g id="bbox-yru6jrl" class="accid bounding-box">
+                              <rect x="4534" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="ijh2jh8" class="fing">
+                  <g id="bbox-ijh2jh8" class="fing bounding-box" />
+                  <text x="3790" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="j1xc096o" class="text">
+                        <g id="bbox-j1xc096o" class="text bounding-box">
+                           <rect x="3714" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="n8qcu0p" class="fing">
+                  <g id="bbox-n8qcu0p" class="fing bounding-box" />
+                  <text x="4050" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="ora7fh" class="text">
+                        <g id="bbox-ora7fh" class="text bounding-box">
+                           <rect x="3974" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="r1mv7t4b" class="fing">
+                  <g id="bbox-r1mv7t4b" class="fing bounding-box" />
+                  <text x="4219" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="s11265fp" class="text">
+                        <g id="bbox-s11265fp" class="text bounding-box">
+                           <rect x="4143" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="vmx14xq" class="fing">
+                  <g id="bbox-vmx14xq" class="fing bounding-box" />
+                  <text x="4388" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="w1g48s8n" class="text">
+                        <g id="bbox-w1g48s8n" class="text bounding-box">
+                           <rect x="4312" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="z1vzqpa7" class="fing">
+                  <g id="bbox-z1vzqpa7" class="fing bounding-box" />
+                  <text x="4647" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="adn4d1x" class="text">
+                        <g id="bbox-adn4d1x" class="text bounding-box">
+                           <rect x="4571" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="d1mptda8" class="barLine">
+                  <g id="bbox-d1mptda8" class="barLine bounding-box">
+                     <rect x="4780" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4794 775 L4794 1495" stroke-width="27" />
+               </g>
+            </g>
+            <g id="b1amj5xc" class="measure">
+               <g id="bbox-b1amj5xc" class="measure bounding-box" />
+               <g id="kvtb5a9" class="staff">
+                  <g id="bbox-kvtb5a9" class="staff bounding-box">
+                     <rect x="4800" y="769" height="733" width="1288" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4807 775 L6082 775" stroke-width="13" />
+                  <path d="M4807 955 L6082 955" stroke-width="13" />
+                  <path d="M4807 1135 L6082 1135" stroke-width="13" />
+                  <path d="M4807 1315 L6082 1315" stroke-width="13" />
+                  <path d="M4807 1495 L6082 1495" stroke-width="13" />
+                  <g id="lstrjsk" class="layer">
+                     <g id="bbox-lstrjsk" class="layer bounding-box" />
+                     <g id="m1a083xs" class="beam">
+                        <g id="bbox-m1a083xs" class="beam bounding-box">
+                           <rect x="4892" y="1495" height="135" width="526" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="4892,1585 5418,1630 5418,1540 4892,1495" />
+                        <g id="n1mj1f2p" class="note">
+                           <g id="bbox-n1mj1f2p" class="note bounding-box">
+                              <rect x="4892" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4892, 865) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="fe78er" class="stem">
+                              <g id="bbox-fe78er" class="stem bounding-box">
+                                 <rect x="4892" y="884" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4901 893 L4901 1567" stroke-width="18" />
+                           </g>
+                           <g id="o12l6ksc" class="accid">
+                              <g id="bbox-o12l6ksc" class="accid bounding-box">
+                                 <rect x="4892" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="rr6o6pt" class="note">
+                           <g id="bbox-rr6o6pt" class="note bounding-box">
+                              <rect x="5061" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5061, 775) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="gznmfv" class="stem">
+                              <g id="bbox-gznmfv" class="stem bounding-box">
+                                 <rect x="5061" y="794" height="797" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5070 803 L5070 1582" stroke-width="18" />
+                           </g>
+                           <g id="s189rlhl" class="accid">
+                              <g id="bbox-s189rlhl" class="accid bounding-box">
+                                 <rect x="5061" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="v12ofjy7" class="note">
+                           <g id="bbox-v12ofjy7" class="note bounding-box">
+                              <rect x="5231" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5231, 865) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="hprct7u" class="stem">
+                              <g id="bbox-hprct7u" class="stem bounding-box">
+                                 <rect x="5231" y="884" height="723" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5240 893 L5240 1598" stroke-width="18" />
+                           </g>
+                           <g id="w1pksn2g" class="accid">
+                              <g id="bbox-w1pksn2g" class="accid bounding-box">
+                                 <rect x="5231" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="zxgick6" class="note">
+                           <g id="bbox-zxgick6" class="note bounding-box">
+                              <rect x="5400" y="859" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5400, 955) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="i1vo04z" class="stem">
+                              <g id="bbox-i1vo04z" class="stem bounding-box">
+                                 <rect x="5400" y="974" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5409 983 L5409 1612" stroke-width="18" />
+                           </g>
+                           <g id="a1mb4vc4" class="accid">
+                              <g id="bbox-a1mb4vc4" class="accid bounding-box">
+                                 <rect x="5400" y="955" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="d136e4cc" class="note">
+                        <g id="bbox-d136e4cc" class="note bounding-box">
+                           <rect x="5569" y="949" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(5569, 1045) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="k11ukky8" class="dots">
+                           <g id="bbox-k11ukky8" class="dots bounding-box">
+                              <rect x="5849" y="1009" height="72" width="72" fill="transparent" stroke-width="0" />
+                           </g>
+                           <ellipse cx="5885" cy="1045" rx="36" ry="36" />
+                        </g>
+                        <g id="j1tsbkgv" class="stem">
+                           <g id="bbox-j1tsbkgv" class="stem bounding-box">
+                              <rect x="5569" y="1064" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M5578 1073 L5578 1675" stroke-width="18" />
+                        </g>
+                        <g id="e1bz4o5l" class="accid">
+                           <g id="bbox-e1bz4o5l" class="accid bounding-box">
+                              <rect x="5569" y="1045" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="hm0y8ej" class="note">
+                        <g id="bbox-hm0y8ej" class="note bounding-box">
+                           <rect x="5900" y="949" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(5900, 1045) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="lor4zfl" class="stem">
+                           <g id="bbox-lor4zfl" class="stem bounding-box">
+                              <rect x="5900" y="1064" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M5909 1073 L5909 1675" stroke-width="18" />
+                           <g id="m5u1xef" class="flag">
+                              <g id="bbox-m5u1xef" class="flag bounding-box">
+                                 <rect x="5900" y="1176" height="499" width="198" fill="transparent" stroke-width="0" />
+                              </g>
+                              <use xlink:href="#E241-b1tophl1" transform="translate(5900, 1675) scale(0.72, 0.72)" />
+                           </g>
+                        </g>
+                        <g id="ilh7wh5" class="accid">
+                           <g id="bbox-ilh7wh5" class="accid bounding-box">
+                              <rect x="5900" y="1045" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="p16rv2c4" class="fing">
+                  <g id="bbox-p16rv2c4" class="fing bounding-box" />
+                  <text x="5005" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="q1e5qjjm" class="text">
+                        <g id="bbox-q1e5qjjm" class="text bounding-box">
+                           <rect x="4929" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="t41wstq" class="fing">
+                  <g id="bbox-t41wstq" class="fing bounding-box" />
+                  <text x="5174" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="u6cxwg" class="text">
+                        <g id="bbox-u6cxwg" class="text bounding-box">
+                           <rect x="5098" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="xybgkh" class="fing">
+                  <g id="bbox-xybgkh" class="fing bounding-box" />
+                  <text x="5344" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="ypu6tif" class="text">
+                        <g id="bbox-ypu6tif" class="text bounding-box">
+                           <rect x="5268" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b99w3dz" class="fing">
+                  <g id="bbox-b99w3dz" class="fing bounding-box" />
+                  <text x="5513" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="c15e8ocs" class="text">
+                        <g id="bbox-c15e8ocs" class="text bounding-box">
+                           <rect x="5437" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="f1gly99w" class="fing">
+                  <g id="bbox-f1gly99w" class="fing bounding-box" />
+                  <text x="5682" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="g12554rf" class="text">
+                        <g id="bbox-g12554rf" class="text bounding-box">
+                           <rect x="5606" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="jt3enmk" class="fing">
+                  <g id="bbox-jt3enmk" class="fing bounding-box" />
+                  <text x="6013" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="k1y76jdk" class="text">
+                        <g id="bbox-k1y76jdk" class="text bounding-box">
+                           <rect x="5937" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="j1vficb8" class="barLine">
+                  <g id="bbox-j1vficb8" class="barLine bounding-box">
+                     <rect x="6055" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6069 775 L6069 1495" stroke-width="27" />
+               </g>
+            </g>
+            <g id="ljhdw3s" class="measure">
+               <g id="bbox-ljhdw3s" class="measure bounding-box" />
+               <g id="u7h5eo4" class="staff">
+                  <g id="bbox-u7h5eo4" class="staff bounding-box">
+                     <rect x="6075" y="769" height="733" width="1228" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6082 775 L7297 775" stroke-width="13" />
+                  <path d="M6082 955 L7297 955" stroke-width="13" />
+                  <path d="M6082 1135 L7297 1135" stroke-width="13" />
+                  <path d="M6082 1315 L7297 1315" stroke-width="13" />
+                  <path d="M6082 1495 L7297 1495" stroke-width="13" />
+                  <g id="vypvm88" class="layer">
+                     <g id="bbox-vypvm88" class="layer bounding-box" />
+                     <g id="wsol7hl" class="note">
+                        <g id="bbox-wsol7hl" class="note bounding-box">
+                           <rect x="6167" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(6167, 865) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="n1ou4dx3" class="stem">
+                           <g id="bbox-n1ou4dx3" class="stem bounding-box">
+                              <rect x="6167" y="884" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M6176 893 L6176 1495" stroke-width="18" />
+                        </g>
+                        <g id="x1rhz3ov" class="accid">
+                           <g id="bbox-x1rhz3ov" class="accid bounding-box">
+                              <rect x="6167" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="a154wxek" class="beam">
+                        <g id="bbox-a154wxek" class="beam bounding-box">
+                           <rect x="6427" y="1405" height="135" width="187" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="6427,1540 6614,1495 6614,1405 6427,1450" />
+                        <g id="bym1l4r" class="note">
+                           <g id="bbox-bym1l4r" class="note bounding-box">
+                              <rect x="6427" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6427, 865) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="ohl8pk7" class="stem">
+                              <g id="bbox-ohl8pk7" class="stem bounding-box">
+                                 <rect x="6427" y="884" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6436 893 L6436 1522" stroke-width="18" />
+                           </g>
+                           <g id="cjb7o44" class="accid">
+                              <g id="bbox-cjb7o44" class="accid bounding-box">
+                                 <rect x="6427" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="f1i41tlb" class="note">
+                           <g id="bbox-f1i41tlb" class="note bounding-box">
+                              <rect x="6596" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6596, 775) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="plitn97" class="stem">
+                              <g id="bbox-plitn97" class="stem bounding-box">
+                                 <rect x="6596" y="794" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6605 803 L6605 1477" stroke-width="18" />
+                           </g>
+                           <g id="gxkvntc" class="accid">
+                              <g id="bbox-gxkvntc" class="accid bounding-box">
+                                 <rect x="6596" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="j1t5esxg" class="note">
+                        <g id="bbox-j1t5esxg" class="note bounding-box">
+                           <rect x="6765" y="589" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(6765, 685) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="q1azauu6" class="stem">
+                           <g id="bbox-q1azauu6" class="stem bounding-box">
+                              <rect x="6765" y="704" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M6774 713 L6774 1315" stroke-width="18" />
+                        </g>
+                        <g id="k15gbfse" class="accid">
+                           <g id="bbox-k15gbfse" class="accid bounding-box">
+                              <rect x="6765" y="685" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="n3dobe4" class="note">
+                        <g id="bbox-n3dobe4" class="note bounding-box">
+                           <rect x="7024" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(7024, 775) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="r9dentg" class="stem">
+                           <g id="bbox-r9dentg" class="stem bounding-box">
+                              <rect x="7024" y="794" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M7033 803 L7033 1405" stroke-width="18" />
+                        </g>
+                        <g id="o1mtc470" class="accid">
+                           <g id="bbox-o1mtc470" class="accid bounding-box">
+                              <rect x="7024" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="y1xxr68k" class="fing">
+                  <g id="bbox-y1xxr68k" class="fing bounding-box" />
+                  <text x="6280" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="z1sln87u" class="text">
+                        <g id="bbox-z1sln87u" class="text bounding-box">
+                           <rect x="6204" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="dkwg0z2" class="fing">
+                  <g id="bbox-dkwg0z2" class="fing bounding-box" />
+                  <text x="6540" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="esc0dld" class="text">
+                        <g id="bbox-esc0dld" class="text bounding-box">
+                           <rect x="6464" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="hx8ia1j" class="fing">
+                  <g id="bbox-hx8ia1j" class="fing bounding-box" />
+                  <text x="6709" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="i1td5ph9" class="text">
+                        <g id="bbox-i1td5ph9" class="text bounding-box">
+                           <rect x="6633" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="lametgz" class="fing">
+                  <g id="bbox-lametgz" class="fing bounding-box" />
+                  <text x="6878" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="m11whdgd" class="text">
+                        <g id="bbox-m11whdgd" class="text bounding-box">
+                           <rect x="6802" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="p1oe4zeb" class="fing">
+                  <g id="bbox-p1oe4zeb" class="fing bounding-box" />
+                  <text x="7137" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="qc70v7b" class="text">
+                        <g id="bbox-qc70v7b" class="text bounding-box">
+                           <rect x="7061" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="t2y39xu" class="barLine">
+                  <g id="bbox-t2y39xu" class="barLine bounding-box">
+                     <rect x="7270" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M7284 775 L7284 1495" stroke-width="27" />
+               </g>
+            </g>
+            <g id="r1cxlbtc" class="measure">
+               <g id="bbox-r1cxlbtc" class="measure bounding-box" />
+               <g id="a1hgtgzp" class="staff">
+                  <g id="bbox-a1hgtgzp" class="staff bounding-box">
+                     <rect x="7290" y="769" height="733" width="874" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M7297 775 L8158 775" stroke-width="13" />
+                  <path d="M7297 955 L8158 955" stroke-width="13" />
+                  <path d="M7297 1135 L8158 1135" stroke-width="13" />
+                  <path d="M7297 1315 L8158 1315" stroke-width="13" />
+                  <path d="M7297 1495 L8158 1495" stroke-width="13" />
+                  <g id="drpje91" class="layer">
+                     <g id="bbox-drpje91" class="layer bounding-box" />
+                     <g id="e1q91hx0" class="note">
+                        <g id="bbox-e1q91hx0" class="note bounding-box">
+                           <rect x="7382" y="766" height="194" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A3-b1tophl1" transform="translate(7382, 865) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="t1mr26ui" class="dots">
+                           <g id="bbox-t1mr26ui" class="dots bounding-box">
+                              <rect x="7662" y="829" height="72" width="72" fill="transparent" stroke-width="0" />
+                           </g>
+                           <ellipse cx="7698" cy="865" rx="36" ry="36" />
+                        </g>
+                        <g id="s15jq7r5" class="stem">
+                           <g id="bbox-s15jq7r5" class="stem bounding-box">
+                              <rect x="7382" y="881" height="623" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M7391 890 L7391 1495" stroke-width="18" />
+                        </g>
+                        <g id="f1hgxma0" class="accid">
+                           <g id="bbox-f1hgxma0" class="accid bounding-box">
+                              <rect x="7382" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="iw4qxw0" class="note">
+                        <g id="bbox-iw4qxw0" class="note bounding-box">
+                           <rect x="7886" y="1129" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(7886, 1225) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="uqvlf4t" class="stem">
+                           <g id="bbox-uqvlf4t" class="stem bounding-box">
+                              <rect x="8094" y="586" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8103 1197 L8103 595" stroke-width="18" />
+                        </g>
+                        <g id="j1s21u6z" class="accid">
+                           <g id="bbox-j1s21u6z" class="accid bounding-box">
+                              <rect x="7886" y="1225" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="bcn1j0r" class="harm">
+                  <g id="bbox-bcn1j0r" class="harm bounding-box" />
+                  <text x="7382" y="273" font-size="0px">
+                     <tspan id="c1096evr" class="text">
+                        <g id="bbox-c1096evr" class="text bounding-box">
+                           <rect x="7382" y="5" height="356" width="248" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="7382" y="273">E</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="g6uwreq" class="fing">
+                  <g id="bbox-g6uwreq" class="fing bounding-box" />
+                  <text x="7495" y="656" text-anchor="middle" font-size="0px">
+                     <tspan id="hj0zfxu" class="text">
+                        <g id="bbox-hj0zfxu" class="text bounding-box">
+                           <rect x="7419" y="451" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="k1kvjp1o" class="fing">
+                  <g id="bbox-k1kvjp1o" class="fing bounding-box" />
+                  <text x="7999" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="lw0bq01" class="text">
+                        <g id="bbox-lw0bq01" class="text bounding-box">
+                           <rect x="7923" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="z19p4lpm" class="barLine">
+                  <g id="bbox-z19p4lpm" class="barLine bounding-box">
+                     <rect x="8131" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8145 775 L8145 1495" stroke-width="27" />
+               </g>
+            </g>
+            <g id="m6xe5fx" class="measure">
+               <g id="bbox-m6xe5fx" class="measure bounding-box" />
+               <g id="v13bm0k7" class="staff">
+                  <g id="bbox-v13bm0k7" class="staff bounding-box">
+                     <rect x="8151" y="769" height="733" width="1228" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8158 775 L9373 775" stroke-width="13" />
+                  <path d="M8158 955 L9373 955" stroke-width="13" />
+                  <path d="M8158 1135 L9373 1135" stroke-width="13" />
+                  <path d="M8158 1315 L9373 1315" stroke-width="13" />
+                  <path d="M8158 1495 L9373 1495" stroke-width="13" />
+                  <g id="y8iyvk0" class="layer">
+                     <g id="bbox-y8iyvk0" class="layer bounding-box" />
+                     <g id="zonhgtt" class="note">
+                        <g id="bbox-zonhgtt" class="note bounding-box">
+                           <rect x="8243" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(8243, 865) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="v6vf2cr" class="stem">
+                           <g id="bbox-v6vf2cr" class="stem bounding-box">
+                              <rect x="8243" y="884" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8252 893 L8252 1495" stroke-width="18" />
+                        </g>
+                        <g id="a7pv0z3" class="accid">
+                           <g id="bbox-a7pv0z3" class="accid bounding-box">
+                              <rect x="8243" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="d12f3zmz" class="beam">
+                        <g id="bbox-d12f3zmz" class="beam bounding-box">
+                           <rect x="8503" y="1405" height="135" width="187" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="8503,1540 8690,1495 8690,1405 8503,1450" />
+                        <g id="e1vg4hut" class="note">
+                           <g id="bbox-e1vg4hut" class="note bounding-box">
+                              <rect x="8503" y="769" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(8503, 865) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="wcn5f74" class="stem">
+                              <g id="bbox-wcn5f74" class="stem bounding-box">
+                                 <rect x="8503" y="884" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M8512 893 L8512 1522" stroke-width="18" />
+                           </g>
+                           <g id="f9lm0i" class="accid">
+                              <g id="bbox-f9lm0i" class="accid bounding-box">
+                                 <rect x="8503" y="865" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="i1chwoig" class="note">
+                           <g id="bbox-i1chwoig" class="note bounding-box">
+                              <rect x="8672" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(8672, 775) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="x1p1boqk" class="stem">
+                              <g id="bbox-x1p1boqk" class="stem bounding-box">
+                                 <rect x="8672" y="794" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M8681 803 L8681 1477" stroke-width="18" />
+                           </g>
+                           <g id="j13y8p68" class="accid">
+                              <g id="bbox-j13y8p68" class="accid bounding-box">
+                                 <rect x="8672" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="m1c3ld2" class="note">
+                        <g id="bbox-m1c3ld2" class="note bounding-box">
+                           <rect x="8841" y="589" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(8841, 685) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="ylsbi1i" class="stem">
+                           <g id="bbox-ylsbi1i" class="stem bounding-box">
+                              <rect x="8841" y="704" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8850 713 L8850 1315" stroke-width="18" />
+                        </g>
+                        <g id="nftntmy" class="accid">
+                           <g id="bbox-nftntmy" class="accid bounding-box">
+                              <rect x="8841" y="685" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="q11fqa5k" class="note">
+                        <g id="bbox-q11fqa5k" class="note bounding-box">
+                           <rect x="9100" y="679" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(9100, 775) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="z1ka5fj0" class="stem">
+                           <g id="bbox-z1ka5fj0" class="stem bounding-box">
+                              <rect x="9100" y="794" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M9109 803 L9109 1405" stroke-width="18" />
+                        </g>
+                        <g id="r17us07z" class="accid">
+                           <g id="bbox-r17us07z" class="accid bounding-box">
+                              <rect x="9100" y="775" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="w1gxvt25" class="harm">
+                  <g id="bbox-w1gxvt25" class="harm bounding-box" />
+                  <text x="8243" y="273" font-size="0px">
+                     <tspan id="xxydqp3" class="text">
+                        <g id="bbox-xxydqp3" class="text bounding-box">
+                           <rect x="8243" y="0" height="361" width="280" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="8243" y="273">A</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b1d8tzzc" class="fing">
+                  <g id="bbox-b1d8tzzc" class="fing bounding-box" />
+                  <text x="8356" y="665" text-anchor="middle" font-size="0px">
+                     <tspan id="c1d3hfnq" class="text">
+                        <g id="bbox-c1d3hfnq" class="text bounding-box">
+                           <rect x="8280" y="460" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="g968xqp" class="fing">
+                  <g id="bbox-g968xqp" class="fing bounding-box" />
+                  <text x="8616" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="h1bi19qc" class="text">
+                        <g id="bbox-h1bi19qc" class="text bounding-box">
+                           <rect x="8540" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="k1i6frsw" class="fing">
+                  <g id="bbox-k1i6frsw" class="fing bounding-box" />
+                  <text x="8785" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="lqqulth" class="text">
+                        <g id="bbox-lqqulth" class="text bounding-box">
+                           <rect x="8709" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="o8yaxdt" class="fing">
+                  <g id="bbox-o8yaxdt" class="fing bounding-box" />
+                  <text x="8954" y="479" text-anchor="middle" font-size="0px">
+                     <tspan id="pjugrn9" class="text">
+                        <g id="bbox-pjugrn9" class="text bounding-box">
+                           <rect x="8878" y="274" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="s1xwm9vg" class="fing">
+                  <g id="bbox-s1xwm9vg" class="fing bounding-box" />
+                  <text x="9213" y="569" text-anchor="middle" font-size="0px">
+                     <tspan id="t15js31l" class="text">
+                        <g id="bbox-t15js31l" class="text bounding-box">
+                           <rect x="9137" y="364" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="u1v84gao" class="barLine">
+                  <g id="bbox-u1v84gao" class="barLine bounding-box">
+                     <rect x="9346" y="762" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M9360 775 L9360 1495" stroke-width="27" />
+               </g>
+            </g>
+         </g>
+         <g id="gly2za4" class="system">
+            <g id="bbox-gly2za4" class="system bounding-box" />
+            <g id="utwfwec" class="measure">
+               <g id="bbox-utwfwec" class="measure bounding-box" />
+               <g id="rqe5v50" class="mNum autogenerated">
+                  <g id="bbox-rqe5v50" class="mNum bounding-box autogenerated" />
+                  <text y="2918" text-anchor="middle" font-size="0px">
+                     <tspan id="scrd8hd" class="text">
+                        <g id="bbox-scrd8hd" class="text bounding-box">
+                           <rect x="-75" y="2702" height="282" width="150" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="324px">7</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="d1pz533i" class="staff">
+                  <g id="bbox-d1pz533i" class="staff bounding-box">
+                     <rect x="-7" y="3155" height="733" width="2626" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M0 3161 L2613 3161" stroke-width="13" />
+                  <path d="M0 3341 L2613 3341" stroke-width="13" />
+                  <path d="M0 3521 L2613 3521" stroke-width="13" />
+                  <path d="M0 3701 L2613 3701" stroke-width="13" />
+                  <path d="M0 3881 L2613 3881" stroke-width="13" />
+                  <g id="ax5izb9" class="clef">
+                     <g id="bbox-ax5izb9" class="clef bounding-box">
+                        <rect x="90" y="2921" height="1251" width="465" fill="transparent" stroke-width="0" />
+                     </g>
+                     <use xlink:href="#E050-b1tophl1" transform="translate(90, 3701) scale(0.72, 0.72)" />
+                  </g>
+                  <g id="bp4xhs7" class="keySig">
+                     <g id="bbox-bp4xhs7" class="keySig bounding-box">
+                        <rect x="735" y="2906" height="769" width="319" fill="transparent" stroke-width="0" />
+                     </g>
+                     <g id="capbqeb" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(735, 3161) scale(0.72, 0.72)" />
+                     </g>
+                     <g id="d1ax87ga" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(913, 3431) scale(0.72, 0.72)" />
+                     </g>
+                  </g>
+                  <g id="eaz54ko" class="layer">
+                     <g id="bbox-eaz54ko" class="layer bounding-box" />
+                     <g id="f1wuvtpq" class="beam">
+                        <g id="bbox-f1wuvtpq" class="beam bounding-box">
+                           <rect x="1235" y="3881" height="135" width="562" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="1235,3971 1797,4016 1797,3926 1235,3881" />
+                        <g id="gtnj8el" class="note">
+                           <g id="bbox-gtnj8el" class="note bounding-box">
+                              <rect x="1235" y="3155" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(1235, 3251) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="aizjfrh" class="stem">
+                              <g id="bbox-aizjfrh" class="stem bounding-box">
+                                 <rect x="1235" y="3270" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M1244 3279 L1244 3953" stroke-width="18" />
+                           </g>
+                           <g id="h1yl289v" class="accid">
+                              <g id="bbox-h1yl289v" class="accid bounding-box">
+                                 <rect x="1235" y="3251" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="kj6goj4" class="note">
+                           <g id="bbox-kj6goj4" class="note bounding-box">
+                              <rect x="1416" y="3065" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(1416, 3161) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="bsl0zb9" class="stem">
+                              <g id="bbox-bsl0zb9" class="stem bounding-box">
+                                 <rect x="1416" y="3180" height="797" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M1425 3189 L1425 3968" stroke-width="18" />
+                           </g>
+                           <g id="l1v65p0m" class="accid">
+                              <g id="bbox-l1v65p0m" class="accid bounding-box">
+                                 <rect x="1416" y="3161" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="oc61orj" class="note">
+                           <g id="bbox-oc61orj" class="note bounding-box">
+                              <rect x="1598" y="3155" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(1598, 3251) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="c1qetknd" class="stem">
+                              <g id="bbox-c1qetknd" class="stem bounding-box">
+                                 <rect x="1598" y="3270" height="723" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M1607 3279 L1607 3984" stroke-width="18" />
+                           </g>
+                           <g id="p108guko" class="accid">
+                              <g id="bbox-p108guko" class="accid bounding-box">
+                                 <rect x="1598" y="3251" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="s1f361sd" class="note">
+                           <g id="bbox-s1f361sd" class="note bounding-box">
+                              <rect x="1779" y="3245" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(1779, 3341) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="d1qtmfmx" class="stem">
+                              <g id="bbox-d1qtmfmx" class="stem bounding-box">
+                                 <rect x="1779" y="3360" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M1788 3369 L1788 3998" stroke-width="18" />
+                           </g>
+                           <g id="t17ol2fa" class="accid">
+                              <g id="bbox-t17ol2fa" class="accid bounding-box">
+                                 <rect x="1779" y="3341" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="w1pxs82a" class="note">
+                        <g id="bbox-w1pxs82a" class="note bounding-box">
+                           <rect x="1960" y="3335" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(1960, 3431) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="e1p8eid0" class="stem">
+                           <g id="bbox-e1p8eid0" class="stem bounding-box">
+                              <rect x="1960" y="3450" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M1969 3459 L1969 4061" stroke-width="18" />
+                        </g>
+                        <g id="x1yerfwm" class="accid">
+                           <g id="bbox-x1yerfwm" class="accid bounding-box">
+                              <rect x="1960" y="3431" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="ah8t5ij" class="beam">
+                        <g id="bbox-ah8t5ij" class="beam bounding-box">
+                           <rect x="2446" y="2936" height="135" width="199" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="2446,2981 2645,2936 2645,3026 2446,3071" />
+                        <g id="b1qpb5mq" class="note">
+                           <g id="bbox-b1qpb5mq" class="note bounding-box">
+                              <rect x="2238" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(2238, 3611) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="fe84byh" class="stem">
+                              <g id="bbox-fe84byh" class="stem bounding-box">
+                                 <rect x="2446" y="2990" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M2455 3583 L2455 2999" stroke-width="18" />
+                           </g>
+                           <g id="cf6nhee" class="accid">
+                              <g id="bbox-cf6nhee" class="accid bounding-box">
+                                 <rect x="2238" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="f1wmtm4i" class="note">
+                           <g id="bbox-f1wmtm4i" class="note bounding-box">
+                              <rect x="2419" y="3425" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(2419, 3521) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="g10mft84" class="stem">
+                              <g id="bbox-g10mft84" class="stem bounding-box">
+                                 <rect x="2627" y="2945" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M2636 3493 L2636 2954" stroke-width="18" />
+                           </g>
+                           <g id="ggr94qd" class="accid">
+                              <g id="bbox-ggr94qd" class="accid bounding-box">
+                                 <rect x="2419" y="3521" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="i16pdg1d" class="fing">
+                  <g id="bbox-i16pdg1d" class="fing bounding-box" />
+                  <text x="1348" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="j14q9wiz" class="text">
+                        <g id="bbox-j14q9wiz" class="text bounding-box">
+                           <rect x="1272" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="m1iqdaoo" class="fing">
+                  <g id="bbox-m1iqdaoo" class="fing bounding-box" />
+                  <text x="1529" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="n1j3w68f" class="text">
+                        <g id="bbox-n1j3w68f" class="text bounding-box">
+                           <rect x="1453" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="qy2hu0u" class="fing">
+                  <g id="bbox-qy2hu0u" class="fing bounding-box" />
+                  <text x="1711" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="r175qb9l" class="text">
+                        <g id="bbox-r175qb9l" class="text bounding-box">
+                           <rect x="1635" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="u146aofu" class="fing">
+                  <g id="bbox-u146aofu" class="fing bounding-box" />
+                  <text x="1892" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="va76ast" class="text">
+                        <g id="bbox-va76ast" class="text bounding-box">
+                           <rect x="1816" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="y1rc066o" class="fing">
+                  <g id="bbox-y1rc066o" class="fing bounding-box" />
+                  <text x="2073" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="zt3nivs" class="text">
+                        <g id="bbox-zt3nivs" class="text bounding-box">
+                           <rect x="1997" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="d5tbifk" class="fing">
+                  <g id="bbox-d5tbifk" class="fing bounding-box" />
+                  <text x="2351" y="2865" text-anchor="middle" font-size="0px">
+                     <tspan id="e1yy4gyo" class="text">
+                        <g id="bbox-e1yy4gyo" class="text bounding-box">
+                           <rect x="2275" y="2660" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="hh9r349" class="fing">
+                  <g id="bbox-hh9r349" class="fing bounding-box" />
+                  <text x="2532" y="2826" text-anchor="middle" font-size="0px">
+                     <tspan id="i1u3163o" class="text">
+                        <g id="bbox-i1u3163o" class="text bounding-box">
+                           <rect x="2456" y="2621" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="ck0ju51" class="barLine">
+                  <g id="bbox-ck0ju51" class="barLine bounding-box">
+                     <rect x="2586" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M2600 3161 L2600 3881" stroke-width="27" />
+               </g>
+            </g>
+            <g id="j11pk6x3" class="measure">
+               <g id="bbox-j11pk6x3" class="measure bounding-box" />
+               <g id="s9wr3yp" class="staff">
+                  <g id="bbox-s9wr3yp" class="staff bounding-box">
+                     <rect x="2606" y="3155" height="733" width="1229" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M2613 3161 L3829 3161" stroke-width="13" />
+                  <path d="M2613 3341 L3829 3341" stroke-width="13" />
+                  <path d="M2613 3521 L3829 3521" stroke-width="13" />
+                  <path d="M2613 3701 L3829 3701" stroke-width="13" />
+                  <path d="M2613 3881 L3829 3881" stroke-width="13" />
+                  <g id="t163hxs6" class="layer">
+                     <g id="bbox-t163hxs6" class="layer bounding-box" />
+                     <g id="uotogkh" class="note">
+                        <g id="bbox-uotogkh" class="note bounding-box">
+                           <rect x="2704" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(2704, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="h1gytrj8" class="stem">
+                           <g id="bbox-h1gytrj8" class="stem bounding-box">
+                              <rect x="2912" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M2921 3583 L2921 2981" stroke-width="18" />
+                        </g>
+                        <g id="v1rad9p8" class="accid">
+                           <g id="bbox-v1rad9p8" class="accid bounding-box">
+                              <rect x="2704" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="y1ah8coa" class="note">
+                        <g id="bbox-y1ah8coa" class="note bounding-box">
+                           <rect x="2982" y="3335" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(2982, 3431) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="iq69ocb" class="stem">
+                           <g id="bbox-iq69ocb" class="stem bounding-box">
+                              <rect x="2982" y="3450" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M2991 3459 L2991 4061" stroke-width="18" />
+                        </g>
+                        <g id="z15lrwdk" class="accid">
+                           <g id="bbox-z15lrwdk" class="accid bounding-box">
+                              <rect x="2982" y="3431" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="e15gomyx" class="note">
+                        <g id="bbox-e15gomyx" class="note bounding-box">
+                           <rect x="3260" y="3425" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(3260, 3521) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="j13bqcn1" class="stem">
+                           <g id="bbox-j13bqcn1" class="stem bounding-box">
+                              <rect x="3260" y="3540" height="590" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M3269 3549 L3269 4121" stroke-width="18" />
+                        </g>
+                        <g id="f60wcjc" class="accid">
+                           <g id="bbox-f60wcjc" class="accid bounding-box">
+                              <rect x="3260" y="3521" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="iw9jf9s" class="note">
+                        <g id="bbox-iw9jf9s" class="note bounding-box">
+                           <rect x="3538" y="3605" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(3538, 3701) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="k1e2st3u" class="stem">
+                           <g id="bbox-k1e2st3u" class="stem bounding-box">
+                              <rect x="3746" y="3062" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M3755 3673 L3755 3071" stroke-width="18" />
+                        </g>
+                        <g id="jpz3h2l" class="accid">
+                           <g id="bbox-jpz3h2l" class="accid bounding-box">
+                              <rect x="3538" y="3701" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="w1k3kquc" class="fing">
+                  <g id="bbox-w1k3kquc" class="fing bounding-box" />
+                  <text x="2817" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="x1ju6pk7" class="text">
+                        <g id="bbox-x1ju6pk7" class="text bounding-box">
+                           <rect x="2741" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="afefwbg" class="fing">
+                  <g id="bbox-afefwbg" class="fing bounding-box" />
+                  <text x="3095" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="b1follny" class="text">
+                        <g id="bbox-b1follny" class="text bounding-box">
+                           <rect x="3019" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="c1azwvvh" class="harm">
+                  <g id="bbox-c1azwvvh" class="harm bounding-box" />
+                  <text x="3260" y="2668" font-size="0px">
+                     <tspan id="d1sdvnf9" class="text">
+                        <g id="bbox-d1sdvnf9" class="text bounding-box">
+                           <rect x="3260" y="2400" height="356" width="248" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="3260" y="2668">E</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="gsyptbf" class="fing">
+                  <g id="bbox-gsyptbf" class="fing bounding-box" />
+                  <text x="3373" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="h1q9ahla" class="text">
+                        <g id="bbox-h1q9ahla" class="text bounding-box">
+                           <rect x="3297" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="kbffdvr" class="fing">
+                  <g id="bbox-kbffdvr" class="fing bounding-box" />
+                  <text x="3651" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="l44nl77" class="text">
+                        <g id="bbox-l44nl77" class="text bounding-box">
+                           <rect x="3575" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="r1w8bldt" class="barLine">
+                  <g id="bbox-r1w8bldt" class="barLine bounding-box">
+                     <rect x="3802" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M3816 3161 L3816 3881" stroke-width="27" />
+               </g>
+            </g>
+            <g id="m16pfwan" class="measure">
+               <g id="bbox-m16pfwan" class="measure bounding-box" />
+               <g id="v1mdgfqy" class="staff">
+                  <g id="bbox-v1mdgfqy" class="staff bounding-box">
+                     <rect x="3822" y="3155" height="733" width="1022" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M3829 3161 L4838 3161" stroke-width="13" />
+                  <path d="M3829 3341 L4838 3341" stroke-width="13" />
+                  <path d="M3829 3521 L4838 3521" stroke-width="13" />
+                  <path d="M3829 3701 L4838 3701" stroke-width="13" />
+                  <path d="M3829 3881 L4838 3881" stroke-width="13" />
+                  <g id="yvvd8e7" class="layer">
+                     <g id="bbox-yvvd8e7" class="layer bounding-box" />
+                     <g id="z1b9tked" class="note">
+                        <g id="bbox-z1b9tked" class="note bounding-box">
+                           <rect x="3920" y="3512" height="194" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A3-b1tophl1" transform="translate(3920, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="mqyetyt" class="dots">
+                           <g id="bbox-mqyetyt" class="dots bounding-box">
+                              <rect x="4200" y="3575" height="72" width="72" fill="transparent" stroke-width="0" />
+                           </g>
+                           <ellipse cx="4236" cy="3611" rx="36" ry="36" />
+                        </g>
+                        <g id="l7189dx" class="stem">
+                           <g id="bbox-l7189dx" class="stem bounding-box">
+                              <rect x="4128" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M4137 3583 L4137 2981" stroke-width="18" />
+                        </g>
+                        <g id="ae21h2c" class="accid">
+                           <g id="bbox-ae21h2c" class="accid bounding-box">
+                              <rect x="3920" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="w18kj3ek" class="harm">
+                  <g id="bbox-w18kj3ek" class="harm bounding-box" />
+                  <text x="3920" y="2668" font-size="0px">
+                     <tspan id="x1hjr7km" class="text">
+                        <g id="bbox-x1hjr7km" class="text bounding-box">
+                           <rect x="3920" y="2395" height="361" width="280" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="3920" y="2668">A</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b1p5x2ns" class="fing">
+                  <g id="bbox-b1p5x2ns" class="fing bounding-box" />
+                  <text x="4033" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="c1k2ithn" class="text">
+                        <g id="bbox-c1k2ithn" class="text bounding-box">
+                           <rect x="3957" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="u18hrkwb" class="barLine">
+                  <g id="bbox-u18hrkwb" class="barLine bounding-box">
+                     <rect x="4343" y="3116" height="810" width="495" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4460 3161 L4460 3881" stroke-width="27" />
+                  <path d="M4590 3161 L4590 3881" stroke-width="90" />
+                  <path d="M4721 3161 L4721 3881" stroke-width="27" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(4766, 3431) scale(0.72, 0.72)" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(4766, 3611) scale(0.72, 0.72)" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(4343, 3431) scale(0.72, 0.72)" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(4343, 3611) scale(0.72, 0.72)" />
+               </g>
+            </g>
+            <g id="lgbwmzw" class="systemMilestoneEnd b1fphlbf" />
+            <g id="c17qxyvv" class="section systemMilestone" />
+            <g id="d11r6t7j" class="measure">
+               <g id="bbox-d11r6t7j" class="measure bounding-box" />
+               <g id="myh0peh" class="staff">
+                  <g id="bbox-myh0peh" class="staff bounding-box">
+                     <rect x="4831" y="3155" height="733" width="395" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4838 3161 L5220 3161" stroke-width="13" />
+                  <path d="M4838 3341 L5220 3341" stroke-width="13" />
+                  <path d="M4838 3521 L5220 3521" stroke-width="13" />
+                  <path d="M4838 3701 L5220 3701" stroke-width="13" />
+                  <path d="M4838 3881 L5220 3881" stroke-width="13" />
+                  <g id="n159r3id" class="layer">
+                     <g id="bbox-n159r3id" class="layer bounding-box" />
+                     <g id="o1v17grn" class="note">
+                        <g id="bbox-o1v17grn" class="note bounding-box">
+                           <rect x="4929" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(4929, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="n2ckzh2" class="stem">
+                           <g id="bbox-n2ckzh2" class="stem bounding-box">
+                              <rect x="5137" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M5146 3583 L5146 2981" stroke-width="18" />
+                        </g>
+                        <g id="p1gst4h3" class="accid">
+                           <g id="bbox-p1gst4h3" class="accid bounding-box">
+                              <rect x="4929" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="q1qpu8wi" class="fing">
+                  <g id="bbox-q1qpu8wi" class="fing bounding-box" />
+                  <text x="5042" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="r1ahbemr" class="text">
+                        <g id="bbox-r1ahbemr" class="text bounding-box">
+                           <rect x="4966" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="l1vuyzfk" class="barLine">
+                  <g id="bbox-l1vuyzfk" class="barLine bounding-box">
+                     <rect x="5193" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M5207 3161 L5207 3881" stroke-width="27" />
+               </g>
+            </g>
+            <g id="s192v7mp" class="measure">
+               <g id="bbox-s192v7mp" class="measure bounding-box" />
+               <g id="b1uo3bda" class="staff">
+                  <g id="bbox-b1uo3bda" class="staff bounding-box">
+                     <rect x="5213" y="3155" height="733" width="1398" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M5220 3161 L6605 3161" stroke-width="13" />
+                  <path d="M5220 3341 L6605 3341" stroke-width="13" />
+                  <path d="M5220 3521 L6605 3521" stroke-width="13" />
+                  <path d="M5220 3701 L6605 3701" stroke-width="13" />
+                  <path d="M5220 3881 L6605 3881" stroke-width="13" />
+                  <g id="c10zgz2t" class="layer">
+                     <g id="bbox-c10zgz2t" class="layer bounding-box" />
+                     <g id="dazxf6x" class="note">
+                        <g id="bbox-dazxf6x" class="note bounding-box">
+                           <rect x="5311" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(5311, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="oss90zg" class="stem">
+                           <g id="bbox-oss90zg" class="stem bounding-box">
+                              <rect x="5519" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M5528 3583 L5528 2981" stroke-width="18" />
+                        </g>
+                        <g id="e1hya2y7" class="accid">
+                           <g id="bbox-e1hya2y7" class="accid bounding-box">
+                              <rect x="5311" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="h1biax10" class="beam">
+                        <g id="bbox-h1biax10" class="beam bounding-box">
+                           <rect x="5797" y="2936" height="135" width="199" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="5797,2981 5996,2936 5996,3026 5797,3071" />
+                        <g id="i14dvqxk" class="note">
+                           <g id="bbox-i14dvqxk" class="note bounding-box">
+                              <rect x="5589" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5589, 3611) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="piqs2kv" class="stem">
+                              <g id="bbox-piqs2kv" class="stem bounding-box">
+                                 <rect x="5797" y="2990" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5806 3583 L5806 2999" stroke-width="18" />
+                           </g>
+                           <g id="jflm84r" class="accid">
+                              <g id="bbox-jflm84r" class="accid bounding-box">
+                                 <rect x="5589" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="mc3mwc8" class="note">
+                           <g id="bbox-mc3mwc8" class="note bounding-box">
+                              <rect x="5770" y="3425" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5770, 3521) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="qk21o70" class="stem">
+                              <g id="bbox-qk21o70" class="stem bounding-box">
+                                 <rect x="5978" y="2945" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5987 3493 L5987 2954" stroke-width="18" />
+                           </g>
+                           <g id="n6w7j91" class="accid">
+                              <g id="bbox-n6w7j91" class="accid bounding-box">
+                                 <rect x="5770" y="3521" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="q5lcm2o" class="note">
+                        <g id="bbox-q5lcm2o" class="note bounding-box">
+                           <rect x="5951" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(5951, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="r1s9h1a0" class="stem">
+                           <g id="bbox-r1s9h1a0" class="stem bounding-box">
+                              <rect x="6159" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M6168 3583 L6168 2981" stroke-width="18" />
+                        </g>
+                        <g id="r1u0lqp2" class="accid">
+                           <g id="bbox-r1u0lqp2" class="accid bounding-box">
+                              <rect x="5951" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="u1cypuon" class="beam">
+                        <g id="bbox-u1cypuon" class="beam bounding-box">
+                           <rect x="6229" y="3971" height="135" width="199" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="6229,4106 6428,4061 6428,3971 6229,4016" />
+                        <g id="v1gxbowy" class="note">
+                           <g id="bbox-v1gxbowy" class="note bounding-box">
+                              <rect x="6229" y="3335" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6229, 3431) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="sxk16bo" class="stem">
+                              <g id="bbox-sxk16bo" class="stem bounding-box">
+                                 <rect x="6229" y="3450" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6238 3459 L6238 4088" stroke-width="18" />
+                           </g>
+                           <g id="w10u0u8q" class="accid">
+                              <g id="bbox-w10u0u8q" class="accid bounding-box">
+                                 <rect x="6229" y="3431" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="zxdn46g" class="note">
+                           <g id="bbox-zxdn46g" class="note bounding-box">
+                              <rect x="6410" y="3245" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6410, 3341) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="t11re0ri" class="stem">
+                              <g id="bbox-t11re0ri" class="stem bounding-box">
+                                 <rect x="6410" y="3360" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6419 3369 L6419 4043" stroke-width="18" />
+                           </g>
+                           <g id="a114w4fp" class="accid">
+                              <g id="bbox-a114w4fp" class="accid bounding-box">
+                                 <rect x="6410" y="3341" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="fizavc3" class="fing">
+                  <g id="bbox-fizavc3" class="fing bounding-box" />
+                  <text x="5424" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="gj4vpuz" class="text">
+                        <g id="bbox-gj4vpuz" class="text bounding-box">
+                           <rect x="5348" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="k1vn5nry" class="fing">
+                  <g id="bbox-k1vn5nry" class="fing bounding-box" />
+                  <text x="5702" y="2865" text-anchor="middle" font-size="0px">
+                     <tspan id="l3igpn6" class="text">
+                        <g id="bbox-l3igpn6" class="text bounding-box">
+                           <rect x="5626" y="2660" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="onohkg3" class="fing">
+                  <g id="bbox-onohkg3" class="fing bounding-box" />
+                  <text x="5883" y="2826" text-anchor="middle" font-size="0px">
+                     <tspan id="pdoahqy" class="text">
+                        <g id="bbox-pdoahqy" class="text bounding-box">
+                           <rect x="5807" y="2621" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="s1lrnrcc" class="fing">
+                  <g id="bbox-s1lrnrcc" class="fing bounding-box" />
+                  <text x="6064" y="2826" text-anchor="middle" font-size="0px">
+                     <tspan id="t1sl4kzq" class="text">
+                        <g id="bbox-t1sl4kzq" class="text bounding-box">
+                           <rect x="5988" y="2621" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="xrkvku5" class="fing">
+                  <g id="bbox-xrkvku5" class="fing bounding-box" />
+                  <text x="6342" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="y1y8kv7n" class="text">
+                        <g id="bbox-y1y8kv7n" class="text bounding-box">
+                           <rect x="6266" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b1s0kjou" class="fing">
+                  <g id="bbox-b1s0kjou" class="fing bounding-box" />
+                  <text x="6523" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="cwl05oo" class="text">
+                        <g id="bbox-cwl05oo" class="text bounding-box">
+                           <rect x="6447" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="a144385w" class="barLine">
+                  <g id="bbox-a144385w" class="barLine bounding-box">
+                     <rect x="6578" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6592 3161 L6592 3881" stroke-width="27" />
+               </g>
+            </g>
+            <g id="dna6xs7" class="measure">
+               <g id="bbox-dna6xs7" class="measure bounding-box" />
+               <g id="m1864swh" class="staff">
+                  <g id="bbox-m1864swh" class="staff bounding-box">
+                     <rect x="6598" y="3155" height="733" width="1482" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6605 3161 L8074 3161" stroke-width="13" />
+                  <path d="M6605 3341 L8074 3341" stroke-width="13" />
+                  <path d="M6605 3521 L8074 3521" stroke-width="13" />
+                  <path d="M6605 3701 L8074 3701" stroke-width="13" />
+                  <path d="M6605 3881 L8074 3881" stroke-width="13" />
+                  <g id="n103fd6v" class="layer">
+                     <g id="bbox-n103fd6v" class="layer bounding-box" />
+                     <g id="ohemwg5" class="beam">
+                        <g id="bbox-ohemwg5" class="beam bounding-box">
+                           <rect x="6696" y="3791" height="90" width="381" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="6696,3881 7077,3881 7077,3791 6696,3791" />
+                        <g id="p1ndpn6d" class="note">
+                           <g id="bbox-p1ndpn6d" class="note bounding-box">
+                              <rect x="6696" y="3155" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6696, 3251) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="u1afvka9" class="stem">
+                              <g id="bbox-u1afvka9" class="stem bounding-box">
+                                 <rect x="6696" y="3270" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6705 3279 L6705 3863" stroke-width="18" />
+                           </g>
+                           <g id="qef4u60" class="accid">
+                              <g id="bbox-qef4u60" class="accid bounding-box">
+                                 <rect x="6696" y="3251" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="tw75tv8" class="note">
+                           <g id="bbox-tw75tv8" class="note bounding-box">
+                              <rect x="6877" y="3065" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6877, 3161) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="v1mijjxv" class="stem">
+                              <g id="bbox-v1mijjxv" class="stem bounding-box">
+                                 <rect x="6877" y="3180" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6886 3189 L6886 3863" stroke-width="18" />
+                           </g>
+                           <g id="ucguo9c" class="accid">
+                              <g id="bbox-ucguo9c" class="accid bounding-box">
+                                 <rect x="6877" y="3161" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="x17d471i" class="note">
+                           <g id="bbox-x17d471i" class="note bounding-box">
+                              <rect x="7059" y="3155" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7059, 3251) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="wp31rm8" class="stem">
+                              <g id="bbox-wp31rm8" class="stem bounding-box">
+                                 <rect x="7059" y="3270" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7068 3279 L7068 3863" stroke-width="18" />
+                           </g>
+                           <g id="y1kuewdg" class="accid">
+                              <g id="bbox-y1kuewdg" class="accid bounding-box">
+                                 <rect x="7059" y="3251" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="bt2ppar" class="beam">
+                        <g id="bbox-bt2ppar" class="beam bounding-box">
+                           <rect x="7240" y="3836" height="270" width="380" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="7240,3926 7620,4106 7620,4016 7240,3836" />
+                        <g id="c1ksj0pd" class="note">
+                           <g id="bbox-c1ksj0pd" class="note bounding-box">
+                              <rect x="7240" y="3245" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7240, 3341) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="x11v0vgr" class="stem">
+                              <g id="bbox-x11v0vgr" class="stem bounding-box">
+                                 <rect x="7240" y="3360" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7249 3369 L7249 3908" stroke-width="18" />
+                           </g>
+                           <g id="d13ulq00" class="accid">
+                              <g id="bbox-d13ulq00" class="accid bounding-box">
+                                 <rect x="7240" y="3341" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="gut7wgy" class="note">
+                           <g id="bbox-gut7wgy" class="note bounding-box">
+                              <rect x="7421" y="3335" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7421, 3431) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="y71bu2c" class="stem">
+                              <g id="bbox-y71bu2c" class="stem bounding-box">
+                                 <rect x="7421" y="3450" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7430 3459 L7430 3998" stroke-width="18" />
+                           </g>
+                           <g id="h10hhjfu" class="accid">
+                              <g id="bbox-h10hhjfu" class="accid bounding-box">
+                                 <rect x="7421" y="3431" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="k13k0n31" class="note">
+                           <g id="bbox-k13k0n31" class="note bounding-box">
+                              <rect x="7602" y="3425" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7602, 3521) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="zfc3arp" class="stem">
+                              <g id="bbox-zfc3arp" class="stem bounding-box">
+                                 <rect x="7602" y="3540" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7611 3549 L7611 4088" stroke-width="18" />
+                           </g>
+                           <g id="l1tuumg6" class="accid">
+                              <g id="bbox-l1tuumg6" class="accid bounding-box">
+                                 <rect x="7602" y="3521" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="ooab57q" class="note">
+                        <g id="bbox-ooab57q" class="note bounding-box">
+                           <rect x="7783" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(7783, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="a1j8i3dg" class="stem">
+                           <g id="bbox-a1j8i3dg" class="stem bounding-box">
+                              <rect x="7991" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8000 3583 L8000 2981" stroke-width="18" />
+                        </g>
+                        <g id="p1q4w51v" class="accid">
+                           <g id="bbox-p1q4w51v" class="accid bounding-box">
+                              <rect x="7783" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="rbv8j6a" class="fing">
+                  <g id="bbox-rbv8j6a" class="fing bounding-box" />
+                  <text x="6809" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="shpjy6b" class="text">
+                        <g id="bbox-shpjy6b" class="text bounding-box">
+                           <rect x="6733" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="vlo3jf3" class="fing">
+                  <g id="bbox-vlo3jf3" class="fing bounding-box" />
+                  <text x="6990" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="wjc277n" class="text">
+                        <g id="bbox-wjc277n" class="text bounding-box">
+                           <rect x="6914" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="z68m474" class="fing">
+                  <g id="bbox-z68m474" class="fing bounding-box" />
+                  <text x="7172" y="2955" text-anchor="middle" font-size="0px">
+                     <tspan id="a15w0i2b" class="text">
+                        <g id="bbox-a15w0i2b" class="text bounding-box">
+                           <rect x="7096" y="2750" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="ej3094n" class="fing">
+                  <g id="bbox-ej3094n" class="fing bounding-box" />
+                  <text x="7353" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="f1e3i24l" class="text">
+                        <g id="bbox-f1e3i24l" class="text bounding-box">
+                           <rect x="7277" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="i1t2xdws" class="fing">
+                  <g id="bbox-i1t2xdws" class="fing bounding-box" />
+                  <text x="7534" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="j1cr31ku" class="text">
+                        <g id="bbox-j1cr31ku" class="text bounding-box">
+                           <rect x="7458" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="m1yr9gu5" class="fing">
+                  <g id="bbox-m1yr9gu5" class="fing bounding-box" />
+                  <text x="7715" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="n1llu9o8" class="text">
+                        <g id="bbox-n1llu9o8" class="text bounding-box">
+                           <rect x="7639" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="qlzem67" class="fing">
+                  <g id="bbox-qlzem67" class="fing bounding-box" />
+                  <text x="7896" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="rh8rbzq" class="text">
+                        <g id="bbox-rh8rbzq" class="text bounding-box">
+                           <rect x="7820" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="l7hzlcw" class="barLine">
+                  <g id="bbox-l7hzlcw" class="barLine bounding-box">
+                     <rect x="8047" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8061 3161 L8061 3881" stroke-width="27" />
+               </g>
+            </g>
+            <g id="s1ma2has" class="measure">
+               <g id="bbox-s1ma2has" class="measure bounding-box" />
+               <g id="bktxq1a" class="staff">
+                  <g id="bbox-bktxq1a" class="staff bounding-box">
+                     <rect x="8067" y="3155" height="733" width="1313" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8074 3161 L9374 3161" stroke-width="13" />
+                  <path d="M8074 3341 L9374 3341" stroke-width="13" />
+                  <path d="M8074 3521 L9374 3521" stroke-width="13" />
+                  <path d="M8074 3701 L9374 3701" stroke-width="13" />
+                  <path d="M8074 3881 L9374 3881" stroke-width="13" />
+                  <g id="c1wvzhtz" class="layer">
+                     <g id="bbox-c1wvzhtz" class="layer bounding-box" />
+                     <g id="dv7mkl1" class="note">
+                        <g id="bbox-dv7mkl1" class="note bounding-box">
+                           <rect x="8165" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(8165, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="b15vaizo" class="stem">
+                           <g id="bbox-b15vaizo" class="stem bounding-box">
+                              <rect x="8373" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8382 3583 L8382 2981" stroke-width="18" />
+                        </g>
+                        <g id="e106pebx" class="accid">
+                           <g id="bbox-e106pebx" class="accid bounding-box">
+                              <rect x="8165" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="h10ta414" class="beam">
+                        <g id="bbox-h10ta414" class="beam bounding-box">
+                           <rect x="8651" y="2936" height="135" width="199" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="8651,2981 8850,2936 8850,3026 8651,3071" />
+                        <g id="i1smrz3h" class="note">
+                           <g id="bbox-i1smrz3h" class="note bounding-box">
+                              <rect x="8443" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(8443, 3611) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="c1it80jn" class="stem">
+                              <g id="bbox-c1it80jn" class="stem bounding-box">
+                                 <rect x="8651" y="2990" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M8660 3583 L8660 2999" stroke-width="18" />
+                           </g>
+                           <g id="j1m7o7z2" class="accid">
+                              <g id="bbox-j1m7o7z2" class="accid bounding-box">
+                                 <rect x="8443" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="m1qwlmr1" class="note">
+                           <g id="bbox-m1qwlmr1" class="note bounding-box">
+                              <rect x="8624" y="3425" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(8624, 3521) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="d1rx6log" class="stem">
+                              <g id="bbox-d1rx6log" class="stem bounding-box">
+                                 <rect x="8832" y="2945" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M8841 3493 L8841 2954" stroke-width="18" />
+                           </g>
+                           <g id="nqxt9iu" class="accid">
+                              <g id="bbox-nqxt9iu" class="accid bounding-box">
+                                 <rect x="8624" y="3521" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="q1nw80a5" class="note">
+                        <g id="bbox-q1nw80a5" class="note bounding-box">
+                           <rect x="8805" y="3335" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(8805, 3431) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="ef99vgi" class="stem">
+                           <g id="bbox-ef99vgi" class="stem bounding-box">
+                              <rect x="8805" y="3450" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8814 3459 L8814 4061" stroke-width="18" />
+                        </g>
+                        <g id="rigd4v6" class="accid">
+                           <g id="bbox-rigd4v6" class="accid bounding-box">
+                              <rect x="8805" y="3431" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="u17goh88" class="note">
+                        <g id="bbox-u17goh88" class="note bounding-box">
+                           <rect x="9083" y="3515" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(9083, 3611) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="fc224xw" class="stem">
+                           <g id="bbox-fc224xw" class="stem bounding-box">
+                              <rect x="9291" y="2972" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M9300 3583 L9300 2981" stroke-width="18" />
+                        </g>
+                        <g id="vdmjmk2" class="accid">
+                           <g id="bbox-vdmjmk2" class="accid bounding-box">
+                              <rect x="9083" y="3611" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="f1fkw7l" class="fing">
+                  <g id="bbox-f1fkw7l" class="fing bounding-box" />
+                  <text x="8278" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="g11ue7rn" class="text">
+                        <g id="bbox-g11ue7rn" class="text bounding-box">
+                           <rect x="8202" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="k1mqscpk" class="fing">
+                  <g id="bbox-k1mqscpk" class="fing bounding-box" />
+                  <text x="8556" y="2865" text-anchor="middle" font-size="0px">
+                     <tspan id="lv49gmy" class="text">
+                        <g id="bbox-lv49gmy" class="text bounding-box">
+                           <rect x="8480" y="2660" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="o1w2gh1o" class="fing">
+                  <g id="bbox-o1w2gh1o" class="fing bounding-box" />
+                  <text x="8737" y="2826" text-anchor="middle" font-size="0px">
+                     <tspan id="p1afuj15" class="text">
+                        <g id="bbox-p1afuj15" class="text bounding-box">
+                           <rect x="8661" y="2621" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="s1cjuevt" class="fing">
+                  <g id="bbox-s1cjuevt" class="fing bounding-box" />
+                  <text x="8918" y="2826" text-anchor="middle" font-size="0px">
+                     <tspan id="tuk5e7d" class="text">
+                        <g id="bbox-tuk5e7d" class="text bounding-box">
+                           <rect x="8842" y="2621" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="w141w86z" class="fing">
+                  <g id="bbox-w141w86z" class="fing bounding-box" />
+                  <text x="9196" y="3051" text-anchor="middle" font-size="0px">
+                     <tspan id="xu2dks3" class="text">
+                        <g id="bbox-xu2dks3" class="text bounding-box">
+                           <rect x="9120" y="2846" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="a6gb8cy" class="barLine">
+                  <g id="bbox-a6gb8cy" class="barLine bounding-box">
+                     <rect x="9347" y="3148" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M9361 3161 L9361 3881" stroke-width="27" />
+               </g>
+            </g>
+         </g>
+         <g id="j1lf1lje" class="system">
+            <g id="bbox-j1lf1lje" class="system bounding-box" />
+            <g id="y1yfoy9f" class="measure">
+               <g id="bbox-y1yfoy9f" class="measure bounding-box" />
+               <g id="fils86e" class="mNum autogenerated">
+                  <g id="bbox-fils86e" class="mNum bounding-box autogenerated" />
+                  <text y="5305" text-anchor="middle" font-size="0px">
+                     <tspan id="g1rtbc01" class="text">
+                        <g id="bbox-g1rtbc01" class="text bounding-box">
+                           <rect x="-136" y="5086" height="285" width="273" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="324px">14</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="h1tde69w" class="staff">
+                  <g id="bbox-h1tde69w" class="staff bounding-box">
+                     <rect x="-7" y="5542" height="733" width="2418" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M0 5548 L2405 5548" stroke-width="13" />
+                  <path d="M0 5728 L2405 5728" stroke-width="13" />
+                  <path d="M0 5908 L2405 5908" stroke-width="13" />
+                  <path d="M0 6088 L2405 6088" stroke-width="13" />
+                  <path d="M0 6268 L2405 6268" stroke-width="13" />
+                  <g id="qa16bor" class="clef">
+                     <g id="bbox-qa16bor" class="clef bounding-box">
+                        <rect x="90" y="5308" height="1251" width="465" fill="transparent" stroke-width="0" />
+                     </g>
+                     <use xlink:href="#E050-b1tophl1" transform="translate(90, 6088) scale(0.72, 0.72)" />
+                  </g>
+                  <g id="r1yx7azz" class="keySig">
+                     <g id="bbox-r1yx7azz" class="keySig bounding-box">
+                        <rect x="735" y="5293" height="769" width="319" fill="transparent" stroke-width="0" />
+                     </g>
+                     <g id="s1q13h35" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(735, 5548) scale(0.72, 0.72)" />
+                     </g>
+                     <g id="t1pa4idm" class="keyAccid">
+                        <use xlink:href="#E262-b1tophl1" transform="translate(913, 5818) scale(0.72, 0.72)" />
+                     </g>
+                  </g>
+                  <g id="k1ipbv6s" class="layer">
+                     <g id="bbox-k1ipbv6s" class="layer bounding-box" />
+                     <g id="l1j3w2p4" class="note">
+                        <g id="bbox-l1j3w2p4" class="note bounding-box">
+                           <rect x="1269" y="5989" height="194" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A3-b1tophl1" transform="translate(1269, 6088) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="h2ldfhw" class="dots">
+                           <g id="bbox-h2ldfhw" class="dots bounding-box">
+                              <rect x="1549" y="5962" height="72" width="72" fill="transparent" stroke-width="0" />
+                           </g>
+                           <ellipse cx="1585" cy="5998" rx="36" ry="36" />
+                        </g>
+                        <g id="gk775mq" class="stem">
+                           <g id="bbox-gk775mq" class="stem bounding-box">
+                              <rect x="1477" y="5449" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M1486 6060 L1486 5458" stroke-width="18" />
+                        </g>
+                        <g id="m40ga5h" class="accid">
+                           <g id="bbox-m40ga5h" class="accid bounding-box">
+                              <rect x="1269" y="6088" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="p3ijpzw" class="note">
+                        <g id="bbox-p3ijpzw" class="note bounding-box">
+                           <rect x="2011" y="5992" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(2011, 6088) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="i1n8rem6" class="stem">
+                           <g id="bbox-i1n8rem6" class="stem bounding-box">
+                              <rect x="2219" y="5449" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M2228 6060 L2228 5458" stroke-width="18" />
+                        </g>
+                        <g id="qjqqf84" class="accid">
+                           <g id="bbox-qjqqf84" class="accid bounding-box">
+                              <rect x="2011" y="6088" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="i1pbomn4" class="harm">
+                  <g id="bbox-i1pbomn4" class="harm bounding-box" />
+                  <text x="1269" y="5055" font-size="0px">
+                     <tspan id="j7emlwd" class="text">
+                        <g id="bbox-j7emlwd" class="text bounding-box">
+                           <rect x="1269" y="4781" height="362" width="276" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="1269" y="5055">G</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="nsj6iwk" class="fing">
+                  <g id="bbox-nsj6iwk" class="fing bounding-box" />
+                  <text x="1382" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="o1uevct9" class="text">
+                        <g id="bbox-o1uevct9" class="text bounding-box">
+                           <rect x="1306" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="rqdp68i" class="fing">
+                  <g id="bbox-rqdp68i" class="fing bounding-box" />
+                  <text x="2124" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="s1lsq4q0" class="text">
+                        <g id="bbox-s1lsq4q0" class="text bounding-box">
+                           <rect x="2048" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="g1o3zrpv" class="barLine">
+                  <g id="bbox-g1o3zrpv" class="barLine bounding-box">
+                     <rect x="2378" y="5535" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M2392 5548 L2392 6268" stroke-width="27" />
+               </g>
+            </g>
+            <g id="t11hxcs" class="measure">
+               <g id="bbox-t11hxcs" class="measure bounding-box" />
+               <g id="cwsqeux" class="staff">
+                  <g id="bbox-cwsqeux" class="staff bounding-box">
+                     <rect x="2398" y="5542" height="733" width="1911" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M2405 5548 L4303 5548" stroke-width="13" />
+                  <path d="M2405 5728 L4303 5728" stroke-width="13" />
+                  <path d="M2405 5908 L4303 5908" stroke-width="13" />
+                  <path d="M2405 6088 L4303 6088" stroke-width="13" />
+                  <path d="M2405 6268 L4303 6268" stroke-width="13" />
+                  <g id="dhbo0w" class="layer">
+                     <g id="bbox-dhbo0w" class="layer bounding-box" />
+                     <g id="e1so3tmd" class="note">
+                        <g id="bbox-e1so3tmd" class="note bounding-box">
+                           <rect x="2530" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(2530, 5998) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="j6bwtue" class="stem">
+                           <g id="bbox-j6bwtue" class="stem bounding-box">
+                              <rect x="2738" y="5359" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M2747 5970 L2747 5368" stroke-width="18" />
+                        </g>
+                        <g id="f14pbmxc" class="accid">
+                           <g id="bbox-f14pbmxc" class="accid bounding-box">
+                              <rect x="2530" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="is12spt" class="beam">
+                        <g id="bbox-is12spt" class="beam bounding-box">
+                           <rect x="3120" y="5323" height="135" width="267" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="3120,5368 3387,5323 3387,5413 3120,5458" />
+                        <g id="jpkup17" class="note">
+                           <g id="bbox-jpkup17" class="note bounding-box">
+                              <rect x="2912" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(2912, 5998) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="k165gtfc" class="stem">
+                              <g id="bbox-k165gtfc" class="stem bounding-box">
+                                 <rect x="3120" y="5377" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M3129 5970 L3129 5386" stroke-width="18" />
+                           </g>
+                           <g id="kylqfwi" class="accid">
+                              <g id="bbox-kylqfwi" class="accid bounding-box">
+                                 <rect x="2912" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="n1fi8ls5" class="note">
+                           <g id="bbox-n1fi8ls5" class="note bounding-box">
+                              <rect x="3161" y="5812" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(3161, 5908) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="l2uteze" class="stem">
+                              <g id="bbox-l2uteze" class="stem bounding-box">
+                                 <rect x="3369" y="5332" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M3378 5880 L3378 5341" stroke-width="18" />
+                           </g>
+                           <g id="oqhv30m" class="accid">
+                              <g id="bbox-oqhv30m" class="accid bounding-box">
+                                 <rect x="3161" y="5908" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="r1z132mn" class="note">
+                        <g id="bbox-r1z132mn" class="note bounding-box">
+                           <rect x="3410" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(3410, 5998) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="m3sbatv" class="stem">
+                           <g id="bbox-m3sbatv" class="stem bounding-box">
+                              <rect x="3618" y="5359" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M3627 5970 L3627 5368" stroke-width="18" />
+                        </g>
+                        <g id="sp359hs" class="accid">
+                           <g id="bbox-sp359hs" class="accid bounding-box">
+                              <rect x="3410" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                     <g id="vti9n48" class="beam">
+                        <g id="bbox-vti9n48" class="beam bounding-box">
+                           <rect x="3792" y="6358" height="135" width="267" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="3792,6493 4059,6448 4059,6358 3792,6403" />
+                        <g id="w7w16mw" class="note">
+                           <g id="bbox-w7w16mw" class="note bounding-box">
+                              <rect x="3792" y="5722" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(3792, 5818) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="n1pxj7fd" class="stem">
+                              <g id="bbox-n1pxj7fd" class="stem bounding-box">
+                                 <rect x="3792" y="5837" height="647" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M3801 5846 L3801 6475" stroke-width="18" />
+                           </g>
+                           <g id="xfr5fuq" class="accid">
+                              <g id="bbox-xfr5fuq" class="accid bounding-box">
+                                 <rect x="3792" y="5818" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="a1g0570b" class="note">
+                           <g id="bbox-a1g0570b" class="note bounding-box">
+                              <rect x="4041" y="5632" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4041, 5728) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="o1piclmd" class="stem">
+                              <g id="bbox-o1piclmd" class="stem bounding-box">
+                                 <rect x="4041" y="5747" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4050 5756 L4050 6430" stroke-width="18" />
+                           </g>
+                           <g id="b9o14tl" class="accid">
+                              <g id="bbox-b9o14tl" class="accid bounding-box">
+                                 <rect x="4041" y="5728" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="g1iwwajw" class="fing">
+                  <g id="bbox-g1iwwajw" class="fing bounding-box" />
+                  <text x="2643" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="htjw8ah" class="text">
+                        <g id="bbox-htjw8ah" class="text bounding-box">
+                           <rect x="2567" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="ln3smxm" class="fing">
+                  <g id="bbox-ln3smxm" class="fing bounding-box" />
+                  <text x="3025" y="5253" text-anchor="middle" font-size="0px">
+                     <tspan id="m1u78yf6" class="text">
+                        <g id="bbox-m1u78yf6" class="text bounding-box">
+                           <rect x="2949" y="5048" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="p15xp6hv" class="fing">
+                  <g id="bbox-p15xp6hv" class="fing bounding-box" />
+                  <text x="3274" y="5213" text-anchor="middle" font-size="0px">
+                     <tspan id="q1fupqfi" class="text">
+                        <g id="bbox-q1fupqfi" class="text bounding-box">
+                           <rect x="3198" y="5008" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="tm1oofs" class="fing">
+                  <g id="bbox-tm1oofs" class="fing bounding-box" />
+                  <text x="3523" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="u3g0773" class="text">
+                        <g id="bbox-u3g0773" class="text bounding-box">
+                           <rect x="3447" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="y1chfa9b" class="fing">
+                  <g id="bbox-y1chfa9b" class="fing bounding-box" />
+                  <text x="3905" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="z1dsjiyl" class="text">
+                        <g id="bbox-z1dsjiyl" class="text bounding-box">
+                           <rect x="3829" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="c1ktuwl5" class="fing">
+                  <g id="bbox-c1ktuwl5" class="fing bounding-box" />
+                  <text x="4154" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="dij2yo0" class="text">
+                        <g id="bbox-dij2yo0" class="text bounding-box">
+                           <rect x="4078" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b1y1ypnl" class="barLine">
+                  <g id="bbox-b1y1ypnl" class="barLine bounding-box">
+                     <rect x="4276" y="5535" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4290 5548 L4290 6268" stroke-width="27" />
+               </g>
+            </g>
+            <g id="e1mwh637" class="measure">
+               <g id="bbox-e1mwh637" class="measure bounding-box" />
+               <g id="n3t7vkj" class="staff">
+                  <g id="bbox-n3t7vkj" class="staff bounding-box">
+                     <rect x="4296" y="5542" height="733" width="2027" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M4303 5548 L6317 5548" stroke-width="13" />
+                  <path d="M4303 5728 L6317 5728" stroke-width="13" />
+                  <path d="M4303 5908 L6317 5908" stroke-width="13" />
+                  <path d="M4303 6088 L6317 6088" stroke-width="13" />
+                  <path d="M4303 6268 L6317 6268" stroke-width="13" />
+                  <g id="o15ck0ye" class="layer">
+                     <g id="bbox-o15ck0ye" class="layer bounding-box" />
+                     <g id="pysb7p4" class="beam">
+                        <g id="bbox-pysb7p4" class="beam bounding-box">
+                           <rect x="4428" y="6178" height="90" width="516" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="4428,6268 4944,6268 4944,6178 4428,6178" />
+                        <g id="qt9dwb9" class="note">
+                           <g id="bbox-qt9dwb9" class="note bounding-box">
+                              <rect x="4428" y="5542" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4428, 5638) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="p41nu1z" class="stem">
+                              <g id="bbox-p41nu1z" class="stem bounding-box">
+                                 <rect x="4428" y="5657" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4437 5666 L4437 6250" stroke-width="18" />
+                           </g>
+                           <g id="r16au464" class="accid">
+                              <g id="bbox-r16au464" class="accid bounding-box">
+                                 <rect x="4428" y="5638" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="umbnlu0" class="note">
+                           <g id="bbox-umbnlu0" class="note bounding-box">
+                              <rect x="4677" y="5452" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4677, 5548) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="qtavigf" class="stem">
+                              <g id="bbox-qtavigf" class="stem bounding-box">
+                                 <rect x="4677" y="5567" height="692" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4686 5576 L4686 6250" stroke-width="18" />
+                           </g>
+                           <g id="v1huqks3" class="accid">
+                              <g id="bbox-v1huqks3" class="accid bounding-box">
+                                 <rect x="4677" y="5548" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="yv4bjg3" class="note">
+                           <g id="bbox-yv4bjg3" class="note bounding-box">
+                              <rect x="4926" y="5542" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(4926, 5638) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="r13jq8s8" class="stem">
+                              <g id="bbox-r13jq8s8" class="stem bounding-box">
+                                 <rect x="4926" y="5657" height="602" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M4935 5666 L4935 6250" stroke-width="18" />
+                           </g>
+                           <g id="z1vlge6v" class="accid">
+                              <g id="bbox-z1vlge6v" class="accid bounding-box">
+                                 <rect x="4926" y="5638" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="c1g2c7mm" class="beam">
+                        <g id="bbox-c1g2c7mm" class="beam bounding-box">
+                           <rect x="5175" y="6223" height="270" width="516" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="5175,6313 5691,6493 5691,6403 5175,6223" />
+                        <g id="dyzwux7" class="note">
+                           <g id="bbox-dyzwux7" class="note bounding-box">
+                              <rect x="5175" y="5632" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5175, 5728) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="s1xhgw3j" class="stem">
+                              <g id="bbox-s1xhgw3j" class="stem bounding-box">
+                                 <rect x="5175" y="5747" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5184 5756 L5184 6295" stroke-width="18" />
+                           </g>
+                           <g id="e17qlq2l" class="accid">
+                              <g id="bbox-e17qlq2l" class="accid bounding-box">
+                                 <rect x="5175" y="5728" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="h3ehiah" class="note">
+                           <g id="bbox-h3ehiah" class="note bounding-box">
+                              <rect x="5424" y="5722" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5424, 5818) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="t8656j" class="stem">
+                              <g id="bbox-t8656j" class="stem bounding-box">
+                                 <rect x="5424" y="5837" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5433 5846 L5433 6385" stroke-width="18" />
+                           </g>
+                           <g id="i36rkcx" class="accid">
+                              <g id="bbox-i36rkcx" class="accid bounding-box">
+                                 <rect x="5424" y="5818" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="lmi4nos" class="note">
+                           <g id="bbox-lmi4nos" class="note bounding-box">
+                              <rect x="5673" y="5812" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(5673, 5908) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="u1fkhqt2" class="stem">
+                              <g id="bbox-u1fkhqt2" class="stem bounding-box">
+                                 <rect x="5673" y="5927" height="557" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M5682 5936 L5682 6475" stroke-width="18" />
+                           </g>
+                           <g id="m1g9pynn" class="accid">
+                              <g id="bbox-m1g9pynn" class="accid bounding-box">
+                                 <rect x="5673" y="5908" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="pbnial3" class="note">
+                        <g id="bbox-pbnial3" class="note bounding-box">
+                           <rect x="5922" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(5922, 5998) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="v676hrt" class="stem">
+                           <g id="bbox-v676hrt" class="stem bounding-box">
+                              <rect x="6130" y="5359" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M6139 5970 L6139 5368" stroke-width="18" />
+                        </g>
+                        <g id="qzp3ayw" class="accid">
+                           <g id="bbox-qzp3ayw" class="accid bounding-box">
+                              <rect x="5922" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="s2md9xo" class="fing">
+                  <g id="bbox-s2md9xo" class="fing bounding-box" />
+                  <text x="4541" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="tik9ong" class="text">
+                        <g id="bbox-tik9ong" class="text bounding-box">
+                           <rect x="4465" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="w7vonjh" class="fing">
+                  <g id="bbox-w7vonjh" class="fing bounding-box" />
+                  <text x="4790" y="5342" text-anchor="middle" font-size="0px">
+                     <tspan id="x128dqjr" class="text">
+                        <g id="bbox-x128dqjr" class="text bounding-box">
+                           <rect x="4714" y="5137" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="aupjmbo" class="fing">
+                  <g id="bbox-aupjmbo" class="fing bounding-box" />
+                  <text x="5039" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="bosahiz" class="text">
+                        <g id="bbox-bosahiz" class="text bounding-box">
+                           <rect x="4963" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="f1xetyv" class="fing">
+                  <g id="bbox-f1xetyv" class="fing bounding-box" />
+                  <text x="5288" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="gyznp1l" class="text">
+                        <g id="bbox-gyznp1l" class="text bounding-box">
+                           <rect x="5212" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="j1an1ali" class="fing">
+                  <g id="bbox-j1an1ali" class="fing bounding-box" />
+                  <text x="5537" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="kjlsxl2" class="text">
+                        <g id="bbox-kjlsxl2" class="text bounding-box">
+                           <rect x="5461" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="nwa3gbp" class="fing">
+                  <g id="bbox-nwa3gbp" class="fing bounding-box" />
+                  <text x="5786" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="o1x461xl" class="text">
+                        <g id="bbox-o1x461xl" class="text bounding-box">
+                           <rect x="5710" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="rqocvge" class="fing">
+                  <g id="bbox-rqocvge" class="fing bounding-box" />
+                  <text x="6035" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="s1mvco81" class="text">
+                        <g id="bbox-s1mvco81" class="text bounding-box">
+                           <rect x="5959" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="m1lhmfvf" class="barLine">
+                  <g id="bbox-m1lhmfvf" class="barLine bounding-box">
+                     <rect x="6290" y="5535" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6304 5548 L6304 6268" stroke-width="27" />
+               </g>
+            </g>
+            <g id="tsm4nz6" class="measure">
+               <g id="bbox-tsm4nz6" class="measure bounding-box" />
+               <g id="c1urdpt7" class="staff">
+                  <g id="bbox-c1urdpt7" class="staff bounding-box">
+                     <rect x="6310" y="5542" height="733" width="2027" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M6317 5548 L8331 5548" stroke-width="13" />
+                  <path d="M6317 5728 L8331 5728" stroke-width="13" />
+                  <path d="M6317 5908 L8331 5908" stroke-width="13" />
+                  <path d="M6317 6088 L8331 6088" stroke-width="13" />
+                  <path d="M6317 6268 L8331 6268" stroke-width="13" />
+                  <g id="d6owz7a" class="layer">
+                     <g id="bbox-d6owz7a" class="layer bounding-box" />
+                     <g id="elsgx8" class="beam">
+                        <g id="bbox-elsgx8" class="beam bounding-box">
+                           <rect x="6442" y="6268" height="270" width="516" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="6442,6358 6958,6538 6958,6448 6442,6268" />
+                        <g id="fm3g0d4" class="note">
+                           <g id="bbox-fm3g0d4" class="note bounding-box">
+                              <rect x="6442" y="5722" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6442, 5818) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="wk5xyfw" class="stem">
+                              <g id="bbox-wk5xyfw" class="stem bounding-box">
+                                 <rect x="6442" y="5837" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6451 5846 L6451 6340" stroke-width="18" />
+                           </g>
+                           <g id="g6kj5b7" class="accid">
+                              <g id="bbox-g6kj5b7" class="accid bounding-box">
+                                 <rect x="6442" y="5818" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="jbml0dm" class="note">
+                           <g id="bbox-jbml0dm" class="note bounding-box">
+                              <rect x="6691" y="5812" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6691, 5908) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="x1vxdhcv" class="stem">
+                              <g id="bbox-x1vxdhcv" class="stem bounding-box">
+                                 <rect x="6691" y="5927" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6700 5936 L6700 6430" stroke-width="18" />
+                           </g>
+                           <g id="k1y5r1ue" class="accid">
+                              <g id="bbox-k1y5r1ue" class="accid bounding-box">
+                                 <rect x="6691" y="5908" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="nt1dc9s" class="note">
+                           <g id="bbox-nt1dc9s" class="note bounding-box">
+                              <rect x="6940" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(6940, 5998) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="yk7evx6" class="stem">
+                              <g id="bbox-yk7evx6" class="stem bounding-box">
+                                 <rect x="6940" y="6017" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M6949 6026 L6949 6520" stroke-width="18" />
+                           </g>
+                           <g id="oj3hqmr" class="accid">
+                              <g id="bbox-oj3hqmr" class="accid bounding-box">
+                                 <rect x="6940" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="rt3nq7s" class="beam">
+                        <g id="bbox-rt3nq7s" class="beam bounding-box">
+                           <rect x="7189" y="6268" height="270" width="516" fill="transparent" stroke-width="0" />
+                        </g>
+                        <polygon points="7189,6358 7705,6538 7705,6448 7189,6268" />
+                        <g id="ssr1ksy" class="note">
+                           <g id="bbox-ssr1ksy" class="note bounding-box">
+                              <rect x="7189" y="5722" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7189, 5818) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="z11layme" class="stem">
+                              <g id="bbox-z11layme" class="stem bounding-box">
+                                 <rect x="7189" y="5837" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7198 5846 L7198 6340" stroke-width="18" />
+                           </g>
+                           <g id="t1melfgh" class="accid">
+                              <g id="bbox-t1melfgh" class="accid bounding-box">
+                                 <rect x="7189" y="5818" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="y7ekrk1" class="note">
+                           <g id="bbox-y7ekrk1" class="note bounding-box">
+                              <rect x="7438" y="5812" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7438, 5908) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="amz8z6s" class="stem">
+                              <g id="bbox-amz8z6s" class="stem bounding-box">
+                                 <rect x="7438" y="5927" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7447 5936 L7447 6430" stroke-width="18" />
+                           </g>
+                           <g id="z1dkiw9c" class="accid">
+                              <g id="bbox-z1dkiw9c" class="accid bounding-box">
+                                 <rect x="7438" y="5908" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                        <g id="c1cgva9o" class="note">
+                           <g id="bbox-c1cgva9o" class="note bounding-box">
+                              <rect x="7687" y="5902" height="191" width="226" fill="transparent" stroke-width="0" />
+                           </g>
+                           <g class="notehead">
+                              <use xlink:href="#E0A4-b1tophl1" transform="translate(7687, 5998) scale(0.72, 0.72)" />
+                           </g>
+                           <g id="bhhiymc" class="stem">
+                              <g id="bbox-bhhiymc" class="stem bounding-box">
+                                 <rect x="7687" y="6017" height="512" width="18" fill="transparent" stroke-width="0" />
+                              </g>
+                              <path d="M7696 6026 L7696 6520" stroke-width="18" />
+                           </g>
+                           <g id="d1whbsr" class="accid">
+                              <g id="bbox-d1whbsr" class="accid bounding-box">
+                                 <rect x="7687" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                              </g>
+                           </g>
+                        </g>
+                     </g>
+                     <g id="g1wd51hs" class="note">
+                        <g id="bbox-g1wd51hs" class="note bounding-box">
+                           <rect x="7936" y="5992" height="191" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A4-b1tophl1" transform="translate(7936, 6088) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="c13pz0yk" class="stem">
+                           <g id="bbox-c13pz0yk" class="stem bounding-box">
+                              <rect x="8144" y="5449" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8153 6060 L8153 5458" stroke-width="18" />
+                        </g>
+                        <g id="hr8doqi" class="accid">
+                           <g id="bbox-hr8doqi" class="accid bounding-box">
+                              <rect x="7936" y="6088" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="hbeo250" class="fing">
+                  <g id="bbox-hbeo250" class="fing bounding-box" />
+                  <text x="6555" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="i16pv6kq" class="text">
+                        <g id="bbox-i16pv6kq" class="text bounding-box">
+                           <rect x="6479" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="ljlea6n" class="fing">
+                  <g id="bbox-ljlea6n" class="fing bounding-box" />
+                  <text x="6804" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="mw8k4rq" class="text">
+                        <g id="bbox-mw8k4rq" class="text bounding-box">
+                           <rect x="6728" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="p1dy1zuv" class="fing">
+                  <g id="bbox-p1dy1zuv" class="fing bounding-box" />
+                  <text x="7053" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="q14s4wa0" class="text">
+                        <g id="bbox-q14s4wa0" class="text bounding-box">
+                           <rect x="6977" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="utuhiql" class="fing">
+                  <g id="bbox-utuhiql" class="fing bounding-box" />
+                  <text x="7302" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="v1qam3zw" class="text">
+                        <g id="bbox-v1qam3zw" class="text bounding-box">
+                           <rect x="7226" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="w1bevqtu" class="harm">
+                  <g id="bbox-w1bevqtu" class="harm bounding-box" />
+                  <text x="7438" y="5055" font-size="0px">
+                     <tspan id="x1p47hqy" class="text">
+                        <g id="bbox-x1p47hqy" class="text bounding-box">
+                           <rect x="7438" y="4787" height="356" width="248" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="7438" y="5055">E</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="a3e575e" class="fing">
+                  <g id="bbox-a3e575e" class="fing bounding-box" />
+                  <text x="7551" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="bxt1qig" class="text">
+                        <g id="bbox-bxt1qig" class="text bounding-box">
+                           <rect x="7475" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="e1jlecbv" class="fing">
+                  <g id="bbox-e1jlecbv" class="fing bounding-box" />
+                  <text x="7800" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="f1bm3x61" class="text">
+                        <g id="bbox-f1bm3x61" class="text bounding-box">
+                           <rect x="7724" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="i1qzn05y" class="fing">
+                  <g id="bbox-i1qzn05y" class="fing bounding-box" />
+                  <text x="8049" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="j12tqdu2" class="text">
+                        <g id="bbox-j12tqdu2" class="text bounding-box">
+                           <rect x="7973" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="b1uguxrq" class="barLine">
+                  <g id="bbox-b1uguxrq" class="barLine bounding-box">
+                     <rect x="8304" y="5535" height="747" width="27" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8318 5548 L8318 6268" stroke-width="27" />
+               </g>
+            </g>
+            <g id="k151ac57" class="measure">
+               <g id="bbox-k151ac57" class="measure bounding-box" />
+               <g id="thkx69b" class="staff">
+                  <g id="bbox-thkx69b" class="staff bounding-box">
+                     <rect x="8324" y="5542" height="733" width="1055" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M8331 5548 L9373 5548" stroke-width="13" />
+                  <path d="M8331 5728 L9373 5728" stroke-width="13" />
+                  <path d="M8331 5908 L9373 5908" stroke-width="13" />
+                  <path d="M8331 6088 L9373 6088" stroke-width="13" />
+                  <path d="M8331 6268 L9373 6268" stroke-width="13" />
+                  <g id="w3j4wt8" class="layer">
+                     <g id="bbox-w3j4wt8" class="layer bounding-box" />
+                     <g id="xcjfv8f" class="note">
+                        <g id="bbox-xcjfv8f" class="note bounding-box">
+                           <rect x="8456" y="5899" height="194" width="226" fill="transparent" stroke-width="0" />
+                        </g>
+                        <g class="notehead">
+                           <use xlink:href="#E0A3-b1tophl1" transform="translate(8456, 5998) scale(0.72, 0.72)" />
+                        </g>
+                        <g id="e1lgjwtu" class="dots">
+                           <g id="bbox-e1lgjwtu" class="dots bounding-box">
+                              <rect x="8736" y="5962" height="72" width="72" fill="transparent" stroke-width="0" />
+                           </g>
+                           <ellipse cx="8772" cy="5998" rx="36" ry="36" />
+                        </g>
+                        <g id="dvp4qmu" class="stem">
+                           <g id="bbox-dvp4qmu" class="stem bounding-box">
+                              <rect x="8664" y="5359" height="620" width="18" fill="transparent" stroke-width="0" />
+                           </g>
+                           <path d="M8673 5970 L8673 5368" stroke-width="18" />
+                        </g>
+                        <g id="y1u3fzpa" class="accid">
+                           <g id="bbox-y1u3fzpa" class="accid bounding-box">
+                              <rect x="8456" y="5998" height="0" width="0" fill="transparent" stroke-width="0" />
+                           </g>
+                        </g>
+                     </g>
+                  </g>
+               </g>
+               <g id="u1qmeudy" class="harm">
+                  <g id="bbox-u1qmeudy" class="harm bounding-box" />
+                  <text x="8456" y="5055" font-size="0px">
+                     <tspan id="vnzolf2" class="text">
+                        <g id="bbox-vnzolf2" class="text bounding-box">
+                           <rect x="8456" y="4782" height="361" width="280" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="405px" x="8456" y="5055">A</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="zzam28u" class="fing">
+                  <g id="bbox-zzam28u" class="fing bounding-box" />
+                  <text x="8569" y="5438" text-anchor="middle" font-size="0px">
+                     <tspan id="axifhtr" class="text">
+                        <g id="bbox-axifhtr" class="text bounding-box">
+                           <rect x="8493" y="5233" height="270" width="152" fill="transparent" stroke-width="0" />
+                        </g>
+                        <tspan font-size="303px">0</tspan>
+                     </tspan>
+                  </text>
+               </g>
+               <g id="soyjzw1" class="barLine">
+                  <g id="bbox-soyjzw1" class="barLine bounding-box">
+                     <rect x="9081" y="5503" height="810" width="292" fill="transparent" stroke-width="0" />
+                  </g>
+                  <path d="M9198 5548 L9198 6268" stroke-width="27" />
+                  <path d="M9328 5548 L9328 6268" stroke-width="90" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(9081, 5818) scale(0.72, 0.72)" />
+                  <use xlink:href="#E044-b1tophl1" transform="translate(9081, 5998) scale(0.72, 0.72)" />
+               </g>
+            </g>
+            <g id="m1fdk9r6" class="systemMilestoneEnd c17qxyvv" />
+            <g id="n2zpz0" class="systemMilestoneEnd o4b9pxz" />
+         </g>
+         <g id="o1bw0ldq" class="pageMilestoneEnd m1hyokn5">
+            <g id="bbox-o1bw0ldq" class="pageMilestoneEnd bounding-box" />
+         </g>
+         <g id="p76wmqe" class="pageMilestoneEnd lt2mgi5">
+            <g id="bbox-p76wmqe" class="pageMilestoneEnd bounding-box" />
+         </g>
+      </g>
+   </svg>
+</svg>
