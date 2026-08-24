@@ -369,45 +369,65 @@ const double spacesPerPageMarginTopUnit = 1 / 18;
 /// Extra staff spaces of room to ask Verovio for when the score carries
 /// annotations the app draws its own rows on.
 ///
-/// Sized from the shortfall, measured at Verovio's own default spacing across
-/// every fixture in `assets/fixtures`. The room from the previous system's ink
-/// down to the annotation register came out:
+/// **This was 3.5, and most of that was paying for a measurement bug.** The room
+/// above a system's annotation register is read as
+/// `register - lineContent[l-1].bottom`, and that bottom used to come from the
+/// hit map's `measure` boxes, which `verovio_flutter` computes client-side. On
+/// the 6-system iPad-portrait layout it came out 2.2 staff spaces deeper than
+/// the ink actually goes. So the app believed every system was more cramped than
+/// it was, shrank the annotation rows to fit the room it thought it had, and
+/// bought the shortfall back here — where it surfaced as a band of white between
+/// the systems, which is the thing a reader actually notices.
+/// `VerovioEngraver.systemInkBoxes` now takes the extent from Verovio's own
+/// `svgBoundingBoxes` output instead; on Old Joe Clark that agreed with the
+/// rendered pixels to 0.05 of a space. See that method for what is and is not
+/// explained about the old number.
 ///
-/// * **1.84 to 3.06 spaces** for a score carrying fingerings only (worst:
-///   `homr_14_minuet_no_2`), which draws ONE row and needs 3.16;
-/// * **3.62 and 4.06** for the two carrying chord symbols as well
-///   (`old_joe_clark`, `lightly_row_musescore`), which draw BOTH rows — a chord
-///   bar of 2.56, a hairline gap of 0.31 and a 3.16 fingering channel, 6.03
-///   between them.
+/// With the measurement honest, 1.5 is what the shortfall actually is. Measured
+/// on Old Joe Clark (18 bars, chord symbols and fingerings, 6 systems, iPad
+/// portrait at 3 measures a line):
 ///
-/// Three and a half spaces covers both with room to spare: the fingering-only
-/// worst case reaches 5.33 against 3.16 wanted, and the chord-carrying worst case
-/// 7.13 against 6.03. The two requirements move together, which is why one
-/// constant serves — a score with chord symbols in it is also ~1.5 spaces more
-/// generous to start with, because Verovio spaces the systems around the chord
-/// ink and the fingering register sits below it.
+/// | reserve | page height | band above the chord bar | rows          |
+/// |---------|-------------|--------------------------|---------------|
+/// | 3.5     | 1408 px     | 3.50 spaces              | full size     |
+/// | **1.5** | **1244 px** | **1.53 spaces**          | bar at 77%    |
+/// | 0       | 1121 px     | 1.53 spaces              | bar at 57%    |
 ///
-/// 3.5 rather than the 2.5 that would just clear the worst measured case, because
-/// the extra space is FREE where it matters: it is the last half-space that
-/// changes no piece's auto-fit layout on a phone in either orientation (see the
-/// auto-fit note below). 4.0 is not — it takes O Come Little Children from 4
-/// measures a line to 5 in portrait. The slack buys tolerance for a piece the
-/// library does not contain, and for fingering DENSITY: measured on Old Joe Clark,
-/// annotating every second note rather than every note lowers the register enough
-/// to cost 0.75 of a space.
+/// Read the last two rows together: below 1.5 the reserve stops buying page
+/// height and only costs row size, because ~1.5 spaces of that band is
+/// Verovio's own inter-system whitespace and no reserve setting reaches it.
+/// That is what makes 1.5 the corner rather than a compromise.
 ///
-/// [annotationStackFor] is still there to shrink the rows for anything tighter
-/// than that.
-const double annotationRoomSpaces = 3.5;
+/// The cost is the chord bar at 77% of its intended height; the fingering row
+/// stays full size, both stay legible, and the page is 12% shorter — which on a
+/// music stand is fewer scrolls mid-tune. Raise it back toward 3.5 to trade that
+/// away again; [annotationStackFor] shrinks the rows to whatever is left either
+/// way, so nothing collides at any setting.
+const double annotationRoomSpaces = 1.5;
 
-/// `spacingSystem` units that buy [annotationRoomSpaces] between systems — 7.
+/// The same room for system 0, which is a bigger number for a smaller cost.
+///
+/// System 0 has no system above it to borrow from — the page's top margin is all
+/// it has — and Verovio is stingier there. Measured across the library with
+/// Verovio's own boxes, the tightest first system carrying both rows is Old Joe
+/// Clark's at 4.22 spaces against the 6.03 it wants, a shortfall of 1.81 where
+/// the worst INTER-system shortfall is 1.47.
+///
+/// Two constants rather than one because the two are paid differently:
+/// `spacingSystem` is charged once per gap, so half a space there costs half a
+/// space times every system on the page, while `pageMarginTop` is charged once
+/// for the whole score. Rounding system 0 up to 2.0 buys it a margin the
+/// interior systems could not afford.
+const double annotationRoomSpacesFirstSystem = 2.0;
+
+/// `spacingSystem` units that buy [annotationRoomSpaces] between systems — 3.
 int get annotationSpacingSystemUnits =>
     (annotationRoomSpaces / spacesPerSpacingSystemUnit).ceil();
 
-/// `pageMarginTop` units that buy [annotationRoomSpaces] above system 0 — 63.
-/// Nine times as many units for the same room; see the section note.
+/// `pageMarginTop` units that buy [annotationRoomSpacesFirstSystem] above
+/// system 0 — 36. Nine times as many units per space; see the section note.
 int get annotationPageMarginTopUnits =>
-    (annotationRoomSpaces / spacesPerPageMarginTopUnit).ceil();
+    (annotationRoomSpacesFirstSystem / spacesPerPageMarginTopUnit).ceil();
 
 /// Whether the score in [musicXml] carries the engraved annotations the app
 /// draws its own rows on, and therefore needs the room reserved.

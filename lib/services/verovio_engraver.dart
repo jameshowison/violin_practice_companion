@@ -222,6 +222,13 @@ class VerovioEngraver {
       // separately — and at 1/18 of a space per unit, in very different money.
       'pageMarginTop': pageMarginTop,
       'svgViewBox': true, // root viewBox so the renderer can scale
+      // Verovio's OWN geometry, for the one measurement we cannot compute:
+      // where a system's ink really ends. See [systemInkBoxes]. The groups are
+      // cut back out before the SVG is rendered ([stripBoundingBoxes]), so this
+      // costs a bigger string through the worker and nothing else — it does not
+      // move the layout (verified: identical viewBox and system count with it
+      // on and off).
+      'svgBoundingBoxes': true,
     };
     await svc.setOptionsJson(jsonEncode(options));
     await svc.loadData(stripPartLabels(musicXml));
@@ -321,12 +328,20 @@ class VerovioEngraver {
     bool tabMode = false,
     bool stripRepeatClefs = true,
   }) {
-    final bboxById = <String, Rect>{
-      for (final h in hitMap.byType) h.id: h.bbox,
-    };
+    // `svgBoundingBoxes` makes Verovio emit a `<g class="note bounding-box">`
+    // beside every `<g class="note">`, and the hit map types an element by its
+    // FIRST class token — so every captured class would be counted twice, with
+    // the phantom sitting on the real one. They all carry a `bbox-` id prefix,
+    // which is the only thing distinguishing them. Filtered once, here, so no
+    // consumer below has to know.
+    final hits = hitMap.byType
+        .where((h) => !h.id.startsWith(_bboxIdPrefix))
+        .toList();
+
+    final bboxById = <String, Rect>{for (final h in hits) h.id: h.bbox};
 
     // Measures in document order (byType preserves DFS / document order).
-    final measureHits = hitMap.byType
+    final measureHits = hits
         .where((h) => h.type == 'measure')
         .toList();
     final measures = <MeasureAnchor>[
@@ -346,7 +361,7 @@ class VerovioEngraver {
     // Assign each note/rest to the measure whose bbox contains its center,
     // then rank within the measure by x to get our positional noteIndex
     // (which counts rests). This is robust to qstamp/tick alignment quirks.
-    final noteHits = hitMap.byType
+    final noteHits = hits
         .where(
           (h) =>
               (h.type == 'note' || h.type == 'rest') && !tabIds.contains(h.id),
@@ -385,13 +400,21 @@ class VerovioEngraver {
     // count-in anchors to `meterSigs.first` and falls back to a measure's left
     // edge when the score has none.
     final meterSigs = <Rect>[
-      for (final h in hitMap.byType)
+      for (final h in hits)
         if (h.type == 'meterSig') h.bbox,
     ];
 
     final measureRects = [for (final m in measures) m.rect];
     final (measureLine, lineBands) = systemLinesOf(measureRects);
-    final lineContent = lineContentOf(measureRects, measureLine);
+    // Verovio's own per-system extent where the SVG carries it, the hit map's
+    // measure union as the fallback. The two disagree by ~2 staff spaces and
+    // Verovio is the one telling the truth — see [systemInkBoxes]. Guarded on
+    // the counts matching, so a disagreement about how many systems there are
+    // falls back rather than pairing a box with the wrong band.
+    final inkBoxes = systemInkBoxes(svg);
+    final lineContent = (inkBoxes != null && inkBoxes.length == lineBands.length)
+        ? inkBoxes
+        : lineContentOf(measureRects, measureLine);
 
     // Verovio's own annotations, reduced to their anchors and assigned to a
     // system by the TILED band their baseline falls in.
@@ -410,14 +433,18 @@ class VerovioEngraver {
     }
 
     List<AnnotationAnchor> anchorsOf(String type) => [
-      for (final h in hitMap.byType)
+      for (final h in hits)
         if (h.type == type)
           (line: lineForY(h.bbox.top), x: h.bbox.left, y: h.bbox.top),
     ];
     final fingAnchors = anchorsOf('fing');
     final harmAnchors = anchorsOf('harm');
 
-    var processedSvg = stripMeasureNumbers(svg);
+    // The measuring boxes have served their purpose (above); out they go before
+    // any other surgery, so everything downstream — and everything the renderer
+    // sees — is the same SVG it was before this option was turned on.
+    var processedSvg = stripBoundingBoxes(svg);
+    processedSvg = stripMeasureNumbers(processedSvg);
     // After the hit map: the anchors are already recorded, and the reserved
     // space stays. See [stripAnnotationGlyphs].
     processedSvg = stripAnnotationGlyphs(processedSvg);
@@ -527,6 +554,120 @@ class VerovioEngraver {
   /// Removes Verovio's engraved fingerings and chord symbols, keeping the space
   /// they reserved.
   ///
+  /// Prefix Verovio puts on the id of every box it emits for `svgBoundingBoxes`.
+  static const _bboxIdPrefix = 'bbox-';
+
+  static final _bboxGroupWithRect = RegExp(
+    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*">\s*<rect[^>]*/>\s*</g>',
+  );
+  static final _bboxGroupEmpty = RegExp(
+    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*"\s*/>',
+  );
+
+  /// Per-system ink extent in viewBox px, read from **Verovio's own** bounding
+  /// boxes instead of computed from the hit map.
+  ///
+  /// Why this exists. `lineContentOf` unions the hit map's `measure` boxes, and
+  /// those are computed client-side by `verovio_flutter`, which gets `<text>`
+  /// wrong twice (see `docs/verovio-flutter-text-bbox-bug.md`): it treats the
+  /// `y` attribute as the box's TOP when `y` is the BASELINE and glyphs extend
+  /// UPWARD, and it falls back to a 16-unit font size because Verovio writes
+  /// `font-size="0px"` on the `<text>` and puts the real size on the child
+  /// `<tspan>`. Measured against Verovio's own boxes on Old Joe Clark, that puts
+  /// a measure's TOP 20.6 viewBox px — 1.5 staff spaces — too low.
+  ///
+  /// The union's BOTTOM is wrong too, and by more: on the 6-system iPad-portrait
+  /// layout it landed at 250.6 viewBox px where the rendered ink stopped at
+  /// 220.5 (confirmed off the framebuffer, and Verovio's own box says 221.2) —
+  /// 2.2 staff spaces of phantom depth. Honest caveat: that one is NOT explained
+  /// by the `<text>` arithmetic above. Re-engraved headlessly, the union's bottom
+  /// comes out 2 to 9 px too SHALLOW, the opposite sign, so something else is in
+  /// play on the many-systems layouts — most likely measure-to-system
+  /// assignment, which is not proven. The measurement is what the app depends on
+  /// and it is now taken from Verovio, so the remaining question is academic
+  /// here; it is written down so nobody re-derives half of it.
+  ///
+  /// Either way the bottom is what the annotation reserve was paying for. The
+  /// room above a system's fingering register is read as
+  /// `register - previousSystemBottom`; the phantom depth ate into it,
+  /// `annotationStackFor` shrank the rows to fit what was left, and the shortfall
+  /// was bought back through `spacingSystem` — where it lands as a band of white
+  /// between the systems, which is what a reader notices.
+  ///
+  /// Verovio emits a box per LEAF (`staff`, `note`, `stem`, `beam`, `barLine`,
+  /// `text`, …) and emits the CONTAINER boxes (`system`, `measure`, `layer`)
+  /// empty. So a system's extent is the union of every box inside it and no
+  /// class whitelist is needed: anything carrying a rect counts, which also
+  /// means a future Verovio drawing something new is included for free.
+  ///
+  /// Coordinates. The rects live in the `definition-scale` inner viewBox, under
+  /// `page-margin`'s translate, so the chain is
+  /// `(y + translateY) * rootWidth / innerWidth`. All three terms are read out
+  /// of this SVG rather than assumed, because they move with the engrave.
+  ///
+  /// Returns null when [svg] carries no boxes, so callers can fall back: test
+  /// fixtures recorded before `svgBoundingBoxes` was turned on have none.
+  static List<({double top, double bottom})>? systemInkBoxes(String svg) {
+    if (!svg.contains('bounding-box')) return null;
+    // The root <svg> comes first in the document, so firstMatch is the root and
+    // not the definition-scale one nested inside it.
+    final root = RegExp(
+      r'<svg[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"',
+    ).firstMatch(svg);
+    final inner = RegExp(
+      r'class="definition-scale"[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"',
+    ).firstMatch(svg);
+    if (root == null || inner == null) return null;
+    final innerWidth = double.parse(inner.group(1)!);
+    if (innerWidth <= 0) return null;
+    final factor = double.parse(root.group(1)!) / innerWidth;
+    final translate = RegExp(
+      r'class="page-margin" transform="translate\(\s*(-?[\d.]+),\s*(-?[\d.]+)\s*\)"',
+    ).firstMatch(svg);
+    final dy = translate == null ? 0.0 : double.parse(translate.group(2)!);
+
+    // `class="system">` with the closing bracket: `system bounding-box` and
+    // `systemMilestoneEnd` must not match. Systems are siblings, so slicing
+    // between consecutive starts gives each one its own block.
+    const marker = 'class="system">';
+    final starts = <int>[];
+    for (var i = svg.indexOf(marker); i >= 0; i = svg.indexOf(marker, i + 1)) {
+      starts.add(i);
+    }
+    if (starts.isEmpty) return null;
+
+    final rectGeom = RegExp(
+      r'<rect[^>]*\by="(-?[\d.]+)"[^>]*\bheight="([\d.]+)"',
+    );
+    final out = <({double top, double bottom})>[];
+    for (var s = 0; s < starts.length; s++) {
+      final end = s + 1 < starts.length ? starts[s + 1] : svg.length;
+      double? top, bottom;
+      for (final g in _bboxGroupWithRect.allMatches(svg, starts[s])) {
+        if (g.start >= end) break;
+        final r = rectGeom.firstMatch(g.group(0)!);
+        if (r == null) continue;
+        final y = double.parse(r.group(1)!);
+        final h = double.parse(r.group(2)!);
+        if (top == null || y < top) top = y;
+        if (bottom == null || y + h > bottom) bottom = y + h;
+      }
+      // A system with no boxes at all means the option did not take; falling
+      // back wholesale beats returning one bogus band among good ones.
+      if (top == null || bottom == null) return null;
+      out.add((top: (top + dy) * factor, bottom: (bottom + dy) * factor));
+    }
+    return out;
+  }
+
+  /// Cuts Verovio's `svgBoundingBoxes` groups back out. They are all one of two
+  /// shallow shapes — empty, or a single `<rect/>` — and none nests a `<g>`
+  /// (523 of them checked on Old Joe Clark), so a regex is sufficient here where
+  /// the other strippers need balanced matching.
+  static String stripBoundingBoxes(String svg) => svg
+      .replaceAll(_bboxGroupWithRect, '')
+      .replaceAll(_bboxGroupEmpty, '');
+
   /// The elements are injected precisely so Verovio will lay them out and grow
   /// the page for them; their INK is then unwanted, because the app draws its own
   /// coloured chips and bars in that space. Cutting the glyphs out of the SVG
