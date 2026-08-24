@@ -135,7 +135,7 @@ const fingeringChipNeutral = Color(0xFFFAFAFA);
 // notes at every zoom (the same principle as the lane heights themselves).
 //
 // These live here rather than in the painter because they are the reason
-// `EngravedScore.fingeringLaneHeightFraction` is the size it is — the channel is
+// `annotationStackFor` sizes the channel from this — the channel is
 // sized to hold exactly this stack — and a constraint spanning two files is one a
 // test should be able to read.
 

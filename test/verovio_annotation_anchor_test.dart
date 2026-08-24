@@ -1,0 +1,514 @@
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' show Rect, Size;
+
+import 'package:flutter_test/flutter_test.dart';
+// ignore: implementation_imports — parseSync is the only pure-Dart entry point
+// into the hit map. The public barrel reaches it only through the FFI service,
+// which cannot run headless.
+import 'package:verovio_flutter/src/hit_map/parser.dart';
+import 'package:verovio_flutter/verovio_flutter.dart';
+import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:violin_practice_companion/widgets/chord_swatch.dart';
+import 'package:violin_practice_companion/widgets/staff_view_verovio.dart';
+import 'package:violin_practice_companion/models/violin_string_palette.dart';
+
+/// What the hit map actually reports for Verovio's own annotation elements.
+///
+/// This is the evidence the "let Verovio own vertical space" design rests on, so
+/// it is a test rather than a spike: if a plugin or Verovio upgrade changes any
+/// of it, this fails instead of the staff quietly going wrong.
+///
+/// Fixtures are real Verovio 6.2.0 output over the project's own MusicXML,
+/// engraved at `scale: 40, pageWidth: 1975` — the engraver's probe settings. See
+/// `test/fixtures/verovio_*.svg`.
+///
+/// ## The two facts that matter
+///
+/// 1. **Position is accurate, extent is not.** The walker has no `<tspan>`
+///    handling (`verovio_flutter-0.3.1/lib/src/hit_map/walker.dart:380`); it reads
+///    `font-size` off the `<text>`, which Verovio always sets to `"0px"`, so it
+///    falls back to 16 units and reports a ~0.6×0.7px box for a glyph that really
+///    inks ~12px. But `x`/`y` are read straight off the attributes and correctly
+///    transformed, so the ANCHOR is trustworthy even though the box is not.
+/// 2. **Annotations form a near-flat register per system.** Verovio places each
+///    fingering by its notehead, so the row is not perfectly level — but the
+///    spread is under a couple of staff spaces, not the staff's whole range,
+///    which is what makes a drawn flat register viable.
+void main() {
+  /// The engraver's probe options, which the fixtures were generated with.
+  const pageWidthUnits = 1975;
+
+  List<ElementHit> of(PageHitMap m, String type) =>
+      m.byId.values.where((h) => h.type == type).toList();
+
+  /// The app's own staff-space formula, in fixture coordinates:
+  /// `staffHeight = staffHeightUnits × engravedScale / 100`, four spaces to it.
+  double staffSpaceOf(PageHitMap m) =>
+      staffHeightUnits * (m.viewBox.width * 100 / pageWidthUnits) / 100 / 4;
+
+  /// Per system line, the annotation baselines on it — grouped with the app's
+  /// own [systemLinesOf] over the (accurately measured) measure boxes, which is
+  /// exactly how the real code will have to do it.
+  List<List<double>> baselinesByLine(
+    PageHitMap map,
+    List<ElementHit> annotations,
+  ) {
+    final measures = of(map, 'measure')
+      ..sort((a, b) {
+        final v = a.bbox.top.compareTo(b.bbox.top);
+        return v != 0 ? v : a.bbox.left.compareTo(b.bbox.left);
+      });
+    final rects = [for (final m in measures) m.bbox];
+    final (lineOf, _) = systemLinesOf(rects);
+    final lines = lineOf.isEmpty ? 0 : lineOf.reduce(math.max) + 1;
+    // Union each line's measure boxes, then claim the annotations inside it.
+    final bounds = <int, Rect>{};
+    for (var i = 0; i < rects.length; i++) {
+      final l = lineOf[i];
+      bounds[l] = bounds[l] == null
+          ? rects[i]
+          : bounds[l]!.expandToInclude(rects[i]);
+    }
+    final out = [for (var l = 0; l < lines; l++) <double>[]];
+    for (final a in annotations) {
+      for (var l = 0; l < lines; l++) {
+        final b = bounds[l];
+        if (b == null) continue;
+        if (a.bbox.top >= b.top && a.bbox.top <= b.bottom) {
+          out[l].add(a.bbox.top);
+          break;
+        }
+      }
+    }
+    for (final l in out) {
+      l.sort();
+    }
+    return out;
+  }
+
+  group('fingerings', () {
+    late PageHitMap map;
+
+    setUp(() {
+      map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_fing.svg').readAsStringSync(),
+        config: const ParseConfig(captureClasses: {'fing', 'note', 'measure'}),
+      );
+    });
+
+    test('MusicXML <fingering> is engraved and capturable as class="fing"', () {
+      // 54 <fingering> elements in assets/fixtures/happy_farmer_musescore.xml.
+      expect(of(map, 'fing'), hasLength(54));
+    });
+
+    test('every fingering is horizontally aligned with a notehead', () {
+      final notes = of(map, 'note');
+      final fings = of(map, 'fing');
+      for (final f in fings) {
+        expect(
+          notes.any((n) => (n.bbox.center.dx - f.bbox.left).abs() < 4),
+          isTrue,
+          reason: 'fing at x=${f.bbox.left} has no notehead near it',
+        );
+      }
+    });
+
+    test('baselines form a near-flat register on each system', () {
+      final space = staffSpaceOf(map);
+      final byLine = baselinesByLine(map, of(map, 'fing'));
+      final populated = byLine.where((l) => l.length > 1).toList();
+      expect(populated, isNotEmpty, reason: 'no system carried fingerings');
+      for (final ys in populated) {
+        final spread = (ys.last - ys.first) / space;
+        // Measured 1.7–1.8 spaces on Happy Farmer. A drawn flat register is
+        // viable at this spread; it would not be if fingerings tracked pitch
+        // across the staff's whole range.
+        expect(
+          spread,
+          lessThan(3.0),
+          reason: 'spread ${spread.toStringAsFixed(2)} staff spaces',
+        );
+      }
+    });
+
+    // Guards the quirk the design deliberately relies on. If a plugin upgrade
+    // ever fixes <tspan> handling this fails, and the extent becomes usable.
+    test(
+      'reported extent is the bogus font-size fallback, not the real glyph',
+      () {
+        final space = staffSpaceOf(map);
+        for (final f in of(map, 'fing')) {
+          expect(
+            f.bbox.height,
+            lessThan(space * 0.25),
+            reason: 'extent looks real now — revisit annotationFontSizeFor',
+          );
+        }
+      },
+    );
+  });
+
+  group('chord symbols', () {
+    late PageHitMap map;
+
+    setUp(() {
+      map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_harm.svg').readAsStringSync(),
+        config: const ParseConfig(captureClasses: {'harm', 'measure'}),
+      );
+    });
+
+    test('MusicXML <harmony> is engraved and capturable as class="harm"', () {
+      // 9 <harmony> elements in assets/fixtures/lightly_row_musescore.xml.
+      expect(of(map, 'harm'), hasLength(9));
+    });
+
+    // The premise the chordRegister fallback rests on: where a chord symbol IS
+    // engraved it is the highest thing on that system, so the system's ink top is
+    // the right stand-in where one isn't.
+    test('an engraved chord symbol is the topmost ink on its system', () {
+      final measures = of(map, 'measure')
+        ..sort((a, b) {
+          final v = a.bbox.top.compareTo(b.bbox.top);
+          return v != 0 ? v : a.bbox.left.compareTo(b.bbox.left);
+        });
+      final rects = [for (final m in measures) m.bbox];
+      final (lineOf, _) = systemLinesOf(rects);
+      final content = lineContentOf(rects, lineOf);
+      final byLine = baselinesByLine(map, of(map, 'harm'));
+      for (var l = 0; l < byLine.length && l < content.length; l++) {
+        if (byLine[l].isEmpty) continue;
+        expect(byLine[l].first, closeTo(content[l].top, 0.01),
+            reason: 'harm on line $l is not the ink top, so the fallback would '
+                'put the bar somewhere the real register does not');
+      }
+    });
+
+    test('baselines are exactly level on each system', () {
+      final byLine = baselinesByLine(map, of(map, 'harm'));
+      final populated = byLine.where((l) => l.length > 1).toList();
+      expect(populated, isNotEmpty);
+      for (final ys in populated) {
+        // Chord symbols share one baseline per system — a true register, which
+        // is stronger than the fingerings' near-flat one.
+        expect(
+          ys.last - ys.first,
+          lessThan(0.5),
+          reason: 'chord baselines differ within a system: $ys',
+        );
+      }
+    });
+  });
+
+  // The two-staff case, which is why annotations are assigned to a system by
+  // BAND and not by the measure they fall inside.
+  group('chord symbols on a two-staff (tab) score', () {
+    late PageHitMap map;
+
+    setUp(() {
+      map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_tab_harm.svg').readAsStringSync(),
+        config: const ParseConfig(captureClasses: {'harm', 'measure'}),
+      );
+    });
+
+    test('are still engraved and capturable', () {
+      expect(of(map, 'harm'), hasLength(9));
+    });
+
+    test('are the topmost ink on their system, as on a single staff', () {
+      final measures = of(map, 'measure');
+      for (final h in of(map, 'harm')) {
+        final owner = measures.where(
+          (m) => h.bbox.left >= m.bbox.left && h.bbox.left <= m.bbox.right,
+        );
+        if (owner.isEmpty) continue;
+        // Adding the tab staff does NOT hoist the chord symbol clear of its
+        // measure box — it still defines that box's top edge, exactly as on a
+        // single staff. Worth pinning: it was briefly believed otherwise, and
+        // that belief was the supposed reason the tab view drew no chord bars.
+        // The real reason was that the score carried no <harmony> at all.
+        expect(h.bbox.top, greaterThanOrEqualTo(owner.first.bbox.top - 0.01));
+      }
+    });
+  });
+
+  // The reserve, end to end against real Verovio output. Everything else in this
+  // file measures what Verovio reports; this asks the question the app actually
+  // cares about — is the room it reported ENOUGH?
+  group('the room the annotation reserve buys', () {
+    // Old Joe Clark as the annotated view really engraves it: a `<fingering>`
+    // placeholder on every non-rest note (the fingering table covers every
+    // playable pitch, so `injectPlaceholders` reaches all 78) and its 8
+    // `<harmony>` kept, at the engraver's probe options PLUS the reserve —
+    // `spacingSystem` 4 + annotationSpacingSystemUnits, `pageMarginTop`
+    // 50 + annotationPageMarginTopUnits.
+    //
+    // This piece because it is the one every number in this design was measured
+    // against, and because it carries BOTH rows, which is the binding case: the
+    // chord bar, the gap and the fingering channel want 6.03 staff spaces
+    // between them, and at Verovio's own default spacing this score offered
+    // 3.62.
+    late EngravedScore score;
+
+    setUp(() {
+      final map = HitMapParser.parseSync(
+        File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync(),
+        config: const ParseConfig(
+          captureClasses: {'measure', 'fing', 'harm'},
+        ),
+      );
+      final rects = [
+        for (final h in map.byType)
+          if (h.type == 'measure') h.bbox,
+      ];
+      final (measureLine, lineBands) = systemLinesOf(rects);
+      int lineForY(double y) {
+        for (var l = 0; l < lineBands.length; l++) {
+          if (y <= lineBands[l].bottom) return l;
+        }
+        return lineBands.isEmpty ? 0 : lineBands.length - 1;
+      }
+
+      List<AnnotationAnchor> anchors(String type) => [
+        for (final h in map.byType)
+          if (h.type == type)
+            (line: lineForY(h.bbox.top), x: h.bbox.left, y: h.bbox.top),
+      ];
+      score = EngravedScore(
+        viewBox: map.viewBox,
+        svg: '',
+        bboxById: const {},
+        measures: const [],
+        notes: const [],
+        measureLine: measureLine,
+        lineBands: lineBands,
+        lineContent: lineContentOf(rects, measureLine),
+        pageWidthUnits: pageWidthUnits,
+        fingAnchors: anchors('fing'),
+        harmAnchors: anchors('harm'),
+        renderMs: 0,
+      );
+    });
+
+    /// The stack with no budget pressure at all — what the rows want.
+    ({double barHeight, double channelHeight, double gap}) unconstrained() =>
+        annotationStackFor(
+          budgetPx: double.infinity,
+          staffSpacePx: score.staffSpaceViewBox,
+          labelShare: chordLabelSizeFraction,
+          typeShare: underlineTextFraction,
+        );
+
+    test('the injection landed on every system', () {
+      expect(score.lineCount, greaterThan(1));
+      for (var l = 0; l < score.lineCount; l++) {
+        expect(score.fingRegister(l), isNotNull, reason: 'no fing on line $l');
+        expect(score.harmRegister(l), isNotNull, reason: 'no harm on line $l');
+      }
+    });
+
+    test('every system has room for the full stack — nothing shrinks', () {
+      final want = unconstrained();
+      final got = annotationStackOf(score, 1);
+      expect(got.barHeight, closeTo(want.barHeight, 1e-9));
+      expect(got.channelHeight, closeTo(want.channelHeight, 1e-9));
+      expect(got.gap, closeTo(want.gap, 1e-9));
+    });
+
+    test('and it is the reserve doing it, not luck', () {
+      // The room the tightest system actually offers, computed the way
+      // `_annotationBudget` does: previous system's ink bottom down to this
+      // system's register.
+      var budget = double.infinity;
+      for (var l = 0; l < score.lineCount; l++) {
+        final reg = score.fingRegister(l) ?? score.harmRegister(l);
+        if (reg == null) continue;
+        final prev = l <= 0 ? 0.0 : score.lineContent[l - 1].bottom;
+        budget = math.min(budget, reg - prev);
+      }
+      final space = score.staffSpaceViewBox;
+      final want = unconstrained();
+      final wanted = want.barHeight + want.channelHeight + want.gap;
+      expect(budget / space, greaterThanOrEqualTo(wanted / space));
+      // Take the reserve back off — by the measured yield, not by re-engraving —
+      // and the same score is short, which is the state this replaces.
+      //
+      // 3.5 spaces because that is what THIS FIXTURE was engraved with, back
+      // when the reserve was a worst-case constant. It is a property of the
+      // recorded SVG, not of the code: the reserve is now derived per score by
+      // `annotationReserveFor`, and on this layout it comes out at 1.5.
+      const fixtureReserveSpaces = 3.5;
+      expect(
+        (budget - fixtureReserveSpaces * space) / space,
+        lessThan(wanted / space),
+        reason: 'without the reserve this score already fit, so the reserve is '
+            'not what is carrying the stack and this test proves nothing',
+      );
+    });
+  });
+
+  registerTests();
+  stripTests();
+}
+
+/// The glyphs come out; the space they reserved stays. Against the real
+/// fixtures, so this is a claim about Verovio's actual output.
+void stripTests() {
+  int tokens(String svg, String cls) =>
+      RegExp('class="$cls[ "]').allMatches(svg).length;
+
+  group('stripAnnotationGlyphs', () {
+    test('removes every engraved fingering and chord symbol', () {
+      for (final name in ['fing', 'harm']) {
+        final svg = File('test/fixtures/verovio_$name.svg').readAsStringSync();
+        expect(
+          tokens(svg, name),
+          greaterThan(0),
+          reason: 'fixture should carry $name to begin with',
+        );
+        final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+        expect(tokens(out, name), 0, reason: '$name survived the strip');
+      }
+    });
+
+    test('leaves the music alone', () {
+      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+      for (final cls in ['note', 'staff', 'measure', 'system']) {
+        expect(tokens(out, cls), tokens(svg, cls), reason: 'lost some $cls');
+      }
+    });
+
+    test('the page keeps its size — the reservation is not reclaimed', () {
+      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final out = VerovioEngraver.stripAnnotationGlyphs(svg);
+      final vb = RegExp(r'viewBox="0 0 (\d+) (\d+)"');
+      expect(vb.firstMatch(out)!.group(2), vb.firstMatch(svg)!.group(2));
+    });
+  });
+}
+
+/// The register accessors, as pure geometry over synthetic anchors — the
+/// counterpart to the fixture tests above, which prove the anchors are real.
+void registerTests() {
+  EngravedScore scoreWith({
+    List<AnnotationAnchor> fing = const [],
+    List<AnnotationAnchor> harm = const [],
+    int lines = 2,
+  }) => EngravedScore(
+    viewBox: const Size(400, 400),
+    svg: '',
+    bboxById: const {},
+    measures: const [],
+    notes: const [],
+    measureLine: [for (var l = 0; l < lines; l++) l],
+    lineBands: [
+      for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60),
+    ],
+    lineContent: [
+      for (var l = 0; l < lines; l++) (top: l * 100.0, bottom: l * 100.0 + 60),
+    ],
+    pageWidthUnits: 1000,
+    renderMs: 0,
+    fingAnchors: fing,
+    harmAnchors: harm,
+  );
+
+  group('register', () {
+    test(
+      'is the topmost baseline on the system, so labels clear every note',
+      () {
+        final s = scoreWith(
+          fing: const [
+            (line: 0, x: 10, y: 50),
+            (line: 0, x: 20, y: 42), // highest on line 0
+            (line: 0, x: 30, y: 47),
+          ],
+        );
+        expect(s.fingRegister(0), 42);
+      },
+    );
+
+    test(
+      'is independent per system — one cramped line cannot flatten another',
+      () {
+        final s = scoreWith(
+          fing: const [(line: 0, x: 10, y: 40), (line: 1, x: 10, y: 148)],
+        );
+        expect(s.fingRegister(0), 40);
+        expect(s.fingRegister(1), 148);
+      },
+    );
+
+    test('null when the engrave carried no annotation on that system', () {
+      final s = scoreWith(fing: const [(line: 0, x: 10, y: 40)]);
+      expect(s.fingRegister(1), isNull);
+      expect(
+        s.harmRegister(0),
+        isNull,
+        reason: 'no harmony was engraved at all',
+      );
+    });
+
+    test('the two classes keep separate registers', () {
+      final s = scoreWith(
+        fing: const [(line: 0, x: 10, y: 45)],
+        harm: const [(line: 0, x: 10, y: 20)],
+      );
+      expect(s.fingRegister(0), 45);
+      expect(s.harmRegister(0), 20);
+    });
+
+    // The bug: MusicXML declares <harmony> only where the chord CHANGES, so a run
+    // carrying across a system break leaves the continuation system with nothing
+    // engraved. Measured on Old Joe Clark at three measures a line, bars 10-12
+    // continued the A from bar 9 and that system drew no chord bar at all.
+    test('a system with no engraved chord symbol still gets a register', () {
+      final s = scoreWith(
+        harm: const [
+          (line: 0, x: 10, y: 20),
+          // nothing on line 1 — the chord simply continues
+        ],
+        lines: 2,
+      );
+      expect(s.harmRegister(1), isNull, reason: 'nothing was engraved there');
+      expect(s.chordRegister(1), isNotNull, reason: 'but the bar must still draw');
+      expect(s.chordRegister(1), s.lineContent[1].top);
+    });
+
+    test('the fallback never overrides a real register', () {
+      final s = scoreWith(harm: const [(line: 0, x: 10, y: 20)]);
+      expect(s.chordRegister(0), 20, reason: 'line 0 has one; use it');
+      expect(s.chordRegister(0), s.harmRegister(0));
+    });
+
+    test('every system gets a chord register, whatever was engraved', () {
+      // The property the chord painter depends on: it may skip a run for want of
+      // a RUN, never for want of a register.
+      for (final harm in <List<AnnotationAnchor>>[
+        const [],
+        const [(line: 0, x: 1, y: 5)],
+        const [(line: 1, x: 1, y: 105)],
+      ]) {
+        final s = scoreWith(harm: harm, lines: 2);
+        for (var l = 0; l < s.lineCount; l++) {
+          expect(s.chordRegister(l), isNotNull, reason: 'line $l of $harm');
+        }
+      }
+    });
+
+    test('out-of-range lines still yield null rather than throwing', () {
+      final s = scoreWith(harm: const [(line: 0, x: 10, y: 20)], lines: 2);
+      expect(s.chordRegister(9), isNull);
+      expect(s.chordRegister(-1), isNull);
+    });
+
+    test('no anchors at all yields no register, not a crash', () {
+      expect(scoreWith().fingRegister(0), isNull);
+      expect(scoreWith().harmRegister(0), isNull);
+    });
+  });
+}

@@ -77,6 +77,29 @@ own that the watcher is dead.
 
 **Never spawn a new `flutter run` without killing the existing one first.**
 
+**The device can lie too, not just the build.**
+
+The simulator can desync from the app: **Device ▸ Orientation** showed Landscape Left
+ticked while the app went on laying itself out at portrait dimensions, and further
+menu clicks (and `Rotate Left`, and the Cmd-arrow keystrokes) all reported success
+and did nothing.
+
+Screenshot dimensions cannot tell you the app's orientation — `simctl io screenshot`
+always captures in the device's **native** frame, so a landscape app comes out
+portrait-shaped and rotated. Ask the app instead: `constraints.maxWidth`, or the `w=`
+field of the `[auto]` debug line (`VerovioEngraver.debugLogging`). Measured: `w=358`
+portrait and `w=706` landscape on `dev-iphone`, `w=790` portrait on `dev-ipad`.
+When the menu and the app disagree, only a device reboot clears it:
+```bash
+xcrun simctl shutdown dev-iphone && xcrun simctl boot dev-iphone
+```
+
+**Worktrees: two traps.** They branch from `origin/main`, *not* your current HEAD, so
+work based on an unmerged branch must `git checkout -b <name> <sha>` first and check
+`git log --oneline -1` before touching anything. And `flutter test` cannot resolve the
+`../homr_flutter` path dependency from inside a worktree without the symlink at
+`.claude/worktrees/homr_flutter` (it is there; leave it).
+
 ## Marionette MCP — Live UI Inspection
 
 Marionette lets agents interact with the running simulator (screenshots, taps, text input, scroll) without touching the physical device.
@@ -160,6 +183,33 @@ window first. Timing-sensitive *logic* belongs in a test (see `test/count_in_tes
 
 **Screen coordinates** in marionette are in logical pixels at whatever scale the simulator reports. `dev-iphone` in landscape reports ~874×402pt for the full screen (including AppBar). The body below the AppBar starts at y≈52.
 
+## Measuring Verovio headlessly
+
+`web/verovio/verovio-toolkit-wasm.js` (Verovio 6.2.0) drives from Node with no
+simulator, so it can answer "what does this option actually do" in seconds — and
+unlike the dev server it is safe to run while another agent holds the device.
+
+```js
+const vrv = require('web/verovio/verovio-toolkit-wasm.js');
+// no ready callback — poll for the wasm runtime:
+//   vrv.module.calledRun && vrv.module.cwrap('vrvToolkit_getVersion','string',[])
+const tk = new vrv.toolkit();
+tk.resetOptions();                 // options are CUMULATIVE — see below
+tk.loadData(xml);
+tk.setOptions({scale: 40, pageWidth: 1975, adjustPageHeight: true, svgViewBox: true});
+const svg = tk.renderToSVG(1);
+```
+
+**Options are cumulative across `setOptions` calls.** Without `resetOptions()`
+between measurements the numbers grow monotonically and look like a real trend.
+
+**Trust it for option yields, not for layout.** It gave exact, reproducible figures
+for `spacingSystem` (0.50 staff spaces/unit), `pageMarginTop` (1/18, and silently
+reverting to the default above its max of 500) and `harmDist` (no effect on the
+harm-to-fing separation). But the same `pageWidth` that gave six systems on the
+device gave three headless, and that discrepancy is unexplained — so confirm any
+LAYOUT conclusion on a real engrave.
+
 ## Fingering Label Format
 
 Fingering labels are defined canonically in the piece asset files (e.g., `A1`, `A2L`, `E2H`). The L/H suffix indicates low/high finger position and is meaningful data — **never strip, transform, or replace it with ♭/♯ symbols**. Both the staff annotation view and the fingering view must render the full label verbatim as stored in `NoteEvent.fingerNumber`.
@@ -176,6 +226,7 @@ After each commit, **agents should run this quick checklist and flag anything th
 2. **No `kIsWeb` or `Platform.is*` branching inside shared widgets or services.** That's the canonical smell — branch via conditional imports instead.
 3. **New plugin dependencies must declare iOS, Android, macOS, and Web support** on pub.dev. If a plugin is web-only or mobile-only, it needs a conditional-import sibling, not a direct dependency in shared code.
 4. **No hard-coded desktop-browser pixel widths.** Layouts should be responsive / percentage-based so they survive a phone viewport.
+5. **No whole-file reformatting.** This repo is not `dart format`-clean, so running it on a file rewrites hundreds of unrelated lines. `git diff --shortstat` against `git diff -w --shortstat` is the tell — if they diverge a lot, a formatter has been through. It has twice turned a small change into a huge diff: 582 lines for a 304-line change, and ~180 lines of churn for a 3-line edit in `piece_detail_screen.dart`. Edit surgically; to undo, `git checkout HEAD -- <file>` and re-apply the real change by hand.
 
 Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving to a conditional-import split (see `playback_service_web.dart` / `playback_service_io.dart` for the pattern)."*
 

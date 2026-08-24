@@ -34,13 +34,21 @@ import 'staff_zoom_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
-final pieceRepositoryProvider = Provider<PieceRepository>((_) => PieceRepository());
+final pieceRepositoryProvider = Provider<PieceRepository>(
+  (_) => PieceRepository(),
+);
 
-final musicXmlParserProvider = Provider<MusicXmlParser>((_) => MusicXmlParser());
+final musicXmlParserProvider = Provider<MusicXmlParser>(
+  (_) => MusicXmlParser(),
+);
 
-final jianpuConverterProvider = Provider<JianpuConverter>((_) => JianpuConverter());
+final jianpuConverterProvider = Provider<JianpuConverter>(
+  (_) => JianpuConverter(),
+);
 
-final fingeringMapperProvider = Provider<FingeringMapper>((_) => FingeringMapper());
+final fingeringMapperProvider = Provider<FingeringMapper>(
+  (_) => FingeringMapper(),
+);
 
 // ── Piece list ────────────────────────────────────────────────────────────────
 
@@ -63,12 +71,14 @@ final selectedPieceProvider = StateProvider<Piece?>((ref) => null);
 
 // ── Piece library (collections, hidden pieces, renames) ──────────────────────
 
-final pieceLibraryStoreProvider =
-    Provider<PieceLibraryStore>((_) => PieceLibraryStore());
+final pieceLibraryStoreProvider = Provider<PieceLibraryStore>(
+  (_) => PieceLibraryStore(),
+);
 
 final libraryProvider =
     AsyncNotifierProvider<PieceLibraryNotifier, PieceLibrary>(
-        PieceLibraryNotifier.new);
+      PieceLibraryNotifier.new,
+    );
 
 class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
   @override
@@ -100,8 +110,13 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     await ref.read(pieceLibraryStoreProvider).save(next);
   }
 
-  Future<void> createCollection(String name) => _mutate((l) => addCollection(l,
-      name: name, nowMillis: DateTime.now().millisecondsSinceEpoch));
+  Future<void> createCollection(String name) => _mutate(
+    (l) => addCollection(
+      l,
+      name: name,
+      nowMillis: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 
   Future<void> renameCollection(String id, String name) =>
       _mutate((l) => plib.renameCollection(l, id, name));
@@ -110,7 +125,8 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
       _mutate((l) => removeCollection(l, id));
 
   Future<void> setTags(String pieceId, Set<String> collectionIds) => _mutate(
-      (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds));
+    (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds),
+  );
 
   /// [visibleIds] is the collection as displayed; see [reorderInCollection].
   Future<void> reorderInCollection(
@@ -118,9 +134,15 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     List<String> visibleIds,
     int oldIndex,
     int newIndex,
-  ) =>
-      _mutate((l) => plib.reorderInCollection(
-          l, collectionId, visibleIds, oldIndex, newIndex));
+  ) => _mutate(
+    (l) => plib.reorderInCollection(
+      l,
+      collectionId,
+      visibleIds,
+      oldIndex,
+      newIndex,
+    ),
+  );
 
   Future<void> setHidden(String pieceId, bool hidden) =>
       _mutate((l) => plib.setHidden(l, pieceId, hidden));
@@ -165,13 +187,17 @@ final libraryPiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
 final visiblePiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
   final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
   final collectionId = ref.watch(activeCollectionProvider);
-  return ref.watch(piecesProvider).whenData(
-      (pieces) => applyLibrary(lib, pieces, collectionId: collectionId));
+  return ref
+      .watch(piecesProvider)
+      .whenData(
+        (pieces) => applyLibrary(lib, pieces, collectionId: collectionId),
+      );
 });
 
 /// The chip row's collections, in display order. Empty while loading.
 final collectionsProvider = Provider<List<Collection>>(
-    (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const []);
+  (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const [],
+);
 
 /// The count behind "10 hidden pieces", scoped to the active collection so the
 /// footer never promises pieces that showing hidden wouldn't reveal. 0 hides the
@@ -179,16 +205,22 @@ final collectionsProvider = Provider<List<Collection>>(
 final hiddenPieceCountProvider = Provider<int>((ref) {
   final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
   final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
-  return hiddenCount(lib, pieces,
-      collectionId: ref.watch(activeCollectionProvider));
+  return hiddenCount(
+    lib,
+    pieces,
+    collectionId: ref.watch(activeCollectionProvider),
+  );
 });
 
 /// Which collections a piece belongs to — the tag dialog's initial checkboxes.
 /// Derived, never stored: a persisted reverse index would be a second copy of
 /// the membership, free to disagree with the first.
-final pieceCollectionsProvider =
-    Provider.family<Set<String>, String>((ref, pieceId) => collectionIdsOf(
-        ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty, pieceId));
+final pieceCollectionsProvider = Provider.family<Set<String>, String>(
+  (ref, pieceId) => collectionIdsOf(
+    ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty,
+    pieceId,
+  ),
+);
 
 final libraryActionsProvider = Provider<LibraryActions>(LibraryActions.new);
 
@@ -215,8 +247,11 @@ class LibraryActions {
   Future<void> deletePiece(String pieceId) async {
     final repo = _ref.read(pieceRepositoryProvider);
     if (repo.isBundled(pieceId)) {
-      throw ArgumentError.value(pieceId, 'pieceId',
-          'Bundled fixtures are hidden, not deleted');
+      throw ArgumentError.value(
+        pieceId,
+        'pieceId',
+        'Bundled fixtures are hidden, not deleted',
+      );
     }
     await repo.deletePiece(pieceId);
     await _ref.read(staffZoomStoreProvider).clear(pieceId);
@@ -281,7 +316,9 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 // Note this is NOT [measuresPerRowProvider], which is derived purely from screen
 // width and drives the jianpu/fingering row layout.
 
-final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore());
+final staffZoomStoreProvider = Provider<StaffZoomStore>(
+  (_) => StaffZoomStore(),
+);
 
 /// Which way up the screen is, pushed from the piece detail screen's layout —
 /// the same shape as [measuresPerRowProvider], and for the same reason: a
@@ -289,8 +326,9 @@ final staffZoomStoreProvider = Provider<StaffZoomStore>((_) => StaffZoomStore())
 ///
 /// The zoom is stored per orientation because measures-per-line means a
 /// different note size in each (see [StaffZoomStore]).
-final staffOrientationProvider =
-    StateProvider<StaffOrientation>((_) => StaffOrientation.portrait);
+final staffOrientationProvider = StateProvider<StaffOrientation>(
+  (_) => StaffOrientation.portrait,
+);
 
 /// The user's measures-per-line override ([value]; null = auto, meaning fit a
 /// short piece to ~75% of the viewport), plus whether the per-piece setting has
@@ -312,17 +350,17 @@ typedef MeasuresPerLineState = ({int? value, bool restored});
 /// and thrown away.
 final measuresPerLineProvider =
     StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
-  return MeasuresPerLineNotifier(
-    ref.watch(staffZoomStoreProvider),
-    ref.watch(selectedPieceProvider)?.id,
-    ref.watch(staffOrientationProvider),
-  );
-});
+      return MeasuresPerLineNotifier(
+        ref.watch(staffZoomStoreProvider),
+        ref.watch(selectedPieceProvider)?.id,
+        ref.watch(staffOrientationProvider),
+      );
+    });
 
 class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
   MeasuresPerLineNotifier(this._store, this._pieceId, this._orientation)
-      // With no piece there is nothing to read, so we're trivially restored.
-      : super((value: null, restored: _pieceId == null)) {
+    // With no piece there is nothing to read, so we're trivially restored.
+    : super((value: null, restored: _pieceId == null)) {
     if (_pieceId != null) _restore();
   }
 
@@ -370,8 +408,11 @@ final pieceLayoutProvider = FutureProvider<PieceLayout?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
   final measuresPerRow = ref.watch(measuresPerRowProvider);
-  return PieceLayout.compute(parsed.measures, piece.sections,
-      measuresPerRow: measuresPerRow);
+  return PieceLayout.compute(
+    parsed.measures,
+    piece.sections,
+    measuresPerRow: measuresPerRow,
+  );
 });
 
 // ── Unfolded section runs (drives the minimap) ────────────────────────────────
@@ -387,7 +428,9 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
 
 // ── Display mode ──────────────────────────────────────────────────────────────
 
-final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff);
+final displayModeProvider = StateProvider<DisplayMode>(
+  (_) => DisplayMode.staff,
+);
 
 // ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
 // `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays
@@ -399,11 +442,12 @@ final displayModeProvider = StateProvider<DisplayMode>((_) => DisplayMode.staff)
 // macOS build, but webview_flutter does). It is deliberately NOT surfaced in
 // the UI: there's no user toggle. A future task selects `osmd` per-platform
 // (e.g. on macOS) when that target is revisited; until then the default is
-// `verovio`. See docs/verovio_custompaint_migration_plan.md.
+// `verovio`. Background: `docs/explore.md` §10.
 enum StaffRenderer { osmd, verovio }
 
-final staffRendererProvider =
-    StateProvider<StaffRenderer>((_) => StaffRenderer.verovio);
+final staffRendererProvider = StateProvider<StaffRenderer>(
+  (_) => StaffRenderer.verovio,
+);
 
 // ── Section navigation (minimap) ──────────────────────────────────────────────
 // Top-most visible MEASURE number in the jianpu/fingering views, pushed on
@@ -421,8 +465,8 @@ final navTargetRunProvider = StateProvider<({int run, int seq})?>((_) => null);
 
 final stringLabelStyleProvider =
     StateNotifierProvider<StringLabelStyleNotifier, StringLabelStyle>(
-  (_) => StringLabelStyleNotifier(),
-);
+      (_) => StringLabelStyleNotifier(),
+    );
 
 class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
   StringLabelStyleNotifier() : super(StringLabelStyle.always);
@@ -466,29 +510,38 @@ final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
 
 /// Whether `<harmony>` should be stripped before the score is engraved.
 ///
-/// Two independent reasons to strip. The obvious one is the user turning chords
-/// off. The other is that the **native renderer draws chords itself**, as
-/// labelled colored bars in a lane above the staff (`ChordRunRegion` /
-/// `_ChordLanePainter`), so leaving the harmony in would have Verovio engrave a
-/// second, unspanned copy of every symbol as `<harm>` text. The OSMD fallback has
-/// no lane, so there it stays in and Verovio's own symbols are the display.
+/// Never under the native renderer, whichever view is asking. The chord bars are
+/// drawn from [EngravedScore.harmRegister] — the baseline Verovio engraved its own
+/// chord symbols at — so an engrave with no `<harm>` yields no register and every
+/// bar is silently skipped. Verovio's own `<harm>` glyphs are cut back out of the
+/// SVG afterwards ([VerovioEngraver.stripAnnotationGlyphs]), so keeping them in
+/// costs no duplicate ink — they are there for their geometry alone.
 ///
-/// The `<harmony>` elements are only stripped from the ENGRAVED xml — the parsed
-/// model still carries `NoteEvent.chordSymbol`, which is what the lane and the
-/// footer diagrams are built from.
+/// Only the ENGRAVED xml is at stake either way: the parsed model keeps
+/// `NoteEvent.chordSymbol`, which is what the bars and the footer diagrams are
+/// built from.
 ///
-/// The renderer test comes FIRST, and deliberately returns without reading
-/// [showChordsProvider]: under the native renderer the answer is unconditionally
-/// yes, so watching the toggle would make it a dependency of the XML providers
-/// for no reason. That matters because these are `FutureProvider`s — invalidating
-/// one drops the staff to a loading spinner, which unmounts the render widget and
-/// throws away its engrave and calibration. The re-engrave then re-runs the
-/// auto-fit against whatever the viewport is now, so the page RE-FLOWS. Chord
-/// symbols only ever affect a Flutter overlay; they must not be able to do that.
-bool _stripHarmonyFor(Ref ref) {
-  if (ref.watch(staffRendererProvider) == StaffRenderer.verovio) return true;
-  return !ref.watch(showChordsProvider);
-}
+/// That is not hypothetical. This used to answer "yes, strip" for the native
+/// renderer while a second predicate answered "no, keep" for the annotated view,
+/// and the two were combined at two of the three call sites and not the third. The
+/// result: the tab view and then the plain staff view each drew no chord bars at
+/// all, silently, while the annotated view was fine. One question deserves one
+/// answer, so there is now one function.
+///
+/// The chord-symbol toggle does NOT reach the xml under the native renderer: the
+/// row is reserved whether or not the bars are painted, so toggling is a repaint.
+/// The renderer test comes first and short-circuits, so [showChordsProvider] is
+/// not even watched there — which matters because these are `FutureProvider`s.
+/// Invalidating one drops the staff to a spinner, unmounts the render widget and
+/// throws away its engrave and calibration; the re-engrave then re-runs the
+/// auto-fit against whatever the viewport is now, and the page REFLOWS. A chord
+/// toggle must never be able to do that.
+///
+/// Under OSMD the engraved symbols ARE the display — there is no lane — so there
+/// the toggle genuinely does belong in the xml.
+bool _stripHarmonyFor(Ref ref) =>
+    ref.watch(staffRendererProvider) == StaffRenderer.osmd &&
+    !ref.watch(showChordsProvider);
 
 // ── Fingering-annotation display preferences ──────────────────────────────────
 // All three apply to the annotation view only, and none of them changes what is
@@ -503,30 +556,37 @@ bool _stripHarmonyFor(Ref ref) {
 /// [StringColourStyle.off] the [stringLabelStyleProvider] letter rules apply
 /// instead. Three styles so they can be compared on real music — see
 /// [StringColourStyle].
-final stringColourStyleProvider =
-    StateProvider<StringColourStyle>((_) => StringColourStyle.chips);
+final stringColourStyleProvider = StateProvider<StringColourStyle>(
+  (_) => StringColourStyle.chips,
+);
 
 /// How much fingering the annotation view shows.
-final fingeringDensityProvider =
-    StateProvider<FingeringDensity>((_) => FingeringDensity.all);
+final fingeringDensityProvider = StateProvider<FingeringDensity>(
+  (_) => FingeringDensity.all,
+);
 
 /// Which rule decides what "crucial" fingering means at the lower densities.
 /// Surfaced in the UI because the definition needs playing feedback to settle —
 /// see [FingeringDensityPolicy].
-final fingeringDensityPolicyProvider =
-    StateProvider<FingeringDensityPolicy>((_) => FingeringDensityPolicy.difficulty);
+final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
+  (_) => FingeringDensityPolicy.difficulty,
+);
 
-/// Whether `<fingering>` should be injected before the score is engraved.
+/// Whether the engraved `<fingering>` labels are the DISPLAY (OSMD) rather than
+/// a space reserver (Verovio).
 ///
-/// Only for the OSMD fallback, which has no annotation lane — there the engraved
-/// labels are the only display. The native renderer draws them itself as coloured
-/// chips in a channel above the staff, so leaving them in would both duplicate
-/// every label and, worse, put the engraved copy back inside the measure bbox
-/// that the lane heights are measured from (which is what squeezed the chord lane
-/// out in the first place). Same shape of decision as [_stripHarmonyFor].
+/// OSMD has no annotation lane, so there the engraved labels are all the user
+/// sees and they must carry the real, styled text — which is why
+/// [stringLabelStyleProvider] is watched inside that branch, and why a style
+/// change legitimately re-engraves there.
 ///
-/// The parsed model still carries `NoteEvent.fingerString`/`fingerNumber`, which
-/// is what [fingeringAnnotations] builds the chips from.
+/// The native renderer hides the engraved glyph and paints its own coloured
+/// chips, so it injects style-independent placeholders instead
+/// ([FingeringXmlInjector.injectPlaceholders]) purely so Verovio reserves the
+/// row. Both paths inject; they differ only in what the text says.
+///
+/// The parsed model carries `NoteEvent.fingerString`/`fingerNumber` either way,
+/// which is what [fingeringAnnotations] builds the chips from.
 bool _injectFingeringFor(Ref ref) =>
     ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
@@ -553,21 +613,19 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  // Both renderers inject; see [_injectFingeringFor] for why the text differs.
+  // The publisher's own fingerings are replaced either way, so a leftover
+  // engraved label can never contradict the app's note for note.
+  final parsed = await ref.watch(parsedPieceProvider.future);
   if (_injectFingeringFor(ref)) {
-    // Watched inside the branch on purpose: only the OSMD path bakes the labels
-    // into the xml, so only there is the style an engraving input. Under the
-    // native renderer the lane owns the labels, and watching it here would
-    // re-engrave (and re-flow) on a change that repaints — see
-    // [_stripHarmonyFor] for the same reasoning about the chord toggle.
+    // Watched inside the branch on purpose: only here is the style an engraving
+    // input, because only here is the engraved label the display.
     final style = ref.watch(stringLabelStyleProvider);
-    final parsed = await ref.watch(parsedPieceProvider.future);
     if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
-  } else {
-    // Strip the publisher's own fingerings too, exactly as [staffXmlProvider]
-    // does: the lane is the only fingering display under this renderer, and a
-    // leftover engraved `<fing>` would contradict it note for note.
-    xml = FingeringXmlInjector.stripFingerings(xml);
+  } else if (parsed != null) {
+    xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
   }
+  // Keep `<harmony>` for the native renderer so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
 });
@@ -581,13 +639,16 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
 /// Note the asymmetry in what a change costs: the tab staff carries its numbers
 /// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
 /// while the channel draws them in a Flutter overlay, so there it is a repaint.
-final noteNumberModeProvider =
-    StateProvider<NoteNumberMode>((_) => NoteNumberMode.violinFingering);
+final noteNumberModeProvider = StateProvider<NoteNumberMode>(
+  (_) => NoteNumberMode.violinFingering,
+);
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
 /// fret on the fingering's string. Shared by the same two views as
 /// [noteNumberModeProvider]. Session-only; only affects fret numbers.
-final fretStyleProvider = StateProvider<FretStyle>((_) => FretStyle.openStrings);
+final fretStyleProvider = StateProvider<FretStyle>(
+  (_) => FretStyle.openStrings,
+);
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
 /// for the tab view. Reuses the same strip pipeline as [staffXmlProvider] so the
@@ -607,6 +668,12 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).
+  //
+  // Kept in for the native renderer for the same reason as the annotated view:
+  // the bars are drawn from `EngravedScore.harmRegister`, so with no engraved
+  // `<harm>` there is no register and every bar is silently skipped. That is
+  // exactly what this comment used to claim was happening while the view in fact
+  // showed no chords at all.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return TabScoreGenerator.generate(
     xml,
@@ -664,8 +731,7 @@ class MeasureSelection {
   int get hashCode => Object.hash(startMeasure, endMeasure);
 }
 
-final measureSelectionProvider =
-    StateProvider<MeasureSelection?>((_) => null);
+final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
 
 // ── Playback ──────────────────────────────────────────────────────────────────
 
@@ -698,7 +764,8 @@ final countInStoreProvider = Provider<CountInStore>((_) => CountInStore());
 /// first engrave). Nothing here has to wait for storage: the count-in matters
 /// only when Play is pressed, by which time the read has long since landed.
 final countInProvider = StateNotifierProvider<CountInNotifier, int>(
-    (ref) => CountInNotifier(ref.watch(countInStoreProvider)));
+  (ref) => CountInNotifier(ref.watch(countInStoreProvider)),
+);
 
 class CountInNotifier extends StateNotifier<int> {
   CountInNotifier(this._store) : super(countInMinBeats) {
@@ -763,7 +830,10 @@ final resolvedCountInProvider = Provider<CountInPlan?>((ref) {
     beatsPerMeasure: beatsPerMeasure,
     beatType: beatType,
     minBeats: ref.watch(countInProvider),
-    pickupUnits: pickupUnitsOf(startMeasure,
-        beatsPerMeasure: beatsPerMeasure, beatType: beatType),
+    pickupUnits: pickupUnitsOf(
+      startMeasure,
+      beatsPerMeasure: beatsPerMeasure,
+      beatType: beatType,
+    ),
   );
 });
