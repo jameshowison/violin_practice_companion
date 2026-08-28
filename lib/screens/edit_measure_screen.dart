@@ -456,6 +456,8 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
                     notes: _notes,
                     selectedIndex: _selectedIndex,
                     onSelect: (i) => setState(() => _selectedIndex = i),
+                    numberMode: ref.watch(noteNumberModeProvider),
+                    fretStyle: ref.watch(fretStyleProvider),
                   ),
                 ),
               ],

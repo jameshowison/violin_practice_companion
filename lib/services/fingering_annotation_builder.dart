@@ -107,7 +107,7 @@ List<FingeringAnnotation> fingeringAnnotations(
       // note, drawn or not, so `prevString` (the `onChange` letter) tracks the
       // music rather than the surviving labels.
       final shown = hasFingering
-          ? _shown(note, numberMode, fretStyle)
+          ? shownNumber(note, numberMode, fretStyle)
           : (string: null, number: '');
 
       if (drawable) {
@@ -173,7 +173,7 @@ List<StringRunRegion> stringRunRegions(
       final note = m.notes[j];
       if (note.isRest) continue;
       if (note.fingerString == null || note.fingerNumber == null) continue;
-      final s = _shown(note, numberMode, fretStyle).string;
+      final s = shownNumber(note, numberMode, fretStyle).string;
       if (s == null || s == prev) continue;
       markers.add(Section(label: s, startMeasure: m.number, startNote: j));
       prev = s;
@@ -210,7 +210,11 @@ List<StringRunRegion> stringRunRegions(
 /// negative one. Deliberately not clamped — the fingering table can't produce
 /// such a pair, so seeing one means the data is wrong and hiding it would only
 /// make that harder to notice.
-({String? string, String number}) _shown(
+///
+/// Public (not `_shown`) so other views of a single note — e.g. the measure
+/// edit screen's note cards — resolve the same mode/style switch instead of
+/// falling back to the raw violin fingering.
+({String? string, String number}) shownNumber(
   NoteEvent note,
   NoteNumberMode numberMode,
   FretStyle fretStyle,
