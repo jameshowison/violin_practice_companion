@@ -44,6 +44,12 @@ class StaffZoomStore {
   String _key(String pieceId, StaffOrientation orientation) =>
       '$_prefix$pieceId.${orientation.name}';
 
+  /// Parallel key for the "lock exactly" flag (see [loadLocked]/[saveLocked]).
+  /// Distinct prefix (`measuresPerLine.locked.`), so it can't collide with
+  /// [_legacyKey] (`measuresPerLine.$pieceId`, no `.locked` infix).
+  String _lockedKey(String pieceId, StaffOrientation orientation) =>
+      '${_prefix}locked.$pieceId.${orientation.name}';
+
   /// The stored override for [pieceId] in [orientation], or null when that
   /// orientation is on auto. Never throws — a preferences failure just means
   /// "no override".
@@ -79,6 +85,39 @@ class StaffZoomStore {
     }
   }
 
+  /// The stored "lock exactly" flag for [pieceId] in [orientation] — whether
+  /// the measures-per-line override is enforced via explicit MusicXML system
+  /// breaks (`breaks: 'encoded'`) rather than Verovio's own approximate
+  /// auto-breaking. Defaults to false (absent key). Never throws.
+  Future<bool> loadLocked(String pieceId, StaffOrientation orientation) async {
+    try {
+      final prefs = await _open();
+      return prefs.getBool(_lockedKey(pieceId, orientation)) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Persists the "lock exactly" flag for [pieceId] in [orientation].
+  /// Best-effort, matching [save].
+  Future<void> saveLocked(
+    String pieceId,
+    StaffOrientation orientation,
+    bool locked,
+  ) async {
+    try {
+      final prefs = await _open();
+      final key = _lockedKey(pieceId, orientation);
+      if (locked) {
+        await prefs.setBool(key, true);
+      } else {
+        await prefs.remove(key);
+      }
+    } catch (_) {
+      // Ignore: the session-level provider still holds the value.
+    }
+  }
+
   /// Promotes any pre-split value into [keepFor] and deletes it.
   ///
   /// Called on the first write for a piece, and a no-op after that. Promoting
@@ -105,6 +144,7 @@ class StaffZoomStore {
       final prefs = await _open();
       for (final orientation in StaffOrientation.values) {
         await prefs.remove(_key(pieceId, orientation));
+        await prefs.remove(_lockedKey(pieceId, orientation));
       }
       await prefs.remove(_legacyKey(pieceId));
     } catch (_) {

@@ -125,6 +125,12 @@ class VerovioEngraver {
   /// - [pageMarginTop]: the page's top margin in MEI units — the room system 0's
   ///   annotation rows are drawn in, there being no system above it to borrow
   ///   from. Compose with `verovioPageMarginTopForEngrave`.
+  /// - [breaks]: Verovio's line-breaking mode. `'auto'` (the default) lets
+  ///   Verovio choose its own break points, which is what every zoom level
+  ///   solves a `scale` to approximately steer (see `staff_zoom.dart`).
+  ///   `'encoded'` instead honors explicit `<print new-system="yes"/>` markers
+  ///   already present in [musicXml] (see `insertSystemBreaksEvery`) — the
+  ///   mechanism behind a guaranteed-exact "lock to N measures per line".
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
@@ -136,13 +142,14 @@ class VerovioEngraver {
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
+    String breaks = 'auto',
   }) {
     // Both lane flags go in the key, not just their count: a chords-only and a
     // fingering-only score engrave identically, but the bands are read back off
     // the returned object, so they must not share an entry.
     final variant =
         '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
-        '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop'
+        '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
         '|'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
@@ -168,6 +175,7 @@ class VerovioEngraver {
         tabFingerLabels: tabFingerLabels,
         tabMode: tabMode,
         stripRepeatClefs: stripRepeatClefs,
+        breaks: breaks,
       );
       _cache[key] = score;
       if (_cache.length > _maxCache) {
@@ -191,6 +199,7 @@ class VerovioEngraver {
     List<String>? tabFingerLabels,
     bool tabMode = false,
     bool stripRepeatClefs = true,
+    String breaks = 'auto',
   }) async {
     final svc = await _ensureService();
     final sw = Stopwatch()..start();
@@ -209,7 +218,7 @@ class VerovioEngraver {
       // page; adjustPageHeight then crops the slack. See `pageHeightUnitsFor`.
       'pageHeight': pageHeightUnits,
       'adjustPageHeight': true,
-      'breaks': 'auto',
+      'breaks': breaks,
       'footer': 'none',
       'header': 'none',
       'mnumInterval': mnumInterval,

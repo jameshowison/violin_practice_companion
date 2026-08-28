@@ -103,16 +103,48 @@ void main() {
     });
   });
 
+  group('locked flag', () {
+    test('absent means unlocked, in both orientations', () async {
+      final store = freshStore({});
+      expect(await store.loadLocked('p1', portrait), isFalse);
+      expect(await store.loadLocked('p1', landscape), isFalse);
+    });
+
+    test('the two orientations do not see each other', () async {
+      final store = freshStore({});
+      await store.saveLocked('p1', portrait, true);
+
+      expect(await store.loadLocked('p1', portrait), isTrue);
+      expect(await store.loadLocked('p1', landscape), isFalse);
+    });
+
+    test('saving false clears it back to absent', () async {
+      final store = freshStore({});
+      await store.saveLocked('p1', portrait, true);
+      await store.saveLocked('p1', portrait, false);
+
+      expect(await store.loadLocked('p1', portrait), isFalse);
+    });
+
+    test('does not collide with the legacy pre-split value key', () async {
+      final store = freshStore({'measuresPerLine.p1': 3});
+      expect(await store.loadLocked('p1', portrait), isFalse);
+      expect(await store.load('p1', portrait), 3);
+    });
+  });
+
   group('clear', () {
     test('takes both orientations and any legacy value', () async {
       final store = freshStore({'measuresPerLine.p1': 3});
       await store.save('p1', portrait, 2);
       await store.save('p1', landscape, 7);
+      await store.saveLocked('p1', portrait, true);
 
       await store.clear('p1');
 
       expect(await store.load('p1', portrait), isNull);
       expect(await store.load('p1', landscape), isNull);
+      expect(await store.loadLocked('p1', portrait), isFalse);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt('measuresPerLine.p1'), isNull);
     });

@@ -12,6 +12,7 @@ import '../models/piece_library.dart';
 // (renameCollection, reorderInCollection, setHidden, forgetPiece), where the
 // method would otherwise shadow it.
 import '../models/piece_library.dart' as plib;
+import '../models/section.dart';
 import '../models/section_run.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
@@ -31,6 +32,7 @@ import 'playback_service.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
+import 'system_break_injector.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -338,7 +340,13 @@ final staffOrientationProvider = StateProvider<StaffOrientation>(
 /// is async, so acting on the initial `null` would engrave the auto default and
 /// then immediately re-engrave at the saved value — a wasted ~600ms engrave and a
 /// visible reflow on every piece that has a saved zoom.
-typedef MeasuresPerLineState = ({int? value, bool restored});
+///
+/// [locked]: guarantee [value] exactly, via explicit MusicXML system breaks
+/// (`insertSystemBreaksEvery`) and `breaks: 'encoded'`, rather than Verovio's
+/// own approximate auto-breaking. Only meaningful alongside a non-null
+/// [value] — [MeasuresPerLineNotifier.commit] forces it false whenever
+/// [value] is cleared back to auto.
+typedef MeasuresPerLineState = ({int? value, bool restored, bool locked});
 
 /// Persisted per piece AND per orientation, so the notifier is rebuilt — and
 /// re-read — whenever either changes.
@@ -360,7 +368,7 @@ final measuresPerLineProvider =
 class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
   MeasuresPerLineNotifier(this._store, this._pieceId, this._orientation)
     // With no piece there is nothing to read, so we're trivially restored.
-    : super((value: null, restored: _pieceId == null)) {
+    : super((value: null, restored: _pieceId == null, locked: false)) {
     if (_pieceId != null) _restore();
   }
 
@@ -370,25 +378,39 @@ class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
   bool _touched = false;
 
   Future<void> _restore() async {
-    final saved = await _store.load(_pieceId!, _orientation);
+    final id = _pieceId!;
+    final value = await _store.load(id, _orientation);
+    final locked = await _store.loadLocked(id, _orientation);
     if (!mounted) return;
     // A user move that landed before the async read returned wins.
-    state = (value: _touched ? state.value : saved, restored: true);
+    state = (
+      value: _touched ? state.value : value,
+      restored: true,
+      locked: _touched ? state.locked : locked,
+    );
   }
 
   /// Live slider position — state only, no write (a drag would otherwise write
-  /// on every frame).
+  /// on every frame). Keeps whatever lock state was already set.
   void preview(int? v) {
     _touched = true;
-    state = (value: v, restored: state.restored);
+    state = (value: v, restored: state.restored, locked: state.locked);
   }
 
   /// Settles on [v] (null = back to auto) and persists it for this piece.
-  void commit(int? v) {
+  /// [locked], when given, sets whether [v] is enforced exactly (see
+  /// [MeasuresPerLineState.locked]); omitted, the current lock state carries
+  /// over. Clearing back to auto (`v == null`) always forces it off — locking
+  /// only means something against an explicit value.
+  void commit(int? v, {bool? locked}) {
     _touched = true;
-    state = (value: v, restored: state.restored);
+    final newLocked = v == null ? false : (locked ?? state.locked);
+    state = (value: v, restored: state.restored, locked: newLocked);
     final id = _pieceId;
-    if (id != null) _store.save(id, _orientation, v);
+    if (id != null) {
+      _store.save(id, _orientation, v);
+      _store.saveLocked(id, _orientation, newLocked);
+    }
   }
 }
 
@@ -590,6 +612,18 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 bool _injectFingeringFor(Ref ref) =>
     ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
+/// Injects explicit system breaks — every N measures, with each [sections]
+/// entry forcing its own fresh line — when the user has locked
+/// measures-per-line to an exact value (see [MeasuresPerLineState.locked]),
+/// so `VerovioEngraver` can be told `breaks: 'encoded'` instead of leaving
+/// Verovio to choose its own — the guaranteed-exact counterpart to the
+/// ordinary approximate zoom. A no-op on auto or on the approximate setting.
+String _lockedBreaksFor(Ref ref, String xml, List<Section> sections) {
+  final mpl = ref.watch(measuresPerLineProvider);
+  if (!mpl.locked || mpl.value == null) return xml;
+  return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
+}
+
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
 final staffXmlProvider = FutureProvider<String?>((ref) async {
@@ -600,6 +634,7 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  xml = _lockedBreaksFor(ref, xml, piece.sections);
   xml = FingeringXmlInjector.stripFingerings(xml);
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
@@ -613,6 +648,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  xml = _lockedBreaksFor(ref, xml, piece.sections);
   // Both renderers inject; see [_injectFingeringFor] for why the text differs.
   // The publisher's own fingerings are replaced either way, so a leftover
   // engraved label can never contradict the app's note for note.
