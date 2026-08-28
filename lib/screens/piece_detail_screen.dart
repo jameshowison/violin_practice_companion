@@ -23,7 +23,6 @@ import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
-import 'edit_measure_screen.dart';
 import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
@@ -349,7 +348,14 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               // folded run for in-view navigation + practice-range selection.
               final unfoldedRuns =
                   ref.watch(sectionRunsProvider).valueOrNull ?? const [];
-              final minimap = unfoldedRuns.isEmpty
+              // Edit/Delete now live at the top of this rail (see
+              // SectionMinimap's header), so a piece with no sections still
+              // needs the rail the moment a measure is selected — otherwise
+              // those actions would have nowhere to appear.
+              final canEditSelection = selection != null &&
+                  selection.isSingle &&
+                  ref.watch(pieceRepositoryProvider).supportsEditing;
+              final minimap = (unfoldedRuns.isEmpty && !canEditSelection)
                   ? null
                   : SectionMinimap(
                       runs: unfoldedRuns,
@@ -378,7 +384,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   piece: piece,
                   service: service,
                   displayMode: displayMode,
-                  selection: selection,
                 );
               }
 
@@ -392,7 +397,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                           child: Stack(
                             children: [
                               Positioned.fill(child: notationView),
-                              _FloatingMeasureActions(selection: selection),
                               _CountInOverlay(
                                   service: service, mode: displayMode),
                             ],
@@ -829,7 +833,6 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Piece piece;
   final PlaybackServiceBase service;
   final DisplayMode displayMode;
-  final MeasureSelection? selection;
 
   const _CompactPieceLayout({
     required this.notationView,
@@ -838,7 +841,6 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
     required this.piece,
     required this.service,
     required this.displayMode,
-    required this.selection,
   });
 
   @override
@@ -902,7 +904,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final selection = widget.selection;
     final displayMode = widget.displayMode;
     final theme = Theme.of(context);
 
@@ -950,7 +951,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         ],
                       ),
               ),
-              _FloatingMeasureActions(selection: selection),
               _CountInOverlay(service: widget.service, mode: displayMode),
               Positioned(
                 bottom: 0,
@@ -1527,134 +1527,9 @@ class _CountInOverlay extends StatelessWidget {
   }
 }
 
-// ── Floating edit-measure button ──────────────────────────────────────────
-//
-// Measure selection now happens directly on the notation (staff/jianpu/
-// fingering). The §6 note editor is reachable from a floating button overlaid
-// on the notation that appears whenever exactly one measure is selected on a
-// platform with writable storage — independent of the drawer/tray state, so
-// it's discoverable the moment you tap a measure. Fixtures are materialized to
-// an editable file on first save (see EditMeasureScreen._save); web has no file
-// storage so editing is disabled there via `supportsEditing` — no `kIsWeb`
-// needed in shared code.
-//
-// Always returns a [Positioned] (must be used as a direct child of the notation
-// [Stack]) — with an empty child when no single editable measure is selected.
-// It must stay positioned even when hidden: a non-positioned child would make
-// the Stack size itself to that child (collapsing it) instead of filling.
-/// Edit + Delete actions for the selected measure, floating over the notation
-/// view. Delete is here (rather than inside the measure editor) so removing a
-/// stray bar — a common OMR fix — doesn't need a round trip through the editor.
-class _FloatingMeasureActions extends ConsumerWidget {
-  final MeasureSelection? selection;
-
-  const _FloatingMeasureActions({required this.selection});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sel = selection;
-    final canEdit = sel != null &&
-        sel.isSingle &&
-        ref.watch(pieceRepositoryProvider).supportsEditing;
-    // A part must keep at least one measure (see MeasureXmlEditor.deleteMeasure).
-    final measureCount =
-        ref.watch(parsedPieceProvider).valueOrNull?.measures.length ?? 0;
-
-    return Positioned(
-      top: 8,
-      right: 8,
-      child: canEdit
-          ? Row(
-              children: [
-                FloatingActionButton.extended(
-                  heroTag: 'edit_measure_fab',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          EditMeasureScreen(measureNumber: sel.startMeasure),
-                    ),
-                  ),
-                  icon: const Icon(Icons.edit, size: 18),
-                  label: Text('Edit m. ${sel.startMeasure}'),
-                ),
-                const SizedBox(width: 8),
-                FloatingActionButton.extended(
-                  heroTag: 'delete_measure_fab',
-                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                  foregroundColor:
-                      Theme.of(context).colorScheme.onErrorContainer,
-                  onPressed: measureCount > 1
-                      ? () => _confirmAndDelete(context, ref, sel.startMeasure)
-                      : null,
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Delete'),
-                ),
-              ],
-            )
-          : const SizedBox.shrink(),
-    );
-  }
-
-  /// Confirms, then removes the measure from the piece's MusicXML. Destructive
-  /// and there's no undo, hence the dialog.
-  Future<void> _confirmAndDelete(
-      BuildContext context, WidgetRef ref, int measureNumber) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete measure $measureNumber?'),
-        content: const Text(
-            'The bar and its notes are removed and the following bars shift '
-            'back one. This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-                foregroundColor: Theme.of(ctx).colorScheme.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final piece = ref.read(selectedPieceProvider);
-    if (piece == null) return;
-    final repo = ref.read(pieceRepositoryProvider);
-    try {
-      final original = await repo.loadMusicXml(piece);
-      final newXml = MeasureXmlEditor.deleteMeasure(original, measureNumber);
-      final updated = await repo.writeEditedMusicXml(piece, newXml);
-      // Markers past the deleted bar shift back with it.
-      final sections =
-          sectionsAfterMeasureDelete(piece.sections, measureNumber);
-      await repo.saveSections(piece.id, sections);
-      ref.read(selectedPieceProvider.notifier).state =
-          updated.copyWith(sections: sections);
-      // The selected bar no longer exists (and the numbers around it moved).
-      ref.read(measureSelectionProvider.notifier).state = null;
-      ref.invalidate(piecesProvider);
-      ref.invalidate(parsedPieceProvider);
-    } catch (e) {
-      if (!context.mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Could not delete measure'),
-          content: Text('$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-}
+// Edit/Delete-measure actions now live at the top of [SectionMinimap] (see
+// that file) — they used to be FABs floating over the notation itself, which
+// covered the music being edited, and briefly lived in the title bar before
+// that. The minimap column is narrow but tall enough to hold them without
+// touching either the title or the score.
 

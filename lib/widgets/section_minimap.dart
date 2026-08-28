@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/note_event.dart'; // DisplayMode
+import '../models/section.dart'; // sectionsAfterMeasureDelete
 import '../models/section_run.dart';
+import '../screens/edit_measure_screen.dart';
+import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
@@ -101,30 +104,198 @@ class SectionMinimap extends ConsumerWidget {
         border: Border(
             left: BorderSide(color: theme.dividerColor.withAlpha(120))),
       ),
-      child: ValueListenableBuilder<HighlightEvent?>(
-        valueListenable: service.currentHighlightNotifier,
-        builder: (_, play, _) {
-          final current =
-              _resolveCurrent(isCustom, scrollMeasure, play, selection);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < runs.length; i++)
-                  _Emblem(
-                    run: runs[i],
-                    color: sectionColors[runs[i].label] ?? Colors.blueGrey,
-                    active: i == current,
-                    scale: scale,
-                    onTap: () => onTapRun(i),
-                  ),
-              ],
+      // The action header is a plain (non-scrolling) sibling of the emblem
+      // list rather than its first child, so it stays pinned at the rail's
+      // top edge — level with the first staff line — instead of scrolling
+      // away with the sections.
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _MeasureActionsHeader(),
+          Expanded(
+            // A plain SingleChildScrollView always top-aligns short content
+            // within its viewport (the viewport fills the Expanded height
+            // regardless of content length) — that's what used to read as
+            // "centered" when the header didn't yet exist and ate none of
+            // that height. The ConstrainedBox(minHeight)+Center below is the
+            // standard trick to keep the emblems centered when they fit,
+            // while still scrolling if a piece has enough sections to
+            // overflow.
+            child: LayoutBuilder(
+              builder: (context, constraints) =>
+                  ValueListenableBuilder<HighlightEvent?>(
+                valueListenable: service.currentHighlightNotifier,
+                builder: (_, play, _) {
+                  final current = _resolveCurrent(
+                      isCustom, scrollMeasure, play, selection);
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 3, vertical: 8),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                          minHeight:
+                              (constraints.maxHeight - 16).clamp(0, double.infinity)),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (var i = 0; i < runs.length; i++)
+                              _Emblem(
+                                run: runs[i],
+                                color: sectionColors[runs[i].label] ??
+                                    Colors.blueGrey,
+                                active: i == current,
+                                scale: scale,
+                                onTap: () => onTapRun(i),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
+  }
+}
+
+// ── Edit/Delete-measure actions ────────────────────────────────────────────
+//
+// Measure selection happens directly on the notation (staff/jianpu/
+// fingering). The §6 note editor is reachable from a button here that
+// appears whenever exactly one measure is selected on a platform with
+// writable storage — independent of the drawer/tray state, so it's
+// discoverable the moment you tap a measure. Fixtures are materialized to
+// an editable file on first save (see EditMeasureScreen._save); web has no
+// file storage so editing is disabled there via `supportsEditing` — no
+// `kIsWeb` needed in shared code.
+//
+// These used to be FABs floating over the notation itself, which covered the
+// music being edited (worst on iPhone portrait). They then moved to the
+// title bar, which crowded the piece title. This rail is already the
+// narrowest fixed-width column in the layout and reads as "controls for the
+// selected measure" on its own, so it's their home now.
+/// Edit + Delete, stacked to fit the rail's fixed width. Renders nothing when
+/// no single editable measure is selected — the caller still reserves this
+/// column so the actions have somewhere to appear the moment one is (see
+/// piece_detail_screen.dart's `canEditSelection`).
+class _MeasureActionsHeader extends ConsumerWidget {
+  const _MeasureActionsHeader();
+
+  static const _buttonConstraints =
+      BoxConstraints.tightFor(width: 36, height: 32);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(measureSelectionProvider);
+    final canEdit = sel != null &&
+        sel.isSingle &&
+        ref.watch(pieceRepositoryProvider).supportsEditing;
+    if (!canEdit) return const SizedBox.shrink();
+    // A part must keep at least one measure (see MeasureXmlEditor.deleteMeasure).
+    final measureCount =
+        ref.watch(parsedPieceProvider).valueOrNull?.measures.length ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit, size: 16),
+            tooltip: 'Edit measure ${sel.startMeasure}',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: _buttonConstraints,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    EditMeasureScreen(measureNumber: sel.startMeasure),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 16),
+            tooltip: 'Delete measure ${sel.startMeasure}',
+            color: Theme.of(context).colorScheme.error,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: _buttonConstraints,
+            onPressed: measureCount > 1
+                ? () => _confirmAndDelete(context, ref, sel.startMeasure)
+                : null,
+          ),
+          const Divider(height: 8, thickness: 1),
+        ],
+      ),
+    );
+  }
+
+  /// Confirms, then removes the measure from the piece's MusicXML. Destructive
+  /// and there's no undo, hence the dialog.
+  Future<void> _confirmAndDelete(
+      BuildContext context, WidgetRef ref, int measureNumber) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete measure $measureNumber?'),
+        content: const Text(
+            'The bar and its notes are removed and the following bars shift '
+            'back one. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final piece = ref.read(selectedPieceProvider);
+    if (piece == null) return;
+    final repo = ref.read(pieceRepositoryProvider);
+    try {
+      final original = await repo.loadMusicXml(piece);
+      final newXml = MeasureXmlEditor.deleteMeasure(original, measureNumber);
+      final updated = await repo.writeEditedMusicXml(piece, newXml);
+      // Markers past the deleted bar shift back with it.
+      final sections =
+          sectionsAfterMeasureDelete(piece.sections, measureNumber);
+      await repo.saveSections(piece.id, sections);
+      ref.read(selectedPieceProvider.notifier).state =
+          updated.copyWith(sections: sections);
+      // The selected bar no longer exists (and the numbers around it moved).
+      ref.read(measureSelectionProvider.notifier).state = null;
+      ref.invalidate(piecesProvider);
+      ref.invalidate(parsedPieceProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Could not delete measure'),
+          content: Text('$e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 
