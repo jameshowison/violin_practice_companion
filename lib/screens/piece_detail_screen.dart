@@ -249,6 +249,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       displayMode == DisplayMode.staffFingering ||
                       displayMode == DisplayMode.tab) ...[
                     const _MeasuresPerLineSlider(),
+                    // Guaranteed-exact breaks aren't wired up for the tab
+                    // view (see `system_break_injector.dart`'s callers) —
+                    // only offer it where it actually takes effect.
+                    if (displayMode != DisplayMode.tab)
+                      const _MeasuresPerLineLockToggle(),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       dense: true,
@@ -527,16 +532,21 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final override = ref.watch(measuresPerLineProvider).value;
+    final zoom = ref.watch(measuresPerLineProvider);
+    final override = zoom.value;
     final achieved = ref.watch(effectiveMeasuresPerLineProvider);
     final orientation = ref.watch(staffOrientationProvider);
     // On auto, park the thumb on whatever the renderer settled at.
     final position = (override ?? achieved ?? measuresPerLineForWidth(
             MediaQuery.sizeOf(context).width))
         .clamp(measuresPerLineMin, measuresPerLineMax);
-    final readout = achieved == null
-        ? (override == null ? 'Auto' : '$override')
-        : (override == null ? 'Auto (≈$achieved)' : '≈$achieved');
+    // Locked is guaranteed exact (explicit system breaks), so it drops the
+    // "≈" the approximate auto-breaking modes carry.
+    final readout = zoom.locked && override != null
+        ? '$override'
+        : (achieved == null
+            ? (override == null ? 'Auto' : '$override')
+            : (override == null ? 'Auto (≈$achieved)' : '≈$achieved'));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,6 +607,31 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
               ref.read(measuresPerLineProvider.notifier).commit(v.round()),
         ),
       ],
+    );
+  }
+}
+
+/// Guarantees the measures-per-line count above exactly, via explicit
+/// MusicXML system breaks (`insertSystemBreaksEvery`) and Verovio's
+/// `breaks: 'encoded'`, instead of the ordinary `scale`-solved approximation
+/// (see `_MeasuresPerLineSlider`'s "≈N" readout). Only meaningful against an
+/// explicit value, so it's disabled on "Auto".
+class _MeasuresPerLineLockToggle extends ConsumerWidget {
+  const _MeasuresPerLineLockToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zoom = ref.watch(measuresPerLineProvider);
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      title: const Text('Lock exactly'),
+      value: zoom.locked,
+      onChanged: zoom.value == null
+          ? null
+          : (v) => ref
+              .read(measuresPerLineProvider.notifier)
+              .commit(zoom.value, locked: v),
     );
   }
 }

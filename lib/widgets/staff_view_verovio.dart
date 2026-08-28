@@ -14,6 +14,7 @@ import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
+import '../services/system_break_injector.dart';
 import '../services/verovio_engraver.dart';
 import 'chord_swatch.dart';
 import 'count_in_label.dart';
@@ -151,6 +152,7 @@ typedef _EngraveRequest = ({
   double shortestSidePx,
   int? target,
   int spacingUnits,
+  bool locked,
 });
 
 class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
@@ -481,14 +483,17 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    here; it no longer varies, both engraves passing mnumInterval 0.
       //    The probe is engraved BARE, so it is only reusable when the score
       //    turned out to need no reserve at all — otherwise it is a different
-      //    layout from the one we are about to ask for.
+      //    layout from the one we are about to ask for. Locked mode never
+      //    reuses it: the probe is always engraved `breaks: 'auto'`, which
+      //    would not honor the encoded system breaks the real engrave needs.
       final reusable =
           probe != null &&
+          !req.locked &&
           (scale - staffScaleProbe).abs() < 0.05 &&
           _pageHeightFor(target) == _probePageHeightUnits &&
           _reserveSpacingUnits == 0 &&
           _reservePageMarginUnits == 0;
-      final score = reusable
+      var score = reusable
           ? probe
           : await _engraveAt(
               req.widthPx,
@@ -499,8 +504,48 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 verovioSpacingSystemMax,
               ),
               pageMarginTopReserve: _reservePageMarginUnits,
+              // Guaranteed-exact mode: the xml already carries explicit system
+              // breaks (`insertSystemBreaksEvery`, via `measuresPerLineProvider`
+              // locked); tell Verovio to honor them instead of computing its
+              // own. The probe stays 'auto' — it exists only to measure the
+              // natural per-measure width, and encoded breaks don't change that.
+              breaks: req.locked ? 'encoded' : 'auto',
             );
       if (!mounted || seq != _engraveSeq) return;
+
+      // 3b. Auto mode's own dead-margin fix: freeze whatever break points
+      //     Verovio's `breaks: 'auto'` engrave above just chose, hiding the
+      //     preamble at each — the same recovery locked mode gets from its
+      //     own (computed, not discovered) break points. Skipped for
+      //     previews (zoomable: false — measureNumbers is empty there, and a
+      //     1-2 bar preview has nothing to freeze anyway) and already-locked
+      //     engraves (already frozen upstream). One more full engrave, so
+      //     only worth it when there is more than one system to fix.
+      if (!req.locked && widget.zoomable) {
+        final breakNumbers = <int>{};
+        for (var i = 1; i < score.measureLine.length; i++) {
+          if (i >= widget.measureNumbers.length) break;
+          if (score.measureLine[i] != score.measureLine[i - 1]) {
+            breakNumbers.add(widget.measureNumbers[i]);
+          }
+        }
+        if (breakNumbers.isNotEmpty) {
+          final frozenXml = freezeSystemBreaks(widget.musicXml, breakNumbers);
+          score = await _engraveAt(
+            req.widthPx,
+            scale,
+            measuresPerLine: target,
+            spacingSystem: (req.spacingUnits + _reserveSpacingUnits).clamp(
+              0,
+              verovioSpacingSystemMax,
+            ),
+            pageMarginTopReserve: _reservePageMarginUnits,
+            breaks: 'encoded',
+            musicXmlOverride: frozenXml,
+          );
+          if (!mounted || seq != _engraveSeq) return;
+        }
+      }
 
       // jovial parse is synchronous and fast (a few ms); currentColor resolves
       // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
@@ -606,12 +651,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     int? measuresPerLine,
     required int spacingSystem,
     int pageMarginTopReserve = 0,
+    String breaks = 'auto',
+    String? musicXmlOverride,
   }) {
     return VerovioEngraver.instance.engrave(
-      widget.musicXml,
+      musicXmlOverride ?? widget.musicXml,
       widthPx: widthPx,
       scale: scale,
       spacingSystem: spacingSystem,
+      breaks: breaks,
       // System 0's rows come out of the page's top margin, there being no
       // system above it to borrow from. Passed in rather than derived here: the
       // probe engraves bare so it can MEASURE what the margin already gives,
@@ -828,6 +876,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // whole-piece zoom doesn't shrink their single bar.
     final zoom = ref.watch(measuresPerLineProvider);
     final target = widget.zoomable ? zoom.value : null;
+    // Only meaningful alongside an explicit target — the notifier already
+    // forces it false whenever value is cleared back to auto.
+    final locked = widget.zoomable && zoom.locked;
     // Hold off the first engrave until the piece's saved zoom has been read,
     // otherwise every piece with an override engraves the auto default first and
     // throws it away. Previews don't read the setting, so they never wait.
@@ -889,6 +940,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 shortestSidePx: shortestSide,
                 target: target,
                 spacingUnits: spacingUnits,
+                locked: locked,
               ));
             }
           });
