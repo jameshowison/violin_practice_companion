@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/note_event.dart';
+import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
+import '../services/fingering_annotation_builder.dart';
 
 /// Horizontal row of large, tappable note cards for the measure being edited.
 /// Each card shows the pitch (or "rest"), the duration, and the fingering label
@@ -17,11 +19,19 @@ class MeasureEditRow extends StatelessWidget {
   final int? selectedIndex;
   final ValueChanged<int> onSelect;
 
+  /// Same switch the piece view's fingering channel and tab staff use — so a
+  /// note reads identically here as it does everywhere else, instead of
+  /// falling back to the raw violin fingering regardless of mode.
+  final NoteNumberMode numberMode;
+  final FretStyle fretStyle;
+
   const MeasureEditRow({
     super.key,
     required this.notes,
     required this.selectedIndex,
     required this.onSelect,
+    this.numberMode = NoteNumberMode.violinFingering,
+    this.fretStyle = FretStyle.openStrings,
   });
 
   @override
@@ -69,6 +79,8 @@ class MeasureEditRow extends StatelessWidget {
         note: notes[i],
         selected: i == selectedIndex,
         chordMember: chordMember,
+        numberMode: numberMode,
+        fretStyle: fretStyle,
         onTap: () => onSelect(i),
       );
 
@@ -105,6 +117,8 @@ class _NoteEditCard extends StatelessWidget {
   /// True for the 2nd+ note of a stack. Only changes the card's look — the
   /// duration is dimmed because it's governed by the primary, not settable here.
   final bool chordMember;
+  final NoteNumberMode numberMode;
+  final FretStyle fretStyle;
   final VoidCallback onTap;
 
   const _NoteEditCard({
@@ -112,6 +126,8 @@ class _NoteEditCard extends StatelessWidget {
     required this.note,
     required this.selected,
     required this.onTap,
+    required this.numberMode,
+    required this.fretStyle,
     this.chordMember = false,
   });
 
@@ -155,11 +171,14 @@ class _NoteEditCard extends StatelessWidget {
                 fontStyle: chordMember ? FontStyle.italic : FontStyle.normal,
               ),
             ),
-            if (note.fingerNumber != null) ...[
+            if (note.fingerString != null && note.fingerNumber != null) ...[
               const SizedBox(height: 2),
-              // Rendered verbatim — the L/H suffix is meaningful (see CLAUDE.md).
+              // Resolved through the same mode/style switch as the piece view,
+              // so a fret stays a fret here too. In fingering mode this is
+              // `note.fingerNumber` verbatim — the L/H suffix is meaningful
+              // (see CLAUDE.md) — a fret needs no such suffix.
               Text(
-                note.fingerNumber!,
+                shownNumber(note, numberMode, fretStyle).number,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
