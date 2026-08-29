@@ -140,7 +140,7 @@ void main() {
     });
   });
 
-  group('clef/keySig kept on the first system only', () {
+  group('clef kept on the first system only; key signature repeats every system', () {
     // Verovio's staff group in document order: staff lines, clef, keySig,
     // (meterSig on the first system only), layer. `keySig` is written
     // self-closing when the key has no accidentals.
@@ -162,27 +162,30 @@ void main() {
             '<g class="rest">R</g>')}</g>'
         '</svg>';
 
-    test('an empty keySig does not swallow the next system\'s notes', () {
-      // The C-major regression: `<g class="keySig"/>` is self-closing, so a
-      // scan for its `</g>` used to land on the close of `<g class="layer">`
-      // and delete every note on that system.
-      final out = VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(emptyKeySig));
+    test('clef is stripped from every system after the first', () {
+      final out = VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(twoSharpKeySig));
       expect(out, contains('<g class="note">B</g>'));
       expect(out, contains('<g class="rest">R</g>'));
       expect(RegExp(r'class="layer"').allMatches(out).length, 2);
-      // Both systems keep their staff lines; only the repeat is stripped.
+      // Both systems keep their staff lines; only the repeated clef is stripped.
       expect(RegExp(r'class="clef"').allMatches(out).length, 1);
-      expect(RegExp(r'class="keySig"').allMatches(out).length, 1);
     });
 
-    test('a keySig with accidentals is removed whole, notes survive', () {
+    test('an empty keySig is left alone on every system', () {
+      // Regression guard: this function no longer scans keySig groups at all,
+      // so the self-closing `<g class="keySig"/>` (a past footgun for the
+      // group-removal machinery — see the mNum self-closing test above)
+      // can't confuse anything here; it's simply never touched.
+      final out = VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(emptyKeySig));
+      expect(RegExp(r'class="keySig"').allMatches(out).length, 2);
+    });
+
+    test('a keySig with accidentals is left alone on every system', () {
       final out =
           VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(twoSharpKeySig));
-      expect(out, contains('<g class="note">B</g>'));
-      expect(RegExp(r'class="layer"').allMatches(out).length, 2);
-      expect(RegExp(r'class="keySig"').allMatches(out).length, 1);
-      // The nested keyAccid children go with their parent — 2 left, not 4.
-      expect(RegExp(r'class="keyAccid"').allMatches(out).length, 2);
+      expect(RegExp(r'class="keySig"').allMatches(out).length, 2);
+      // Both systems' nested keyAccid children survive — 4, not 2.
+      expect(RegExp(r'class="keyAccid"').allMatches(out).length, 4);
     });
 
     test('the first system keeps its clef and key signature', () {

@@ -191,8 +191,8 @@ void main() {
   });
 
   group('hidden preamble at each break', () {
-    test('a break-forced measure with no attributes gets a hidden '
-        'clef/key/time block carrying the inherited values', () {
+    test('a break-forced measure with no attributes gets a hidden clef/time '
+        'block carrying the inherited values; no key element is added', () {
       final xml = _score([
         _measure('1', 4, attributes: true),
         for (var n = 2; n <= 10; n++) _measure('$n', 4),
@@ -203,20 +203,19 @@ void main() {
       for (final number in ['5', '9']) {
         final attributes = _attributesOf(out, number)!;
         final clef = attributes.findElements('clef').single;
-        final key = attributes.findElements('key').single;
         final time = attributes.findElements('time').single;
         expect(clef.getAttribute('print-object'), 'no');
         expect(clef.findElements('sign').single.innerText, 'G');
         expect(clef.findElements('line').single.innerText, '2');
-        expect(key.getAttribute('print-object'), 'no');
-        expect(key.findElements('fifths').single.innerText, '2');
         expect(time.getAttribute('print-object'), 'no');
         expect(time.findElements('beats').single.innerText, '4');
+        // Left out entirely — Verovio just auto-repeats the key signature.
+        expect(attributes.findElements('key'), isEmpty);
       }
     });
 
-    test('a genuine meter change at a break stays visible; only clef/key '
-        'get hidden', () {
+    test('a genuine meter change at a break stays visible; only clef/time '
+        'get hidden, key is left alone', () {
       final xml = _score([
         _measure('1', 4, attributes: true),
         _measure('2', 4),
@@ -240,9 +239,8 @@ void main() {
           reason: 'a real meter change must stay visible');
       expect(time.findElements('beats').single.innerText, '3');
       final clef = attributes.findElements('clef').single;
-      final key = attributes.findElements('key').single;
       expect(clef.getAttribute('print-object'), 'no');
-      expect(key.getAttribute('print-object'), 'no');
+      expect(attributes.findElements('key'), isEmpty);
     });
 
     test('no spurious attributes block on non-break measures', () {
@@ -261,7 +259,7 @@ void main() {
 
   group('freezeSystemBreaks (auto mode)', () {
     test('inserts breaks only at the given measure numbers, with a hidden '
-        'preamble carrying the inherited values', () {
+        'clef/time preamble carrying the inherited values; key left alone', () {
       final xml = _score([
         _measure('1', 4, attributes: true),
         for (var n = 2; n <= 9; n++) _measure('$n', 4),
@@ -272,8 +270,8 @@ void main() {
       for (final number in ['5', '8']) {
         final attributes = _attributesOf(out, number)!;
         expect(attributes.findElements('clef').single.getAttribute('print-object'), 'no');
-        expect(attributes.findElements('key').single.getAttribute('print-object'), 'no');
         expect(attributes.findElements('time').single.getAttribute('print-object'), 'no');
+        expect(attributes.findElements('key'), isEmpty);
       }
       for (final number in ['2', '3', '4', '6', '7', '9']) {
         expect(_attributesOf(out, number), isNull);
@@ -334,6 +332,24 @@ void main() {
         ];
         expect(broken, ['4']);
       }
+    });
+  });
+
+  group('hideFirstSystemPreamble', () {
+    test('hides the piece\'s own opening clef/time but leaves key visible',
+        () {
+      final xml = _score([
+        _measure('1', 4, attributes: true),
+        _measure('2', 4),
+      ]);
+      final out = hideFirstSystemPreamble(xml);
+
+      final attributes = _attributesOf(out, '1')!;
+      expect(attributes.findElements('clef').single.getAttribute('print-object'), 'no');
+      expect(attributes.findElements('time').single.getAttribute('print-object'), 'no');
+      final key = attributes.findElements('key').single;
+      expect(key.getAttribute('print-object'), isNull);
+      expect(key.findElements('fifths').single.innerText, '2');
     });
   });
 }

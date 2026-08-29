@@ -29,6 +29,7 @@ import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/playback_controls.dart';
+import '../widgets/preamble_preview.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
@@ -140,7 +141,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: kDebugMode ? 44 : 36,
+        toolbarHeight: kDebugMode ? 64 : 56,
         titleSpacing: 8,
         centerTitle: true,
         // The title line does triple duty on a tablet: what the piece is, what
@@ -150,6 +151,13 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // The clef/key/time the staff itself no longer shows — see
+            // `_hidePreambleFor` (services/providers.dart), which strips it
+            // from the main render so its width goes to notes instead. Sized
+            // to fill the toolbar height, since it's the whole point of this
+            // widget and there's no other content competing for that space.
+            const PreamblePreview(height: kDebugMode ? 64 : 56),
+            const SizedBox(width: 8),
             // An invisible copy of the key block on the left, so the title
             // lands on the true centre instead of being shoved off it by the
             // key's width. The width has to be mirrored rather than guessed:
@@ -179,6 +187,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               const SizedBox(width: 12),
               const _KeyMeterButton(),
             ],
+            const SizedBox(width: 8),
+            // Mirrors the leading preview, same reasoning as the key block's
+            // own mirror above.
+            const PreamblePreview(mirror: true, height: kDebugMode ? 64 : 56),
           ],
         ),
         actions: [

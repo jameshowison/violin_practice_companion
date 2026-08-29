@@ -529,16 +529,23 @@ class VerovioEngraver {
     return out;
   }
 
-  /// Keeps the clef + key signature only on the FIRST system, stripping the
-  /// copies Verovio re-engraves at the start of every subsequent system. This
-  /// is a deliberate departure from standard engraving (which repeats them per
+  /// Keeps the clef only on the FIRST system, stripping the copies Verovio
+  /// re-engraves at the start of every subsequent system. This is a
+  /// deliberate departure from standard engraving (which repeats the clef per
   /// line) for this single-staff practice view. The notes keep their engraved
   /// x positions, so later systems carry a small leading indent where the
   /// removed glyphs were — hitMap coordinates are untouched, so overlays,
   /// the cursor, and taps stay aligned.
+  ///
+  /// The key signature is deliberately NOT included here — unlike clef/time
+  /// it's left to repeat on every system, standard engraving practice, so a
+  /// player can tell the key from wherever they land on the page. This is
+  /// mostly a fallback for `breaks: 'auto'` (no explicit system breaks): the
+  /// usual "locked measures per line" path already keeps the key signature
+  /// (and hides clef/time) at the MusicXML source, see `_hidePreamble` in
+  /// `system_break_injector.dart`.
   static String clefKeySigFirstSystemOnly(String svg) => _removeGroups(svg, [
     ..._repeatedGroupRanges(svg, 'clef'),
-    ..._repeatedGroupRanges(svg, 'keySig'),
   ]);
 
   /// Removes Verovio's engraved bar numbers.
