@@ -358,8 +358,19 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// nothing to the margins, so the only way they can move the geometry is
   /// through the xml, which is already in the key. That is what makes toggling
   /// chord symbols a repaint rather than a re-engrave.
-  String _calibrationKeyFor(int spacingUnits) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits';
+  ///
+  /// `locked` is in the key for a different reason: it doesn't change the
+  /// geometry, it changes which direction `_tightenCalibration` can move.
+  /// `breaks: 'auto'` can discover Verovio packing MORE measures per line than
+  /// asked, tightening `_unitsPerMeasure` down; `breaks: 'encoded'` (locked)
+  /// can only ever land on the target count or fewer (section-forced breaks),
+  /// so it can never loosen a bound the auto side over-tightened. Sharing one
+  /// key let a locked engrave inherit an auto-tightened bound it had no way to
+  /// correct, inflating `scale` — the whole page rendering bigger the moment
+  /// Lock was switched on. Splitting the key forces a fresh probe on each
+  /// side of the toggle instead.
+  String _calibrationKeyFor(int spacingUnits, bool locked) =>
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits|$locked';
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -396,7 +407,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    later zoom level. The probe uses the pre-zoom option set, so an
       //    un-zoomed piece reuses the cache entry it always had.
       EngravedScore? probe;
-      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
+      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits, req.locked)) {
         // BARE — the staff-spacing preference and Verovio's own page margin,
         // with no annotation reserve. The probe's job now includes measuring how
         // much room this score's layout already leaves, and it cannot measure
@@ -410,7 +421,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
         _refinements = 0;
         _measureCount = probe.measures.length;
-        _calibratedFor = _calibrationKeyFor(req.spacingUnits);
+        _calibratedFor = _calibrationKeyFor(req.spacingUnits, req.locked);
         _tightenCalibration(probe);
 
         // What the rows are short of, if anything, at Verovio's own spacing.
@@ -582,7 +593,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    for. If the bound moves enough to change the solve, engrave once more
       //    at the corrected scale — that is the difference between "3 bars a
       //    line, notes sized for 3" and "4 bars a line, notes sized for 3".
-      if (_tightenCalibration(score) &&
+      if (_tightenCalibration(score, lockedTarget: req.locked ? target : null) &&
           _refinements < _maxRefinements &&
           _pending == null) {
         final corrected = scaleFor(
@@ -621,13 +632,31 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// Only ever tightens (never loosens), so a later engrave that happens to pack
   /// loosely — the corrective one usually does, having been given the room it
   /// asked for — cannot undo the correction and start it oscillating.
-  bool _tightenCalibration(EngravedScore score) {
+  ///
+  /// [lockedTarget], when set, replaces `measuresPerLineOf(score.measureLine)`
+  /// as the achieved count. Locked mode's own break injector
+  /// (`insertSystemBreaks`) lets a pickup measure join a system for free,
+  /// without charging it against the per-line budget — so a system opening on
+  /// a pickup (this piece's own opening measure, or a section that starts
+  /// mid-pickup, e.g. Old Joe Clark's second strain) reports one MORE physical
+  /// measure than the budget it was actually engraved at, and that inflated
+  /// count is baked into the encoded breaks: no refinement at any scale ever
+  /// reports fewer. Read at face value, `pageWidthUnits / (target + 1)`
+  /// understates the true per-measure width every time, and the ratchet
+  /// (`tighterUnitsPerMeasure` only ever shrinks) has no way to recover —
+  /// each "correction" just pushes `scale` higher until `_maxRefinements`
+  /// tops out, which is what made Lock exactly balloon note size. Since
+  /// locked mode dictates its own break points, the budget it asked for
+  /// (`lockedTarget`) is already the true achieved count for every
+  /// non-boundary-truncated system; there's nothing left to discover from
+  /// the rendered SVG.
+  bool _tightenCalibration(EngravedScore score, {int? lockedTarget}) {
     final before = _unitsPerMeasure;
     _unitsPerMeasure = tighterUnitsPerMeasure(
       before,
       unitsPerMeasureFrom(
         pageWidthUnits: score.pageWidthUnits,
-        measuresPerLine: measuresPerLineOf(score.measureLine),
+        measuresPerLine: lockedTarget ?? measuresPerLineOf(score.measureLine),
       ),
     );
     return _unitsPerMeasure < before; // false on the first observation
