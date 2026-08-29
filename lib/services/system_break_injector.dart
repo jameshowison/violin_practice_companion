@@ -130,18 +130,49 @@ String freezeSystemBreaks(String musicXml, Set<int> breakMeasureNumbers) {
   return doc.toXmlString();
 }
 
-/// The clef/key/time/divisions in effect at whatever measure was last
-/// [update]d — MusicXML only restates `<attributes>` on change, so this
-/// tracks the running "current" values both break functions need, either to
-/// decide if a measure is a pickup ([isPickup]) or to know what a hidden
-/// preamble should carry.
+/// Hides the piece's own opening clef/time — the same source-level
+/// `print-object="no"` trick [_hidePreamble] applies to every later system's
+/// auto-repeated copy — so Verovio stops RESERVING the horizontal space for it
+/// on the very FIRST system too. Confirmed headlessly the same way as that
+/// trick: on Old Joe Clark the first note's x moved from 3546 to 1944 once its
+/// opening clef/key/time were hidden this way.
+///
+/// The key signature is deliberately left alone (still printed) — unlike
+/// clef/time it's cheap to keep restating per line, and doing so is standard
+/// notation practice that helps a player who joins mid-line orient themselves.
+///
+/// Pairs with `buildPreambleXml` (`preamble_xml_generator.dart`), which reads
+/// the clef/key/time out of the untouched piece XML for a small standalone
+/// preview shown next to the piece title instead — so it must run against a
+/// copy of the XML from before this stripping, not after.
+String hideFirstSystemPreamble(String musicXml) {
+  final doc = XmlDocument.parse(musicXml);
+  for (final part in doc.findAllElements('part')) {
+    final attributes = part
+        .findElements('measure')
+        .firstOrNull
+        ?.findElements('attributes')
+        .firstOrNull;
+    if (attributes == null) continue;
+    for (final name in ['clef', 'time']) {
+      attributes.findElements(name).firstOrNull?.setAttribute('print-object', 'no');
+    }
+  }
+  return doc.toXmlString();
+}
+
+/// The clef/time/divisions in effect at whatever measure was last [update]d —
+/// MusicXML only restates `<attributes>` on change, so this tracks the
+/// running "current" values both break functions need, either to decide if a
+/// measure is a pickup ([isPickup]) or to know what a hidden preamble should
+/// carry. Key signature isn't tracked: [_hidePreamble] leaves it to Verovio's
+/// own auto-repeat rather than restating it.
 class _AttrState {
   var divisions = 1;
   var beats = 4;
   var beatType = 4;
   var clefSign = 'G';
   var clefLine = 2;
-  var keyFifths = 0;
 
   void update(XmlElement measure) {
     final attributes = measure.findElements('attributes').firstOrNull;
@@ -158,9 +189,6 @@ class _AttrState {
     final line = clef?.findElements('line').firstOrNull;
     if (sign != null) clefSign = sign.innerText;
     if (line != null) clefLine = int.tryParse(line.innerText) ?? clefLine;
-    final key = attributes.findElements('key').firstOrNull;
-    final fifths = key?.findElements('fifths').firstOrNull;
-    if (fifths != null) keyFifths = int.tryParse(fifths.innerText) ?? keyFifths;
   }
 
   bool isPickup(XmlElement measure) =>
@@ -206,12 +234,16 @@ int _attrRank(XmlElement e) {
   return i < 0 ? _attrOrder.length : i;
 }
 
-/// Hides the clef/key/time Verovio would otherwise auto-repeat at [measure]
-/// (a system-start), by stating them explicitly with `print-object="no"` —
-/// but only whichever of the three [measure]'s own `<attributes>` doesn't
-/// already carry (a genuine change there stays visible). Reuses any existing
+/// Hides the clef/time Verovio would otherwise auto-repeat at [measure] (a
+/// system-start), by stating them explicitly with `print-object="no"` — but
+/// only whichever of the two [measure]'s own `<attributes>` doesn't already
+/// carry (a genuine change there stays visible). Reuses any existing
 /// `<attributes>` block rather than adding a second one, re-sorting into
 /// schema order same as `MeasureXmlEditor._carryAttributes`.
+///
+/// The key signature is left out of this treatment on purpose — see
+/// [hideFirstSystemPreamble] for why — so Verovio just auto-repeats it
+/// normally at every system, same as standard engraving.
 void _hidePreamble(XmlElement measure, _AttrState state) {
   var attributes = measure.findElements('attributes').firstOrNull;
   final isNewBlock = attributes == null;
@@ -221,11 +253,6 @@ void _hidePreamble(XmlElement measure, _AttrState state) {
     attributes.children.add(_hiddenElement('clef', [
       XmlElement(XmlName('sign'), [], [XmlText(state.clefSign)]),
       XmlElement(XmlName('line'), [], [XmlText('${state.clefLine}')]),
-    ]));
-  }
-  if (attributes.findElements('key').isEmpty) {
-    attributes.children.add(_hiddenElement('key', [
-      XmlElement(XmlName('fifths'), [], [XmlText('${state.keyFifths}')]),
     ]));
   }
   if (attributes.findElements('time').isEmpty) {

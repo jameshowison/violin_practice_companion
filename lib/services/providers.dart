@@ -26,6 +26,7 @@ import 'chord_shape_library.dart';
 import 'chord_xml_injector.dart';
 import 'count_in_store.dart';
 import 'palette_xml_generator.dart';
+import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_repository.dart';
 import 'playback_service.dart';
@@ -624,6 +625,18 @@ String _lockedBreaksFor(Ref ref, String xml, List<Section> sections) {
   return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
 }
 
+/// Hides the piece's own opening clef/key/time so the main render's first
+/// system gets the same space back that [_lockedBreaksFor]/`freezeSystemBreaks`
+/// already recover on every later one — paired with [preambleMusicXmlProvider],
+/// which shows the same preamble next to the piece title instead.
+///
+/// OSMD-only skips this: it has no title-bar preview to move the preamble to,
+/// so hiding it there would just delete it.
+String _hidePreambleFor(Ref ref, String xml) {
+  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) return xml;
+  return hideFirstSystemPreamble(xml);
+}
+
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
 final staffXmlProvider = FutureProvider<String?>((ref) async {
@@ -634,10 +647,24 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  xml = _hidePreambleFor(ref, xml);
   xml = _lockedBreaksFor(ref, xml, piece.sections);
   xml = FingeringXmlInjector.stripFingerings(xml);
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   return xml;
+});
+
+/// The piece's opening clef/key/time, engraved alone — the counterpart to
+/// [_hidePreambleFor] stripping it from the main render. Read off the piece's
+/// own untouched XML (not [staffXmlProvider]'s output, which has already had
+/// it marked non-printing) so the real glyphs are always available to show.
+final preambleMusicXmlProvider = FutureProvider<String?>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return null;
+  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) return null;
+  final repo = ref.watch(pieceRepositoryProvider);
+  final xml = await repo.loadMusicXml(piece);
+  return buildPreambleXml(xml);
 });
 
 final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
@@ -648,6 +675,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
+  xml = _hidePreambleFor(ref, xml);
   xml = _lockedBreaksFor(ref, xml, piece.sections);
   // Both renderers inject; see [_injectFingeringFor] for why the text differs.
   // The publisher's own fingerings are replaced either way, so a leftover
