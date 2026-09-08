@@ -552,8 +552,14 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             _accidentalBtn(const Text('♭', style: _accGlyph), 'flat',
                 currentAcc, accEnabled),
             const SizedBox(width: 4),
-            _accidentalBtn(const Text('♮', style: _accGlyph), 'natural',
-                currentAcc, accEnabled),
+            _accidentalBtn(
+              const Text('♮', style: _accGlyph),
+              'natural',
+              currentAcc,
+              accEnabled,
+              tooltip: "Scanned naturals aren't detected — set this "
+                  'manually if the note should be natural',
+            ),
             const SizedBox(width: 4),
             _accidentalBtn(const Text('♯', style: _accGlyph), 'sharp',
                 currentAcc, accEnabled),
