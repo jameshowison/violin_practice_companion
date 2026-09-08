@@ -134,7 +134,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 hintText: 'Untitled',
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            const _NaturalAccidentalHint(),
+            const SizedBox(height: 12),
             if (_scanning) ...[
               const Center(child: CircularProgressIndicator()),
               const SizedBox(height: 16),
@@ -163,6 +165,30 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The scan model was never trained to detect natural (♮) signs (they were
+/// stripped from its upstream training data — see homr's `strip_naturals`).
+/// A note that should show a natural will silently follow the key signature
+/// instead, so that has to be said somewhere rather than read as a bad scan.
+class _NaturalAccidentalHint extends StatelessWidget {
+  const _NaturalAccidentalHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: const ValueKey('natural_accidental_hint'),
+      dense: true,
+      leading: Icon(Icons.info_outline, size: 18, color: theme.hintColor),
+      title: Text(
+        "Natural signs (♮) aren't detected — an affected note will follow "
+        'the key signature instead. Not a scan error; fix it in the note '
+        'editor after scanning.',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
       ),
     );
   }
