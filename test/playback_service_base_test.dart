@@ -13,8 +13,17 @@ class _FakeClockPlaybackService extends PlaybackServiceBase {
 
   double? fakeSeconds;
 
+  /// Simulates AudioSyncPlaybackService's real "nothing to highlight yet"
+  /// case (a recording's unmatched intro still playing) — see
+  /// PlaybackServiceBase.initialHighlightSeconds.
+  bool noInitialHighlight = false;
+
   @override
   double? currentPlaybackSeconds() => fakeSeconds;
+
+  @override
+  double? initialHighlightSeconds() =>
+      noInitialHighlight ? null : super.initialHighlightSeconds();
 
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {}
@@ -100,6 +109,30 @@ void main() {
 
     expect(service.notifierForMeasure(2).value, 1,
         reason: 'no-op set must not re-resync against the new clock value');
+  });
+
+  test(
+      'a service with nothing to highlight at play() time shows no '
+      'highlight until playback reaches the first note', () {
+    service.noInitialHighlight = true;
+    service.play(fromMeasure: 1);
+
+    expect(service.currentMeasureNotifier.value, isNull);
+    expect(service.currentHighlightNotifier.value, isNull);
+    expect(service.notifierForMeasure(1).value, isNull);
+
+    // Still before the first note (e.g. mid-recording-intro): forcing a
+    // resync — what _tick does every 40ms — must not conjure a highlight
+    // out of nothing.
+    service.fakeSeconds = -2.0;
+    service.highlightLeadSeconds = 0.05; // any distinct value forces a resync
+    expect(service.currentHighlightNotifier.value, isNull);
+
+    // Now at the first note's onset: highlighting picks up normally.
+    service.fakeSeconds = 0.0;
+    service.highlightLeadSeconds = 0.06;
+    expect(service.currentMeasureNotifier.value, 1);
+    expect(service.currentHighlightNotifier.value?.noteIndex, 0);
   });
 
   test('downbeat-only holds the same note index across an entire measure',
