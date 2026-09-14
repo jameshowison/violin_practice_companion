@@ -91,3 +91,4 @@ flutter:
     # bundles files it can enumerate at build time, so each piece's audio
     # folder needs its own line here.
     - assets/audio/salt_creek/
+    - assets/audio/lightly_row/
