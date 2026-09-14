@@ -179,6 +179,24 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
     return _scoreSecForAudioSec(_player.position.inMicroseconds / 1e6);
   }
 
+  /// Looks ahead by [highlightLeadSeconds] on the real audio clock, THEN
+  /// maps that future position through the anchor curve — not the other way
+  /// around. [_scoreSecForAudioSec] is piecewise-linear with a different
+  /// local slope between each pair of anchors (real recorded tempo isn't the
+  /// generated score's tempo, and drifts bar to bar), so padding its output
+  /// in score-seconds would give a different amount of real-world
+  /// anticipation depending where in the piece playback currently is —
+  /// pronounced across a segment with a near-1:1 slope, next to invisible
+  /// across a compressed one. Padding the input keeps the lead pinned to
+  /// real seconds, which is what a listener actually perceives.
+  @override
+  double? highlightAdvanceSeconds() {
+    if (_anchors.length < 2) return null;
+    final aheadAudioSec =
+        _player.position.inMicroseconds / 1e6 + highlightLeadSeconds;
+    return _scoreSecForAudioSec(aheadAudioSec);
+  }
+
   /// Always seeks first — the underlying native player is not recreated by a
   /// Dart-level hot restart, so without an explicit seek it resumes wherever
   /// a previous run left it rather than actually starting over.
