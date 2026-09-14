@@ -21,10 +21,12 @@ class AudioSyncAnchorsStore {
     String pieceId, {
     required List<ScoreAudioAnchor> anchors,
     required int generationBpm,
+    required bool hasCompressedAnchors,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final json = jsonEncode({
       'generationBpm': generationBpm,
+      'hasCompressedAnchors': hasCompressedAnchors,
       'anchors': anchors
           .map((a) => {'scoreMs': a.scoreMs, 'audioSec': a.audioSec})
           .toList(),
@@ -35,7 +37,12 @@ class AudioSyncAnchorsStore {
   /// Returns null if this piece has never been aligned, or its saved data
   /// can't be parsed (treated the same as "never aligned" — re-running the
   /// alignment is cheap and safe).
-  Future<({List<ScoreAudioAnchor> anchors, int generationBpm})?> load(
+  Future<
+      ({
+        List<ScoreAudioAnchor> anchors,
+        int generationBpm,
+        bool hasCompressedAnchors
+      })?> load(
     String pieceId,
   ) async {
     final prefs = await SharedPreferences.getInstance();
@@ -51,7 +58,12 @@ class AudioSyncAnchorsStore {
               ))
           .toList();
       if (anchors.length < 2) return null;
-      return (anchors: anchors, generationBpm: json['generationBpm'] as int);
+      return (
+        anchors: anchors,
+        generationBpm: json['generationBpm'] as int,
+        // Older cached entries predate this field.
+        hasCompressedAnchors: json['hasCompressedAnchors'] as bool? ?? false,
+      );
     } catch (_) {
       return null;
     }

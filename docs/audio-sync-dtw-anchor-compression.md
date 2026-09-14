@@ -121,6 +121,25 @@ Discussed with the user; left for a future session to pick from and implement.
    for now; revisit if this shows up across more pieces once there's a wider
    sample of real recordings to test against.
 
+## Resolution (2026-09-14)
+
+Option 1 was implemented, then reverted the same day. The forward-repeat at
+measure 10 mentioned above under "Piece structure" turned out to be wrong: the
+user had meant to encode a first/second ending (not currently supported) and
+instead left the score with extra, duplicate measures after an over-deletion
+while editing. Once the score was corrected in the app, the underlying
+structural mismatch — not a DTW quirk — was the actual cause of the anchor
+compression seen here.
+
+So `AudioScoreAutoAligner` no longer silently discards squeezed anchors.
+`hasCompressedRun` (renamed from `smoothAnchors`, same detection logic, no
+removal) only flags the pattern; `AutoAlignmentResult.hasCompressedAnchors`
+carries the flag through `AudioSyncAnchorsStore` to `AudioSyncPlaybackService
+.alignmentLooksUncertain`, which `PlayAlongControls` surfaces as a warning
+icon with `alignmentReviewMessage` — pointing the user at the score (first/
+second endings, an extra or missing measure) instead of guessing which
+anchors to drop.
+
 ---
 
 *Measured against the real `assets/audio/salt_creek/melody.wav` via the live
