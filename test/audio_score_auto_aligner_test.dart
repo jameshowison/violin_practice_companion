@@ -95,6 +95,42 @@ void main() {
     }
   });
 
+  test(
+      'a recording with a leading intro the score does not have still '
+      'anchors the first measure near the intro\'s real end, not near 0',
+      () {
+    // Same two-measure piece/tempo as the first test above, but the "real
+    // recording" now opens with a 2.5s burst of F#4 (pitch class 6) before
+    // the performance starts — a pitch class neither C4 (pc 0) nor E4 (pc 4)
+    // shares, standing in for a spoken/instrumental intro the score has no
+    // counterpart for. Before open-begin DTW, the forced (0,0) start would
+    // have smeared this whole intro into a false match against the first
+    // measure, anchoring it near audioSec 0 instead of ~2.5s.
+    final piece = ParsedPiece(
+      keySignature: 'C',
+      keyFifths: 0,
+      keyMode: KeyMode.major,
+      measures: [
+        Measure(number: 1, notes: [_note(60, NoteValue.half)]), // C4, pc 0
+        Measure(number: 2, notes: [_note(64, NoteValue.half)]), // E4, pc 4
+      ],
+    );
+    final wavBytes = _toneWavBytes([
+      (369.99, 2.5), // F#4 "intro", pc 6 — no overlap with the score's notes
+      (261.63, 3.0), // C4
+      (329.63, 3.0), // E4
+    ]);
+
+    final aligner = AudioScoreAutoAligner(midiGenerator: MidiGenerator.forTest());
+    final result = aligner.align(piece, wavBytes);
+
+    expect(result.anchors, hasLength(2));
+    expect(result.anchors[0].audioSec, closeTo(2.5, 0.3));
+    expect(result.anchors[1].audioSec, closeTo(5.5, 0.3));
+    expect(
+        result.anchors[1].audioSec, greaterThan(result.anchors[0].audioSec));
+  });
+
   group('hasCompressedRun', () {
     // Regression fixture for docs/audio-sync-dtw-anchor-compression.md:
     // Salt Creek's real alignment paced at a uniform ~1256.5ms/measure in

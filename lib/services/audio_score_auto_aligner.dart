@@ -75,7 +75,11 @@ class AudioScoreAutoAligner {
         _dtw = dtw ?? const DtwAligner();
 
   /// [wavBytes] is a whole WAV file's bytes for the recording to align
-  /// against [piece].
+  /// against [piece]. Aligned with open begin/end boundaries (see
+  /// [DtwAligner.align]) since real recordings commonly have a lead-in
+  /// (spoken/instrumental intro, count-in) or trail-out the score has no
+  /// counterpart for — forcing those onto the score's first/last notes is
+  /// what produced visibly wrong early-measure anchors before this was open.
   AutoAlignmentResult align(ParsedPiece piece, Uint8List wavBytes) {
     final realChroma = _extractor.extractFromWavBytes(wavBytes);
     final realDurationSeconds = realChroma.durationSeconds;
@@ -93,7 +97,8 @@ class AudioScoreAutoAligner {
     final reference = ScoreChromaReferenceBuilder(_midiGenerator)
         .build(piece, estimatedBpm, realChroma.hopSeconds);
 
-    final dtwResult = _dtw.align(reference.frames, realChroma.frames);
+    final dtwResult = _dtw.align(reference.frames, realChroma.frames,
+        openBegin: true, openEnd: true);
 
     final anchors = <ScoreAudioAnchor>[];
     for (var i = 0; i < reference.measureOnsetSeconds.length; i++) {

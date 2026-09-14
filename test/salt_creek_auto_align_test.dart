@@ -105,7 +105,17 @@ void main() {
       expect(result.anchors[i].audioSec,
           greaterThanOrEqualTo(result.anchors[i - 1].audioSec));
     }
-    expect(result.anchors.first.audioSec, lessThan(2.0));
+    // Open-begin DTW (see docs/audio-sync-dtw-open-boundaries.md) now
+    // discovers this recording's real ~3.46s lead-in instead of forcing
+    // measure 1 onto audioSec 0 — confirmed genuine by the independent,
+    // chroma-free onset detector below (anchor 1 lands within 0.1s of a real
+    // detected onset). Measure 1 is itself six repeats of the same pitch (A),
+    // so exactly which of several nearby real onsets gets picked within it is
+    // inherently ambiguous — that's why this alignment also comes back with
+    // hasCompressedAnchors true (measure 2's anchor lands suspiciously close
+    // to measure 1's), which is the existing, correct "ask a human to check"
+    // signal for this kind of ambiguity, not a regression to fix here.
+    expect(result.anchors.first.audioSec, lessThan(5.0));
     expect(result.anchors.last.audioSec, lessThan(wavBytes.length / 44100 / 2));
 
     // Objective cross-check, since nothing in this pipeline can "listen":
