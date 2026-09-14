@@ -154,6 +154,7 @@ class PieceRepository {
   /// just the one more line that ties the id to the folder.
   static const Map<String, String> _audioSyncFolders = {
     'untitled_2026_09_08t11_19_17_445148_1788884398656': 'salt_creek',
+    'lightly_row': 'lightly_row',
   };
 
   /// The `assets/audio/<folder>/` this piece's Play Along tracks live in, or
