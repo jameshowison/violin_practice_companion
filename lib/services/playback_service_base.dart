@@ -17,7 +17,7 @@ abstract class PlaybackServiceBase {
 
   bool loopEnabled = false;
 
-  bool _highlightDownbeatOnly = false;
+  bool _highlightDownbeatOnly = true;
 
   /// When true, only the first note of each measure (the beat the audio
   /// aligner actually anchors to — see docs/audio-sync-dtw-anchor-compression.md)
@@ -26,10 +26,29 @@ abstract class PlaybackServiceBase {
   /// interpolated, not aligned, so per-note highlighting inside a measure can
   /// visibly drift from the audio — this trades that per-note detail for a
   /// highlight that's only ever as precise as what's actually been verified.
+  /// Defaults on for the same reason: it's the only highlight granularity
+  /// that's actually trustworthy, so it's the one worth showing by default.
   bool get highlightDownbeatOnly => _highlightDownbeatOnly;
   set highlightDownbeatOnly(bool value) {
     if (_highlightDownbeatOnly == value) return;
     _highlightDownbeatOnly = value;
+    _resyncHighlightPointer();
+  }
+
+  double _highlightLeadSeconds = 0.06;
+
+  /// How far ahead of a note's real onset the highlight fires. Alignment
+  /// makes onset times exact, but exact isn't the same as "reads as in time" —
+  /// a highlight that lands right on the beat tends to be perceived as late,
+  /// since noticing + reacting to it both take time. Default of 60ms sits in
+  /// the range the research points to: the ~80-110ms audiovisual
+  /// simultaneity threshold, and the 20-100ms a player's own taps typically
+  /// precede a beat by (negative mean asynchrony) when keeping time. 0 = old
+  /// exact behavior.
+  double get highlightLeadSeconds => _highlightLeadSeconds;
+  set highlightLeadSeconds(double value) {
+    if (_highlightLeadSeconds == value) return;
+    _highlightLeadSeconds = value;
     _resyncHighlightPointer();
   }
 
@@ -119,7 +138,7 @@ abstract class PlaybackServiceBase {
 
     final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
-      _hlPointer = _findPointer(events, _startOffset);
+      _hlPointer = _findPointer(events, _startOffset + _highlightLeadSeconds);
       _lastEmittedMeasure = events[_hlPointer].measureNumber;
       currentMeasureNotifier.value = _lastEmittedMeasure;
       notifierForMeasure(_lastEmittedMeasure).value = events[_hlPointer].noteIndex;
@@ -177,6 +196,19 @@ abstract class PlaybackServiceBase {
     return _startOffset + DateTime.now().difference(t0).inMicroseconds / 1e6;
   }
 
+  /// Score-seconds position used only to pick the "current" highlight event —
+  /// [currentPlaybackSeconds] plus [highlightLeadSeconds] by default. Override
+  /// (see AudioSyncPlaybackService) when the real clock this runs on isn't
+  /// score-seconds itself: looking ahead has to happen in that real clock's
+  /// own units *before* it's mapped to score-seconds, not by padding the
+  /// already-mapped score-seconds value, since a fixed score-seconds pad is a
+  /// different amount of real anticipation wherever that mapping's local
+  /// slope (real tempo vs. the generated score's tempo) isn't 1:1.
+  double? highlightAdvanceSeconds() {
+    final pt = currentPlaybackSeconds();
+    return pt == null ? null : pt + _highlightLeadSeconds;
+  }
+
   void _tick(Timer _) {
     final d = _data;
     final pt = currentPlaybackSeconds();
@@ -202,8 +234,9 @@ abstract class PlaybackServiceBase {
     // Advance highlight pointer forward
     final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
+      final hlPt = highlightAdvanceSeconds() ?? pt;
       while (_hlPointer + 1 < events.length &&
-             events[_hlPointer + 1].onsetSeconds <= pt) {
+             events[_hlPointer + 1].onsetSeconds <= hlPt) {
         _hlPointer++;
       }
       final ev = events[_hlPointer];
@@ -261,7 +294,7 @@ abstract class PlaybackServiceBase {
   void _resyncHighlightPointer() {
     final events = _activeHighlightEvents;
     if (events.isEmpty) return;
-    final pt = currentPlaybackSeconds() ?? _startOffset;
+    final pt = highlightAdvanceSeconds() ?? (_startOffset + _highlightLeadSeconds);
     _hlPointer = _findPointer(events, pt);
     final ev = events[_hlPointer];
     _lastEmittedMeasure = ev.measureNumber;

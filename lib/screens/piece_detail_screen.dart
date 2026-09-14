@@ -85,10 +85,17 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
 class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
   // Play Along only ever verifies the first beat of each measure (see
   // docs/audio-sync-dtw-anchor-compression.md) — intra-measure note timing is
-  // interpolated, not aligned. Off by default; applied to audioSyncService
-  // straight from the drawer's onChanged, never during build (its setter can
-  // synchronously update highlight notifiers, which must not happen mid-build).
-  bool _highlightDownbeatOnly = false;
+  // interpolated, not aligned. On by default, matching PlaybackServiceBase's
+  // own default; applied to audioSyncService straight from the drawer's
+  // onChanged, never during build (its setter can synchronously update
+  // highlight notifiers, which must not happen mid-build).
+  bool _highlightDownbeatOnly = true;
+
+  // Perception experiment: how far ahead of the real (aligned) onset the
+  // downbeat highlight fires. Mirrors _highlightDownbeatOnly — local state so
+  // the slider has something to render immediately, applied to the service
+  // on change rather than during build.
+  double _highlightLeadMs = 60;
 
   @override
   void initState() {
@@ -282,6 +289,24 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       onChanged: (v) {
                         setState(() => _highlightDownbeatOnly = v);
                         audioSyncService?.highlightDownbeatOnly = v;
+                      },
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Highlight lead'),
+                        Text('${_highlightLeadMs.round()} ms',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                    Slider(
+                      value: _highlightLeadMs,
+                      min: 0,
+                      max: 300,
+                      divisions: 15,
+                      onChanged: (v) {
+                        setState(() => _highlightLeadMs = v);
+                        audioSyncService?.highlightLeadSeconds = v / 1000;
                       },
                     ),
                     const Divider(),
