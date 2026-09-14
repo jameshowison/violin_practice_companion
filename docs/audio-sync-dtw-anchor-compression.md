@@ -1,5 +1,11 @@
 # DTW auto-alignment: anchor spacing can locally collapse at chroma-ambiguous measures
 
+**See also:** [audio-sync-dtw-open-boundaries.md](audio-sync-dtw-open-boundaries.md) —
+a different DTW quirk on the same code path (an unmatched recording intro/outro
+distorting the *first/last* measure, not an interior chroma-ambiguous one), worth
+reading together since both affect anchor quality and both are handled by "flag,
+don't silently fix."
+
 **Component:** `AudioScoreAutoAligner.align` / `DtwAligner.align`
 **Files:** `lib/services/audio_score_auto_aligner.dart`, `lib/services/dtw_align.dart`
 **Severity:** wrong local timing, not a crash — the cursor briefly desyncs from the

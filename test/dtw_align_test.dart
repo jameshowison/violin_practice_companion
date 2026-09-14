@@ -76,5 +76,70 @@ void main() {
       final badResult = const DtwAligner().align(a, dissimilar);
       expect(goodResult.averageCost, lessThan(badResult.averageCost));
     });
+
+    group('open boundaries', () {
+      // Orthogonal to every `real` frame below, so cosine distance against
+      // any of them is exactly 1.0 — an unambiguous stand-in for unrelated
+      // "intro"/"outro" audio content the score has no counterpart for.
+      final introFrame = _vec([0, 0, 1]);
+      final real = [_vec([1, 0, 0]), _vec([0, 1, 0]), _vec([1, 0, 0])];
+
+      test('openBegin skips a leading unmatched run and finds where the '
+          'real content starts', () {
+        final target = [introFrame, introFrame, introFrame, ...real];
+        final result = const DtwAligner()
+            .align(real, target, openBegin: true, openEnd: false);
+        expect(result.path.first, (0, 3));
+        expect(result.path.last, (2, 5));
+        expect(result.averageCost, closeTo(0, 1e-9));
+      });
+
+      test('openEnd skips a trailing unmatched run and finds where the '
+          'real content ends', () {
+        final target = [...real, introFrame, introFrame, introFrame];
+        final result = const DtwAligner()
+            .align(real, target, openBegin: false, openEnd: true);
+        expect(result.path.first, (0, 0));
+        expect(result.path.last, (2, 2));
+        expect(result.averageCost, closeTo(0, 1e-9));
+      });
+
+      test('openBegin and openEnd together skip both a leading and '
+          'trailing unmatched run', () {
+        final target = [
+          introFrame,
+          introFrame,
+          ...real,
+          introFrame,
+          introFrame,
+        ];
+        final result = const DtwAligner()
+            .align(real, target, openBegin: true, openEnd: true);
+        expect(result.path.first, (0, 2));
+        expect(result.path.last, (2, 4));
+        expect(result.averageCost, closeTo(0, 1e-9));
+      });
+
+      test('closed mode (default) still forces the corners even with '
+          'unmatched leading content present', () {
+        final target = [introFrame, introFrame, introFrame, ...real];
+        final result = const DtwAligner().align(real, target);
+        expect(result.path.first, (0, 0));
+        expect(result.path.last, (2, 5));
+        // Forced to match intro frames against real content instead of
+        // skipping them — this is the exact distortion open boundaries fix.
+        expect(result.averageCost, greaterThan(0.3));
+      });
+
+      test('opening boundaries never increases cost versus the closed path '
+          'when there is no intro/outro to skip', () {
+        final closed = const DtwAligner().align(real, real);
+        final open = const DtwAligner()
+            .align(real, real, openBegin: true, openEnd: true);
+        expect(open.averageCost, lessThanOrEqualTo(closed.averageCost + 1e-9));
+        expect(open.path.first, (0, 0));
+        expect(open.path.last, (2, 2));
+      });
+    });
   });
 }
