@@ -98,7 +98,10 @@ class _PlayAlongControlsState extends ConsumerState<PlayAlongControls> {
               ],
             );
           }
-          return Row(
+          return Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               DropdownButton<AudioTrackVariant>(
                 value: track,
@@ -112,7 +115,6 @@ class _PlayAlongControlsState extends ConsumerState<PlayAlongControls> {
                   _loadTrack(v);
                 },
               ),
-              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.play_arrow),
                 tooltip: 'Play',
@@ -132,7 +134,6 @@ class _PlayAlongControlsState extends ConsumerState<PlayAlongControls> {
               // advances through it changes, which is exactly what slowing
               // down a hard passage should do.
               const Icon(Icons.speed, size: 16),
-              const SizedBox(width: 2),
               Text(
                 '${_speed.toStringAsFixed(2)}x',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
@@ -152,7 +153,6 @@ class _PlayAlongControlsState extends ConsumerState<PlayAlongControls> {
                   },
                 ),
               ),
-              const Spacer(),
               TextButton.icon(
                 icon: const Icon(Icons.tune),
                 label: const Text('Realign'),
