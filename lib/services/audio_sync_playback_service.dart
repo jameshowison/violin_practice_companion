@@ -197,12 +197,35 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
     return _scoreSecForAudioSec(aheadAudioSec);
   }
 
+  /// The real-audio position to start playback from for a [play] that began
+  /// at [startOffsetSeconds]. Starting from the piece's true beginning
+  /// (`startOffsetSeconds == 0`) seeks to the recording's real `0` instead of
+  /// [_audioSecForScoreSec]'s answer (the first anchor — see
+  /// docs/audio-sync-dtw-open-boundaries.md) so any unmatched intro the
+  /// recording has still plays; starting mid-piece has no such intro to play
+  /// and seeks straight to the mapped position as before.
+  double _seekTargetAudioSec(double startOffsetSeconds) =>
+      startOffsetSeconds <= 0 ? 0.0 : _audioSecForScoreSec(startOffsetSeconds);
+
+  /// Nothing to highlight yet while real playback is still inside an
+  /// unmatched intro (see [_seekTargetAudioSec]) — [_scoreSecForAudioSec]
+  /// would otherwise extrapolate backward past the first anchor into a
+  /// meaningless negative score position that [PlaybackServiceBase] would
+  /// clamp onto note 0, lighting it up well before it actually plays.
+  @override
+  double? initialHighlightSeconds() {
+    if (_anchors.length < 2) return null;
+    final audioSec = _seekTargetAudioSec(startOffsetSeconds);
+    if (audioSec < _anchors.first.audioSec) return null;
+    return _scoreSecForAudioSec(audioSec + highlightLeadSeconds);
+  }
+
   /// Always seeks first — the underlying native player is not recreated by a
   /// Dart-level hot restart, so without an explicit seek it resumes wherever
   /// a previous run left it rather than actually starting over.
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
-    final audioSec = _audioSecForScoreSec(startOffsetSeconds);
+    final audioSec = _seekTargetAudioSec(startOffsetSeconds);
     _player.seek(Duration(microseconds: (audioSec * 1e6).round()));
     unawaited(_player.play());
   }

@@ -137,12 +137,20 @@ abstract class PlaybackServiceBase {
         : (labels: countIn.labels, index: 0, startMeasure: fromMeasure);
 
     final events = _activeHighlightEvents;
-    if (events.isNotEmpty) {
-      _hlPointer = _findPointer(events, _startOffset + _highlightLeadSeconds);
-      _lastEmittedMeasure = events[_hlPointer].measureNumber;
+    final initialSeconds = initialHighlightSeconds();
+    _hlPointer = events.isNotEmpty && initialSeconds != null
+        ? _findPointer(events, initialSeconds)
+        : -1;
+    if (_hlPointer >= 0) {
+      final ev = events[_hlPointer];
+      _lastEmittedMeasure = ev.measureNumber;
       currentMeasureNotifier.value = _lastEmittedMeasure;
-      notifierForMeasure(_lastEmittedMeasure).value = events[_hlPointer].noteIndex;
-      currentHighlightNotifier.value = events[_hlPointer];
+      notifierForMeasure(_lastEmittedMeasure).value = ev.noteIndex;
+      currentHighlightNotifier.value = ev;
+    } else {
+      _lastEmittedMeasure = 0;
+      currentMeasureNotifier.value = null;
+      currentHighlightNotifier.value = null;
     }
 
     _emitState(PlaybackState.playing);
@@ -209,6 +217,21 @@ abstract class PlaybackServiceBase {
     return pt == null ? null : pt + _highlightLeadSeconds;
   }
 
+  /// The playback-timeline position (score-seconds) the most recent [play]
+  /// call was given — exposed read-only for a subclass that needs it without
+  /// duplicating [play]'s own bookkeeping (see AudioSyncPlaybackService).
+  double get startOffsetSeconds => _startOffset;
+
+  /// Score-seconds position used to seed the highlight the instant [play] is
+  /// called, before the first tick has run. Default mirrors the steady-state
+  /// highlight target: [startOffsetSeconds] plus the lead. Override when
+  /// playback won't actually begin at [startOffsetSeconds]'s mapped real
+  /// position — see AudioSyncPlaybackService, which can seek earlier than
+  /// that to let a recording's own intro play, so the initial highlight must
+  /// reflect "nothing has sounded yet" (null) rather than jumping straight to
+  /// the first note.
+  double? initialHighlightSeconds() => _startOffset + _highlightLeadSeconds;
+
   void _tick(Timer _) {
     final d = _data;
     final pt = currentPlaybackSeconds();
@@ -231,7 +254,11 @@ abstract class PlaybackServiceBase {
     }
     if (countInNotifier.value != null) countInNotifier.value = null;
 
-    // Advance highlight pointer forward
+    // Advance highlight pointer forward. _hlPointer starts at -1 whenever
+    // [play] found nothing to highlight yet (see [initialHighlightSeconds])
+    // — e.g. a real recording's own unmatched intro, still playing but with
+    // no note of the score to show yet — and stays there until hlPt reaches
+    // events[0]'s onset, exactly like every later step.
     final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
       final hlPt = highlightAdvanceSeconds() ?? pt;
@@ -239,14 +266,16 @@ abstract class PlaybackServiceBase {
              events[_hlPointer + 1].onsetSeconds <= hlPt) {
         _hlPointer++;
       }
-      final ev = events[_hlPointer];
-      if (ev.measureNumber != _lastEmittedMeasure) {
-        notifierForMeasure(_lastEmittedMeasure).value = null;
-        _lastEmittedMeasure = ev.measureNumber;
-        currentMeasureNotifier.value = ev.measureNumber;
+      if (_hlPointer >= 0) {
+        final ev = events[_hlPointer];
+        if (ev.measureNumber != _lastEmittedMeasure) {
+          notifierForMeasure(_lastEmittedMeasure).value = null;
+          _lastEmittedMeasure = ev.measureNumber;
+          currentMeasureNotifier.value = ev.measureNumber;
+        }
+        notifierForMeasure(ev.measureNumber).value = ev.noteIndex;
+        currentHighlightNotifier.value = ev;
       }
-      notifierForMeasure(ev.measureNumber).value = ev.noteIndex;
-      currentHighlightNotifier.value = ev;
     }
 
     // Check loop / end. End time = onset of the measure AFTER the selection end
@@ -296,6 +325,12 @@ abstract class PlaybackServiceBase {
     if (events.isEmpty) return;
     final pt = highlightAdvanceSeconds() ?? (_startOffset + _highlightLeadSeconds);
     _hlPointer = _findPointer(events, pt);
+    if (_hlPointer < 0) {
+      _lastEmittedMeasure = 0;
+      currentMeasureNotifier.value = null;
+      currentHighlightNotifier.value = null;
+      return;
+    }
     final ev = events[_hlPointer];
     _lastEmittedMeasure = ev.measureNumber;
     currentMeasureNotifier.value = ev.measureNumber;
@@ -303,9 +338,13 @@ abstract class PlaybackServiceBase {
     currentHighlightNotifier.value = ev;
   }
 
+  /// Index into [events] of the last one at or before [fromSeconds], or `-1`
+  /// if [fromSeconds] is before every event (nothing has happened yet — e.g.
+  /// a recording's unmatched intro still playing before the score's first
+  /// note; see [initialHighlightSeconds]).
   int _findPointer(List<HighlightEvent> events, double fromSeconds) {
     int lo = 0, hi = events.length - 1;
-    int result = 0;
+    int result = -1;
     while (lo <= hi) {
       final mid = (lo + hi) ~/ 2;
       if (events[mid].onsetSeconds <= fromSeconds) {
