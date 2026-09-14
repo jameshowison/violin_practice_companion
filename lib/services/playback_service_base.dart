@@ -16,6 +16,23 @@ abstract class PlaybackServiceBase {
   int _bpm = 115;
 
   bool loopEnabled = false;
+
+  bool _highlightDownbeatOnly = false;
+
+  /// When true, only the first note of each measure (the beat the audio
+  /// aligner actually anchors to — see docs/audio-sync-dtw-anchor-compression.md)
+  /// is highlighted; the highlight then holds through the rest of the measure
+  /// instead of stepping through every note. Intra-measure note timing is
+  /// interpolated, not aligned, so per-note highlighting inside a measure can
+  /// visibly drift from the audio — this trades that per-note detail for a
+  /// highlight that's only ever as precise as what's actually been verified.
+  bool get highlightDownbeatOnly => _highlightDownbeatOnly;
+  set highlightDownbeatOnly(bool value) {
+    if (_highlightDownbeatOnly == value) return;
+    _highlightDownbeatOnly = value;
+    _resyncHighlightPointer();
+  }
+
   PlaybackState _state = PlaybackState.stopped;
   int _fromMeasure = 1;
   int? _toMeasure;
@@ -53,12 +70,19 @@ abstract class PlaybackServiceBase {
   ValueNotifier<int?> notifierForMeasure(int n) =>
       _measureNotifiers.putIfAbsent(n, () => ValueNotifier(null));
 
-  Future<void> loadPiece(ParsedPiece piece) async {
+  Future<void> loadPiece(ParsedPiece piece) => loadPieceAtBpm(piece, _bpm);
+
+  /// Same as [loadPiece], but generates [_data] at an explicit [bpm] instead
+  /// of the current tempo — for a subclass whose "tempo" isn't the metronome
+  /// tempo slider at all (e.g. AudioSyncPlaybackService's arbitrary internal
+  /// generation scale, only known once its own calibration has run).
+  Future<void> loadPieceAtBpm(ParsedPiece piece, int bpm) async {
     _stopInternal();
     _disposeAndClearNotifiers();
     await generator.init();
     _piece = piece;
-    _data = generator.generate(piece, _bpm);
+    _bpm = bpm;
+    _data = generator.generate(piece, bpm);
   }
 
   /// Starts (or resumes) playback of measures [fromMeasure]…[toMeasure].
@@ -93,7 +117,7 @@ abstract class PlaybackServiceBase {
         ? null
         : (labels: countIn.labels, index: 0, startMeasure: fromMeasure);
 
-    final events = d.highlightEvents;
+    final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
       _hlPointer = _findPointer(events, _startOffset);
       _lastEmittedMeasure = events[_hlPointer].measureNumber;
@@ -142,12 +166,21 @@ abstract class PlaybackServiceBase {
     onStopped();
   }
 
+  /// Current position on the playback timeline, in score-seconds, or null if
+  /// playback hasn't truly started (nothing to advance to yet). Default:
+  /// wall-clock elapsed time since [play]/[_t0]. Override to drive the cursor
+  /// from a different clock — see AudioSyncPlaybackService, which maps real
+  /// audio file position through a calibration curve instead.
+  double? currentPlaybackSeconds() {
+    final t0 = _t0;
+    if (t0 == null) return null;
+    return _startOffset + DateTime.now().difference(t0).inMicroseconds / 1e6;
+  }
+
   void _tick(Timer _) {
     final d = _data;
-    if (d == null || _t0 == null) return;
-
-    final elapsed = DateTime.now().difference(_t0!).inMicroseconds / 1e6;
-    final pt = _startOffset + elapsed;
+    final pt = currentPlaybackSeconds();
+    if (d == null || pt == null) return;
 
     // Still counting in: the time cursor is behind the first note, so nothing
     // sounds and nothing advances — only the count itself moves on. The
@@ -167,7 +200,7 @@ abstract class PlaybackServiceBase {
     if (countInNotifier.value != null) countInNotifier.value = null;
 
     // Advance highlight pointer forward
-    final events = d.highlightEvents;
+    final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
       while (_hlPointer + 1 < events.length &&
              events[_hlPointer + 1].onsetSeconds <= pt) {
@@ -209,6 +242,32 @@ abstract class PlaybackServiceBase {
     }
 
     onTick(pt, d);
+  }
+
+  /// The highlight-event stream actually driving the notifiers — every note,
+  /// or (with [highlightDownbeatOnly]) just each measure's first, per
+  /// [noteIndex] `== 0` (a chord's members all share that first note's index,
+  /// so a downbeat chord still highlights as one event).
+  List<HighlightEvent> get _activeHighlightEvents {
+    final events = _data?.highlightEvents ?? const [];
+    if (!_highlightDownbeatOnly) return events;
+    return [for (final e in events) if (e.noteIndex == 0) e];
+  }
+
+  /// Re-derives the highlight pointer/notifiers for the current playback
+  /// position against [_activeHighlightEvents] — needed after
+  /// [highlightDownbeatOnly] changes mid-playback, since [_hlPointer] is an
+  /// index into whichever event list was active and doesn't carry over.
+  void _resyncHighlightPointer() {
+    final events = _activeHighlightEvents;
+    if (events.isEmpty) return;
+    final pt = currentPlaybackSeconds() ?? _startOffset;
+    _hlPointer = _findPointer(events, pt);
+    final ev = events[_hlPointer];
+    _lastEmittedMeasure = ev.measureNumber;
+    currentMeasureNotifier.value = ev.measureNumber;
+    notifierForMeasure(ev.measureNumber).value = ev.noteIndex;
+    currentHighlightNotifier.value = ev;
   }
 
   int _findPointer(List<HighlightEvent> events, double fromSeconds) {

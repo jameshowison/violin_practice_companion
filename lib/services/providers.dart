@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/audio_track_variant.dart';
 import '../models/chord_shape.dart';
 import '../models/count_in.dart';
 import '../models/fingering_density.dart';
@@ -29,6 +30,8 @@ import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_repository.dart';
+import 'audio_sync_anchors_store.dart';
+import 'audio_sync_playback_service.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
@@ -454,6 +457,35 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
 final displayModeProvider = StateProvider<DisplayMode>(
   (_) => DisplayMode.staff,
 );
+
+// ── Play Along (audio-sync) ────────────────────────────────────────────────
+// Whether the piece screen's bottom tray shows the normal metronome-driven
+// PlaybackControls or the audio-driven PlayAlongControls, and which of the
+// three variants is selected. Kept as separate small providers rather than
+// folded into displayModeProvider: that enum is about how the notation
+// *looks*, this is about what's *playing it*.
+
+final playAlongModeProvider = StateProvider<bool>((_) => false);
+
+final selectedAudioTrackProvider =
+    StateProvider<AudioTrackVariant>((_) => AudioTrackVariant.mix);
+
+final audioSyncAnchorsStoreProvider =
+    Provider<AudioSyncAnchorsStore>((_) => AudioSyncAnchorsStore());
+
+/// One instance per piece-detail-screen visit (autoDispose ties its lifetime
+/// to whoever's watching it — the screen watches it unconditionally, so it
+/// lives exactly as long as the screen does, and is torn down on the way out
+/// rather than accumulating one `AudioPlayer` per piece ever opened).
+/// Deliberately not app-wide like [playbackServiceProvider]: this is a
+/// per-visit tool, not a persistent session-wide service.
+final audioSyncServiceProvider =
+    Provider.autoDispose<AudioSyncPlaybackService>((ref) {
+  final service = AudioSyncPlaybackService(ref.watch(midiGeneratorProvider),
+      store: ref.watch(audioSyncAnchorsStoreProvider));
+  ref.onDispose(service.dispose);
+  return service;
+});
 
 // ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
 // `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays

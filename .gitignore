@@ -55,6 +55,9 @@ package-lock.json
 assets/soundfonts/*.sf2
 assets/soundfonts/*.sf3
 
+# Per-piece play-along backing tracks (author-supplied, not source-controlled)
+assets/audio/
+
 # Local-only reference material
 docs/photos_no_share
 

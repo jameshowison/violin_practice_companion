@@ -104,6 +104,8 @@ work based on an unmerged branch must `git checkout -b <name> <sha>` first and c
 
 Marionette lets agents interact with the running simulator (screenshots, taps, text input, scroll) without touching the physical device.
 
+Marionette screenshots consume large token space. Wherever possible launch these in sub-agents to get the needed insights rather than launching in the main session.
+
 **MCP server:** registered in `.claude.json` as `marionette`. The `marionette_mcp` binary is at `~/.pub-cache/bin/marionette_mcp`. The Flutter binding is initialised in `lib/main.dart` via `MarionetteBinding.ensureInitialized()` (debug mode only).
 
 **Connect at the start of every session:**
@@ -175,6 +177,13 @@ And prefer not to need a picture: `get_interactive_elements` returns `Text` cont
 a label can be asserted without an image — subject to the same latency, so widen the
 window first. Timing-sensitive *logic* belongs in a test (see `test/count_in_test.dart`,
 `test/count_in_providers_test.dart`); use the capture for the appearance only.
+
+**Don't use the screenshot-burst technique to verify continuous playback.** It's for
+one short-lived moment, not for watching an animation over 10+ seconds — each frame
+Read into context costs real tokens, and confirming something like "the cursor never
+jumps backward across a 40-second play-through" would need dozens of frames read one
+by one. That kind of verification is cheaper and more reliable as a human spot-check:
+ask the user to press Play and watch, rather than sampling frames yourself.
 
 **Troubleshooting:**
 - `Unknown method "ext.flutter.marionette.getVersion"` → version mismatch; ensure `marionette_flutter` in `pubspec.yaml` matches `marionette_mcp` (both should be `^0.5.0`).
