@@ -15,6 +15,7 @@ import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
+import '../services/audio_sync_playback_service.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
@@ -28,6 +29,7 @@ import '../widgets/fingering_view.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
 import '../widgets/notation_switcher.dart';
+import '../widgets/play_along_controls.dart';
 import '../widgets/playback_controls.dart';
 import '../widgets/preamble_preview.dart';
 import '../widgets/section_minimap.dart';
@@ -81,6 +83,13 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
 /// the app is frontmost and Android scopes `FLAG_KEEP_SCREEN_ON` to the window,
 /// so backgrounding already suspends this without help.
 class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
+  // Play Along only ever verifies the first beat of each measure (see
+  // docs/audio-sync-dtw-anchor-compression.md) — intra-measure note timing is
+  // interpolated, not aligned. Off by default; applied to audioSyncService
+  // straight from the drawer's onChanged, never during build (its setter can
+  // synchronously update highlight notifiers, which must not happen mid-build).
+  bool _highlightDownbeatOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -118,6 +127,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     if (piece == null) {
       return const Scaffold(body: Center(child: Text('No piece selected')));
     }
+
+    // Play Along: an inline mode, not a separate screen — everything about
+    // the staff (fingering/chords/sections/tabs) stays as-is, only the
+    // cursor's clock source and the bottom tray change. `audioSyncFolder` is
+    // non-null only for pieces with bundled play-along tracks (see
+    // `PieceRepository.audioSyncFolderFor`).
+    final audioSyncFolder =
+        ref.watch(pieceRepositoryProvider).audioSyncFolderFor(piece.id);
+    final playAlong = audioSyncFolder != null && ref.watch(playAlongModeProvider);
+    final audioSyncService =
+        audioSyncFolder == null ? null : ref.watch(audioSyncServiceProvider);
 
     // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
     // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
@@ -195,6 +215,16 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         ),
         actions: [
           if (!useCompact) const _NotePaletteToggle(),
+          if (audioSyncFolder != null)
+            IconButton(
+              icon: Icon(
+                Icons.headphones,
+                color: playAlong ? Theme.of(context).colorScheme.primary : null,
+              ),
+              tooltip: playAlong ? 'Exit Play Along' : 'Play Along',
+              onPressed: () => ref.read(playAlongModeProvider.notifier).state =
+                  !playAlong,
+            ),
           Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.settings),
@@ -240,6 +270,22 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // notation looks.
                   const _CountInSlider(),
                   const Divider(),
+                  // Only meaningful once there's an audio-synced alignment to
+                  // trust selectively — hidden for pieces with no Play Along
+                  // track at all.
+                  if (audioSyncFolder != null) ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Highlight downbeats only'),
+                      value: _highlightDownbeatOnly,
+                      onChanged: (v) {
+                        setState(() => _highlightDownbeatOnly = v);
+                        audioSyncService?.highlightDownbeatOnly = v;
+                      },
+                    ),
+                    const Divider(),
+                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -358,6 +404,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     ? null
                     : MusicXmlParser.keyName(
                         parsedPiece.keyFifths, KeyMode.major),
+                highlightNotifierOverride:
+                    playAlong ? audioSyncService?.currentHighlightNotifier : null,
               );
 
               // The minimap shows the UNFOLDED structure (A A B B); the notation
@@ -401,6 +449,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   piece: piece,
                   service: service,
                   displayMode: displayMode,
+                  playAlong: playAlong,
+                  audioSyncFolder: audioSyncFolder,
+                  audioSyncService: audioSyncService,
                 );
               }
 
@@ -430,7 +481,14 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // No section pills here: the minimap down the right-hand edge
                   // shows the same sections, unfolded and in proportion, and
                   // selects the same practice range on a tap.
-                  const PlaybackControls(),
+                  if (playAlong && audioSyncService != null)
+                    PlayAlongControls(
+                      piece: piece,
+                      audioFolder: audioSyncFolder,
+                      service: audioSyncService,
+                    )
+                  else
+                    const PlaybackControls(),
                 ],
               );
             },
@@ -880,6 +938,9 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Piece piece;
   final PlaybackServiceBase service;
   final DisplayMode displayMode;
+  final bool playAlong;
+  final String? audioSyncFolder;
+  final AudioSyncPlaybackService? audioSyncService;
 
   const _CompactPieceLayout({
     required this.notationView,
@@ -888,6 +949,9 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
     required this.piece,
     required this.service,
     required this.displayMode,
+    required this.playAlong,
+    required this.audioSyncFolder,
+    required this.audioSyncService,
   });
 
   @override
@@ -1102,7 +1166,15 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const PlaybackControls(),
+                            if (widget.playAlong &&
+                                widget.audioSyncService != null)
+                              PlayAlongControls(
+                                piece: widget.piece,
+                                audioFolder: widget.audioSyncFolder!,
+                                service: widget.audioSyncService!,
+                              )
+                            else
+                              const PlaybackControls(),
                             // Spacer so interactive content sits above the
                             // home-indicator zone; Material background fills
                             // the safe area gap visually.
@@ -1295,6 +1367,11 @@ class _NotationView extends ConsumerWidget {
   final List<Section> sections;
   final PlaybackServiceBase service;
   final String? keySignature;
+  /// Non-null while Play Along mode is active: the audio-driven clock's
+  /// notifier takes over the cursor instead of [service]'s wall-clock one.
+  /// Everything else about the staff (fingering, chords, sections, tabs) is
+  /// unchanged — only the clock feeding the cursor differs.
+  final ValueNotifier<HighlightEvent?>? highlightNotifierOverride;
 
   const _NotationView({
     required this.mode,
@@ -1305,6 +1382,7 @@ class _NotationView extends ConsumerWidget {
     required this.sections,
     required this.service,
     this.keySignature,
+    this.highlightNotifierOverride,
   });
 
   // Shared "tap anchor, tap to extend" selection logic, used by every notation
@@ -1398,11 +1476,14 @@ class _NotationView extends ConsumerWidget {
     // otherwise close up. The trade is that toggling chords now re-flows the
     // page, which it previously didn't.
     Widget buildStaff(String xml, {bool fingeringChannel = false}) {
+      final highlightNotifier =
+          highlightNotifierOverride ?? service.currentHighlightNotifier;
       if (renderer == StaffRenderer.verovio) {
         return StaffViewVerovio(
           musicXml: xml,
-          highlightNotifier: service.currentHighlightNotifier,
-          countInNotifier: service.countInNotifier,
+          highlightNotifier: highlightNotifier,
+          countInNotifier:
+              highlightNotifierOverride == null ? service.countInNotifier : null,
           selection: selection,
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
@@ -1417,7 +1498,7 @@ class _NotationView extends ConsumerWidget {
       }
       return StaffView(
         musicXml: xml,
-        highlightNotifier: service.currentHighlightNotifier,
+        highlightNotifier: highlightNotifier,
         selection: selection,
         onMeasureTapped: (m) => _selectMeasure(ref, m),
         flaggedMeasures: flaggedMeasures,

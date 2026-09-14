@@ -55,6 +55,9 @@ package-lock.json
 assets/soundfonts/*.sf2
 assets/soundfonts/*.sf3
 
+# Per-piece play-along backing tracks (author-supplied, not source-controlled)
+assets/audio/
+
 # Saved reference material (Suzuki teacher's guide page + its assets)
 docs/Volume One B*.html
 docs/Volume One B*_files/

@@ -61,6 +61,14 @@ dependencies:
   flutter_svg: ^2.3.0
   jovial_svg: ^1.1.29
 
+  # Play-along audio/score sync: `just_audio` drives backing-track playback,
+  # `wav` decodes the analysis track to PCM (pure Dart, zero native deps — see
+  # lib/services/audio_chroma_features.dart), `fftea` does the STFT for chroma
+  # feature extraction. All three declare iOS/Android/macOS/Web.
+  just_audio: ^0.10.6
+  wav: ^1.5.0
+  fftea: ^1.5.0+1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -79,3 +87,7 @@ flutter:
     - assets/lookup_tables/
     - assets/osmd/
     - assets/soundfonts/
+    # Per-piece play-along audio (gitignored — see .gitignore). Flutter only
+    # bundles files it can enumerate at build time, so each piece's audio
+    # folder needs its own line here.
+    - assets/audio/salt_creek/

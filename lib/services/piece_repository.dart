@@ -146,6 +146,22 @@ class PieceRepository {
 
   bool isBundled(String id) => fixtureIds.contains(id);
 
+  /// Piece id → its `assets/audio/<folder>/` play-along tracks, for the pieces
+  /// that have any. A hardcoded lookup (not a [Piece] field) because the
+  /// audio files are bundled assets keyed by a human-readable folder name,
+  /// while scanned/imported pieces get opaque, generated ids; adding a new
+  /// piece's tracks already requires a pubspec edit and rebuild, so this is
+  /// just the one more line that ties the id to the folder.
+  static const Map<String, String> _audioSyncFolders = {
+    'untitled_2026_09_08t11_19_17_445148_1788884398656': 'salt_creek',
+  };
+
+  /// The `assets/audio/<folder>/` this piece's Play Along tracks live in, or
+  /// null if it has none. Non-null-ness alone is "does Play Along exist for
+  /// this piece" — per-track alignment state is separate, see
+  /// [AudioSyncAnchorsStore].
+  String? audioSyncFolderFor(String id) => _audioSyncFolders[id];
+
   /// Whether the current platform supports editing (writable file storage).
   bool get supportsEditing => storageSupportsEditing;
 
