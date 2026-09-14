@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/audio_track_variant.dart';
 import '../models/piece.dart';
+import '../services/audio_score_auto_aligner.dart' show alignmentReviewMessage;
 import '../services/audio_sync_playback_service.dart';
 import '../services/providers.dart';
 
@@ -157,6 +158,22 @@ class _PlayAlongControlsState extends ConsumerState<PlayAlongControls> {
                 icon: const Icon(Icons.tune),
                 label: const Text('Realign'),
                 onPressed: () => _realign(track),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: widget.service.alignmentLooksUncertain,
+                builder: (context, uncertain, _) => uncertain
+                    ? IconButton(
+                        icon: const Icon(Icons.warning_amber,
+                            color: Colors.amber),
+                        tooltip: 'Alignment may be off — tap for details',
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(alignmentReviewMessage)),
+                          );
+                        },
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           );

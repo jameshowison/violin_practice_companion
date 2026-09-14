@@ -94,12 +94,13 @@ void main() {
           'audioSec=${a.audioSec.toStringAsFixed(3)}');
     }
 
-    // 32 performed measures (AABB, 8+8 notated measures each repeated once) —
-    // but AudioScoreAutoAligner.smoothAnchors (see
-    // docs/audio-sync-dtw-anchor-compression.md) discards anchors the DTW
-    // path locally squeezed together at chroma-ambiguous measures, so a few
-    // fewer than 32 is expected and correct, not a regression.
-    expect(result.anchors.length, inInclusiveRange(28, 32));
+    // 32 performed measures (AABB, 8+8 notated measures each repeated once).
+    // One anchor per performed measure — see docs/audio-sync-dtw-anchor-
+    // compression.md for the anchor-compression signature this pipeline can
+    // hit on chroma-ambiguous measures; it's now only flagged (via
+    // result.hasCompressedAnchors), not discarded, so the count should be
+    // exactly 32 regardless.
+    expect(result.anchors.length, 32);
     for (var i = 1; i < result.anchors.length; i++) {
       expect(result.anchors[i].audioSec,
           greaterThanOrEqualTo(result.anchors[i - 1].audioSec));

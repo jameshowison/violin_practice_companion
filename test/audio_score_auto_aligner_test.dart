@@ -95,7 +95,7 @@ void main() {
     }
   });
 
-  group('smoothAnchors', () {
+  group('hasCompressedRun', () {
     // Regression fixture for docs/audio-sync-dtw-anchor-compression.md:
     // Salt Creek's real alignment paced at a uniform ~1256.5ms/measure in
     // scoreMs, but at measures 18-19 (and again at 27-28) two consecutive
@@ -133,45 +133,21 @@ void main() {
       return anchors;
     }
 
-    test('drops the anchor squeezed by a run of two compressed segments', () {
+    test('detects a run of two compressed segments', () {
       final anchors = saltCreekLikeAnchors();
 
-      final smoothed = AudioScoreAutoAligner.smoothAnchors(anchors);
-
-      // Anchors 18 and 27 (1-based, i.e. list indices 18 and 27 once the
-      // leading pickup anchor at index 0 is counted) sit strictly between two
-      // compressed segments and should be discarded; every other anchor
-      // (including the other endpoint of each compressed run) survives.
-      expect(smoothed, hasLength(anchors.length - 2));
-      final survivingScoreMs = smoothed.map((a) => a.scoreMs).toSet();
-      expect(survivingScoreMs.contains(anchors[18].scoreMs), isFalse);
-      expect(survivingScoreMs.contains(anchors[27].scoreMs), isFalse);
-      for (var i = 0; i < anchors.length; i++) {
-        if (i == 18 || i == 27) continue;
-        expect(survivingScoreMs.contains(anchors[i].scoreMs), isTrue,
-            reason: 'anchor $i should have survived smoothing');
-      }
-
-      // The surviving anchors interpolate across the removed gap in one
-      // smooth segment instead of stair-stepping through the bad points.
-      for (var i = 1; i < smoothed.length; i++) {
-        expect(smoothed[i].audioSec,
-            greaterThan(smoothed[i - 1].audioSec));
-        expect(smoothed[i].scoreMs, greaterThan(smoothed[i - 1].scoreMs));
-      }
+      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isTrue);
     });
 
-    test('leaves a normal, uncompressed anchor sequence untouched', () {
+    test('leaves a normal, uncompressed anchor sequence undetected', () {
       final anchors = [
         for (var i = 0; i < 10; i++) ScoreAudioAnchor(i * 1256.5, i * 1.2)
       ];
 
-      final smoothed = AudioScoreAutoAligner.smoothAnchors(anchors);
-
-      expect(smoothed, equals(anchors));
+      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
     });
 
-    test('leaves an isolated single compressed segment alone', () {
+    test('does not flag an isolated single compressed segment', () {
       // Only one bad segment (18) with normal pace on both sides — no run of
       // 2+, so there's no way to tell which endpoint is at fault.
       var scoreMs = 0.0, audioSec = 0.0;
@@ -183,19 +159,17 @@ void main() {
         anchors.add(ScoreAudioAnchor(scoreMs, audioSec));
       }
 
-      final smoothed = AudioScoreAutoAligner.smoothAnchors(anchors);
-
-      expect(smoothed, equals(anchors));
+      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
     });
 
-    test('returns anchors unchanged when there are too few to smooth', () {
+    test('returns false when there are too few anchors to evaluate', () {
       const anchors = [
         ScoreAudioAnchor(0, 0),
         ScoreAudioAnchor(1256.5, 0.1),
         ScoreAudioAnchor(2513.0, 2.0),
       ];
 
-      expect(AudioScoreAutoAligner.smoothAnchors(anchors), equals(anchors));
+      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
     });
   });
 }

@@ -31,8 +31,30 @@ class AutoAlignmentResult {
   /// logging/diagnostics, not as a hard gate.
   final double averageDtwCost;
 
-  const AutoAlignmentResult(this.anchors, this.generationBpm, this.averageDtwCost);
+  /// True if [anchors] shows the anchor-compression signature described in
+  /// docs/audio-sync-dtw-anchor-compression.md — see
+  /// [AudioScoreAutoAligner.hasCompressedRun]. The confirmed case of this
+  /// (Salt Creek) turned out to be a genuinely wrong score, not a DTW quirk —
+  /// a missing first/second-ending distinction had produced extra, duplicate
+  /// measures — so this is surfaced to the user to review rather than
+  /// silently "fixed" by discarding anchors.
+  final bool hasCompressedAnchors;
+
+  const AutoAlignmentResult(
+    this.anchors,
+    this.generationBpm,
+    this.averageDtwCost, {
+    this.hasCompressedAnchors = false,
+  });
 }
+
+/// Suggested message for the UI to show when [AutoAlignmentResult.hasCompressedAnchors]
+/// (or a cached alignment's stored equivalent) is true.
+const String alignmentReviewMessage =
+    'This alignment may be off in places. That usually means the score '
+    "doesn't quite match the recording — check for an extra or missing "
+    'measure, or a first/second ending (not currently supported: repeat both '
+    'endings out as plain measures instead). Fix the score, then tap Realign.';
 
 /// Aligns a piece's score to a real recording of it, fully on-device: builds
 /// a symbolic reference chroma curve directly from the score's own notes (no
@@ -86,15 +108,20 @@ class AudioScoreAutoAligner {
     }
 
     return AutoAlignmentResult(
-        smoothAnchors(anchors), estimatedBpm, dtwResult.averageCost);
+      anchors,
+      estimatedBpm,
+      dtwResult.averageCost,
+      hasCompressedAnchors: hasCompressedRun(anchors),
+    );
   }
 
-  /// Anchor count below which [smoothAnchors] won't attempt outlier removal —
-  /// too few segments for a rolling-median comparison to mean anything.
-  static const _minAnchorsForSmoothing = 6;
+  /// Anchor count below which [hasCompressedRun] won't attempt outlier
+  /// detection — too few segments for a rolling-median comparison to mean
+  /// anything.
+  static const _minAnchorsForDetection = 6;
 
-  /// Detects and drops anchors that the raw DTW path squeezed together
-  /// locally rather than genuinely tracking the audio — see
+  /// True if the raw DTW path squeezed two or more consecutive anchors
+  /// together rather than genuinely tracking the audio — see
   /// docs/audio-sync-dtw-anchor-compression.md. [anchors] must be in
   /// performance order (as built by [align], strictly increasing in
   /// [ScoreAudioAnchor.scoreMs]).
@@ -104,22 +131,26 @@ class AudioScoreAutoAligner {
   /// melodic cell), the path can advance many reference frames while barely
   /// advancing through the target audio, so two or more consecutive segments'
   /// audio-per-score pace collapses to a fraction of the surrounding pace.
-  /// The anchor(s) sandwiched between such a run of low-pace segments — the
-  /// ones the path squeezed together — are dropped; [AudioSyncPlaybackService]'s
-  /// existing piecewise-linear interpolation then spans the resulting
-  /// (correctly-sized) gap directly between the surviving, trustworthy
-  /// neighbors instead of stair-stepping through the bad points.
   ///
-  /// An isolated single flagged segment (not part of a run of 2+) is left
-  /// alone: with only one bad segment there's no way to tell which of its two
-  /// endpoint anchors is at fault, so nothing is discarded.
-  static List<ScoreAudioAnchor> smoothAnchors(
+  /// This used to make [align] discard the anchor(s) sandwiched between such
+  /// a run and silently re-interpolate across the gap. The one confirmed
+  /// occurrence of this pattern turned out to be a genuinely wrong score (an
+  /// unsupported first/second ending had produced extra, duplicate measures),
+  /// not a DTW quirk — discarding anchors was masking a score bug rather than
+  /// fixing an alignment one. So this now only flags the pattern; nothing is
+  /// discarded, and the caller is expected to surface [alignmentReviewMessage]
+  /// to the user instead.
+  ///
+  /// An isolated single flagged segment (not part of a run of 2+) doesn't
+  /// count: with only one bad segment there's no way to tell which of its two
+  /// endpoint anchors is at fault.
+  static bool hasCompressedRun(
     List<ScoreAudioAnchor> anchors, {
     double outlierRatio = 0.6,
     int medianWindowRadius = 3,
   }) {
     final n = anchors.length;
-    if (n < _minAnchorsForSmoothing) return anchors;
+    if (n < _minAnchorsForDetection) return false;
 
     // pace[i] (i in 1..n-1) is the local audio-seconds-per-score-millisecond
     // rate across segment (anchors[i-1], anchors[i]).
@@ -148,30 +179,10 @@ class AudioScoreAutoAligner {
       }
     }
 
-    final toDiscard = List<bool>.filled(n, false);
-    var i = 1;
-    while (i < n) {
-      if (!flagged[i]) {
-        i++;
-        continue;
-      }
-      var runEnd = i;
-      while (runEnd + 1 < n && flagged[runEnd + 1]) {
-        runEnd++;
-      }
-      // Anchors strictly interior to the flagged run — touched by a flagged
-      // segment on both sides — are the ones the path squeezed together.
-      for (var a = i; a < runEnd; a++) {
-        toDiscard[a] = true;
-      }
-      i = runEnd + 1;
+    for (var i = 1; i < n - 1; i++) {
+      if (flagged[i] && flagged[i + 1]) return true;
     }
-
-    if (!toDiscard.contains(true)) return anchors;
-    return [
-      for (var k = 0; k < n; k++)
-        if (!toDiscard[k]) anchors[k]
-    ];
+    return false;
   }
 
   /// [path] is sorted by reference-frame index (component `$1`); returns the

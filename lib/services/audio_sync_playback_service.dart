@@ -33,6 +33,12 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
   /// "Aligning…" state instead of playback controls while this is true.
   final ValueNotifier<bool> isAligning = ValueNotifier(false);
 
+  /// True when the current alignment (fresh or cached) shows the
+  /// anchor-compression signature — see [AutoAlignmentResult.hasCompressedAnchors].
+  /// The UI should surface [alignmentReviewMessage] rather than silently
+  /// trusting a possibly-off alignment.
+  final ValueNotifier<bool> alignmentLooksUncertain = ValueNotifier(false);
+
   AudioSyncPlaybackService(super.generator, {AudioSyncAnchorsStore? store})
       : _store = store ?? AudioSyncAnchorsStore();
 
@@ -71,6 +77,7 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
     if (cached != null) {
       anchors = cached.anchors;
       generationBpm = cached.generationBpm;
+      alignmentLooksUncertain.value = cached.hasCompressedAnchors;
     } else {
       isAligning.value = true;
       try {
@@ -82,8 +89,11 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
             AudioScoreAutoAligner(midiGenerator: generator).align(piece, wavBytes);
         anchors = result.anchors;
         generationBpm = result.generationBpm;
+        alignmentLooksUncertain.value = result.hasCompressedAnchors;
         await _store.save(pieceId,
-            anchors: anchors, generationBpm: generationBpm);
+            anchors: anchors,
+            generationBpm: generationBpm,
+            hasCompressedAnchors: result.hasCompressedAnchors);
       } finally {
         isAligning.value = false;
       }
@@ -192,5 +202,6 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
     super.dispose();
     _player.dispose();
     isAligning.dispose();
+    alignmentLooksUncertain.dispose();
   }
 }
