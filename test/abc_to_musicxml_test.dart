@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/models/piece_layout.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:violin_practice_companion/services/section_detector.dart';
 
 /// Validates the *downstream contract*: the MusicXML produced by the bundled
 /// abcjs-based JS converter must survive the path an imported tune actually
@@ -123,5 +125,70 @@ void main() {
         .firstWhere((n) => n.chordSymbol != null)
         .chordSymbol;
     expect(firstChord, 'A');
+  });
+
+  group('inline part markers ([P:A]/[P:B]/[P:C]) survive as rehearsal marks',
+      () {
+    // Galopede: `[P:A] dc |: ... :|[P:B] ... [P:C] ...` — a repeated 4-bar A,
+    // then an 8-bar B and a 4-bar C with no repeat brackets of their own. The
+    // bar-count heuristic alone can't recover B/C's boundary (12 isn't a
+    // clean multiple of 8, so a naive tail-tiling would misplace it) — this
+    // is exactly the case the app trusts the tune's own markers for instead.
+    late final String goldenParts;
+    late final ParsedPiece pieceWithParts;
+
+    setUpAll(() {
+      goldenParts = File('test/fixtures/galopede.musicxml').readAsStringSync();
+      pieceWithParts =
+          parser.parse(MusicXmlNormalizer.toSoundingPitch(goldenParts));
+    });
+
+    test('rehearsal marks land on the measures the parts actually start', () {
+      final labels = {
+        for (final m in pieceWithParts.measures)
+          if (m.partLabel != null) m.number: m.partLabel,
+      };
+      expect(labels, {1: 'A', 6: 'B', 13: 'C'});
+    });
+
+    test('the |: :| repeat around A is preserved alongside the markers', () {
+      expect(pieceWithParts.measures.any((m) => m.repeatStart), isTrue);
+      expect(pieceWithParts.measures.any((m) => m.repeatEnd), isTrue);
+    });
+
+    test(
+        'SectionDetector trusts the markers directly, anchoring A on its '
+        'repeat start (not the pickup) so the repeat still unfolds', () {
+      final sections = SectionDetector.detect(pieceWithParts.measures);
+      expect(sections.map((s) => s.label).toList(), ['A', 'B', 'C']);
+      // A's marker sits on the pickup (measure 1, before the pickup notes),
+      // but is anchored to measure 2 — the actual `|:` — so the repeat is
+      // still visible to sectionRuns below. B/C have no repeat of their own,
+      // so they stay right where their markers are.
+      expect(sections.map((s) => s.startMeasure).toList(), [2, 6, 13]);
+    });
+
+    test('the repeat still unfolds into two A runs (A1/A2) in the minimap',
+        () {
+      final sections = SectionDetector.detect(pieceWithParts.measures);
+      final runs = sectionRuns(pieceWithParts.measures, sections);
+      final labels = runs.map((r) => r.label).toList();
+      expect(labels, ['A', 'A', 'B', 'C']);
+      expect(runs[0].passIndex, 0);
+      expect(runs[0].passCount, 2);
+      expect(runs[1].passIndex, 1);
+      expect(runs[1].passCount, 2);
+      expect(runs[2].passCount, 1);
+      expect(runs[3].passCount, 1);
+    });
+
+    test('rehearsal marks are stripped from the rendered/engraved copy', () {
+      const layout = PieceLayout([]);
+      final stripped = layout.stripLayoutHints(goldenParts);
+      expect(stripped, isNot(contains('<rehearsal>')));
+      // The parser-facing copy (parsedPieceProvider's own load) is untouched —
+      // only the copy handed to the engraver has them removed.
+      expect(goldenParts, contains('<rehearsal>'));
+    });
   });
 }

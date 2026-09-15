@@ -106,4 +106,32 @@ void main() {
     expect(m[2].repeatStart, isFalse);
     expect(m[2].repeatEnd, isFalse);
   });
+
+  test('parses a rehearsal mark into partLabel, on the measure it appears in',
+      () {
+    const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>V</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <direction placement="above"><direction-type><rehearsal>A</rehearsal></direction-type></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+    <measure number="3">
+      <direction placement="above"><direction-type><rehearsal>B</rehearsal></direction-type></direction>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>''';
+    final m = parser.parse(xml).measures;
+    expect(m[0].partLabel, 'A');
+    expect(m[1].partLabel, isNull);
+    expect(m[2].partLabel, 'B');
+  });
 }
