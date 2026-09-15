@@ -58,6 +58,42 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
     });
   }
 
+  /// Drops anchors that would leave a zero-width segment, so every
+  /// consecutive pair is strictly increasing in *both* components and the
+  /// interpolators below can divide by their deltas unguarded.
+  ///
+  /// [sortAnchors] only fixes the *ordering* of the equal-`audioSec` anchors
+  /// it describes; the pair is still there afterwards, and both
+  /// [_scoreSecForAudioSec] and [_audioSecForScoreSec] divide by a segment's
+  /// delta with no zero check — a tie made `t` infinite or NaN and threw the
+  /// cursor to the end of the piece (or nowhere at all) for as long as that
+  /// segment was the bracketed one. Real alignments do produce ties: Salt
+  /// Creek's cached anchors have one and the Galopede teacher demo had three.
+  ///
+  /// Within a run of anchors sharing an `audioSec`, the *last* one survives —
+  /// [sortAnchors] has already put the largest `scoreMs` last, and that
+  /// instant is the earliest the audio can be said to have reached all of
+  /// them. Keeping the earliest instead would stall the cursor at the start
+  /// of the run until the next anchor.
+  static List<ScoreAudioAnchor> dropDegenerateSegments(
+      List<ScoreAudioAnchor> sorted) {
+    if (sorted.length < 2) return sorted;
+    final kept = <ScoreAudioAnchor>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final isLastOfAudioRun = i == sorted.length - 1 ||
+          sorted[i + 1].audioSec != sorted[i].audioSec;
+      if (!isLastOfAudioRun) continue;
+      // A zero `scoreMs` delta breaks the inverse map the same way a zero
+      // `audioSec` delta breaks the forward one.
+      if (kept.isNotEmpty && sorted[i].scoreMs == kept.last.scoreMs) continue;
+      kept.add(sorted[i]);
+    }
+    // Never hand back something the `>= 2` assertions below can't work with;
+    // an unusable pair still interpolates to *something*, where one anchor
+    // disables highlight tracking entirely.
+    return kept.length >= 2 ? kept : sorted;
+  }
+
   /// Loads [track] of [audioFolder] for [piece] (keyed by [pieceId] in the
   /// anchors cache) for playback. Runs the one-time auto-alignment if
   /// nothing is cached yet for this piece — always against the `melody`
@@ -99,7 +135,7 @@ class AudioSyncPlaybackService extends PlaybackServiceBase {
       }
     }
     assert(anchors.length >= 2, 'Alignment produced fewer than 2 anchors.');
-    _anchors = sortAnchors(anchors);
+    _anchors = dropDegenerateSegments(sortAnchors(anchors));
     await loadPieceAtBpm(piece, generationBpm);
     await _player.setAsset(track.assetPathIn(audioFolder));
   }

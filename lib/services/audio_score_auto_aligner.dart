@@ -50,11 +50,23 @@ class AutoAlignmentResult {
 
 /// Suggested message for the UI to show when [AutoAlignmentResult.hasCompressedAnchors]
 /// (or a cached alignment's stored equivalent) is true.
+///
+/// Deliberately names both causes and does not assert which. The wording used
+/// to blame the score outright, on the strength of the one confirmed case
+/// (Salt Creek's duplicate measures — see
+/// docs/audio-sync-dtw-anchor-compression.md). That is no longer safe: with
+/// that score corrected, the same recording still trips the flag while every
+/// one of its 32 anchors lands within 100ms of a real note onset, so the
+/// signal now has a known false-positive mode and shouldn't send anyone
+/// hunting for a score bug that isn't there.
 const String alignmentReviewMessage =
-    'This alignment may be off in places. That usually means the score '
-    "doesn't quite match the recording — check for an extra or missing "
+    'Some measures may be highlighted slightly early or late. If the score '
+    "doesn't quite match what was played, check for an extra or missing "
     'measure, or a first/second ending (not currently supported: repeat both '
-    'endings out as plain measures instead). Fix the score, then tap Realign.';
+    'endings out as plain measures instead), then tap Realign. Otherwise the '
+    'recording itself may be hard to follow — a quiet one, or one with a lot '
+    'of background hum, gives the aligner less to work with. Playback is '
+    'usable either way.';
 
 /// Aligns a piece's score to a real recording of it, fully on-device: builds
 /// a symbolic reference chroma curve directly from the score's own notes (no
