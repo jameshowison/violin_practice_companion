@@ -22,14 +22,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     super.dispose();
   }
 
-  String get _title {
-    final entered = _titleController.text.trim();
-    if (entered.isNotEmpty) return entered;
-    return 'Untitled ${DateTime.now().toIso8601String()}';
-  }
-
   Future<void> _scan(OmrImageSource source) async {
-    final title = _title;
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a title first.')),
+      );
+      return;
+    }
     setState(() {
       _scanning = true;
       _stage = null;
@@ -42,7 +42,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);
         },
-        onSelectPdfPage: _selectPdfPage,
       );
 
       if (!mounted) return;
@@ -87,24 +86,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
   }
 
-  /// Prompt for which page of a multi-page PDF to recognise. Returns a
-  /// 0-based page index, or null if the user cancels.
-  Future<int?> _selectPdfPage(int pageCount) {
-    return showDialog<int>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text('Choose a page (1–$pageCount)'),
-        children: [
-          for (var i = 0; i < pageCount; i++)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(i),
-              child: Text('Page ${i + 1}'),
-            ),
-        ],
-      ),
-    );
-  }
-
   String _stageLabel(OmrScanStage? stage) => switch (stage) {
         null => 'Starting…',
         OmrScanStage.capturing => 'Capturing page…',
@@ -131,7 +112,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               enabled: !_scanning,
               decoration: const InputDecoration(
                 labelText: 'Title',
-                hintText: 'Untitled',
+                hintText: 'Required',
               ),
             ),
             const SizedBox(height: 12),
