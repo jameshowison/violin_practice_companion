@@ -24,8 +24,11 @@ import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
+import '../services/teacher_recording_capture.dart';
+import '../services/teacher_recording_playback_service.dart';
 import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
+import '../widgets/floating_video_overlay.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
 import '../widgets/notation_switcher.dart';
@@ -35,7 +38,9 @@ import '../widgets/preamble_preview.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
+import '../widgets/teacher_demo_controls.dart';
 import '../widgets/time_signature_dialog.dart';
+import 'record_teacher_demo_screen.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -146,6 +151,20 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final audioSyncService =
         audioSyncFolder == null ? null : ref.watch(audioSyncServiceProvider);
 
+    // Teacher demo: the same inline-mode idea as Play Along, but for a
+    // user-recorded demo rather than a bundled track — any piece can have
+    // one, so it's gated on whether a recording has actually been saved
+    // (`hasTeacherRecordingProvider`), not a static asset map. Mutually
+    // exclusive with Play Along (see the two AppBar actions below); nothing
+    // stops a piece having both a bundled track and a recorded demo.
+    final recordingSupported = TeacherRecordingCapture().isSupported;
+    final hasTeacherRecording =
+        ref.watch(hasTeacherRecordingProvider(piece.id)).valueOrNull ?? false;
+    final teacherDemo =
+        hasTeacherRecording && ref.watch(teacherDemoModeProvider);
+    final teacherRecordingService =
+        hasTeacherRecording ? ref.watch(teacherRecordingServiceProvider) : null;
+
     // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
     // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
     // is outside it — reaches the same verdict as the layout beneath it.
@@ -229,8 +248,36 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                 color: playAlong ? Theme.of(context).colorScheme.primary : null,
               ),
               tooltip: playAlong ? 'Exit Play Along' : 'Play Along',
-              onPressed: () => ref.read(playAlongModeProvider.notifier).state =
-                  !playAlong,
+              onPressed: () {
+                final next = !playAlong;
+                ref.read(playAlongModeProvider.notifier).state = next;
+                if (next) ref.read(teacherDemoModeProvider.notifier).state = false;
+              },
+            ),
+          if (recordingSupported)
+            IconButton(
+              icon: const Icon(Icons.videocam),
+              tooltip: hasTeacherRecording
+                  ? 'Re-record teacher demo'
+                  : 'Record teacher demo',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RecordTeacherDemoScreen(piece: piece),
+                ),
+              ),
+            ),
+          if (hasTeacherRecording)
+            IconButton(
+              icon: Icon(
+                Icons.school,
+                color: teacherDemo ? Theme.of(context).colorScheme.primary : null,
+              ),
+              tooltip: teacherDemo ? 'Exit Teacher Demo' : 'Teacher Demo',
+              onPressed: () {
+                final next = !teacherDemo;
+                ref.read(teacherDemoModeProvider.notifier).state = next;
+                if (next) ref.read(playAlongModeProvider.notifier).state = false;
+              },
             ),
           Builder(
             builder: (ctx) => IconButton(
@@ -429,8 +476,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     ? null
                     : MusicXmlParser.keyName(
                         parsedPiece.keyFifths, KeyMode.major),
-                highlightNotifierOverride:
-                    playAlong ? audioSyncService?.currentHighlightNotifier : null,
+                highlightNotifierOverride: teacherDemo
+                    ? teacherRecordingService?.currentHighlightNotifier
+                    : (playAlong
+                        ? audioSyncService?.currentHighlightNotifier
+                        : null),
               );
 
               // The minimap shows the UNFOLDED structure (A A B B); the notation
@@ -477,6 +527,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   playAlong: playAlong,
                   audioSyncFolder: audioSyncFolder,
                   audioSyncService: audioSyncService,
+                  teacherDemo: teacherDemo,
+                  teacherRecordingService: teacherRecordingService,
                 );
               }
 
@@ -492,6 +544,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                               Positioned.fill(child: notationView),
                               _CountInOverlay(
                                   service: service, mode: displayMode),
+                              if (teacherDemo && teacherRecordingService != null)
+                                FloatingVideoOverlay(
+                                    service: teacherRecordingService),
                             ],
                           ),
                         ),
@@ -506,7 +561,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // No section pills here: the minimap down the right-hand edge
                   // shows the same sections, unfolded and in proportion, and
                   // selects the same practice range on a tap.
-                  if (playAlong && audioSyncService != null)
+                  if (teacherDemo && teacherRecordingService != null)
+                    TeacherDemoControls(
+                      piece: piece,
+                      service: teacherRecordingService,
+                    )
+                  else if (playAlong && audioSyncService != null)
                     PlayAlongControls(
                       piece: piece,
                       audioFolder: audioSyncFolder,
@@ -966,6 +1026,8 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   final bool playAlong;
   final String? audioSyncFolder;
   final AudioSyncPlaybackService? audioSyncService;
+  final bool teacherDemo;
+  final TeacherRecordingPlaybackService? teacherRecordingService;
 
   const _CompactPieceLayout({
     required this.notationView,
@@ -977,6 +1039,8 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
     required this.playAlong,
     required this.audioSyncFolder,
     required this.audioSyncService,
+    required this.teacherDemo,
+    required this.teacherRecordingService,
   });
 
   @override
@@ -1088,6 +1152,8 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                       ),
               ),
               _CountInOverlay(service: widget.service, mode: displayMode),
+              if (widget.teacherDemo && widget.teacherRecordingService != null)
+                FloatingVideoOverlay(service: widget.teacherRecordingService!),
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -1191,7 +1257,13 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (widget.playAlong &&
+                            if (widget.teacherDemo &&
+                                widget.teacherRecordingService != null)
+                              TeacherDemoControls(
+                                piece: widget.piece,
+                                service: widget.teacherRecordingService!,
+                              )
+                            else if (widget.playAlong &&
                                 widget.audioSyncService != null)
                               PlayAlongControls(
                                 piece: widget.piece,

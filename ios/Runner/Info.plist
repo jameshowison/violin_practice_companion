@@ -27,7 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Used to scan pages of sheet music for optical music recognition.</string>
+	<string>Used to scan pages of sheet music, and to record video of a teacher demonstration.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Used to record audio of a teacher demonstration so it can be synced to the score.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to crop scanned sheet music to the music region.</string>
 	<key>UIApplicationSceneManifest</key>
