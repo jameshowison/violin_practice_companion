@@ -29,6 +29,7 @@ class _FloatingVideoOverlayState extends State<FloatingVideoOverlay> {
 
   VideoPlayerController? _controller;
   String? _loadedPath;
+  String? _loadError;
   Offset? _offset;
   bool _closed = false;
   Timer? _syncTimer;
@@ -57,13 +58,33 @@ class _FloatingVideoOverlayState extends State<FloatingVideoOverlay> {
   Future<void> _load(String path) async {
     final old = _controller;
     final controller = VideoPlayerController.file(File(path));
-    await controller.initialize();
+    try {
+      await controller.initialize();
+    } catch (error) {
+      // A video the platform can't decode used to leave this as an unhandled
+      // async error, with `_loadedPath` already latched to the failed path —
+      // so the window sat on an indefinite spinner, said nothing about why,
+      // and never retried even once the file was replaced. Found with an
+      // HEVC recording on the iOS simulator, which has no HEVC decoder (a
+      // phone plays the same file fine), but any unreadable or partly-written
+      // capture would do the same.
+      await controller.dispose();
+      if (!mounted) return;
+      setState(() {
+        _loadedPath = null; // let a later rebuild try again
+        _loadError = '$error';
+      });
+      return;
+    }
     await controller.setVolume(0);
     if (!mounted) {
       await controller.dispose();
       return;
     }
-    setState(() => _controller = controller);
+    setState(() {
+      _loadError = null;
+      _controller = controller;
+    });
     await old?.dispose();
   }
 
@@ -137,6 +158,22 @@ class _FloatingVideoOverlayState extends State<FloatingVideoOverlay> {
                     width: controller.value.size.width,
                     height: controller.value.size.height,
                     child: VideoPlayer(controller),
+                  ),
+                )
+              else if (_loadError != null)
+                // Say so, rather than spinning forever on a video that will
+                // never load — see [_load].
+                Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Center(
+                    child: Text(
+                      "Can't play this video",
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
                   ),
                 )
               else
