@@ -15,7 +15,7 @@ import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
-import '../services/audio_sync_playback_service.dart';
+import '../models/piece_media.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
@@ -23,24 +23,21 @@ import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/media_catalog.dart';
+import '../services/media_playback_service.dart';
 import '../services/staff_zoom.dart';
-import '../services/teacher_recording_capture.dart';
-import '../services/teacher_recording_playback_service.dart';
 import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/floating_video_overlay.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
+import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
-import '../widgets/play_along_controls.dart';
-import '../widgets/playback_controls.dart';
 import '../widgets/preamble_preview.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
-import '../widgets/teacher_demo_controls.dart';
 import '../widgets/time_signature_dialog.dart';
-import 'record_teacher_demo_screen.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -140,30 +137,49 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       return const Scaffold(body: Center(child: Text('No piece selected')));
     }
 
-    // Play Along: an inline mode, not a separate screen — everything about
-    // the staff (fingering/chords/sections/tabs) stays as-is, only the
-    // cursor's clock source and the bottom tray change. `audioSyncFolder` is
-    // non-null only for pieces with bundled play-along tracks (see
-    // `PieceRepository.audioSyncFolderFor`).
-    final audioSyncFolder =
-        ref.watch(pieceRepositoryProvider).audioSyncFolderFor(piece.id);
-    final playAlong = audioSyncFolder != null && ref.watch(playAlongModeProvider);
-    final audioSyncService =
-        audioSyncFolder == null ? null : ref.watch(audioSyncServiceProvider);
+    // What's playing this piece. An inline choice, not a separate screen —
+    // everything about the staff (fingering/chords/sections/tabs) stays as-is;
+    // only the cursor's clock source and the transport in the bottom tray
+    // change with it.
+    //
+    // The list always holds at least [PieceMedia.synthesized], so there is
+    // always something selected and no "no media" state to handle. While the
+    // list is still loading, the synthesized score stands in — it is what the
+    // list will start with anyway, so nothing flickers.
+    final mediaList = ref.watch(pieceMediaProvider(piece.id)).valueOrNull ??
+        const [PieceMedia.synthesized];
+    final selectedMedia = MediaCatalog.resolve(
+        mediaList, ref.watch(selectedMediaIdProvider(piece.id)));
+    final mediaService =
+        selectedMedia.isSynthesized ? null : ref.watch(mediaPlaybackServiceProvider);
 
-    // Teacher demo: the same inline-mode idea as Play Along, but for a
-    // user-recorded demo rather than a bundled track — any piece can have
-    // one, so it's gated on whether a recording has actually been saved
-    // (`hasTeacherRecordingProvider`), not a static asset map. Mutually
-    // exclusive with Play Along (see the two AppBar actions below); nothing
-    // stops a piece having both a bundled track and a recorded demo.
-    final recordingSupported = TeacherRecordingCapture().isSupported;
-    final hasTeacherRecording =
-        ref.watch(hasTeacherRecordingProvider(piece.id)).valueOrNull ?? false;
-    final teacherDemo =
-        hasTeacherRecording && ref.watch(teacherDemoModeProvider);
-    final teacherRecordingService =
-        hasTeacherRecording ? ref.watch(teacherRecordingServiceProvider) : null;
+    // The two highlight settings live as local fields (see `_highlightLeadMs`)
+    // because this panel outlives the autoDispose-scoped service, so a fresh
+    // service starts on the base class's defaults and has to be told.
+    //
+    // Post-frame rather than inline: both setters call `_resyncHighlightPointer`
+    // when the value actually changes, which writes to `currentHighlightNotifier`
+    // — and a notifier written during build rebuilds its listeners mid-build.
+    // The setters early-return when unchanged, so this does nothing on all but
+    // the first build after a service is created with a non-default setting.
+    if (mediaService != null) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        mediaService.highlightDownbeatOnly = _highlightDownbeatOnly;
+        mediaService.highlightLeadSeconds = _highlightLeadMs / 1000;
+      });
+    }
+
+    // The one service every view reads its highlight from.
+    //
+    // This used to be `playbackServiceProvider` unconditionally, with the
+    // audio-driven notifier patched over the top of the staff view alone via a
+    // `highlightNotifierOverride`. The jianpu view, the fingering view and the
+    // section minimap were left reading the metronome service, which during
+    // Play Along is not the thing making the sound — so they sat still, or
+    // followed a clock nobody could hear. Passing the active service down
+    // instead means every view follows whatever is actually playing, and the
+    // override is gone.
+    final PlaybackServiceBase activeService = mediaService ?? service;
 
     // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
     // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
@@ -241,44 +257,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         ),
         actions: [
           if (!useCompact) const _NotePaletteToggle(),
-          if (audioSyncFolder != null)
-            IconButton(
-              icon: Icon(
-                Icons.headphones,
-                color: playAlong ? Theme.of(context).colorScheme.primary : null,
-              ),
-              tooltip: playAlong ? 'Exit Play Along' : 'Play Along',
-              onPressed: () {
-                final next = !playAlong;
-                ref.read(playAlongModeProvider.notifier).state = next;
-                if (next) ref.read(teacherDemoModeProvider.notifier).state = false;
-              },
-            ),
-          if (recordingSupported)
-            IconButton(
-              icon: const Icon(Icons.videocam),
-              tooltip: hasTeacherRecording
-                  ? 'Re-record teacher demo'
-                  : 'Record teacher demo',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => RecordTeacherDemoScreen(piece: piece),
-                ),
-              ),
-            ),
-          if (hasTeacherRecording)
-            IconButton(
-              icon: Icon(
-                Icons.school,
-                color: teacherDemo ? Theme.of(context).colorScheme.primary : null,
-              ),
-              tooltip: teacherDemo ? 'Exit Teacher Demo' : 'Teacher Demo',
-              onPressed: () {
-                final next = !teacherDemo;
-                ref.read(teacherDemoModeProvider.notifier).state = next;
-                if (next) ref.read(playAlongModeProvider.notifier).state = false;
-              },
-            ),
+          // No mode toggles here any more. "Play Along", "Teacher Demo" and
+          // "record a demo" were three app-bar buttons for what is one
+          // question — what should play this piece — and two of them had to be
+          // kept mutually exclusive by hand. All three are now entries in the
+          // tray's media picker, next to the synthesized score and any
+          // imported file, which is also where a new one gets added.
           Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.settings),
@@ -324,10 +308,18 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // notation looks.
                   const _CountInSlider(),
                   const Divider(),
-                  // Only meaningful once there's an audio-synced alignment to
-                  // trust selectively — hidden for pieces with no Play Along
-                  // track at all.
-                  if (audioSyncFolder != null) ...[
+                  // Both settings are about following a real recording, so they
+                  // appear precisely when one is selected.
+                  //
+                  // The gate used to be `audioSyncFolder != null` — the
+                  // presence of a BUNDLED asset folder. A piece whose only
+                  // audio was a recorded demo therefore couldn't reach either
+                  // setting, and the wiring underneath only ever pushed the
+                  // value into the Play Along service, so opening the gate
+                  // alone would not have helped. Now there is one service to
+                  // push to and one condition that describes what the settings
+                  // actually do.
+                  if (!selectedMedia.isSynthesized) ...[
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       dense: true,
@@ -335,7 +327,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       value: _highlightDownbeatOnly,
                       onChanged: (v) {
                         setState(() => _highlightDownbeatOnly = v);
-                        audioSyncService?.highlightDownbeatOnly = v;
+                        mediaService?.highlightDownbeatOnly = v;
                       },
                     ),
                     Row(
@@ -353,7 +345,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       divisions: 15,
                       onChanged: (v) {
                         setState(() => _highlightLeadMs = v);
-                        audioSyncService?.highlightLeadSeconds = v / 1000;
+                        mediaService?.highlightLeadSeconds = v / 1000;
                       },
                     ),
                     const Divider(),
@@ -468,7 +460,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                 sectionLabels: sectionLabels,
                 sectionColors: sectionColors,
                 sections: piece.sections,
-                service: service,
+                service: activeService,
                 // Jianpu numbers 1 from the signature's RELATIVE MAJOR (see
                 // JianpuConverter, which keys its table on fifths alone), so a
                 // modal piece must still be labelled "1 = D", not "1 = Amix".
@@ -476,11 +468,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     ? null
                     : MusicXmlParser.keyName(
                         parsedPiece.keyFifths, KeyMode.major),
-                highlightNotifierOverride: teacherDemo
-                    ? teacherRecordingService?.currentHighlightNotifier
-                    : (playAlong
-                        ? audioSyncService?.currentHighlightNotifier
-                        : null),
               );
 
               // The minimap shows the UNFOLDED structure (A A B B); the notation
@@ -500,7 +487,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   : SectionMinimap(
                       runs: unfoldedRuns,
                       sectionColors: sectionColors,
-                      service: service,
+                      service: activeService,
                       onTapRun: (i) {
                         final run = unfoldedRuns[i];
                         ref.read(measureSelectionProvider.notifier).state =
@@ -522,13 +509,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   minimap: minimap,
                   layout: layout,
                   piece: piece,
-                  service: service,
+                  service: activeService,
                   displayMode: displayMode,
-                  playAlong: playAlong,
-                  audioSyncFolder: audioSyncFolder,
-                  audioSyncService: audioSyncService,
-                  teacherDemo: teacherDemo,
-                  teacherRecordingService: teacherRecordingService,
+                  media: mediaList,
+                  selectedMedia: selectedMedia,
+                  mediaService: mediaService,
                 );
               }
 
@@ -543,10 +528,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                             children: [
                               Positioned.fill(child: notationView),
                               _CountInOverlay(
-                                  service: service, mode: displayMode),
-                              if (teacherDemo && teacherRecordingService != null)
-                                FloatingVideoOverlay(
-                                    service: teacherRecordingService),
+                                  service: activeService, mode: displayMode),
+                              // Any medium with a video gets the window: a
+                              // recorded demo, or an imported mp4.
+                              if (selectedMedia.video != null &&
+                                  mediaService != null)
+                                FloatingVideoOverlay(service: mediaService),
                             ],
                           ),
                         ),
@@ -561,19 +548,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // No section pills here: the minimap down the right-hand edge
                   // shows the same sections, unfolded and in proportion, and
                   // selects the same practice range on a tap.
-                  if (teacherDemo && teacherRecordingService != null)
-                    TeacherDemoControls(
-                      piece: piece,
-                      service: teacherRecordingService,
-                    )
-                  else if (playAlong && audioSyncService != null)
-                    PlayAlongControls(
-                      piece: piece,
-                      audioFolder: audioSyncFolder,
-                      service: audioSyncService,
-                    )
-                  else
-                    const PlaybackControls(),
+                  MediaControls(
+                    piece: piece,
+                    media: mediaList,
+                    selected: selectedMedia,
+                  ),
                 ],
               );
             },
@@ -1023,11 +1002,16 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Piece piece;
   final PlaybackServiceBase service;
   final DisplayMode displayMode;
-  final bool playAlong;
-  final String? audioSyncFolder;
-  final AudioSyncPlaybackService? audioSyncService;
-  final bool teacherDemo;
-  final TeacherRecordingPlaybackService? teacherRecordingService;
+
+  /// Everything this piece can be played by, and which of them is. The tray's
+  /// picker needs the list; the video window and the highlight need the
+  /// selection.
+  final List<PieceMedia> media;
+  final PieceMedia selectedMedia;
+
+  /// Null exactly when [selectedMedia] is the synthesized score — there is no
+  /// file-backed service in that case.
+  final MediaPlaybackService? mediaService;
 
   const _CompactPieceLayout({
     required this.notationView,
@@ -1036,11 +1020,9 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
     required this.piece,
     required this.service,
     required this.displayMode,
-    required this.playAlong,
-    required this.audioSyncFolder,
-    required this.audioSyncService,
-    required this.teacherDemo,
-    required this.teacherRecordingService,
+    required this.media,
+    required this.selectedMedia,
+    required this.mediaService,
   });
 
   @override
@@ -1152,8 +1134,9 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                       ),
               ),
               _CountInOverlay(service: widget.service, mode: displayMode),
-              if (widget.teacherDemo && widget.teacherRecordingService != null)
-                FloatingVideoOverlay(service: widget.teacherRecordingService!),
+              if (widget.selectedMedia.video != null &&
+                  widget.mediaService != null)
+                FloatingVideoOverlay(service: widget.mediaService!),
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -1257,21 +1240,11 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (widget.teacherDemo &&
-                                widget.teacherRecordingService != null)
-                              TeacherDemoControls(
-                                piece: widget.piece,
-                                service: widget.teacherRecordingService!,
-                              )
-                            else if (widget.playAlong &&
-                                widget.audioSyncService != null)
-                              PlayAlongControls(
-                                piece: widget.piece,
-                                audioFolder: widget.audioSyncFolder!,
-                                service: widget.audioSyncService!,
-                              )
-                            else
-                              const PlaybackControls(),
+                            MediaControls(
+                              piece: widget.piece,
+                              media: widget.media,
+                              selected: widget.selectedMedia,
+                            ),
                             // Spacer so interactive content sits above the
                             // home-indicator zone; Material background fills
                             // the safe area gap visually.
@@ -1464,11 +1437,6 @@ class _NotationView extends ConsumerWidget {
   final List<Section> sections;
   final PlaybackServiceBase service;
   final String? keySignature;
-  /// Non-null while Play Along mode is active: the audio-driven clock's
-  /// notifier takes over the cursor instead of [service]'s wall-clock one.
-  /// Everything else about the staff (fingering, chords, sections, tabs) is
-  /// unchanged — only the clock feeding the cursor differs.
-  final ValueNotifier<HighlightEvent?>? highlightNotifierOverride;
 
   const _NotationView({
     required this.mode,
@@ -1479,7 +1447,6 @@ class _NotationView extends ConsumerWidget {
     required this.sections,
     required this.service,
     this.keySignature,
-    this.highlightNotifierOverride,
   });
 
   // Shared "tap anchor, tap to extend" selection logic, used by every notation
@@ -1573,14 +1540,15 @@ class _NotationView extends ConsumerWidget {
     // otherwise close up. The trade is that toggling chords now re-flows the
     // page, which it previously didn't.
     Widget buildStaff(String xml, {bool fingeringChannel = false}) {
-      final highlightNotifier =
-          highlightNotifierOverride ?? service.currentHighlightNotifier;
+      // [service] is whichever engine is driving this piece — see the screen's
+      // `activeService`. A recording's own service carries a permanently null
+      // count-in notifier (there is nothing to count off into a fixed
+      // recording), so the staff view needs no special case for it.
       if (renderer == StaffRenderer.verovio) {
         return StaffViewVerovio(
           musicXml: xml,
-          highlightNotifier: highlightNotifier,
-          countInNotifier:
-              highlightNotifierOverride == null ? service.countInNotifier : null,
+          highlightNotifier: service.currentHighlightNotifier,
+          countInNotifier: service.countInNotifier,
           selection: selection,
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
@@ -1595,7 +1563,7 @@ class _NotationView extends ConsumerWidget {
       }
       return StaffView(
         musicXml: xml,
-        highlightNotifier: highlightNotifier,
+        highlightNotifier: service.currentHighlightNotifier,
         selection: selection,
         onMeasureTapped: (m) => _selectMeasure(ref, m),
         flaggedMeasures: flaggedMeasures,

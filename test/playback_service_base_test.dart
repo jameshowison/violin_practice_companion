@@ -68,8 +68,16 @@ void main() {
 
   tearDown(() => service.dispose());
 
-  test('highlightDownbeatOnly defaults to off', () {
-    expect(service.highlightDownbeatOnly, isFalse);
+  // The base class deliberately defaults this ON, and says why at
+  // playback_service_base.dart:22-30 — intra-measure note timing is
+  // interpolated rather than aligned, so the downbeat is the only highlight
+  // granularity that has actually been verified against the audio. This
+  // assertion was written against the earlier default and never updated when
+  // the default was flipped, so it has been the repo's one failing test ever
+  // since. It is the only thing asserting the default either way, which is why
+  // it is corrected rather than deleted.
+  test('highlightDownbeatOnly defaults to on', () {
+    expect(service.highlightDownbeatOnly, isTrue);
   });
 
   test('toggling highlightDownbeatOnly resyncs the highlight to the current '

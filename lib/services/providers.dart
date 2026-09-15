@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/audio_track_variant.dart';
 import '../models/chord_shape.dart';
 import '../models/count_in.dart';
 import '../models/fingering_density.dart';
@@ -9,6 +8,7 @@ import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart';
 import '../models/piece_library.dart';
+import '../models/piece_media.dart';
 // Four of the notifier's methods share a name with the free function they wrap
 // (renameCollection, reorderInCollection, setHidden, forgetPiece), where the
 // method would otherwise shadow it.
@@ -30,15 +30,16 @@ import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_repository.dart';
-import 'audio_sync_anchors_store.dart';
-import 'audio_sync_playback_service.dart';
+import 'media_alignment_store.dart';
+import 'media_catalog.dart';
+import 'media_paths.dart';
+import 'media_playback_service.dart';
+import 'piece_media_store.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
 import 'system_break_injector.dart';
-import 'teacher_recording_playback_service.dart';
-import 'teacher_recording_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -245,8 +246,9 @@ class LibraryActions {
 
   /// Everything a user-added piece owns comes out together: its MusicXML, its
   /// index row / prefs keys, its section-override sidecar, any editable copy,
-  /// its staff-zoom preference, and its membership in every collection — plus
-  /// the selection, if it happened to be selected.
+  /// its staff-zoom preference, every medium recorded or imported for it, and
+  /// its membership in every collection — plus the selection, if it happened
+  /// to be selected.
   ///
   /// Clearing the selection matters even though deletion happens on a screen the
   /// detail view isn't under: a stale [selectedPieceProvider] feeds
@@ -263,6 +265,10 @@ class LibraryActions {
     }
     await repo.deletePiece(pieceId);
     await _ref.read(staffZoomStoreProvider).clear(pieceId);
+    // Media are files under the documents directory, not prefs rows, so
+    // leaving them behind would leak a recording's worth of disk per deleted
+    // piece with nothing left in the app pointing at it.
+    await _ref.read(mediaActionsProvider).deleteAllFor(pieceId);
     await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
     if (_ref.read(selectedPieceProvider)?.id == pieceId) {
       _ref.read(selectedPieceProvider.notifier).state = null;
@@ -460,20 +466,50 @@ final displayModeProvider = StateProvider<DisplayMode>(
   (_) => DisplayMode.staff,
 );
 
-// ── Play Along (audio-sync) ────────────────────────────────────────────────
-// Whether the piece screen's bottom tray shows the normal metronome-driven
-// PlaybackControls or the audio-driven PlayAlongControls, and which of the
-// three variants is selected. Kept as separate small providers rather than
-// folded into displayModeProvider: that enum is about how the notation
-// *looks*, this is about what's *playing it*.
+// ── Piece media (what plays the piece) ───────────────────────────────────────
+// One list per piece covering everything it can be played by — the synthesized
+// score, bundled backing tracks, imported files, recorded demos — and one
+// selection out of that list.
+//
+// This used to be two independent mode booleans (`playAlongMode`,
+// `teacherDemoMode`) that had to be kept mutually exclusive by hand at each
+// call site, with the synthesized engine as their shared `else` branch, plus a
+// separate "which of the three bundled variants" provider and two stores. A
+// single selected id makes the exclusivity structural, and makes "add another
+// way to play this" a list entry rather than a third mode.
+//
+// Deliberately NOT folded into displayModeProvider: that enum is about how the
+// notation *looks*, this is about what is *playing it*.
 
-final playAlongModeProvider = StateProvider<bool>((_) => false);
+final pieceMediaStoreProvider = Provider<PieceMediaStore>(
+  (_) => PieceMediaStore(),
+);
 
-final selectedAudioTrackProvider =
-    StateProvider<AudioTrackVariant>((_) => AudioTrackVariant.mix);
+final mediaAlignmentStoreProvider = Provider<MediaAlignmentStore>(
+  (_) => MediaAlignmentStore(),
+);
 
-final audioSyncAnchorsStoreProvider =
-    Provider<AudioSyncAnchorsStore>((_) => AudioSyncAnchorsStore());
+final mediaCatalogProvider = Provider<MediaCatalog>(
+  (ref) => MediaCatalog(store: ref.watch(pieceMediaStoreProvider)),
+);
+
+/// Everything [pieceId] can be played by, in picker order. Always at least
+/// one entry: [PieceMedia.synthesized].
+final pieceMediaProvider =
+    FutureProvider.family<List<PieceMedia>, String>((ref, pieceId) {
+  final audioFolder =
+      ref.watch(pieceRepositoryProvider).audioSyncFolderFor(pieceId);
+  return ref.watch(mediaCatalogProvider).mediaFor(pieceId, audioFolder: audioFolder);
+});
+
+/// The selected medium's id, per piece; null means the synthesized score.
+///
+/// Per piece rather than global so that switching pieces doesn't carry a
+/// teacher demo's selection onto a piece that hasn't got one. Session-only,
+/// matching the other display-preference providers — a practice session picks
+/// this up again where it left off, a relaunch starts from the score.
+final selectedMediaIdProvider =
+    StateProvider.family<String?, String>((ref, pieceId) => null);
 
 /// One instance per piece-detail-screen visit (autoDispose ties its lifetime
 /// to whoever's watching it — the screen watches it unconditionally, so it
@@ -481,42 +517,57 @@ final audioSyncAnchorsStoreProvider =
 /// rather than accumulating one `AudioPlayer` per piece ever opened).
 /// Deliberately not app-wide like [playbackServiceProvider]: this is a
 /// per-visit tool, not a persistent session-wide service.
-final audioSyncServiceProvider =
-    Provider.autoDispose<AudioSyncPlaybackService>((ref) {
-  final service = AudioSyncPlaybackService(ref.watch(midiGeneratorProvider),
-      store: ref.watch(audioSyncAnchorsStoreProvider));
+final mediaPlaybackServiceProvider =
+    Provider.autoDispose<MediaPlaybackService>((ref) {
+  final service = MediaPlaybackService(
+    ref.watch(midiGeneratorProvider),
+    store: ref.watch(mediaAlignmentStoreProvider),
+  );
   ref.onDispose(service.dispose);
   return service;
 });
 
-// ── Teacher demo (user-recorded audio+video, aligned the same way) ────────
-// A second, independent "what's driving the highlight" mode alongside Play
-// Along — any piece can get a recorded demo, not just the ones with bundled
-// tracks, so this is gated on `hasTeacherRecordingProvider` rather than a
-// static asset map. See lib/services/teacher_recording_capture_base.dart for
-// why recording itself is iOS/Android only; the stored recording (and hence
-// this mode) simply won't exist on other platforms.
+final mediaActionsProvider = Provider<MediaActions>(MediaActions.new);
 
-final teacherRecordingStoreProvider =
-    Provider<TeacherRecordingStore>((_) => TeacherRecordingStore());
+/// Removing a medium spans three stores plus the file system, so — like
+/// [LibraryActions] for pieces — it is composed in one place rather than left
+/// for each caller to remember all four steps.
+class MediaActions {
+  MediaActions(this._ref);
 
-final hasTeacherRecordingProvider =
-    FutureProvider.family<bool, String>((ref, pieceId) {
-  return ref.watch(teacherRecordingStoreProvider).has(pieceId);
-});
+  final Ref _ref;
 
-final teacherDemoModeProvider = StateProvider<bool>((_) => false);
+  /// Takes a user medium out: its files, its cached alignment, its row in the
+  /// piece's media list, and the selection if it happened to be selected.
+  ///
+  /// Refuses bundled tracks and the synthesized score, which own no files and
+  /// cannot be removed — the picker only offers delete on
+  /// [PieceMedia.isRemovable], and this asserts the same thing.
+  Future<void> deleteMedia(String pieceId, PieceMedia media) async {
+    assert(media.isRemovable, 'Only imported or recorded media can be removed');
+    await deleteMediaFiles(media);
+    await _ref.read(mediaAlignmentStoreProvider).clear(media.alignmentKey);
+    await _ref.read(pieceMediaStoreProvider).remove(pieceId, media.id);
+    final selection = _ref.read(selectedMediaIdProvider(pieceId));
+    if (selection == media.id) {
+      _ref.read(selectedMediaIdProvider(pieceId).notifier).state = null;
+    }
+    _ref.invalidate(pieceMediaProvider(pieceId));
+  }
 
-/// One instance per piece-detail-screen visit — same autoDispose scoping as
-/// [audioSyncServiceProvider], for the same reason.
-final teacherRecordingServiceProvider =
-    Provider.autoDispose<TeacherRecordingPlaybackService>((ref) {
-  final service = TeacherRecordingPlaybackService(
-      ref.watch(midiGeneratorProvider),
-      store: ref.watch(teacherRecordingStoreProvider));
-  ref.onDispose(service.dispose);
-  return service;
-});
+  /// Everything a piece's media own, for when the piece itself is deleted.
+  Future<void> deleteAllFor(String pieceId) async {
+    final store = _ref.read(pieceMediaStoreProvider);
+    final alignments = _ref.read(mediaAlignmentStoreProvider);
+    for (final media in await store.load(pieceId)) {
+      await deleteMediaFiles(media);
+      await alignments.clear(media.alignmentKey);
+    }
+    await store.clear(pieceId);
+    _ref.read(selectedMediaIdProvider(pieceId).notifier).state = null;
+    _ref.invalidate(pieceMediaProvider(pieceId));
+  }
+}
 
 // ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
 // `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays

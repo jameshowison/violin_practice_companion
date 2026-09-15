@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../models/parsed_piece.dart';
 import 'audio_chroma_features.dart';
+import 'audio_decoder_base.dart' show PcmAudio;
 import 'dtw_align.dart';
 import 'midi_generator.dart';
 import 'score_chroma_reference.dart';
@@ -87,13 +88,27 @@ class AudioScoreAutoAligner {
         _dtw = dtw ?? const DtwAligner();
 
   /// [wavBytes] is a whole WAV file's bytes for the recording to align
-  /// against [piece]. Aligned with open begin/end boundaries (see
-  /// [DtwAligner.align]) since real recordings commonly have a lead-in
-  /// (spoken/instrumental intro, count-in) or trail-out the score has no
-  /// counterpart for — forcing those onto the score's first/last notes is
-  /// what produced visibly wrong early-measure anchors before this was open.
-  AutoAlignmentResult align(ParsedPiece piece, Uint8List wavBytes) {
-    final realChroma = _extractor.extractFromWavBytes(wavBytes);
+  /// against [piece].
+  ///
+  /// The WAV-shaped entry point, kept because every bundled analysis track and
+  /// every in-app capture is a WAV, and because it is what the alignment
+  /// regression tests drive. Anything the user brought with them arrives
+  /// through [alignPcm] instead, already decoded.
+  AutoAlignmentResult align(ParsedPiece piece, Uint8List wavBytes) =>
+      alignChroma(piece, _extractor.extractFromWavBytes(wavBytes));
+
+  /// Aligns against already-decoded mono PCM — an imported mp3/m4a/mp4 that
+  /// [AudioDecoder] has read. Identical from here on: the extractor's two
+  /// entry points converge on the same chroma sequence.
+  AutoAlignmentResult alignPcm(ParsedPiece piece, PcmAudio audio) => alignChroma(
+      piece, _extractor.extractFromSamples(audio.samples, audio.sampleRate));
+
+  /// Aligned with open begin/end boundaries (see [DtwAligner.align]) since
+  /// real recordings commonly have a lead-in (spoken/instrumental intro,
+  /// count-in) or trail-out the score has no counterpart for — forcing those
+  /// onto the score's first/last notes is what produced visibly wrong
+  /// early-measure anchors before this was open.
+  AutoAlignmentResult alignChroma(ParsedPiece piece, ChromaSequence realChroma) {
     final realDurationSeconds = realChroma.durationSeconds;
 
     // Estimate a starting tempo so the reference's frame count is roughly
