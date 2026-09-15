@@ -37,6 +37,8 @@ import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
 import 'system_break_injector.dart';
+import 'teacher_recording_playback_service.dart';
+import 'teacher_recording_store.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -483,6 +485,35 @@ final audioSyncServiceProvider =
     Provider.autoDispose<AudioSyncPlaybackService>((ref) {
   final service = AudioSyncPlaybackService(ref.watch(midiGeneratorProvider),
       store: ref.watch(audioSyncAnchorsStoreProvider));
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+// ── Teacher demo (user-recorded audio+video, aligned the same way) ────────
+// A second, independent "what's driving the highlight" mode alongside Play
+// Along — any piece can get a recorded demo, not just the ones with bundled
+// tracks, so this is gated on `hasTeacherRecordingProvider` rather than a
+// static asset map. See lib/services/teacher_recording_capture_base.dart for
+// why recording itself is iOS/Android only; the stored recording (and hence
+// this mode) simply won't exist on other platforms.
+
+final teacherRecordingStoreProvider =
+    Provider<TeacherRecordingStore>((_) => TeacherRecordingStore());
+
+final hasTeacherRecordingProvider =
+    FutureProvider.family<bool, String>((ref, pieceId) {
+  return ref.watch(teacherRecordingStoreProvider).has(pieceId);
+});
+
+final teacherDemoModeProvider = StateProvider<bool>((_) => false);
+
+/// One instance per piece-detail-screen visit — same autoDispose scoping as
+/// [audioSyncServiceProvider], for the same reason.
+final teacherRecordingServiceProvider =
+    Provider.autoDispose<TeacherRecordingPlaybackService>((ref) {
+  final service = TeacherRecordingPlaybackService(
+      ref.watch(midiGeneratorProvider),
+      store: ref.watch(teacherRecordingStoreProvider));
   ref.onDispose(service.dispose);
   return service;
 });

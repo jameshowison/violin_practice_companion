@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_doc_scanner
   flutter_js
   flutter_onnxruntime
+  record_linux
   url_launcher_linux
 )
 
