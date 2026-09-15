@@ -21,7 +21,7 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
   Future<void> flipCamera() async {}
 
   @override
-  Future<void> start(String pieceId) =>
+  Future<void> start(String pieceId, String mediaId) =>
       throw UnsupportedError(_unsupportedMessage);
 
   @override

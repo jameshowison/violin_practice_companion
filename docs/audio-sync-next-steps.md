@@ -1,152 +1,56 @@
-# Audio-sync / teacher-demo: three next pieces of work
+# Audio-sync / teacher-demo: next steps
 
-Written as a handoff. Each item is independently actionable; none depends on
-another. All file/line references were verified against `e6591ed`.
+Written as a handoff. **Two of the three items this document originally listed
+are done** — both fell out of the media-model unification rather than being
+patched individually; see [piece-media-model.md](piece-media-model.md) for what
+replaced them. Item 3 is unchanged and still the most valuable thing here.
 
 **Background you will want first:**
+[piece-media-model.md](piece-media-model.md) (how media are modelled now),
 [audio-sync-dtw-interior-gaps.md](audio-sync-dtw-interior-gaps.md) (the most
-recent alignment work, and where items 1 and 3 came from),
+recent alignment work, and where item 3 came from),
 [audio-sync-dtw-open-boundaries.md](audio-sync-dtw-open-boundaries.md) and
 [audio-sync-dtw-anchor-compression.md](audio-sync-dtw-anchor-compression.md).
 
 ---
 
-## 1. A teacher recording stores absolute file paths, which do not survive
+## ~~1. A teacher recording stores absolute file paths, which do not survive~~ — DONE
 
-**Component:** `TeacherRecordingStore`
-**Files:** `lib/services/teacher_recording_store.dart`,
-`lib/services/teacher_recording_capture_io.dart`,
-`lib/services/teacher_recording_playback_service_io.dart`
-**Severity:** a recorded demo silently stops existing — playback fails with
-`PathNotFoundException`, or the video window sits empty
-**Affects:** any teacher recording that outlives a change of app container
+Fixed by construction rather than by patch. `MediaRef`
+(`lib/models/piece_media.dart`) stores either an asset key or a
+**documents-relative** path, and `resolveMediaPath` recomputes the absolute
+path against the current documents directory on every read — the same policy
+`PieceStorage` had already adopted for MusicXML and documents at
+`piece_storage_io.dart:32-34`.
 
-### What happens now
+There is no longer a code path that can persist an absolute path: the capture
+itself now returns relative paths (`TeacherRecordingCaptureResult`), so the
+representation is right at the point of creation.
 
-`teacher_recording_capture_io.dart:89-93` builds the capture paths from
-`getApplicationDocumentsDirectory()`:
+Existing recordings are migrated in place on first read — `MediaMigration`
+finds the `teacher_recordings/` segment in the stored absolute path and keeps
+everything from there, which works on both iOS (`.../Documents/`) and Android
+(`.../app_flutter/`). Covered by `test/media_migration_test.dart`, including the
+real container-relocation shape from the original bug report.
 
-```dart
-final docs = await getApplicationDocumentsDirectory();
-final folder = Directory('${docs.path}/teacher_recordings/$pieceId');
-_videoPath = '${folder.path}/video.mp4';
-_audioPath = '${folder.path}/audio.wav';
-```
+## ~~2. Highlight preferences are unreachable for teacher-demo-only pieces~~ — DONE
 
-Those **absolute** strings are then persisted verbatim
-(`teacher_recording_store.dart:31-32`, read back at `:69-70`) and used
-directly for playback and realignment
-(`teacher_recording_playback_service_io.dart:71`, `:76`, `:90`). The documents
-directory is inside the app's data container, whose path is not stable, so a
-stored path can outlive the location it names.
+Both halves are gone. The gate in `piece_detail_screen.dart` was
+`audioSyncFolder != null` — the presence of a *bundled asset folder* — and now
+reads `!selectedMedia.isSynthesized`, which is what the settings actually
+describe. The wiring underneath pushed only into the Play Along service; there
+is now one `MediaPlaybackService` to push into, so opening the gate is
+sufficient rather than half a fix.
 
-### Evidence
+The stale assertion at `test/playback_service_base_test.dart:71` is corrected:
+the base class defaults `highlightDownbeatOnly` **on** and documents why at
+`:22-30`. That was the repo's one failing test; the suite is now green.
 
-Observed twice in one session on `dev-iphone`: a `flutter run` reinstall
-relocated the data container (`15C986F6-…` → `72FD5DA5-…`) while prefs still
-named the old one. The recording kept working only because the old directory
-lingered with hardlinked files; once that window closed the app logged
-
-```
-Unhandled Exception: PathNotFoundException: Cannot open file, path =
-'.../Application/15C986F6-.../Documents/teacher_recordings/galopede/audio.wav'
-```
-
-This was hit while seeding a recording by hand, but it is **not** an artefact
-of seeding: iOS does not guarantee container path stability across app
-updates or restores, and the same stored string is what a real capture writes.
-
-### Suggested approach
-
-Persist paths **relative to the documents directory** and resolve them at
-load. The store already treats any parse failure as "no recording"
-(`:57-60` catch → `null`), so the migration can be forgiving: if a stored
-value is absolute, try it, and on failure re-resolve its last two path
-segments (`teacher_recordings/<pieceId>/<file>`) against the current documents
-directory. That recovers every existing recording without a schema version.
-
-Worth noting `PieceStorage` already solved exactly this problem and documents
-why — see `lib/services/piece_storage_io.dart:32-34`: *"the piece's id is its
-filename, and its path is recomputed on every load"*. This is the same fix,
-applied to the one store that did not get it.
-
-### Traps
-
-- There is **no schema version** in either prefs blob, and no hook to bump
-  one. Add new fields as nullable-with-default or change the key name.
-- `AudioSyncAnchorsStore` is **not** affected — bundled Play Along tracks are
-  asset paths, not container paths. Only `TeacherRecordingStore` stores files.
-- `record_teacher_demo_screen.dart:103-104` is the other write site; both it
-  and `realign` must agree on the representation.
-
----
-
-## 2. Highlight preferences are unreachable for teacher-demo-only pieces
-
-**Component:** `PieceDetailScreen` settings panel
-**Files:** `lib/screens/piece_detail_screen.dart`,
-`lib/services/playback_service_base.dart`
-**Severity:** two working settings cannot be reached, and would not apply if
-they could
-**Affects:** any piece whose only audio is a recorded teacher demo
-
-### What happens now
-
-Two halves, both small, and fixing either alone achieves nothing.
-
-**The gate.** `piece_detail_screen.dart:330` hides both settings behind a
-*bundled asset folder*:
-
-```dart
-if (audioSyncFolder != null) ...[
-  SwitchListTile(title: const Text('Highlight downbeats only'), …),
-  … Slider(…)  // 'Highlight lead'
-]
-```
-
-A teacher demo is user-generated and deliberately **not** in that asset map —
-see the comment at `:157-163`, which is why it is tracked by
-`hasTeacherRecordingProvider` instead. So for a piece like the Galopede demo,
-`audioSyncFolder` is null and neither setting renders.
-
-**The wiring.** Even with the gate opened, `:337-338` and `:355-356` only ever
-push the value into the Play Along service:
-
-```dart
-setState(() => _highlightDownbeatOnly = v);
-audioSyncService?.highlightDownbeatOnly = v;   // never teacherRecordingService
-```
-
-Both services extend `PlaybackServiceBase`, which owns
-`highlightDownbeatOnly` (`playback_service_base.dart:31-36`) and
-`highlightLeadSeconds` (`:48`), so the capability is already there on the
-teacher-demo path — only the UI never addresses it.
-
-### Suggested approach
-
-Widen the gate to `audioSyncFolder != null || hasTeacherRecording` (both are
-already in scope at `:157-163`), and apply each change to whichever service is
-active rather than to `audioSyncService` alone. Keep the two local `setState`
-fields (`:97`, `:103`) as they are — they exist because the panel outlives the
-autoDispose-scoped services.
-
-### A stale test to clear up at the same time
-
-`test/playback_service_base_test.dart:71-73` is the one failing test in the
-repo and it has been failing since before this work:
-
-```dart
-test('highlightDownbeatOnly defaults to off', () {
-  expect(service.highlightDownbeatOnly, isFalse);
-});
-```
-
-The base class deliberately defaults it **on** (`:20`) and documents why at
-`:22-30`: *"Defaults on for the same reason: it's the only highlight
-granularity that's actually trustworthy."* So the default was intentionally
-flipped and the test was never updated — it should expect `isTrue`. It is a
-stale assertion, not a bug, but confirm that reading before changing it, since
-it is the only thing currently asserting this default either way.
+One thing worth knowing: the two settings still live as local `setState` fields
+on the screen, because the panel outlives the autoDispose-scoped service. They
+are re-applied to the service on every build (both setters early-return when
+unchanged), which is what makes them survive a service being torn down and
+recreated. Before, they silently did not.
 
 ---
 
@@ -154,7 +58,8 @@ it is the only thing currently asserting this default either way.
 
 **Component:** `AudioScoreAutoAligner` / `DtwAligner`
 **Files:** `lib/services/audio_score_auto_aligner.dart`,
-`lib/services/dtw_align.dart`, both anchor stores, the capture screen
+`lib/services/dtw_align.dart`, `lib/models/piece_media.dart`,
+`lib/screens/record_teacher_demo_screen.dart`
 **Severity:** removes the one hand-tuned constant on the alignment critical
 path
 **Affects:** every recording with a lead-in or trail-out
@@ -183,8 +88,14 @@ A user-supplied start timecode dissolves the ambiguity rather than tuning
 around it. For a teacher demo the user has just watched themselves record it,
 so they know the answer.
 
-**It also fixes the tempo estimate.** `audio_score_auto_aligner.dart:106-107`
-derives `estimatedBpm` from the **whole** recording's duration:
+**This matters more than it did.** Imported media are now first-class (any
+mp3/m4a/mp4 the user picks is decoded and aligned), so the aligner no longer
+only sees audio this project produced. A lesson recording with two minutes of
+talking before the tune is an ordinary thing to import, and it is exactly the
+case a single global penalty constant handles worst.
+
+**It also fixes the tempo estimate.** `audio_score_auto_aligner.dart` derives
+`estimatedBpm` from the **whole** recording's duration:
 
 ```dart
 final estimatedBpm =
@@ -201,18 +112,24 @@ every reference shorter than the music is a fixed point.
 
 Make it optional and additive, so absent input changes nothing:
 
-1. `AudioScoreAutoAligner.align` gains `double? contentStartSeconds` and
+1. `AudioScoreAutoAligner.alignChroma` gains `double? contentStartSeconds` and
    `double? contentEndSeconds`. Slice `realChroma.frames` to that window,
    compute `estimatedBpm` from the trimmed span, run DTW as now, then **add
    the window's start back onto every anchor's `audioSec`** so anchors stay in
-   real audio time.
+   real audio time. `alignChroma` is the right seam — `align` (WAV bytes) and
+   `alignPcm` (decoded media) both funnel through it, so both entry points get
+   the feature for free.
 2. Keep `openBegin`/`openEnd` on. The timecode is a hint, not a hard edge —
    the boundaries still absorb a second or two of error, and the end still has
    to discard things like Galopede's loop-back.
-3. Persist the value in both stores (nullable, defaulting to null) so
-   `realign` reuses it rather than reverting to inference.
+3. Persist the value on `PieceMedia` (nullable, defaulting to null) rather than
+   on `MediaAlignment`: it is a fact about the recording, not about one
+   alignment run, so it must survive `realign` clearing the alignment row.
+   `PieceMedia.fromJson` already tolerates absent fields, so this needs no
+   schema version — add it as nullable and old entries read as null.
 4. UI: on the capture-review step, a "tune starts here" scrub-and-mark is the
-   natural place. A plain seconds field is enough to prove the idea.
+   natural place. A plain seconds field is enough to prove the idea. The media
+   picker's per-medium row is the obvious home for editing it afterwards.
 
 ### Traps
 
@@ -228,4 +145,36 @@ Make it optional and additive, so absent input changes nothing:
   (3s/49s) and Lightly Row (~6.5s) both have known answers; Salt Creek's
   lead-in is ~3.46s and its 32/32 onset agreement is the regression guard.
 
-*Verified against `e6591ed`, 2026-09-15.*
+---
+
+## 4. The native decoder has not been exercised on real compressed audio
+
+**Component:** `AudioDecoder`
+**Files:** `ios/Runner/AudioDecoderPlugin.swift`,
+`android/app/src/main/kotlin/com/example/violin_practice_companion/AudioDecoderPlugin.kt`
+**Severity:** a new feature whose happy path is unconfirmed on device
+**Affects:** importing anything that is not a WAV
+
+The Dart side's contract is pinned by `test/audio_decoder_test.dart` (Float32 →
+Float64 widening, every malformed-reply shape, failure-is-null rather than
+throw, and that WAV never reaches the channel). The iOS plugin compiles and is
+registered. What has **not** happened is a real mp3/m4a/mp4 going in one end
+and chroma coming out the other, on a device or simulator.
+
+Things most likely to be wrong, in order:
+
+- **Android `MediaFormat.KEY_PCM_ENCODING`.** The plugin assumes 16-bit unless
+  the output format says float, and reads that only from
+  `INFO_OUTPUT_FORMAT_CHANGED`. Devices vary; a wrong guess here yields
+  plausible-looking noise rather than an error.
+- **iOS sample rate.** It is read from the track's format description and then
+  handed back to `AVAssetReaderTrackOutput` as the output rate. For a file
+  whose container and track disagree, the returned `sampleRate` could describe
+  the source rather than the output, which would stretch every anchor.
+- **A video with no audio track** returns an error on both platforms, which the
+  Dart side turns into `playsWithoutHighlight`. That path is reachable and
+  untested end to end.
+
+Cheapest check: import a known-duration mp3 of a bundled tune and confirm
+`PcmAudio.durationSeconds` matches the file, then that its anchors land where
+the WAV's do.

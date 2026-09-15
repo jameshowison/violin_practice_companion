@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/piece.dart';
+import '../models/piece_media.dart';
 import '../services/audio_score_auto_aligner.dart';
+import '../services/media_alignment_store.dart';
+import '../services/media_migration.dart';
+import '../services/piece_media_store.dart';
 import '../services/providers.dart';
 import '../services/teacher_recording_capture.dart';
 
@@ -28,6 +32,7 @@ class RecordTeacherDemoScreen extends ConsumerStatefulWidget {
 class _RecordTeacherDemoScreenState
     extends ConsumerState<RecordTeacherDemoScreen> {
   final _capture = TeacherRecordingCapture();
+  String? _mediaId;
   _Stage _stage = _Stage.initializing;
   String? _errorMessage;
   Duration _elapsed = Duration.zero;
@@ -67,7 +72,10 @@ class _RecordTeacherDemoScreenState
   }
 
   Future<void> _startRecording() async {
-    await _capture.start(widget.piece.id);
+    // Fixed at the moment recording starts, so the capture writes into the
+    // folder the medium will be persisted under — no copy or rename afterwards.
+    _mediaId = PieceMediaStore.newMediaId('demo', DateTime.now());
+    await _capture.start(widget.piece.id, _mediaId!);
     if (!mounted) return;
     _elapsed = Duration.zero;
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -98,17 +106,13 @@ class _RecordTeacherDemoScreenState
         }
       }
 
-      await ref.read(teacherRecordingStoreProvider).save(
-            widget.piece.id,
-            videoPath: result.videoPath,
-            audioPath: result.audioPath,
-            avOffsetMs: result.avOffsetMs,
-            anchors: aligned.anchors,
-            generationBpm: aligned.generationBpm,
-            hasCompressedAnchors: aligned.hasCompressedAnchors,
-          );
-      ref.invalidate(hasTeacherRecordingProvider(widget.piece.id));
-      ref.invalidate(teacherRecordingServiceProvider);
+      final media = await _persist(result, aligned);
+      // Selecting it is the point of having just recorded it — otherwise the
+      // user is returned to the score and has to go and find the take they
+      // made ten seconds ago in a menu.
+      ref.read(selectedMediaIdProvider(widget.piece.id).notifier).state =
+          media.id;
+      ref.invalidate(pieceMediaProvider(widget.piece.id));
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -117,6 +121,50 @@ class _RecordTeacherDemoScreenState
         _errorMessage = '$e';
       });
     }
+  }
+
+  /// Turns a finished capture into a [PieceMedia] plus its alignment row.
+  ///
+  /// The recording is its own analysis source: the mic capture is already WAV,
+  /// which is exactly what the aligner wants, so no decode is involved.
+  Future<PieceMedia> _persist(
+    TeacherRecordingCaptureResult result,
+    AutoAlignmentResult aligned,
+  ) async {
+    final pieceId = widget.piece.id;
+    final mediaId = _mediaId!;
+    final audio = MediaRef.appFile(result.audioRelativePath);
+    final media = PieceMedia(
+      id: mediaId,
+      label: await _nextLabel(pieceId),
+      kind: MediaKind.recorded,
+      alignmentKey: MediaMigration.bundledlessAlignmentKey(pieceId, mediaId),
+      audio: audio,
+      analysis: audio,
+      video: MediaRef.appFile(result.videoRelativePath),
+      avOffsetMs: result.avOffsetMs,
+    );
+
+    await ref.read(mediaAlignmentStoreProvider).save(
+          media.alignmentKey,
+          MediaAlignment(
+            anchors: aligned.anchors,
+            generationBpm: aligned.generationBpm,
+            hasCompressedAnchors: aligned.hasCompressedAnchors,
+          ),
+        );
+    await ref.read(pieceMediaStoreProvider).add(pieceId, media);
+    return media;
+  }
+
+  /// "Teacher demo", then "Teacher demo 2" and so on. A piece can hold several
+  /// takes now that each recording owns its own folder, so they need telling
+  /// apart in the picker.
+  Future<String> _nextLabel(String pieceId) async {
+    final existing = await ref.read(pieceMediaStoreProvider).load(pieceId);
+    final takes =
+        existing.where((m) => m.kind == MediaKind.recorded).length + 1;
+    return takes == 1 ? 'Teacher demo' : 'Teacher demo $takes';
   }
 
   Future<bool?> _showReviewDialog() {

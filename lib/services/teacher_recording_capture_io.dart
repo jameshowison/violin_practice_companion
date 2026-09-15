@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'media_paths.dart';
 import 'teacher_recording_capture_base.dart';
 
 /// Mobile implementation: `camera` records video-only (`enableAudio: false`
@@ -25,6 +25,14 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
 
   DateTime? _videoStartedAt;
   DateTime? _audioStartedAt;
+
+  // Both forms are kept: the recorders need somewhere real to write, and what
+  // gets persisted must be relative (see [MediaRef]). Deriving the absolute
+  // path once at [start] and the relative one at [stop] would mean resolving
+  // the documents directory twice and trusting it not to have moved in
+  // between.
+  String? _videoRelativePath;
+  String? _audioRelativePath;
   String? _videoPath;
   String? _audioPath;
 
@@ -81,16 +89,18 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
   }
 
   @override
-  Future<void> start(String pieceId) async {
+  Future<void> start(String pieceId, String mediaId) async {
     final controller = _controller;
     if (controller == null) {
       throw StateError('Camera is not initialized — call initialize() first.');
     }
-    final docs = await getApplicationDocumentsDirectory();
-    final folder = Directory('${docs.path}/teacher_recordings/$pieceId');
+    final relativeFolder = mediaFolderFor(pieceId, mediaId);
+    final folder = Directory(await resolveMediaPath(relativeFolder));
     await folder.create(recursive: true);
-    _videoPath = '${folder.path}/video.mp4';
-    _audioPath = '${folder.path}/audio.wav';
+    _videoRelativePath = '$relativeFolder/video.mp4';
+    _audioRelativePath = '$relativeFolder/audio.wav';
+    _videoPath = await resolveMediaPath(_videoRelativePath!);
+    _audioPath = await resolveMediaPath(_audioRelativePath!);
 
     await controller.startVideoRecording();
     _videoStartedAt = DateTime.now();
@@ -127,8 +137,8 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
         : videoStart.difference(audioStart).inMilliseconds;
 
     return TeacherRecordingCaptureResult(
-      videoPath: videoPath,
-      audioPath: audioPath,
+      videoRelativePath: _videoRelativePath!,
+      audioRelativePath: _audioRelativePath!,
       avOffsetMs: avOffsetMs,
       wavBytes: wavBytes,
     );

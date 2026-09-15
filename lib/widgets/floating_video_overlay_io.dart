@@ -4,17 +4,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../services/media_playback_service.dart';
 import '../services/playback_service_base.dart';
-import '../services/teacher_recording_playback_service.dart';
 
-/// Draggable, closable floating window showing the teacher-demo video,
+/// Draggable, closable floating window showing the selected medium's video,
 /// placed as a direct child of the same `Stack` that holds the notation view
 /// (see piece_detail_screen.dart). Kept in sync with [service]'s *real*
 /// audio clock via periodic corrective seeks — not the score-highlight
 /// clock, which is DTW-mapped and runs at a different local rate than the
 /// actual recording.
+///
+/// Shown for any medium that has one: a recorded teacher demo, where the video
+/// is a separate silent file captured alongside the audio, or an imported
+/// mp4/mov, where the same file supplies both and the AV offset is zero.
 class FloatingVideoOverlay extends StatefulWidget {
-  final TeacherRecordingPlaybackService service;
+  final MediaPlaybackService service;
 
   const FloatingVideoOverlay({super.key, required this.service});
 

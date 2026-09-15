@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
-import 'package:violin_practice_companion/services/audio_sync_playback_service.dart';
+import 'package:violin_practice_companion/services/media_playback_service.dart';
 
 void main() {
   test('sortAnchors orders by audioSec and breaks ties on scoreMs', () {
@@ -14,7 +14,7 @@ void main() {
       ScoreAudioAnchor(2000, 2.0),
     ];
 
-    final sorted = AudioSyncPlaybackService.sortAnchors(anchors);
+    final sorted = MediaPlaybackService.sortAnchors(anchors);
 
     for (var i = 1; i < sorted.length; i++) {
       expect(sorted[i].audioSec, greaterThanOrEqualTo(sorted[i - 1].audioSec));
@@ -27,8 +27,8 @@ void main() {
 
   group('dropDegenerateSegments', () {
     List<ScoreAudioAnchor> prepare(List<ScoreAudioAnchor> anchors) =>
-        AudioSyncPlaybackService.dropDegenerateSegments(
-            AudioSyncPlaybackService.sortAnchors(anchors));
+        MediaPlaybackService.dropDegenerateSegments(
+            MediaPlaybackService.sortAnchors(anchors));
 
     test('collapses an equal-audioSec run to its last anchor', () {
       // The shape a real alignment produces when the warp path advances
