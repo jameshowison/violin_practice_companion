@@ -147,34 +147,68 @@ Make it optional and additive, so absent input changes nothing:
 
 ---
 
-## 4. The native decoder has not been exercised on real compressed audio
+## 4. The native decoder — iOS confirmed, Android still unverified
 
 **Component:** `AudioDecoder`
 **Files:** `ios/Runner/AudioDecoderPlugin.swift`,
 `android/app/src/main/kotlin/com/example/violin_practice_companion/AudioDecoderPlugin.kt`
-**Severity:** a new feature whose happy path is unconfirmed on device
-**Affects:** importing anything that is not a WAV
 
 The Dart side's contract is pinned by `test/audio_decoder_test.dart` (Float32 →
 Float64 widening, every malformed-reply shape, failure-is-null rather than
-throw, and that WAV never reaches the channel). The iOS plugin compiles and is
-registered. What has **not** happened is a real mp3/m4a/mp4 going in one end
-and chroma coming out the other, on a device or simulator.
+throw, and that WAV never reaches the channel).
 
-Things most likely to be wrong, in order:
+**iOS is confirmed end to end.** A 320 kbps 44.1 kHz joint-stereo mp3 (~71.4s,
+a violin+piano performance of The Happy Farmer) decoded through AVAssetReader,
+extracted chroma and produced 42 anchors spanning **6.87s → 66.57s**, at
+`generationBpm` 136. That span is the check that matters: a wrong sample rate —
+the risk this section originally called out — scales every anchor, so anchors
+landing inside a 71.4s file with a plausible lead-in and trail-out is direct
+evidence the rate came back right. The stereo mixdown path is exercised too.
 
-- **Android `MediaFormat.KEY_PCM_ENCODING`.** The plugin assumes 16-bit unless
-  the output format says float, and reads that only from
-  `INFO_OUTPUT_FORMAT_CHANGED`. Devices vary; a wrong guess here yields
-  plausible-looking noise rather than an error.
-- **iOS sample rate.** It is read from the track's format description and then
-  handed back to `AVAssetReaderTrackOutput` as the output rate. For a file
-  whose container and track disagree, the returned `sampleRate` could describe
-  the source rather than the output, which would stretch every anchor.
-- **A video with no audio track** returns an error on both platforms, which the
-  Dart side turns into `playsWithoutHighlight`. That path is reachable and
-  untested end to end.
+Two things that fell out of the run:
 
-Cheapest check: import a known-duration mp3 of a bundled tune and confirm
-`PcmAudio.durationSeconds` matches the file, then that its anchors land where
-the WAV's do.
+- The alignment is flagged `hasCompressedAnchors`. Given the known
+  false-positive mode (see `alignmentReviewMessage`), this is not necessarily a
+  decoder or score problem, but it has not been looked into.
+- It skipped a **6.9s intro**, which this recording genuinely has. That is item
+  3's case arriving on its own, from real imported audio rather than from a
+  recording made by this project.
+
+**Android is untested.** The thing most likely to be wrong is
+`MediaFormat.KEY_PCM_ENCODING`: the plugin assumes 16-bit unless the output
+format says float, and reads that only from `INFO_OUTPUT_FORMAT_CHANGED`.
+Devices vary, and a wrong guess yields plausible-looking noise rather than an
+error — so check the anchor span the same way, don't just look for a crash.
+
+**Also still untested:** a video with no audio track. Both plugins return an
+error and the Dart side turns it into `playsWithoutHighlight`; that path is
+reachable and has not been walked.
+
+### Getting a file onto the simulator to test with
+
+`scripts/sim_add_media.sh dev-iphone <pieceId> <file> ["Label"]` attaches a
+file to a piece from the CLI and runs the app's real load path. It exists
+because the in-app route goes through the **system document picker**, which is
+native iOS: Marionette only sees Flutter widgets, so an agent cannot drive it.
+
+Two traps it encodes, both of which cost time to find:
+
+- **`defaults write <bundle>` does not reach the app.** On the simulator that
+  writes to the device's shared preferences domain, while an iOS app reads
+  NSUserDefaults from its own data container's
+  `Library/Preferences/<bundle>.plist`. Edit that plist directly.
+  `shared_preferences` prefixes every key with `flutter.`.
+- **A `flutter run` reinstall relocates the data container** — three different
+  UUIDs in one session. Documents and the plist are carried across, so writing
+  before a relaunch works, but never cache the container path across a launch.
+  (This is also the failure mode item 1 fixed, seen live: the legacy
+  `teacherRecording.galopede` key still names a container from two moves ago.)
+
+The app must be stopped while the plist is edited — a running app holds
+NSUserDefaults in memory and flushes over anything written underneath it.
+
+For the Files app instead, copy into the simulator's "On My iPhone" storage:
+`.../data/Containers/Shared/AppGroup/<group.com.apple.FileProvider.LocalStorage>/File Provider Storage/`
+(find the group by its `MCMMetadataIdentifier` in each container's
+`.com.apple.mobile_container_manager.metadata.plist`), then pick it in the app
+via Browse ▸ On My iPhone.
