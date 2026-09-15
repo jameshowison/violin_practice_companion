@@ -144,6 +144,18 @@ class PieceLayout {
       }
     }
 
+    // Rehearsal marks (`<direction><rehearsal>`) are how an ABC tune's own
+    // inline `[P:A]`/`[P:B]`/`[P:C]` markers reach `Measure.partLabel` for
+    // `SectionDetector` (see musicxml_parser.dart) — an internal signal, not
+    // something meant to be engraved. `parsedPieceProvider` reads the piece's
+    // untouched XML, so it still sees them; only the rendered copy has them
+    // removed.
+    for (final el in doc.findAllElements('direction').toList()) {
+      if (el.findAllElements('rehearsal').isNotEmpty) {
+        el.parent?.children.remove(el);
+      }
+    }
+
     return doc.toXmlString();
   }
 }

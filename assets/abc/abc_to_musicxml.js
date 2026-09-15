@@ -206,15 +206,16 @@
     var km = keyToFifthsMode(key, warnings);
     var time = meterToTime(meter);
 
-    // Split the element stream into measures on bar elements; carry repeats.
+    // Split the element stream into measures on bar elements; carry repeats
+    // and part labels (ABC's own `[P:A]`/`[P:B]`/… inline markers).
     var measures = [];
-    var cur = { notes: '', repeatStart: false, repeatEnd: false };
+    var cur = { notes: '', repeatStart: false, repeatEnd: false, partLabel: null };
     var pendingForwardRepeat = false;
     function flush() {
       cur.repeatStart = cur.repeatStart || pendingForwardRepeat;
       pendingForwardRepeat = false;
       measures.push(cur);
-      cur = { notes: '', repeatStart: false, repeatEnd: false };
+      cur = { notes: '', repeatStart: false, repeatEnd: false, partLabel: null };
     }
     // abcjs marks beam groups on note elements via startBeam/endBeam. Track an
     // open group and emit MusicXML <beam> begin/continue/end so beamed notes
@@ -246,8 +247,15 @@
         if (el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat') cur.repeatEnd = true;
         if (hasContent) flush();
         if (el.type === 'bar_left_repeat' || el.type === 'bar_dbl_repeat') pendingForwardRepeat = true;
+      } else if (el.el_type === 'part') {
+        // abcjs emits one 'part' element wherever `[P:X]` sits in the source —
+        // attach it to whichever measure is currently accumulating (its
+        // notes, if any, haven't been added yet unless `[P:X]` sits mid-bar,
+        // in which case it lands on that same measure — the closest a
+        // measure-level model can get to a mid-measure marker).
+        cur.partLabel = el.title;
       }
-      // ignore non-note/bar elements (chord symbols live on notes already)
+      // ignore other non-note/bar/part elements (chord symbols live on notes)
     }
     if (cur.notes.length > 0) flush();
 
@@ -274,6 +282,7 @@
         out += '      </attributes>\n';
       }
       if (m.repeatStart) out += '      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n';
+      if (m.partLabel) out += '      <direction placement="above"><direction-type><rehearsal>' + xmlEscape(m.partLabel) + '</rehearsal></direction-type></direction>\n';
       out += m.notes;
       if (m.repeatEnd) out += '      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n';
       out += '    </measure>\n';

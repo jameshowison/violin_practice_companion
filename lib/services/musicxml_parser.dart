@@ -150,12 +150,26 @@ class MusicXmlParser {
         if (dir == 'backward') repeatEnd = true;
       }
 
+      // Rehearsal mark: <direction><direction-type><rehearsal>. This is how an
+      // ABC tune's own inline part marker (`[P:A]`) survives conversion — see
+      // abc_to_musicxml.js — trusted directly by SectionDetector when present.
+      String? partLabel;
+      for (final directionEl in measureEl.findElements('direction')) {
+        final text = directionEl
+            .findElements('direction-type')
+            .expand((dt) => dt.findElements('rehearsal'))
+            .firstOrNull
+            ?.innerText;
+        if (text != null && text.isNotEmpty) partLabel = text;
+      }
+
       measures.add(Measure(
         number: number,
         notes: notes,
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart,
         repeatEnd: repeatEnd,
+        partLabel: partLabel,
       ));
     }
 

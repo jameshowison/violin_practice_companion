@@ -13,18 +13,27 @@ class Measure {
   final bool repeatStart;
   final bool repeatEnd;
 
+  /// This measure's authored part label (e.g. `'A'`, `'B'`), parsed from a
+  /// MusicXML `<direction><rehearsal>` — how an ABC tune's own inline
+  /// `[P:A]`/`[P:B]`/`[P:C]` markers survive the conversion (see
+  /// abc_to_musicxml.js). Null on every measure that isn't where a part
+  /// starts/changes. [SectionDetector] trusts these directly, with no
+  /// fingerprint guessing, whenever a piece has enough of them.
+  final String? partLabel;
+
   const Measure({
     required this.number,
     required this.notes,
     this.hiddenLeadNotes = const [],
     this.repeatStart = false,
     this.repeatEnd = false,
+    this.partLabel,
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
-  /// pickup rests, and repeat flags through unless explicitly overridden. The
-  /// jianpu/fingering processors rebuild measures via this method, so the repeat
-  /// flags must survive to `parsedPieceProvider`'s output.
+  /// pickup rests, repeat flags, and part label through unless explicitly
+  /// overridden. The jianpu/fingering processors rebuild measures via this
+  /// method, so all of that must survive to `parsedPieceProvider`'s output.
   Measure copyWithNotes(List<NoteEvent> notes,
           {bool? repeatStart, bool? repeatEnd}) =>
       Measure(
@@ -33,6 +42,7 @@ class Measure {
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart ?? this.repeatStart,
         repeatEnd: repeatEnd ?? this.repeatEnd,
+        partLabel: partLabel,
       );
 
   /// True when this measure's visible notes don't sum to the expected number of
