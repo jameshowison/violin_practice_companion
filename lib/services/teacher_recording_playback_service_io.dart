@@ -66,7 +66,8 @@ class TeacherRecordingPlaybackService extends PlaybackServiceBase {
   }) async {
     final cached = await _store.load(pieceId);
     if (cached == null) return false;
-    _anchors = AudioSyncPlaybackService.sortAnchors(cached.anchors);
+    _anchors = AudioSyncPlaybackService.dropDegenerateSegments(
+        AudioSyncPlaybackService.sortAnchors(cached.anchors));
     _videoPath = cached.videoPath;
     _avOffsetMs = cached.avOffsetMs;
     alignmentLooksUncertain.value = cached.hasCompressedAnchors;

@@ -41,22 +41,61 @@ class DtwAligner {
   final double bandFraction;
 
   /// Cost charged per skipped leading/trailing [target] frame in open-begin
-  /// /open-end mode (see [align]) — small next to a genuine mismatch's cost
-  /// (cosine distance up to 2), but enough to break the near-ties a long
-  /// sustained, near-uniform stretch of audio produces (every frame inside a
-  /// held note looks almost identical, so skipping a few of them can look
-  /// free to floating-point precision without this). Without it, open
-  /// boundaries can shave real content off a boundary for a change in cost
-  /// too small to be a genuine improvement, rather than only skipping actual
-  /// unmatched intro/outro content.
-  static const double _skipPenaltyPerFrame = 1e-3;
+  /// /open-end mode (see [align]).
+  ///
+  /// What this really buys is *coverage*. Every reference frame pays its own
+  /// cosine distance wherever it lands, so skipping saves nothing directly —
+  /// but a free skip lets the path choose any sub-window of the target and
+  /// cram the whole reference into it with vertical moves, picking whichever
+  /// frames happen to match best and ignoring whether the result is a
+  /// plausible passage of time. Charging per declined target frame is what
+  /// makes a narrow window expensive, and so makes a wide, roughly diagonal
+  /// path win. Set the charge near the typical per-frame match cost and a
+  /// frame is explained exactly when it plausibly matches; set it far below
+  /// and the window collapses.
+  ///
+  /// Chroma vectors here are non-negative and unit-length, so their cosine
+  /// distance is bounded in `[0, 1]`, not the `[0, 2]` the general case
+  /// allows, and a whole-alignment mean of about 0.4 is normal on a real
+  /// recording.
+  ///
+  /// It used to be 1e-3, chosen only to break the near-ties a long sustained
+  /// stretch of near-identical frames produces. That is orders of magnitude
+  /// below the cost of matching anything, which made discarding the rest of
+  /// the recording almost free. Paired with the band-limited chroma front end
+  /// (see [AudioChromaExtractor]), 1e-3 closed the Galopede teacher demo's
+  /// boundaries onto a 14s window and put its first anchor 29s after the
+  /// first note.
+  ///
+  /// This default is the centre of the window that satisfies both real
+  /// recordings, each of which pins one side of it:
+  ///
+  /// - **Below ~0.13**, the Galopede demo's window collapses. Its mean anchor
+  ///   error against a by-ear ground truth is 18.66s at 1e-3, 3.97s at 0.10,
+  ///   and 0.60s from 0.13 up.
+  /// - **Above ~0.23**, Lightly Row's first anchor is dragged back into its
+  ///   intro. That recording opens by restating the tune's first phrase
+  ///   before the performance proper, so the intro genuinely resembles the
+  ///   score's opening and stops being worth skipping once declining it gets
+  ///   expensive: anchor 0 jumps 6.57s -> 3.11s and the first segment then
+  ///   paces at 2.4x the rest of the piece, where a correct anchor 0 paces at
+  ///   1.04x.
+  ///
+  /// That second constraint is the one to keep in mind when retuning: a
+  /// recording whose intro or outro quotes the tune is the hard case, and
+  /// raising this value is what breaks it. See
+  /// docs/audio-sync-dtw-interior-gaps.md.
+  final double skipPenaltyPerFrame;
 
-  const DtwAligner({this.bandFraction = 0.25});
+  const DtwAligner({
+    this.bandFraction = 0.25,
+    this.skipPenaltyPerFrame = 0.18,
+  });
 
   /// [openBegin]/[openEnd] allow the path to skip leading and/or trailing
   /// [target] frames that have no counterpart in [reference] — e.g. a
   /// recorded intro/outro the score doesn't have — at a small per-frame cost
-  /// (see [_skipPenaltyPerFrame]) rather than forcing them into a false
+  /// (see [skipPenaltyPerFrame]) rather than forcing them into a false
   /// match. Every [reference] frame is still consumed; only the [target]
   /// boundaries relax. Both default to `false` (today's corner-to-corner
   /// behavior).
@@ -108,10 +147,10 @@ class DtwAligner {
     // for free; open-begin lets reference frame 0 pair with any target frame
     // j, charging only the skip penalty for the j frames skipped ahead of it
     // (a flat 0 for every j, rather than this ramp, is tempting but wrong —
-    // see [_skipPenaltyPerFrame].)
+    // see [skipPenaltyPerFrame].)
     if (openBegin) {
       for (var j = 0; j <= m; j++) {
-        cost[0][j] = _skipPenaltyPerFrame * j;
+        cost[0][j] = skipPenaltyPerFrame * j;
       }
     } else {
       cost[0][0] = 0;
@@ -135,13 +174,13 @@ class DtwAligner {
     // target frame gives the cheapest fully-referenced path once the skip
     // penalty for the (m - j) frames left unmatched after it is added back
     // in — leaving them unmatched only when that's a genuine improvement,
-    // not merely a shorter sum (see [_skipPenaltyPerFrame]).
+    // not merely a shorter sum (see [skipPenaltyPerFrame]).
     var jEnd = m;
     if (openEnd) {
       var bestAdjusted = double.infinity;
       for (var j = 1; j <= m; j++) {
         if (!cost[n][j].isFinite) continue;
-        final adjusted = cost[n][j] + _skipPenaltyPerFrame * (m - j);
+        final adjusted = cost[n][j] + skipPenaltyPerFrame * (m - j);
         if (adjusted < bestAdjusted) {
           bestAdjusted = adjusted;
           jEnd = j;
@@ -172,15 +211,18 @@ class DtwAligner {
       }
     }
     final orderedPath = path.reversed.toList(growable: false);
-    // cost[n][jEnd] includes the open-begin skip penalty charged once, at the
-    // base case, for however many target frames were skipped ahead of
-    // orderedPath.first — back it out so averageCost reports genuine match
-    // quality rather than this tie-breaking regularizer (open-end's penalty
-    // never entered cost[n][jEnd] to begin with; it's only used above to
-    // choose jEnd, so it needs no equivalent correction here).
-    final jStart = orderedPath.isEmpty ? 0 : orderedPath.first.$2;
-    final skipPenaltyPaid = openBegin ? _skipPenaltyPerFrame * jStart : 0.0;
-    final matchCost = cost[n][jEnd] - skipPenaltyPaid;
+    if (orderedPath.isEmpty) return const DtwResult([], 0);
+    // Re-sum the real distances along the chosen path rather than reading
+    // cost[n][jEnd] and backing the skip penalty out of it. That subtraction
+    // cancelled two Float32-rounded quantities, so the residue scaled with
+    // [skipPenaltyPerFrame] — at 0.18 a genuinely perfect match reported an
+    // averageCost of ~7e-9 instead of 0. This also makes averageCost exactly
+    // what its doc comment claims: the mean per-step cosine distance, with no
+    // contribution from the skip regularizer at either boundary.
+    var matchCost = 0.0;
+    for (final (r, t) in orderedPath) {
+      matchCost += _cosineDistance(reference[r], target[t]);
+    }
     return DtwResult(orderedPath, matchCost / orderedPath.length);
   }
 

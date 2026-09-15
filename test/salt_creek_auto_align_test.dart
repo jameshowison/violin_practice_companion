@@ -86,7 +86,8 @@ void main() {
 
     // ignore: avoid_print
     print('generationBpm=${result.generationBpm} '
-        'averageDtwCost=${result.averageDtwCost.toStringAsFixed(4)}');
+        'averageDtwCost=${result.averageDtwCost.toStringAsFixed(4)} '
+        'hasCompressedAnchors=${result.hasCompressedAnchors}');
     for (var i = 0; i < result.anchors.length; i++) {
       final a = result.anchors[i];
       // ignore: avoid_print
