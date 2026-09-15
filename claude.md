@@ -192,6 +192,55 @@ ask the user to press Play and watch, rather than sampling frames yourself.
 
 **Screen coordinates** in marionette are in logical pixels at whatever scale the simulator reports. `dev-iphone` in landscape reports ~874×402pt for the full screen (including AppBar). The body below the AppBar starts at y≈52.
 
+**Marionette cannot touch native iOS UI.** Its taps go into the Flutter engine,
+so anything the system draws — the document picker, the photo picker, a
+permission alert — is invisible to `get_interactive_elements` and untappable.
+Screenshots show it (they capture the framebuffer), which makes it easy to
+think you can drive it. You can't. Either find a CLI route (below), or hand
+that one tap to the user.
+
+## Getting a media file onto the simulator
+
+The in-app "Add audio or video…" route opens the **system document picker**, so
+per the note above no agent can complete it. Use the script instead — it does
+the same two things the importer does (copy the file into the medium's folder,
+write the `PieceMedia` row), so the app's real load path runs unmodified:
+
+```bash
+bash scripts/sim_add_media.sh dev-iphone happy_farmer path/to/track.mp3 "Happy Farmer (mp3)"
+bash scripts/dev_run.sh dev-iphone        # then pick it in the tray's media picker
+```
+
+This is how the native decoder was verified: a 320 kbps stereo mp3 decoded and
+aligned to 42 anchors spanning 6.87–66.57s of a 71.4s file. **Check the anchor
+span, not just the absence of a crash** — a wrong sample rate scales every
+anchor and otherwise looks like success.
+
+**Three traps the script encodes.** They cost real time to find:
+
+1. **`defaults write <bundle>` does NOT reach the app.** On the simulator that
+   writes to the *device's* shared preferences domain, while an iOS app reads
+   NSUserDefaults from its own data container's
+   `Library/Preferences/<bundle>.plist`. Edit that plist directly (via
+   `plistlib` — the keys contain dots, which `plutil` reads as keypath
+   separators). `shared_preferences` prefixes every key with `flutter.`.
+2. **A `flutter run` reinstall RELOCATES the data container** — three different
+   UUIDs in one session. `Documents/` and the prefs plist are carried across
+   (hardlinked), so writing before a relaunch is safe, but never cache the
+   container path across a launch. Always re-run
+   `xcrun simctl get_app_container dev-iphone <bundle> data`.
+3. **Stop the app before editing the plist.** A running app holds NSUserDefaults
+   in memory and flushes over anything written underneath it on exit.
+
+For the **Files app** route instead (so the picker's Browse ▸ On My iPhone can
+see it), copy into the simulator's own local storage:
+`.../Devices/<udid>/data/Containers/Shared/AppGroup/<group>/File Provider Storage/`,
+where `<group>` is the container whose
+`.com.apple.mobile_container_manager.metadata.plist` has
+`MCMMetadataIdentifier = group.com.apple.FileProvider.LocalStorage`.
+`xcrun simctl addmedia` is no help here — it only takes photos and videos, into
+the Photos library, not Files.
+
 ## Measuring Verovio headlessly
 
 `web/verovio/verovio-toolkit-wasm.js` (Verovio 6.2.0) drives from Node with no
