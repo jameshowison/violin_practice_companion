@@ -12,9 +12,10 @@ import 'package:pdfx/pdfx.dart';
 
 import 'omr_service_base.dart';
 
-/// Mobile/desktop scan-to-MusicXML pipeline: acquire a page image (document
-/// scanner, photo library, or file/PDF) → `preprocessImage` (binarize) → crop
-/// to the music region → `homr_omr` recognition.
+/// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
+/// (document scanner, photo library, or file/PDF) → `preprocessImage`
+/// (binarize) → crop each page to the music region → `homr_omr` recognition,
+/// concatenated across pages into one piece.
 class OmrService implements OmrServiceBase {
   static const _contentResolverChannel = MethodChannel('dev.homr/content_resolver');
 
@@ -23,23 +24,33 @@ class OmrService implements OmrServiceBase {
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     String title = '',
-    Future<int?> Function(int pageCount)? onSelectPdfPage,
   }) async {
     onProgress?.call(OmrScanStage.capturing);
-    final imageBytes = await _acquire(source, onSelectPdfPage: onSelectPdfPage);
-    if (imageBytes == null) return null;
+    final pages = await _acquire(source);
+    if (pages == null || pages.isEmpty) return null;
 
     onProgress?.call(OmrScanStage.preprocessing);
-    final preprocessed = await preprocessImage(imageBytes);
+    final preprocessedPages = <Uint8List>[];
+    for (final bytes in pages) {
+      preprocessedPages.add((await preprocessImage(bytes)).thresholded);
+    }
 
     onProgress?.call(OmrScanStage.cropping);
-    final croppedBytes = await _cropToMusic(preprocessed.thresholded);
-    if (croppedBytes == null) return null;
+    final croppedPages = <Uint8List>[];
+    for (var i = 0; i < preprocessedPages.length; i++) {
+      final cropped = await _cropToMusic(
+        preprocessedPages[i],
+        pageIndex: i,
+        pageCount: preprocessedPages.length,
+      );
+      if (cropped == null) return null; // cancelling any page's crop cancels the whole scan
+      croppedPages.add(cropped);
+    }
 
-    return OmrOrchestrator().recognise(
-      croppedBytes,
+    return OmrOrchestrator().recogniseMultiPage(
+      croppedPages,
       title: title,
-      onProgress: (stage) => onProgress?.call(switch (stage) {
+      onProgress: (pageIndex, stage) => onProgress?.call(switch (stage) {
         OmrStage.segmenting => OmrScanStage.segmenting,
         OmrStage.detecting => OmrScanStage.detecting,
         OmrStage.recognising => OmrScanStage.recognising,
@@ -48,24 +59,22 @@ class OmrService implements OmrServiceBase {
     );
   }
 
-  /// Acquire the raw page-image bytes (JPEG or PNG) from the chosen [source].
-  /// Returns null if the user cancels the picker. `preprocessImage` decodes
-  /// either format, so no conversion is needed here.
-  Future<Uint8List?> _acquire(
-    OmrImageSource source, {
-    Future<int?> Function(int pageCount)? onSelectPdfPage,
-  }) async {
+  /// Acquire the raw page-image bytes (JPEG or PNG), one entry per page, in
+  /// page order, from the chosen [source]. Returns null if the user cancels
+  /// the picker. `preprocessImage` decodes either format, so no conversion
+  /// is needed here.
+  Future<List<Uint8List>?> _acquire(OmrImageSource source) async {
     switch (source) {
       case OmrImageSource.camera:
         return _acquireFromCamera();
       case OmrImageSource.photoLibrary:
         return _acquireFromPhotos();
       case OmrImageSource.file:
-        return _acquireFromFile(onSelectPdfPage: onSelectPdfPage);
+        return _acquireFromFile();
     }
   }
 
-  Future<Uint8List?> _acquireFromCamera() async {
+  Future<List<Uint8List>?> _acquireFromCamera() async {
     // VisionKit's VNDocumentCameraViewController (used by flutter_doc_scanner)
     // is unsupported on the iOS Simulator / Android emulator — its initializer
     // throws an uncatchable ObjC NSException that aborts the whole app. Detect
@@ -83,8 +92,12 @@ class OmrService implements OmrServiceBase {
       imageFormat: ImageFormat.jpeg,
     );
     if (result == null || result.images.isEmpty) return null;
-    final scanned = await _resolveToFile(result.images.first);
-    return scanned.readAsBytes();
+
+    final pages = <Uint8List>[];
+    for (final path in result.images) {
+      pages.add(await (await _resolveToFile(path)).readAsBytes());
+    }
+    return pages;
   }
 
   /// Whether we're running on real hardware (vs simulator/emulator). Only iOS
@@ -97,79 +110,93 @@ class OmrService implements OmrServiceBase {
     return true;
   }
 
-  Future<Uint8List?> _acquireFromPhotos() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return null;
-    return picked.readAsBytes();
+  Future<List<Uint8List>?> _acquireFromPhotos() async {
+    // pickMultiImage() signals cancel with an empty list, never null — unlike
+    // pickImage(), which this replaces.
+    final picked = await ImagePicker().pickMultiImage();
+    if (picked.isEmpty) return null;
+
+    final pages = <Uint8List>[];
+    for (final file in picked) {
+      pages.add(await file.readAsBytes());
+    }
+    return pages;
   }
 
-  Future<Uint8List?> _acquireFromFile({
-    Future<int?> Function(int pageCount)? onSelectPdfPage,
-  }) async {
+  Future<List<Uint8List>?> _acquireFromFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
       withData: true,
+      allowMultiple: true,
     );
-    final file = result?.files.singleOrNull;
-    if (file == null) return null;
+    final files = result?.files;
+    if (files == null || files.isEmpty) return null;
 
-    final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
-    if (bytes == null) return null;
+    final pages = <Uint8List>[];
+    for (final file in files) {
+      final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
+      if (bytes == null) continue; // unreadable entry — skip rather than abort the whole selection
 
-    final isPdf = (file.extension ?? '').toLowerCase() == 'pdf';
-    if (isPdf) return _rasterizePdf(bytes, onSelectPdfPage: onSelectPdfPage);
-    return bytes;
+      final isPdf = (file.extension ?? '').toLowerCase() == 'pdf';
+      if (isPdf) {
+        pages.addAll(await _rasterizeAllPdfPages(bytes));
+      } else {
+        pages.add(bytes);
+      }
+    }
+    if (pages.isEmpty) return null;
+    return pages;
   }
 
-  /// Render one page of a PDF to PNG bytes for the OMR pipeline. For a
-  /// multi-page document, [onSelectPdfPage] chooses the 0-based page index
-  /// (null → user cancelled); with no callback or a single page, page 0 is
-  /// used. Renders at [_pdfTargetWidth] px wide to match `preprocessImage`'s
-  /// own resize target.
+  /// Render every page of a PDF to PNG bytes for the OMR pipeline, in
+  /// document order. Renders at [_pdfTargetWidth] px wide to match
+  /// `preprocessImage`'s own resize target.
   static const _pdfTargetWidth = 1920.0;
 
-  Future<Uint8List?> _rasterizePdf(
-    Uint8List pdfBytes, {
-    Future<int?> Function(int pageCount)? onSelectPdfPage,
-  }) async {
+  Future<List<Uint8List>> _rasterizeAllPdfPages(Uint8List pdfBytes) async {
     final document = await PdfDocument.openData(pdfBytes);
     try {
-      var pageIndex = 0; // 0-based
-      if (document.pagesCount > 1 && onSelectPdfPage != null) {
-        final chosen = await onSelectPdfPage(document.pagesCount);
-        if (chosen == null) return null; // user cancelled the page picker
-        pageIndex = chosen.clamp(0, document.pagesCount - 1);
+      final rendered = <Uint8List>[];
+      for (var pageNum = 1; pageNum <= document.pagesCount; pageNum++) { // pdfx is 1-based
+        final page = await document.getPage(pageNum);
+        try {
+          final scale = _pdfTargetWidth / page.width;
+          final result = await page.render(
+            width: _pdfTargetWidth,
+            height: page.height * scale,
+            format: PdfPageImageFormat.png,
+            backgroundColor: '#FFFFFF',
+          );
+          if (result != null) rendered.add(result.bytes);
+        } finally {
+          await page.close();
+        }
       }
-
-      final page = await document.getPage(pageIndex + 1); // pdfx is 1-based
-      try {
-        final scale = _pdfTargetWidth / page.width;
-        final rendered = await page.render(
-          width: _pdfTargetWidth,
-          height: page.height * scale,
-          format: PdfPageImageFormat.png,
-          backgroundColor: '#FFFFFF',
-        );
-        return rendered?.bytes;
-      } finally {
-        await page.close();
-      }
+      return rendered;
     } finally {
       await document.close();
     }
   }
 
-  Future<Uint8List?> _cropToMusic(Uint8List thresholdedPng) async {
+  Future<Uint8List?> _cropToMusic(
+    Uint8List thresholdedPng, {
+    required int pageIndex,
+    required int pageCount,
+  }) async {
     final dir = await getTemporaryDirectory();
-    final source = File('${dir.path}/omr_threshold_${DateTime.now().millisecondsSinceEpoch}.png');
+    final source = File(
+      '${dir.path}/omr_threshold_${DateTime.now().millisecondsSinceEpoch}_$pageIndex.png',
+    );
     await source.writeAsBytes(thresholdedPng);
+
+    final title = pageCount > 1 ? 'Crop to Music — Page ${pageIndex + 1} of $pageCount' : 'Crop to Music';
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: source.path,
       uiSettings: [
         IOSUiSettings(
-          title: 'Crop to Music',
+          title: title,
           doneButtonTitle: 'Done',
           cancelButtonTitle: 'Cancel',
           rotateButtonsHidden: true,
