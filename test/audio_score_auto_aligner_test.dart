@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:wav/wav.dart';
 
@@ -129,6 +130,155 @@ void main() {
     expect(result.anchors[1].audioSec, closeTo(5.5, 0.3));
     expect(
         result.anchors[1].audioSec, greaterThan(result.anchors[0].audioSec));
+  });
+
+  group('content window', () {
+    // The score for every test here: C4 half note, then E4 half note.
+    final piece = ParsedPiece(
+      keySignature: 'C',
+      keyFifths: 0,
+      keyMode: KeyMode.major,
+      measures: [
+        Measure(number: 1, notes: [_note(60, NoteValue.half)]), // C4, pc 0
+        Measure(number: 2, notes: [_note(64, NoteValue.half)]), // E4, pc 4
+      ],
+    );
+    const c4 = 261.63, e4 = 329.63, fSharp4 = 369.99;
+
+    AutoAlignmentResult align(Uint8List wav,
+            {double? contentStartSeconds,
+            double? contentEndSeconds,
+            double? skipPenaltyPerFrame}) =>
+        AudioScoreAutoAligner(
+          midiGenerator: MidiGenerator.forTest(),
+          dtw: skipPenaltyPerFrame == null
+              ? null
+              : DtwAligner(skipPenaltyPerFrame: skipPenaltyPerFrame),
+        ).align(
+          piece,
+          wav,
+          contentStartSeconds: contentStartSeconds,
+          contentEndSeconds: contentEndSeconds,
+        );
+
+    test('a given start takes the skip penalty out of the decision', () {
+      // The point of the whole feature. `skipPenaltyPerFrame` is the one
+      // constant deciding, from audio alone, whether a lead-in is unmatched
+      // content or the first notes of the piece, and its usable window rests
+      // on two real recordings, one per edge (docs/audio-sync-next-steps.md).
+      // Here the lead-in QUOTES the tune — the first 4s restate C4 then E4
+      // before the performance proper — which is Lightly Row's real shape and
+      // the edge inference handles worst.
+      final wav = _toneWavBytes([
+        (c4, 2.0), // ├ intro: the tune's own first phrase
+        (e4, 2.0), // ┘
+        (c4, 3.0), // the performance
+        (e4, 3.0),
+      ]);
+
+      // Inferred, the answer moves with the constant: raise it past the point
+      // where skipping stops looking worthwhile and anchor 0 is dragged back
+      // into the intro, which is the regression
+      // test/lightly_row_intro_align_test.dart guards against on real audio.
+      expect(align(wav).anchors.first.audioSec, closeTo(4.0, 0.3));
+      expect(align(wav, skipPenaltyPerFrame: 0.4).anchors.first.audioSec,
+          closeTo(0.0, 0.3));
+
+      // Told, it does not move at all.
+      for (final penalty in [0.05, 0.18, 0.4]) {
+        final told = align(wav,
+            contentStartSeconds: 4.0, skipPenaltyPerFrame: penalty);
+        expect(told.anchors, hasLength(2));
+        expect(told.anchors[0].audioSec, closeTo(4.0, 0.3),
+            reason: 'at skip penalty $penalty');
+        expect(told.anchors[1].audioSec, closeTo(7.0, 0.3),
+            reason: 'at skip penalty $penalty');
+      }
+    });
+
+    test('a given end discards a trailing repeat of the tune', () {
+      // Galopede's recording loops back to the top after the tune ends; the
+      // same shape, at 1/10th the length.
+      final wav = _toneWavBytes([
+        (c4, 3.0),
+        (e4, 3.0),
+        (c4, 3.0), // the loop-back, which resembles the score just as much
+      ]);
+
+      final told = align(wav, contentEndSeconds: 6.0);
+      expect(told.anchors, hasLength(2));
+      expect(told.anchors[0].audioSec, closeTo(0.0, 0.3));
+      expect(told.anchors[1].audioSec, closeTo(3.0, 0.3));
+    });
+
+    test('the tempo estimate is taken from the window, not the whole file', () {
+      // 6s of music followed by 10s that are not. The estimate divides the
+      // piece's 4 quarter-note beats by the duration it is given, so counting
+      // all 16s says 15 BPM (clamped to 20) where the tune really runs at 40.
+      final wav = _toneWavBytes([(c4, 3.0), (e4, 3.0), (fSharp4, 10.0)]);
+
+      expect(align(wav).generationBpm, lessThan(25));
+      expect(align(wav, contentEndSeconds: 6.0).generationBpm, closeTo(40, 2));
+    });
+
+    test('anchors come back in real audio time, not window time', () {
+      // The window is an implementation detail of the DTW run; everything
+      // downstream (playback position, the video overlay's offset) speaks
+      // seconds-into-the-file, so the window's own start has to go back on.
+      final wav = _toneWavBytes([(fSharp4, 5.0), (c4, 3.0), (e4, 3.0)]);
+
+      final told = align(wav, contentStartSeconds: 5.0);
+      expect(told.anchors[0].audioSec, closeTo(5.0, 0.3));
+      expect(told.anchors[1].audioSec, closeTo(8.0, 0.3));
+    });
+
+    test('an absent window aligns exactly as before', () {
+      final wav = _toneWavBytes([(c4, 3.0), (e4, 3.0)]);
+      final inferred = align(wav);
+      final bothNull = align(wav,
+          contentStartSeconds: null, contentEndSeconds: null);
+
+      expect(bothNull.generationBpm, inferred.generationBpm);
+      for (var i = 0; i < inferred.anchors.length; i++) {
+        expect(bothNull.anchors[i].audioSec, inferred.anchors[i].audioSec);
+      }
+    });
+
+    test('a window covering the whole file is the same as no window', () {
+      // Bounds clamp to the recording rather than being rejected, so an end
+      // taken from a longer file (or a start of 0) is harmless.
+      final wav = _toneWavBytes([(c4, 3.0), (e4, 3.0)]);
+      final inferred = align(wav);
+      final clamped =
+          align(wav, contentStartSeconds: 0.0, contentEndSeconds: 999.0);
+
+      expect(clamped.generationBpm, inferred.generationBpm);
+      for (var i = 0; i < inferred.anchors.length; i++) {
+        expect(clamped.anchors[i].audioSec, inferred.anchors[i].audioSec);
+      }
+    });
+
+    test('a window too short to hold a performance falls back to inference',
+        () {
+      // A figure typed against the wrong file, or a stray keystroke. Aligning
+      // against a fraction of a second would produce confident nonsense; the
+      // pre-window answer is the one that loses least.
+      final wav = _toneWavBytes([(c4, 3.0), (e4, 3.0)]);
+      final inferred = align(wav);
+
+      for (final window in [
+        (start: 5.6, end: 5.9), // narrower than minContentWindowSeconds
+        (start: 90.0, end: null), // past the end of the recording
+        (start: 4.0, end: 4.2),
+      ]) {
+        final result =
+            align(wav, contentStartSeconds: window.start, contentEndSeconds: window.end);
+        expect(result.generationBpm, inferred.generationBpm,
+            reason: 'window $window should have been ignored');
+        expect(result.anchors.first.audioSec, inferred.anchors.first.audioSec,
+            reason: 'window $window should have been ignored');
+      }
+    });
   });
 
   group('hasCompressedRun', () {

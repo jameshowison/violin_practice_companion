@@ -231,7 +231,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
     isAligning.value = true;
     try {
-      final result = await _runAlignment(piece, analysis);
+      final result = await _runAlignment(piece, media);
       if (result == null) return null;
       final alignment = MediaAlignment(
         anchors: result.anchors,
@@ -249,17 +249,27 @@ class MediaPlaybackService extends PlaybackServiceBase {
     }
   }
 
-  /// Runs DTW against [analysis], decoding it first if it isn't already WAV.
+  /// Runs DTW against [media]'s analysis source, decoding it first if it isn't
+  /// already WAV, and telling the aligner where in the file the tune is if the
+  /// user has said (see [PieceMedia.contentStartSeconds]).
   ///
   /// Returns null on any failure to obtain samples. That is not an error path
   /// so much as the ordinary answer for a file format the platform can't
   /// read — the medium still plays, it just doesn't drive the score.
   Future<AutoAlignmentResult?> _runAlignment(
-      ParsedPiece piece, MediaRef analysis) async {
+      ParsedPiece piece, PieceMedia media) async {
+    // Non-null by [_alignmentFor]'s own guard, which is where the "this medium
+    // can't be aligned at all" answer is produced.
+    final analysis = media.analysis!;
     final aligner = AudioScoreAutoAligner(midiGenerator: generator);
     try {
       if (analysis.isWav) {
-        return aligner.align(piece, await readMediaBytes(analysis));
+        return aligner.align(
+          piece,
+          await readMediaBytes(analysis),
+          contentStartSeconds: media.contentStartSeconds,
+          contentEndSeconds: media.contentEndSeconds,
+        );
       }
       final path = await absolutePathOf(analysis);
       final pcm = path != null
@@ -267,7 +277,12 @@ class MediaPlaybackService extends PlaybackServiceBase {
           : await _decoder.decodeBytes(await readMediaBytes(analysis),
               extension: analysis.extension);
       if (pcm == null || pcm.samples.isEmpty) return null;
-      return aligner.alignPcm(piece, pcm);
+      return aligner.alignPcm(
+        piece,
+        pcm,
+        contentStartSeconds: media.contentStartSeconds,
+        contentEndSeconds: media.contentEndSeconds,
+      );
     } catch (e) {
       debugPrint('MediaPlaybackService: alignment failed for $analysis — $e');
       return null;

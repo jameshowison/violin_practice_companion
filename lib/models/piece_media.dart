@@ -161,6 +161,22 @@ class PieceMedia {
   /// assumed zero. Always 0 when audio and video are the same file.
   final int avOffsetMs;
 
+  /// Where the tune itself starts and ends inside [analysis], in seconds of
+  /// that file — the user's answer to a question the aligner otherwise has to
+  /// guess at. Null (the default, and the only possibility for a bundled
+  /// track, which has nobody to ask) means "work it out from the audio".
+  ///
+  /// This lives here, on the medium, and NOT on `MediaAlignment`, because it is
+  /// a fact about the recording rather than about one run of DTW over it: a
+  /// realign clears the alignment row, and the answer to "when does the tune
+  /// start" must survive that — it is the input to the next run, not an output
+  /// of the last.
+  ///
+  /// Both are hints, not hard edges; see `AudioScoreAutoAligner.alignChroma`
+  /// for what the aligner does with them.
+  final double? contentStartSeconds;
+  final double? contentEndSeconds;
+
   /// The key this medium's anchors are cached under.
   ///
   /// Deliberately not the media id: a piece's `mix`/`melody`/`chords` are
@@ -178,6 +194,8 @@ class PieceMedia {
     this.analysis,
     this.video,
     this.avOffsetMs = 0,
+    this.contentStartSeconds,
+    this.contentEndSeconds,
   });
 
   /// The score played by the app's own soundfont engine. Always first in a
@@ -213,6 +231,29 @@ class PieceMedia {
         analysis: analysis ?? this.analysis,
         video: video,
         avOffsetMs: avOffsetMs,
+        contentStartSeconds: contentStartSeconds,
+        contentEndSeconds: contentEndSeconds,
+      );
+
+  /// Sets [contentStartSeconds]/[contentEndSeconds] verbatim — a null ARGUMENT
+  /// clears the field rather than leaving it alone.
+  ///
+  /// Deliberately not folded into [copyWith], where null already means "keep
+  /// what's there". Clearing the window back to "work it out from the audio" is
+  /// the thing a user does when their first guess made the alignment worse, so
+  /// it has to be expressible.
+  PieceMedia withContentWindow({double? startSeconds, double? endSeconds}) =>
+      PieceMedia(
+        id: id,
+        label: label,
+        kind: kind,
+        alignmentKey: alignmentKey,
+        audio: audio,
+        analysis: analysis,
+        video: video,
+        avOffsetMs: avOffsetMs,
+        contentStartSeconds: startSeconds,
+        contentEndSeconds: endSeconds,
       );
 
   Map<String, dynamic> toJson() => {
@@ -224,6 +265,12 @@ class PieceMedia {
         if (analysis != null) 'analysis': analysis!.toJson(),
         if (video != null) 'video': video!.toJson(),
         'avOffsetMs': avOffsetMs,
+        // Omitted when unset, so an entry written by a build that had never
+        // heard of a content window and one the user has never annotated are
+        // the same bytes on disk.
+        if (contentStartSeconds != null)
+          'contentStartSeconds': contentStartSeconds,
+        if (contentEndSeconds != null) 'contentEndSeconds': contentEndSeconds,
       };
 
   /// Null for anything that doesn't parse, so one corrupt entry costs its own
@@ -247,6 +294,11 @@ class PieceMedia {
       analysis: MediaRef.fromJson(json['analysis']),
       video: MediaRef.fromJson(json['video']),
       avOffsetMs: (json['avOffsetMs'] as num?)?.toInt() ?? 0,
+      // Absent in everything written before content windows existed, and
+      // absent for anything the user hasn't annotated — both read as null,
+      // which is the "infer it" default, so no schema version is needed.
+      contentStartSeconds: (json['contentStartSeconds'] as num?)?.toDouble(),
+      contentEndSeconds: (json['contentEndSeconds'] as num?)?.toDouble(),
     );
   }
 
@@ -260,11 +312,13 @@ class PieceMedia {
       other.audio == audio &&
       other.analysis == analysis &&
       other.video == video &&
-      other.avOffsetMs == avOffsetMs;
+      other.avOffsetMs == avOffsetMs &&
+      other.contentStartSeconds == contentStartSeconds &&
+      other.contentEndSeconds == contentEndSeconds;
 
   @override
-  int get hashCode =>
-      Object.hash(id, label, kind, alignmentKey, audio, analysis, video, avOffsetMs);
+  int get hashCode => Object.hash(id, label, kind, alignmentKey, audio,
+      analysis, video, avOffsetMs, contentStartSeconds, contentEndSeconds);
 
   @override
   String toString() => 'PieceMedia($id, ${kind.name}, "$label")';

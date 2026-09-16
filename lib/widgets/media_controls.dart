@@ -115,6 +115,14 @@ class _MediaPicker extends ConsumerWidget {
             child: _MediaRow(
               media: m,
               isSelected: m.id == selected.id,
+              // Both actions pop the menu first and then run against the
+              // picker's own context, for the reason given above.
+              onEditWindow: m.isRemovable && m.canAlign
+                  ? () {
+                      Navigator.pop(menuContext);
+                      _editContentWindow(context, ref, m);
+                    }
+                  : null,
               onDelete: m.isRemovable
                   ? () {
                       Navigator.pop(menuContext);
@@ -201,6 +209,29 @@ class _MediaPicker extends ConsumerWidget {
     ref.invalidate(pieceMediaProvider(piece.id));
   }
 
+  /// Asks where the tune sits inside a recording, and re-runs the alignment
+  /// with the answer.
+  ///
+  /// Worth offering because the alternative — inferring it from the audio —
+  /// cannot be made reliable: a lead-in that quotes the tune and a lead-in of
+  /// hum pull the one constant that decides it in opposite directions (see
+  /// docs/audio-sync-next-steps.md). The user has the answer for nothing; the
+  /// aligner has to guess for it.
+  Future<void> _editContentWindow(
+      BuildContext context, WidgetRef ref, PieceMedia media) async {
+    final window = await showDialog<_ContentWindow>(
+      context: context,
+      builder: (_) => _ContentWindowDialog(media: media),
+    );
+    if (window == null || !context.mounted) return;
+    await ref.read(mediaActionsProvider).setContentWindow(
+          piece.id,
+          media,
+          startSeconds: window.startSeconds,
+          endSeconds: window.endSeconds,
+        );
+  }
+
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, PieceMedia media) async {
     final confirmed = await showDialog<bool>(
@@ -244,11 +275,13 @@ class _MediaPicker extends ConsumerWidget {
 class _MediaRow extends StatelessWidget {
   final PieceMedia media;
   final bool isSelected;
+  final VoidCallback? onEditWindow;
   final VoidCallback? onDelete;
 
   const _MediaRow({
     required this.media,
     required this.isSelected,
+    this.onEditWindow,
     this.onDelete,
   });
 
@@ -257,19 +290,225 @@ class _MediaRow extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
+      // The popup menu sizes itself to its widest item and then rounds to a
+      // 56pt step, and it is the LABEL that gives way when a row runs out of
+      // room — raising the menu's own maxWidth does not move it (tried; the
+      // menu stayed at the same 280pt). So the width is reclaimed here
+      // instead: the leading icon's default 40pt slot and 16pt gap are more
+      // than a 24pt glyph needs.
+      minLeadingWidth: 24,
+      horizontalTitleGap: 8,
       leading: Icon(
         isSelected ? Icons.check : _MediaPicker._iconFor(media.kind),
         color: isSelected ? Theme.of(context).colorScheme.primary : null,
       ),
       title: Text(media.label, overflow: TextOverflow.ellipsis),
-      subtitle: media.video != null ? const Text('with video') : null,
-      trailing: onDelete == null
+      subtitle: _subtitle(),
+      // Null rather than an empty Row for a medium with neither action —
+      // bundled tracks and the synthesized score keep exactly the row they had.
+      trailing: onEditWindow == null && onDelete == null
           ? null
-          : IconButton(
-              icon: const Icon(Icons.delete_outline, size: 18),
-              tooltip: 'Remove',
-              onPressed: onDelete,
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (onEditWindow != null)
+                  _RowAction(
+                    icon: Icons.content_cut,
+                    tooltip: 'Where does the tune start?',
+                    // Lit when this medium carries a window, so an alignment
+                    // the user constrained is visibly not an inferred one.
+                    highlighted: media.contentStartSeconds != null ||
+                        media.contentEndSeconds != null,
+                    onPressed: onEditWindow!,
+                  ),
+                if (onDelete != null)
+                  _RowAction(
+                    icon: Icons.delete_outline,
+                    tooltip: 'Remove',
+                    onPressed: onDelete!,
+                  ),
+              ],
             ),
+    );
+  }
+
+  /// Names the content window when there is one, so a medium that is aligning
+  /// against only part of its file says so — otherwise an alignment the user
+  /// constrained months ago is indistinguishable from an inferred one.
+  Widget? _subtitle() {
+    // Window first: it is the part the user just set and may want to check,
+    // where "with video" is static and the floating overlay announces itself.
+    final parts = [
+      ?_windowLabel(),
+      if (media.video != null) 'with video',
+    ];
+    if (parts.isEmpty) return null;
+    // Ellipsized like the title above it — two trailing buttons leave the text
+    // column narrow inside the popup, so this has to be allowed to run out.
+    return Text(parts.join(' · '),
+        maxLines: 1, overflow: TextOverflow.ellipsis);
+  }
+
+  String? _windowLabel() {
+    final start = media.contentStartSeconds, end = media.contentEndSeconds;
+    if (start == null && end == null) return null;
+    String at(double s) => s.toStringAsFixed(1);
+    if (end == null) return 'tune from ${at(start!)}s';
+    if (start == null) return 'tune to ${at(end)}s';
+    return 'tune ${at(start)}–${at(end)}s';
+  }
+}
+
+/// One icon on a picker row.
+///
+/// Tighter than a bare [IconButton], whose 48pt minimum tap target is fine on
+/// its own but puts two of them at 96pt inside a popup menu item that also has
+/// to fit a label — which is what the row now holds.
+class _RowAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool highlighted;
+  final VoidCallback onPressed;
+
+  const _RowAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 18),
+      color: highlighted ? Theme.of(context).colorScheme.primary : null,
+      tooltip: tooltip,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      onPressed: onPressed,
+    );
+  }
+}
+
+/// The answer to "where is the tune in this file", as typed. Either bound may
+/// be null, meaning "infer that end as before" — this is additive to the DTW
+/// open boundaries, not a replacement for them.
+class _ContentWindow {
+  final double? startSeconds;
+  final double? endSeconds;
+
+  const _ContentWindow(this.startSeconds, this.endSeconds);
+}
+
+/// Two seconds fields. Deliberately the plainest thing that can express the
+/// idea: the scrub-and-mark this eventually wants belongs on the capture
+/// screen, where there is a waveform to scrub, and is no use at all for a file
+/// imported from elsewhere.
+class _ContentWindowDialog extends StatefulWidget {
+  final PieceMedia media;
+
+  const _ContentWindowDialog({required this.media});
+
+  @override
+  State<_ContentWindowDialog> createState() => _ContentWindowDialogState();
+}
+
+class _ContentWindowDialogState extends State<_ContentWindowDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final _start = TextEditingController(
+      text: _format(widget.media.contentStartSeconds));
+  late final _end =
+      TextEditingController(text: _format(widget.media.contentEndSeconds));
+
+  static String _format(double? seconds) =>
+      seconds == null ? '' : seconds.toStringAsFixed(1);
+
+  /// Null for an empty field — which is the "infer it" answer, not an error.
+  static double? _parse(String raw) => double.tryParse(raw.trim());
+
+  @override
+  void dispose() {
+    _start.dispose();
+    _end.dispose();
+    super.dispose();
+  }
+
+  String? _validate(String? raw) {
+    final text = (raw ?? '').trim();
+    if (text.isEmpty) return null;
+    final value = double.tryParse(text);
+    if (value == null) return 'Enter a number of seconds';
+    if (value < 0) return "Can't be negative";
+    return null;
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final start = _parse(_start.text), end = _parse(_end.text);
+    if (start != null && end != null && end <= start) {
+      // Not a field-level error: neither figure is wrong on its own, it's the
+      // pair that doesn't describe a span.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('The tune has to end after it starts.')));
+      return;
+    }
+    Navigator.of(context).pop(_ContentWindow(start, end));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Where is the tune?'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'If this recording has talking, tuning or a false start before '
+              'the tune — or carries on afterwards — say so here and the score '
+              'will be matched against just the music.',
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _start,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: _validate,
+              decoration: const InputDecoration(
+                labelText: 'Tune starts at',
+                suffixText: 'seconds',
+                helperText: 'Leave blank to work it out automatically',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _end,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: _validate,
+              decoration: const InputDecoration(
+                labelText: 'Tune ends at',
+                suffixText: 'seconds',
+                helperText: 'Leave blank for the end of the file',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: const Text('Realign'),
+        ),
+      ],
     );
   }
 }
@@ -423,7 +662,10 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
   @override
   void didUpdateWidget(covariant _MediaTransport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.media.id != widget.media.id) _load();
+    // Value equality, not id equality: editing a medium's content window hands
+    // this the same id with different alignment inputs, and the whole point of
+    // the edit is that the alignment is re-run.
+    if (oldWidget.media != widget.media) _load();
   }
 
   MediaPlaybackService get _service => ref.read(mediaPlaybackServiceProvider);

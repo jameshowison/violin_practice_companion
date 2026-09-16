@@ -40,7 +40,8 @@ risks the other"*. They never diverged, and the split cost real things:
 `lib/models/piece_media.dart`
 
 ```dart
-PieceMedia(id, label, kind, alignmentKey, audio, analysis, video, avOffsetMs)
+PieceMedia(id, label, kind, alignmentKey, audio, analysis, video, avOffsetMs,
+           contentStartSeconds, contentEndSeconds)
 ```
 
 - **`MediaRef`** — an asset key, or a path **relative to the documents
@@ -57,6 +58,12 @@ PieceMedia(id, label, kind, alignmentKey, audio, analysis, video, avOffsetMs)
 - **`alignmentKey`** — deliberately not the media id. A piece's `mix`, `melody`
   and `chords` are three mixes of one session and share one timeline, so they
   share one cached alignment and the user waits for it once.
+- **`contentStartSeconds` / `contentEndSeconds`** — where the tune itself sits
+  inside `analysis`, when the user has said. Both null by default, which means
+  "work it out from the audio" and is the only possibility for a bundled track.
+  Here rather than on `MediaAlignment` because they are an INPUT to DTW and a
+  realign clears the alignment row. Edited from the picker row's scissors
+  button; see [audio-sync-next-steps.md](audio-sync-next-steps.md) item 3.
 
 `PieceMedia.synthesized` is a const entry with no files and no alignment. It is
 in the enum rather than being the absence of media so the picker can offer it

@@ -40,7 +40,9 @@ notation that works for your family:
 - MIDI playback at adjustable tempo, with a bouncing ball or measure highlight
   following along
 - Import a short video of your teacher playing the piece; the app aligns it to
-  the score so tapping any measure jumps the video to the right moment
+  the score so tapping any measure jumps the video to the right moment. If the
+  recording has talking or tuning before the tune, you can say where the music
+  starts and ends and it will be matched against just that
 
 ## What It Does Not Do
 

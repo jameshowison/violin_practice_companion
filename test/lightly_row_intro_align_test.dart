@@ -20,6 +20,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -73,4 +74,43 @@ void main() {
     expect(result.anchors.first.audioSec, greaterThan(5.0),
         reason: 'anchor 0 must land at the real first note, not in the intro');
   }, timeout: const Timeout(Duration(minutes: 5)));
+
+  // This recording is what pins the UPPER edge of `skipPenaltyPerFrame`'s
+  // usable window, and Galopede pins the lower one — so the window rests on
+  // two recordings, one per edge, and a third that was both quiet AND opened
+  // by quoting the tune could empty it (docs/audio-sync-next-steps.md item 3).
+  //
+  // A content window dissolves that: told where the tune starts, the aligner
+  // gives the same answer at every penalty across and beyond the usable
+  // window, including the 0.4 that visibly breaks inference here.
+  test('told where the tune starts, the skip penalty stops mattering', () {
+    final piece = MusicXmlParser()
+        .parse(MusicXmlNormalizer.toSoundingPitch(xmlFile.readAsStringSync()));
+    final wavBytes = wavFile.readAsBytesSync();
+
+    AutoAlignmentResult run(double penalty, {double? start}) =>
+        AudioScoreAutoAligner(
+          midiGenerator: MidiGenerator.forTest(),
+          dtw: DtwAligner(skipPenaltyPerFrame: penalty),
+        ).align(piece, wavBytes, contentStartSeconds: start);
+
+    // Inferred, 0.4 drags anchor 0 back into the intro — the regression above.
+    final broken = run(0.4);
+    // ignore: avoid_print
+    print('lightly row inferred at penalty 0.4: '
+        'a0=${broken.anchors.first.audioSec.toStringAsFixed(3)}');
+    expect(broken.anchors.first.audioSec, lessThan(5.0),
+        reason: 'the premise of this test is that 0.4 breaks inference here');
+
+    // Told, every penalty agrees, and agrees with the hand-labelled 6.5s.
+    for (final penalty in [0.05, 0.13, 0.18, 0.23, 0.4]) {
+      final told = run(penalty, start: 6.5);
+      // ignore: avoid_print
+      print('lightly row told, penalty $penalty: '
+          'bpm=${told.generationBpm} '
+          'a0=${told.anchors.first.audioSec.toStringAsFixed(3)}');
+      expect(told.anchors.first.audioSec, closeTo(6.5, 0.6),
+          reason: 'at skip penalty $penalty');
+    }
+  }, timeout: const Timeout(Duration(minutes: 10)));
 }

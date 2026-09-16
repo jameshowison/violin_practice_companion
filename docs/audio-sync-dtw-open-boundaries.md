@@ -47,6 +47,17 @@ implement, but requires per-recording manual tuning (measuring or guessing the i
 length by ear for every piece/track that has one) and doesn't generalize to future
 recordings without repeating that step.
 
+**Revisited, and now built — as an addition, not a replacement.** The rejection
+above holds for a manual field that *replaces* inference; it does not hold for one
+that overrides it where the user happens to know better. What changed is the
+evidence: the automatic decision turned out to rest on a single constant
+(`skipPenaltyPerFrame`) whose usable range is pinned at both edges by one recording
+each, so a third recording of the wrong shape could empty it — and imported media
+made "two minutes of talking before the tune" an ordinary input. `PieceMedia` now
+carries an optional `contentStartSeconds`/`contentEndSeconds`; absent (the default,
+and the only possibility for a bundled track), everything below runs exactly as it
+always has. See [audio-sync-next-steps.md](audio-sync-next-steps.md) item 3.
+
 ## Fix: open-begin / open-end (subsequence) DTW
 
 `DtwAligner.align` gained `openBegin`/`openEnd` optional parameters (default `false`,
