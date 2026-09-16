@@ -94,22 +94,69 @@ class AudioScoreAutoAligner {
   /// every in-app capture is a WAV, and because it is what the alignment
   /// regression tests drive. Anything the user brought with them arrives
   /// through [alignPcm] instead, already decoded.
-  AutoAlignmentResult align(ParsedPiece piece, Uint8List wavBytes) =>
-      alignChroma(piece, _extractor.extractFromWavBytes(wavBytes));
+  AutoAlignmentResult align(
+    ParsedPiece piece,
+    Uint8List wavBytes, {
+    double? contentStartSeconds,
+    double? contentEndSeconds,
+  }) =>
+      alignChroma(
+        piece,
+        _extractor.extractFromWavBytes(wavBytes),
+        contentStartSeconds: contentStartSeconds,
+        contentEndSeconds: contentEndSeconds,
+      );
 
   /// Aligns against already-decoded mono PCM — an imported mp3/m4a/mp4 that
   /// [AudioDecoder] has read. Identical from here on: the extractor's two
   /// entry points converge on the same chroma sequence.
-  AutoAlignmentResult alignPcm(ParsedPiece piece, PcmAudio audio) => alignChroma(
-      piece, _extractor.extractFromSamples(audio.samples, audio.sampleRate));
+  AutoAlignmentResult alignPcm(
+    ParsedPiece piece,
+    PcmAudio audio, {
+    double? contentStartSeconds,
+    double? contentEndSeconds,
+  }) =>
+      alignChroma(
+        piece,
+        _extractor.extractFromSamples(audio.samples, audio.sampleRate),
+        contentStartSeconds: contentStartSeconds,
+        contentEndSeconds: contentEndSeconds,
+      );
 
   /// Aligned with open begin/end boundaries (see [DtwAligner.align]) since
   /// real recordings commonly have a lead-in (spoken/instrumental intro,
   /// count-in) or trail-out the score has no counterpart for — forcing those
   /// onto the score's first/last notes is what produced visibly wrong
   /// early-measure anchors before this was open.
-  AutoAlignmentResult alignChroma(ParsedPiece piece, ChromaSequence realChroma) {
-    final realDurationSeconds = realChroma.durationSeconds;
+  ///
+  /// [contentStartSeconds] and [contentEndSeconds] are the user's answer to
+  /// "where in this recording is the tune", and both are optional: absent, this
+  /// behaves exactly as it always has and the open boundaries work the span out
+  /// from the audio alone. That inference is genuinely ambiguous — it is one
+  /// constant, [DtwAligner.skipPenaltyPerFrame], deciding whether a lead-in is
+  /// unmatched content or the first notes of the piece, and two real recordings
+  /// pin opposite edges of its usable window (see
+  /// docs/audio-sync-next-steps.md). Being told dissolves the ambiguity instead
+  /// of tuning around it.
+  ///
+  /// The window is a HINT, not a hard edge. The boundaries stay open inside it,
+  /// so a second or two of error in either figure is absorbed, and the end
+  /// still has to discard things the score has no counterpart for (Galopede's
+  /// recording loops back to the top of the tune after it finishes).
+  ///
+  /// It also fixes the tempo estimate below, which divides the piece's beat
+  /// count by the recording's duration: counting seconds that are not the tune
+  /// makes the estimate too slow (143 against a true ~168 on Galopede, whose
+  /// 54s hold 46s of music).
+  AutoAlignmentResult alignChroma(
+    ParsedPiece piece,
+    ChromaSequence realChroma, {
+    double? contentStartSeconds,
+    double? contentEndSeconds,
+  }) {
+    final window = _ContentWindow.of(
+        realChroma, contentStartSeconds, contentEndSeconds);
+    final realDurationSeconds = window.frames.length * realChroma.hopSeconds;
 
     // Estimate a starting tempo so the reference's frame count is roughly
     // comparable to the real recording's, which keeps the DTW search band
@@ -124,7 +171,7 @@ class AudioScoreAutoAligner {
     final reference = ScoreChromaReferenceBuilder(_midiGenerator)
         .build(piece, estimatedBpm, realChroma.hopSeconds);
 
-    final dtwResult = _dtw.align(reference.frames, realChroma.frames,
+    final dtwResult = _dtw.align(reference.frames, window.frames,
         openBegin: true, openEnd: true);
 
     final anchors = <ScoreAudioAnchor>[];
@@ -135,7 +182,10 @@ class AudioScoreAutoAligner {
       if (targetFrame == null) continue;
       anchors.add(ScoreAudioAnchor(
         reference.measureOnsetSeconds[i] * 1000,
-        targetFrame * realChroma.hopSeconds,
+        // DTW saw only the window, so its frame indices are relative to it —
+        // the window's own start goes back on here, and anchors stay in real
+        // audio time, which is the one timeline playback understands.
+        (window.startFrame + targetFrame) * realChroma.hopSeconds,
       ));
     }
 
@@ -217,6 +267,13 @@ class AudioScoreAutoAligner {
     return false;
   }
 
+  /// Shortest window [AudioScoreAutoAligner.alignChroma] will honour. Anything
+  /// shorter cannot hold a performance, so it is far likelier to be a typo (or
+  /// a figure measured against a different file) than an instruction, and the
+  /// answer that loses least is to fall back to inference over the whole
+  /// recording rather than to align a piece against half a second of audio.
+  static const double minContentWindowSeconds = 1.0;
+
   /// [path] is sorted by reference-frame index (component `$1`); returns the
   /// target-frame index of the first entry at or after [frameIndex].
   int? _targetFrameFor(List<(int, int)> path, int frameIndex) {
@@ -231,5 +288,44 @@ class AudioScoreAutoAligner {
       }
     }
     return path[lo].$2;
+  }
+}
+
+/// The slice of a [ChromaSequence] the user says the performance occupies,
+/// plus the frame index it starts at so anchors can be put back into real
+/// audio time.
+///
+/// Trimming happens at the chroma level rather than on the samples so that the
+/// extractor still sees the whole recording: its stationary-noise profile (see
+/// [AudioChromaExtractor.noiseSubtractionFactor]) is a percentile over every
+/// frame, and estimating a hum from a few seconds of music is worse than
+/// estimating it from the lead-in that was cut.
+class _ContentWindow {
+  final int startFrame;
+  final List<Float64List> frames;
+
+  const _ContentWindow(this.startFrame, this.frames);
+
+  /// The whole sequence when neither bound is given, or when what was given
+  /// doesn't describe a usable span of this particular recording — see
+  /// [AudioScoreAutoAligner.minContentWindowSeconds].
+  factory _ContentWindow.of(
+      ChromaSequence chroma, double? startSeconds, double? endSeconds) {
+    final whole = _ContentWindow(0, chroma.frames);
+    if (startSeconds == null && endSeconds == null) return whole;
+
+    final total = chroma.frames.length;
+    final first = startSeconds == null
+        ? 0
+        : (startSeconds / chroma.hopSeconds).floor().clamp(0, total);
+    final last = endSeconds == null
+        ? total
+        : (endSeconds / chroma.hopSeconds).ceil().clamp(0, total);
+
+    final minFrames =
+        AudioScoreAutoAligner.minContentWindowSeconds ~/ chroma.hopSeconds;
+    if (last - first < minFrames) return whole;
+
+    return _ContentWindow(first, chroma.frames.sublist(first, last));
   }
 }

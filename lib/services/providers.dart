@@ -555,6 +555,34 @@ class MediaActions {
     _ref.invalidate(pieceMediaProvider(pieceId));
   }
 
+  /// Records where the tune sits inside [media]'s file, and throws the cached
+  /// alignment away so the next load recomputes with it. Nulls clear the
+  /// window back to "work it out from the audio".
+  ///
+  /// Clearing the alignment is the whole point: the window is an INPUT to DTW,
+  /// so leaving the previous run's anchors cached would store the answer and
+  /// discard the question. The medium row itself is updated first, so a
+  /// recompute that starts the moment the provider invalidates already sees
+  /// the new figures.
+  ///
+  /// Only user media can carry a window — a bundled track has no stored row to
+  /// write it to, and (per docs/audio-sync-next-steps.md) nobody to ask.
+  Future<void> setContentWindow(
+    String pieceId,
+    PieceMedia media, {
+    double? startSeconds,
+    double? endSeconds,
+  }) async {
+    assert(media.isRemovable,
+        'Only imported or recorded media have a stored row to annotate');
+    final updated = media.withContentWindow(
+        startSeconds: startSeconds, endSeconds: endSeconds);
+    if (updated == media) return;
+    await _ref.read(pieceMediaStoreProvider).update(pieceId, updated);
+    await _ref.read(mediaAlignmentStoreProvider).clear(media.alignmentKey);
+    _ref.invalidate(pieceMediaProvider(pieceId));
+  }
+
   /// Everything a piece's media own, for when the piece itself is deleted.
   Future<void> deleteAllFor(String pieceId) async {
     final store = _ref.read(pieceMediaStoreProvider);

@@ -73,6 +73,59 @@ void main() {
       expect(restored.isRemovable, isTrue);
     });
 
+    test('a content window round-trips, and is absent when unset', () {
+      final plain = recording('demo_1');
+      expect(plain.contentStartSeconds, isNull);
+      expect(plain.contentEndSeconds, isNull);
+      // Not written at all when unset, so an un-annotated medium and one
+      // stored before content windows existed are the same bytes.
+      expect(plain.toJson().containsKey('contentStartSeconds'), isFalse);
+      expect(plain.toJson().containsKey('contentEndSeconds'), isFalse);
+
+      final windowed =
+          plain.withContentWindow(startSeconds: 3.0, endSeconds: 49.0);
+      final restored = PieceMedia.fromJson(windowed.toJson());
+      expect(restored, windowed);
+      expect(restored!.contentStartSeconds, 3.0);
+      expect(restored.contentEndSeconds, 49.0);
+      // The window is part of the medium's identity — the transport reloads on
+      // a change, and it only sees one if these differ.
+      expect(windowed, isNot(plain));
+    });
+
+    test('an entry stored before content windows existed reads as unset', () {
+      final legacy = PieceMedia.fromJson({
+        'id': 'demo_1',
+        'label': 'Teacher demo',
+        'kind': 'recorded',
+        'alignmentKey': 'media:p1:demo_1',
+        'avOffsetMs': 0,
+      });
+      expect(legacy, isNotNull);
+      expect(legacy!.contentStartSeconds, isNull);
+      expect(legacy.contentEndSeconds, isNull);
+    });
+
+    test('withContentWindow clears on null, where copyWith would not', () {
+      final windowed = recording('demo_1')
+          .withContentWindow(startSeconds: 3.0, endSeconds: 49.0);
+
+      // Clearing back to "work it out from the audio" has to be expressible:
+      // it is what a user does when their first guess made things worse.
+      final cleared = windowed.withContentWindow();
+      expect(cleared.contentStartSeconds, isNull);
+      expect(cleared.contentEndSeconds, isNull);
+      expect(cleared, recording('demo_1'));
+
+      // One end only is a legitimate answer, not an incomplete one.
+      final startOnly = windowed.withContentWindow(startSeconds: 3.0);
+      expect(startOnly.contentStartSeconds, 3.0);
+      expect(startOnly.contentEndSeconds, isNull);
+
+      // copyWith keeps the window, because its nulls mean "unchanged".
+      expect(windowed.copyWith(label: 'Take one').contentStartSeconds, 3.0);
+    });
+
     test('a medium with no analysis source plays but cannot align', () {
       const media = PieceMedia(
         id: 'i1',
@@ -106,6 +159,34 @@ void main() {
       // order the picker shows.
       expect(media.map((m) => m.id), ['b', 'a']);
       expect(media.last.label, 'Take one');
+    });
+
+    test('update replaces in place, keeping the order the picker shows',
+        () async {
+      useStore({});
+      final store = PieceMediaStore();
+      await store.add('p1', recording('a'));
+      await store.add('p1', recording('b'));
+      await store.add('p1', recording('c'));
+
+      await store.update(
+          'p1', recording('a').withContentWindow(startSeconds: 3.0));
+
+      final media = await store.load('p1');
+      // Unlike add, which moves a re-added medium to the end. Editing a
+      // medium's window must not reshuffle the menu under the user.
+      expect(media.map((m) => m.id), ['a', 'b', 'c']);
+      expect(media.first.contentStartSeconds, 3.0);
+    });
+
+    test('update is a no-op for a medium this piece has not stored', () async {
+      useStore({});
+      final store = PieceMediaStore();
+      await store.add('p1', recording('a'));
+
+      // Bundled tracks and the synthesized score are derived, not stored.
+      await store.update('p1', recording('bundled_mix'));
+      expect((await store.load('p1')).map((m) => m.id), ['a']);
     });
 
     test('remove takes exactly one medium out', () async {

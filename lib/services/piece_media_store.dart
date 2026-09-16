@@ -51,6 +51,24 @@ class PieceMediaStore {
     return next;
   }
 
+  /// Replaces the stored entry with [media]'s id, **keeping its position** —
+  /// unlike [add], which moves a re-added medium to the end. The picker lists
+  /// user media in stored order, so editing one must not reshuffle the menu
+  /// underneath the user who is editing it.
+  ///
+  /// A no-op for an id this piece has no stored entry for. Bundled tracks and
+  /// the synthesized score are derived, not stored (see the class comment), so
+  /// there is nothing here to update for them.
+  Future<List<PieceMedia>> update(String pieceId, PieceMedia media) async {
+    final current = await load(pieceId);
+    if (!current.any((m) => m.id == media.id)) return current;
+    final next = [
+      for (final m in current) m.id == media.id ? media : m,
+    ];
+    await save(pieceId, next);
+    return next;
+  }
+
   Future<List<PieceMedia>> remove(String pieceId, String mediaId) async {
     final next = [
       for (final m in await load(pieceId))

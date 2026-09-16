@@ -122,4 +122,61 @@ void main() {
     expect(result.anchors.last.audioSec, greaterThan(44.0),
         reason: 'the final measure should be near the end of the tune');
   }, timeout: const Timeout(Duration(minutes: 5)));
+
+  // The same recording, with the ground truth above handed to the aligner as a
+  // content window instead of left for it to infer. See
+  // docs/audio-sync-next-steps.md item 3: the figures are the author's, by
+  // ear, and are exactly what a user would type into the picker's "where is
+  // the tune?" dialog after watching themselves record it.
+  test('being told where the tune is beats inferring it, on Galopede', () {
+    final golden = musicXmlFile.readAsStringSync();
+    final piece =
+        MusicXmlParser().parse(MusicXmlNormalizer.toSoundingPitch(golden));
+    final wavBytes = wavFile.readAsBytesSync();
+    final aligner = AudioScoreAutoAligner(midiGenerator: MidiGenerator.forTest());
+
+    final inferred = aligner.align(piece, wavBytes);
+    final told = aligner.align(piece, wavBytes,
+        contentStartSeconds: 3.0, contentEndSeconds: 49.0);
+
+    double meanError(AutoAlignmentResult r) {
+      var total = 0.0;
+      for (final e in _groundTruth.entries) {
+        total += (r.anchors[e.key].audioSec - e.value).abs();
+      }
+      return total / _groundTruth.length;
+    }
+
+    // ignore: avoid_print
+    print('galopede told: bpm=${told.generationBpm} '
+        '(inferred ${inferred.generationBpm}, truth ~168)  '
+        'meanErr=${meanError(told).toStringAsFixed(2)}s '
+        '(inferred ${meanError(inferred).toStringAsFixed(2)}s)  '
+        'a0=${told.anchors.first.audioSec.toStringAsFixed(2)} '
+        'aN=${told.anchors.last.audioSec.toStringAsFixed(2)}');
+
+    expect(told.anchors, hasLength(33));
+
+    // The tempo estimate is the clearest win, because it is not an alignment
+    // result at all — it is arithmetic over the duration it was given, and
+    // 8 of this recording's 54 seconds are not the tune. That alone drags the
+    // inferred estimate to 143 against a true ~168.
+    expect(told.generationBpm, closeTo(168, 12),
+        reason: 'the estimate should now be taken over the music only');
+    expect(told.generationBpm, greaterThan(inferred.generationBpm));
+
+    // Anchors must stay in real audio time — the window is sliced off before
+    // DTW and added back after, so a start of 3.0s must NOT shift everything
+    // 3 seconds early.
+    for (final e in _groundTruth.entries) {
+      expect(told.anchors[e.key].audioSec, closeTo(e.value, _toleranceSeconds),
+          reason: 'performance measure ${e.key} should land near ${e.value}s');
+    }
+    expect(meanError(told), lessThanOrEqualTo(meanError(inferred) + 0.1),
+        reason: 'a correct answer must not align worse than a guessed one');
+
+    // Still inside the tune, not in the loop-back after it — the end of the
+    // window is a hint and the boundary stays open, so this is not automatic.
+    expect(told.anchors.last.audioSec, inInclusiveRange(44.0, 49.0));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
