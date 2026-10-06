@@ -6,7 +6,14 @@
 # (see README "Simulator names" for how the dev-* aliases are set up)
 set -u
 
-DEVICE="${1:-${DEVICE:-dev-iphone}}"
+# --sync: before launching, sync the dev library with this simulator (see
+# scripts/sync_dev_library.sh); the app merges it as it starts.
+SYNC=""
+ARGS=()
+for arg in "$@"; do
+  [[ "$arg" == "--sync" ]] && SYNC=1 || ARGS+=("$arg")
+done
+DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone}}"
 FIFO="/tmp/flutter_ctl"
 LOG="flutter_run.log"
 
@@ -21,6 +28,10 @@ for _ in $(seq 1 20); do
   xcrun simctl list devices | grep "$DEVICE" | grep -q "Booted" && break
   sleep 1
 done
+
+if [[ -n "$SYNC" ]]; then
+  bash "$(dirname "$0")/sync_dev_library.sh" "$DEVICE" --no-launch
+fi
 
 rm -f "$FIFO"
 mkfifo "$FIFO"

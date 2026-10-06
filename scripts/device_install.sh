@@ -19,7 +19,14 @@
 #      install. devicectl installs over the top and the trust survives.
 set -euo pipefail
 
-DEVICE="${1:-${DEVICE:-JamzJamzJamzz}}"
+# --sync: afterwards, sync the dev library with the device (see
+# scripts/sync_dev_library.sh) — it relaunches the app, which merges it.
+SYNC=""
+ARGS=()
+for arg in "$@"; do
+  [[ "$arg" == "--sync" ]] && SYNC=1 || ARGS+=("$arg")
+done
+DEVICE="${ARGS[0]:-${DEVICE:-JamzJamzJamzz}}"
 APP="build/ios/iphoneos/Runner.app"
 
 cd "$(dirname "$0")/.."
@@ -47,6 +54,10 @@ xcrun devicectl device install app --device "$DEVICE" "$APP"
 if EXPIRY=$(security cms -D -i "$APP/embedded.mobileprovision" 2>/dev/null \
     | plutil -extract ExpirationDate raw -o - - 2>/dev/null); then
   echo "provisioning profile expires: $EXPIRY"
+fi
+
+if [[ -n "$SYNC" ]]; then
+  bash scripts/sync_dev_library.sh "$DEVICE"
 fi
 
 cat <<'EOF'
