@@ -48,14 +48,28 @@ else
   DOCS="$TMP/Documents"
   PLIST="$TMP/prefs.plist"
   mkdir -p "$DOCS"
+  # A copy can fail because the item doesn't exist (CoreDevice error 7000:
+  # "Failed to retrieve the file node"), which is fine: a fresh install has no
+  # media/, no prefs yet. ANY other failure (a locked iPad, a dropped tunnel)
+  # must stop the sync: a folder that silently failed to copy looks exactly
+  # like a folder the user emptied, and the merge would delete it all from the
+  # library.
+  copy_from() {
+    local out
+    if ! out=$(xcrun devicectl device copy from --device "$DEVICE" --quiet \
+        --domain-type appDataContainer --domain-identifier "$BUNDLE" \
+        --source "$1" --destination "$2" 2>&1); then
+      if grep -q "error 7000" <<<"$out"; then return 0; fi
+      echo "copy of $1 from $DEVICE failed; stopping before anything is merged:" >&2
+      echo "$out" | grep -m3 -E "ERROR|error" >&2
+      echo "(is the device unlocked and awake?)" >&2
+      exit 1
+    fi
+  }
   for f in "${FOLDERS[@]}"; do
-    xcrun devicectl device copy from --device "$DEVICE" --quiet \
-      --domain-type appDataContainer --domain-identifier "$BUNDLE" \
-      --source "Documents/$f" --destination "$DOCS/$f" >/dev/null 2>&1 || true
+    copy_from "Documents/$f" "$DOCS/$f"
   done
-  xcrun devicectl device copy from --device "$DEVICE" --quiet \
-    --domain-type appDataContainer --domain-identifier "$BUNDLE" \
-    --source "Library/Preferences/$BUNDLE.plist" --destination "$PLIST" >/dev/null 2>&1 || true
+  copy_from "Library/Preferences/$BUNDLE.plist" "$PLIST"
 fi
 
 mkdir -p "$LIB"
