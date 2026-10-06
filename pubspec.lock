@@ -514,8 +514,8 @@ packages:
     description:
       path: "packages/homr_flutter"
       ref: "v0.1.0"
-      resolved-ref: "61089e18cc458812701a6f4e4e9762c01a5992f5"
-      url: "git@github.com:jameshowison/homr_flutter.git"
+      resolved-ref: "18fb9c5656f10433f0f0b9dffa2d60ccd739f03c"
+      url: "https://github.com/jameshowison/homr_flutter.git"
     source: git
     version: "0.1.0"
   hooks:
