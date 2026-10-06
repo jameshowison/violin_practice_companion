@@ -419,7 +419,7 @@ AGPL-3.0), which this app pins to a release tag:
 ```yaml
 homr_flutter:
   git:
-    url: git@github.com:jameshowison/homr_flutter.git
+    url: https://github.com/jameshowison/homr_flutter.git
     path: packages/homr_flutter
     ref: v0.1.0
 ```

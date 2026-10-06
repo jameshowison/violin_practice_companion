@@ -48,7 +48,7 @@ dependencies:
   # at once, use a local pubspec_overrides.yaml (gitignored; see README "OMR").
   homr_flutter:
     git:
-      url: git@github.com:jameshowison/homr_flutter.git
+      url: https://github.com/jameshowison/homr_flutter.git
       path: packages/homr_flutter
       ref: v0.1.0
   flutter_doc_scanner: ^0.0.20
