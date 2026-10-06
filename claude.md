@@ -107,7 +107,12 @@ The OMR package is a git dependency pinned to a release tag (`ref:` in
 `pubspec.yaml`). The main checkout has a local `pubspec_overrides.yaml` pointing
 at `../homr_flutter/packages/homr_flutter`, so edits there take effect at once,
 and **what you build is not what's pinned** until you tag and bump. Before
-calling OMR work done, build once with the override moved aside. The models
+calling OMR work done, build once with the override moved aside.
+
+While the override is active, `pubspec.lock` shows as modified (it records the
+path instead of the tag). **Never commit `pubspec.lock` in that state**; a fresh
+clone would then look for `../homr_flutter`. Commit lock changes only with the
+override moved aside and `flutter pub get` re-run, as in the tag bump. The models
 live in this app (`assets/omr_models/`, gitignored, `scripts/fetch_omr_models.sh`),
 never in the package. README "OMR" has the release procedure.
 
