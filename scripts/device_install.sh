@@ -37,6 +37,13 @@ cd "$(dirname "$0")/.."
 STAMP=$(bash scripts/gen_build_info.sh)
 echo "$STAMP"
 
+# Scanning loads homr's models from the app's own assets; a build without them
+# installs fine and then fails at the first scan. Refuse rather than ship that.
+if [[ $(ls assets/omr_models/*.onnx 2>/dev/null | wc -l) -lt 3 ]]; then
+  echo "assets/omr_models/ is missing homr's models — run: bash scripts/fetch_omr_models.sh" >&2
+  exit 1
+fi
+
 # A simulator dev server holds build/ios/; the two contend.
 pkill -f flutter_tools.snapshot 2>/dev/null || true
 

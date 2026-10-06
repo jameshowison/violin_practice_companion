@@ -7,7 +7,7 @@ enum OmrImageSource { camera, photoLibrary, file }
 
 /// Stages reported via [OmrServiceBase.scan]'s `onProgress` callback, in
 /// order. Capture and crop happen on-device before handing the colour crop to
-/// the `homr_omr` recognition pipeline (which resizes it and applies CLAHE).
+/// the `homr_flutter` recognition pipeline (which resizes it and applies CLAHE).
 enum OmrScanStage {
   capturing,
   cropping,

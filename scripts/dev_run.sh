@@ -17,6 +17,12 @@ DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone}}"
 FIFO="/tmp/flutter_ctl"
 LOG="flutter_run.log"
 
+# A dev build without homr's models runs, but scanning fails at recognition.
+if [[ $(ls "$(dirname "$0")/../assets/omr_models/"*.onnx 2>/dev/null | wc -l) -lt 3 ]]; then
+  echo "warning: assets/omr_models/ lacks homr's models; scanning will fail." >&2
+  echo "         run: bash scripts/fetch_omr_models.sh" >&2
+fi
+
 pkill -f flutter_tools.snapshot 2>/dev/null
 sleep 1
 

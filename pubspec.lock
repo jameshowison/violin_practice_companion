@@ -509,13 +509,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.2"
-  homr_omr:
+  homr_flutter:
     dependency: "direct main"
     description:
-      path: "../homr_flutter/packages/homr_omr"
-      relative: true
-    source: path
-    version: "1.0.0"
+      path: "packages/homr_flutter"
+      ref: "v0.1.0"
+      resolved-ref: "61089e18cc458812701a6f4e4e9762c01a5992f5"
+      url: "git@github.com:jameshowison/homr_flutter.git"
+    source: git
+    version: "0.1.0"
   hooks:
     dependency: transitive
     description:
