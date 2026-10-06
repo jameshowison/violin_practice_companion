@@ -13,9 +13,9 @@ import 'package:pdfx/pdfx.dart';
 import 'omr_service_base.dart';
 
 /// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
-/// (document scanner, photo library, or file/PDF) → `preprocessImage`
-/// (binarize) → crop each page to the music region → `homr_omr` recognition,
-/// concatenated across pages into one piece.
+/// (document scanner, photo library, or file/PDF) → crop each page to the
+/// music region, in colour at full resolution → `homr_omr` recognition
+/// (resize to 1920 + CLAHE inside), concatenated across pages into one piece.
 class OmrService implements OmrServiceBase {
   static const _contentResolverChannel = MethodChannel('dev.homr/content_resolver');
 
@@ -23,29 +23,37 @@ class OmrService implements OmrServiceBase {
   Future<String?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
+    void Function(List<ScanSourcePage> pages)? onSourcePages,
     String title = '',
   }) async {
     onProgress?.call(OmrScanStage.capturing);
     final pages = await _acquire(source);
     if (pages == null || pages.isEmpty) return null;
 
-    onProgress?.call(OmrScanStage.preprocessing);
-    final preprocessedPages = <Uint8List>[];
-    for (final bytes in pages) {
-      preprocessedPages.add((await preprocessImage(bytes)).thresholded);
-    }
-
+    // No preprocessing before the crop, and no binarization after it: the
+    // user crops the page as acquired, at full resolution, and that colour
+    // crop is the recogniser's input. OmrOrchestrator resizes it to 1920 px
+    // wide and applies CLAHE, exactly as Python homr does. Both earlier steps
+    // were harmful: resizing the WHOLE page to 1920 before cropping left a
+    // half-page crop at 960 px, half the scale homr expects, and a fixed
+    // threshold at 128 erased the grey staff lines of a photographed page
+    // ("I Love the Mountains", Oct 2026). See
+    // homr_flutter/integration_test/threshold_strategy_test.dart.
     onProgress?.call(OmrScanStage.cropping);
     final croppedPages = <Uint8List>[];
-    for (var i = 0; i < preprocessedPages.length; i++) {
+    for (var i = 0; i < pages.length; i++) {
       final cropped = await _cropToMusic(
-        preprocessedPages[i],
+        pages[i],
         pageIndex: i,
-        pageCount: preprocessedPages.length,
+        pageCount: pages.length,
       );
       if (cropped == null) return null; // cancelling any page's crop cancels the whole scan
       croppedPages.add(cropped);
     }
+    onSourcePages?.call([
+      for (var i = 0; i < pages.length; i++)
+        ScanSourcePage(original: pages[i], cropped: croppedPages[i]),
+    ]);
 
     return OmrOrchestrator().recogniseMultiPage(
       croppedPages,
@@ -61,8 +69,8 @@ class OmrService implements OmrServiceBase {
 
   /// Acquire the raw page-image bytes (JPEG or PNG), one entry per page, in
   /// page order, from the chosen [source]. Returns null if the user cancels
-  /// the picker. `preprocessImage` decodes either format, so no conversion
-  /// is needed here.
+  /// the picker. The cropper and the recogniser both decode either format,
+  /// so no conversion is needed here.
   Future<List<Uint8List>?> _acquire(OmrImageSource source) async {
     switch (source) {
       case OmrImageSource.camera:
@@ -150,9 +158,10 @@ class OmrService implements OmrServiceBase {
   }
 
   /// Render every page of a PDF to PNG bytes for the OMR pipeline, in
-  /// document order. Renders at [_pdfTargetWidth] px wide to match
-  /// `preprocessImage`'s own resize target.
-  static const _pdfTargetWidth = 1920.0;
+  /// document order. Renders at [_pdfTargetWidth] px wide — twice homr's 1920,
+  /// so that a crop of half the page still reaches the recogniser at full
+  /// scale rather than being upscaled from too few pixels.
+  static const _pdfTargetWidth = 3840.0;
 
   Future<List<Uint8List>> _rasterizeAllPdfPages(Uint8List pdfBytes) async {
     final document = await PdfDocument.openData(pdfBytes);
@@ -180,20 +189,30 @@ class OmrService implements OmrServiceBase {
   }
 
   Future<Uint8List?> _cropToMusic(
-    Uint8List thresholdedPng, {
+    Uint8List pageBytes, {
     required int pageIndex,
     required int pageCount,
   }) async {
     final dir = await getTemporaryDirectory();
+    // The page as acquired: JPEG from the camera or photo library, PNG from a
+    // PDF render. Named by content so the cropper decodes it as what it is.
+    final isPng = pageBytes.length > 3 && pageBytes[0] == 0x89 && pageBytes[1] == 0x50;
     final source = File(
-      '${dir.path}/omr_threshold_${DateTime.now().millisecondsSinceEpoch}_$pageIndex.png',
+      '${dir.path}/omr_page_${DateTime.now().millisecondsSinceEpoch}_$pageIndex.${isPng ? 'png' : 'jpg'}',
     );
-    await source.writeAsBytes(thresholdedPng);
+    await source.writeAsBytes(pageBytes);
 
     final title = pageCount > 1 ? 'Crop to Music — Page ${pageIndex + 1} of $pageCount' : 'Crop to Music';
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: source.path,
+      // Lossless: this is the recogniser's input, and JPEG ringing around
+      // thin staff lines is exactly what a threshold has to see through.
+      compressFormat: ImageCompressFormat.png,
+      // Caps a crop from a 48 MP photo; still at least twice the 1920 the
+      // orchestrator resizes to.
+      maxWidth: 4000,
+      maxHeight: 4000,
       uiSettings: [
         IOSUiSettings(
           title: title,

@@ -300,6 +300,59 @@ Note also that a **release** build does not show the `kBuildRef` stamp in the
 AppBar — that is debug-only — so on a device, confirm the build by the feature you
 came to test rather than by reading the stamp.
 
+### A new device: "This provisioning profile cannot be installed on this device"
+
+The free-team profile lists the device UDIDs it covers, and a device Xcode has
+never built for is not among them. `flutter build ios` doesn't register devices,
+so have Xcode do it once, targeting the new device by UDID
+(`xcrun devicectl device info details --device "<name>" | grep udid`):
+
+```bash
+cd ios && xcodebuild -workspace Runner.xcworkspace -scheme Runner \
+  -configuration Release -destination 'id=<UDID>' \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+```
+
+then run `scripts/device_install.sh "<name>"` as usual. Check what a profile
+covers with
+`security cms -D -i build/ios/iphoneos/Runner.app/embedded.mobileprovision | plutil -extract ProvisionedDevices json -o - -`.
+
+## Dev library (the same pieces and media on every dev device)
+
+A fresh install starts empty. Rather than re-adding tunes and media by hand, every
+dev device can share one library, kept in a private sibling repo,
+`../violin_dev_library`, and synced **over the cable** — the app has no network
+dependency, and a release build contains none of it:
+
+```bash
+bash scripts/sync_dev_library.sh dev-iphone      # simulator
+bash scripts/sync_dev_library.sh "Hazel iPad"    # physical device
+bash scripts/device_install.sh "Hazel iPad" --sync   # install, then sync
+bash scripts/dev_run.sh dev-ipad --sync              # sync, then start the dev server
+```
+
+A sync takes the device's changes into the library (new pieces, edited scores,
+sections, imported media, recorded demos, collections), commits them in the
+library repo, and stages the library back onto the device, which merges it when
+the app next launches. Sync each device in turn and each sees the other's work.
+Pushing the library repo to GitHub is a separate, manual step.
+
+What syncs: everything a user makes, with the same ids on every device — the
+`scanned_pieces/`, `editable_fixtures/`, `section_overrides/`, `media/` and
+`teacher_recordings/` and `scan_sources/` folders of the app's Documents, plus the prefs-held titles,
+media rows and library (collections, hidden pieces, renames) in `state.json`.
+
+How it decides: a three-way merge per item, against what that device held at its
+last sync. Whichever side changed since then wins; deletions propagate too. If
+the same item changed on both sides, the device's version wins and the sync says
+`CONFLICT` — the library's version is the previous commit in its git log.
+
+Two cautions. A device's **first** sync contributes everything already on it, so
+a simulator holding its own copies of tunes (under different ids) will add
+duplicates; delete them in-app and sync again. And the merge only sees what the
+app has written to disk — the sync stops the app first for exactly that reason,
+so don't sync while you're mid-edit on the device.
+
 ## Screenshots & UI debugging (iOS Simulator)
 
 The staff is rendered by OSMD inside a `WKWebView` (a Flutter "platform view").
@@ -371,10 +424,18 @@ This means **the `homr_flutter` repo must be checked out next to this one**
 (as a sibling directory) for `flutter pub get` to resolve.
 
 Pipeline (`lib/services/omr_service*.dart`): document scan
-(`flutter_doc_scanner`) → binarize (`preprocessImage`) → crop to the music
-region (`image_cropper`) → on-device ONNX inference (segmentation +
+(`flutter_doc_scanner`) → crop to the music region in colour, at full
+resolution (`image_cropper`) → resize to 1920 px wide + CLAHE, as Python homr
+does (inside `OmrOrchestrator`) → on-device ONNX inference (segmentation +
 transformer recognition) → assembled MusicXML, parsed by `MusicXmlParser` into
 a `ParsedPiece`.
+
+Every scanned piece keeps the images it was recognised from in
+`Documents/scan_sources/<pieceId>/`: `page_<n>_original.*` as acquired, and
+`page_<n>_crop.*`, the colour crop the recogniser actually received. When a
+scan comes out wrong, look there first; the dev-library sync brings them back
+to the Mac (`../violin_dev_library/scan_sources/`). Pieces scanned before this
+existed have none.
 
 **Mobile/desktop only.** `flutter_onnxruntime` and `flutter_doc_scanner` don't
 support web, so `omr_service.dart` conditional-imports a stub on web

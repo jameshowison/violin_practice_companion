@@ -10,6 +10,7 @@ class OmrService implements OmrServiceBase {
   Future<String?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
+    void Function(List<ScanSourcePage> pages)? onSourcePages,
     String title = '',
   }) {
     throw UnsupportedError(

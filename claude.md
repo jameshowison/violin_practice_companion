@@ -241,6 +241,35 @@ where `<group>` is the container whose
 `xcrun simctl addmedia` is no help here — it only takes photos and videos, into
 the Photos library, not Files.
 
+## Dev library (shared pieces and media across dev devices)
+
+`bash scripts/sync_dev_library.sh <device>` syncs the private sibling repo
+`../violin_dev_library` with a simulator or physical device, over the cable. Full
+description in the README, "Dev library". What an agent needs to know:
+
+- **Pull then push, three-way.** `pull_dev_library.sh` (Python) takes device
+  changes into the library; `push_dev_library.sh` stages the library in
+  `Documents/dev_library/`; the app merges it at launch
+  (`lib/services/dev_library_io.dart`, via `devLibraryProvider`, awaited by
+  `piecesProvider` and `libraryProvider`) and records its base in the
+  `devLibrary.base` pref. The fingerprints in the Dart and Python halves must
+  stay identical — `test/dev_library_test.dart` pins both.
+- **Ids are preserved**, so `piece_repository.dart`'s hardcoded piece ids (e.g.
+  the salt_creek mapping in `_audioSyncFolders`) hold on every synced device.
+- **Confirm convergence by the dry run, not by eye:**
+  `bash scripts/pull_dev_library.sh <device> --dry-run` after the app has
+  relaunched should print `0 taken`. The app also logs one `[dev_library] …` line
+  per launch when a library is staged.
+- **Don't sync a device someone is editing on** — the sync terminates the app.
+  It also kills a `flutter run` on that simulator; restart with `dev_run.sh`.
+- **Diagnosing a bad scan:** the recogniser's exact input is
+  `scan_sources/<pieceId>/page_<n>_crop.*` (`ScanSourceStore`). Sync the
+  device and read it from `../violin_dev_library/scan_sources/`. For a piece
+  scanned before that existed, image_cropper's leftover output may still be in
+  the app's `tmp/` (`devicectl device info files … --subdirectory tmp`).
+- A device's first sync uploads everything on it; on `dev-ipad`, which holds
+  its own copies of tunes under other ids, that means duplicates.
+
 ## Measuring Verovio headlessly
 
 `web/verovio/verovio-toolkit-wasm.js` (Verovio 6.2.0) drives from Node with no

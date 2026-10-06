@@ -36,8 +36,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
 
     try {
+      List<ScanSourcePage>? sources;
       final musicXml = await OmrService().scan(
         source: source,
+        onSourcePages: (pages) => sources = pages,
         title: title,
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);
@@ -52,6 +54,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       }
 
       final piece = await ref.read(pieceRepositoryProvider).savePiece(title, musicXml);
+      // Best-effort: losing the diagnostics must never lose the piece.
+      if (sources != null) {
+        try {
+          await ref.read(scanSourceStoreProvider).save(piece.id, sources!);
+        } catch (_) {}
+      }
       ref.invalidate(piecesProvider);
 
       if (!mounted) return;
@@ -89,7 +97,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   String _stageLabel(OmrScanStage? stage) => switch (stage) {
         null => 'Starting…',
         OmrScanStage.capturing => 'Capturing page…',
-        OmrScanStage.preprocessing => 'Preprocessing image…',
         OmrScanStage.cropping => 'Crop to music…',
         OmrScanStage.segmenting => 'Detecting staves…',
         OmrScanStage.detecting => 'Detecting symbols…',
