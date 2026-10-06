@@ -30,6 +30,8 @@ import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_repository.dart';
+import 'dev_library.dart';
+import 'scan_source_store.dart';
 import 'media_alignment_store.dart';
 import 'media_catalog.dart';
 import 'media_paths.dart';
@@ -71,7 +73,21 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 /// importing a score, and would leave the Manage screen — which needs
 /// everything, with hidden marked — without a source. See [visiblePiecesProvider].
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
+  await ref.watch(devLibraryProvider.future);
   return ref.watch(pieceRepositoryProvider).loadAll();
+});
+
+/// Merges a synced dev library (see [DevLibraryIngester]) once per launch,
+/// before the first piece list or library read. A no-op unless
+/// `scripts/sync_dev_library.sh` has staged one on this device, and never
+/// fatal: a bad library must not stop the app showing everything else.
+final devLibraryProvider = FutureProvider<void>((ref) async {
+  try {
+    await DevLibraryIngester().ingest();
+  } catch (e) {
+    // ignore: avoid_print
+    print('[dev_library] failed: $e');
+  }
 });
 
 // ── Selected piece ────────────────────────────────────────────────────────────
@@ -92,6 +108,8 @@ final libraryProvider =
 class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
   @override
   Future<PieceLibrary> build() async {
+    // A synced dev library may carry collections; read them after it lands.
+    await ref.watch(devLibraryProvider.future);
     final store = ref.watch(pieceLibraryStoreProvider);
     final loaded = await store.load();
     final seeded = seedLibrary(
@@ -246,8 +264,8 @@ class LibraryActions {
 
   /// Everything a user-added piece owns comes out together: its MusicXML, its
   /// index row / prefs keys, its section-override sidecar, any editable copy,
-  /// its staff-zoom preference, every medium recorded or imported for it, and
-  /// its membership in every collection — plus the selection, if it happened
+  /// its staff-zoom preference, every medium recorded or imported for it, the
+  /// images it was scanned from, and its membership in every collection — plus the selection, if it happened
   /// to be selected.
   ///
   /// Clearing the selection matters even though deletion happens on a screen the
@@ -269,6 +287,7 @@ class LibraryActions {
     // leaving them behind would leak a recording's worth of disk per deleted
     // piece with nothing left in the app pointing at it.
     await _ref.read(mediaActionsProvider).deleteAllFor(pieceId);
+    await _ref.read(scanSourceStoreProvider).delete(pieceId);
     await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
     if (_ref.read(selectedPieceProvider)?.id == pieceId) {
       _ref.read(selectedPieceProvider.notifier).state = null;
@@ -329,6 +348,10 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 //
 // Note this is NOT [measuresPerRowProvider], which is derived purely from screen
 // width and drives the jianpu/fingering row layout.
+
+final scanSourceStoreProvider = Provider<ScanSourceStore>(
+  (_) => ScanSourceStore(),
+);
 
 final staffZoomStoreProvider = Provider<StaffZoomStore>(
   (_) => StaffZoomStore(),

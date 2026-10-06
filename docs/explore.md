@@ -149,6 +149,34 @@ equivalent (96.4%), 70%+ retains enough bleed-through to trigger the phantom
 staff. 50% was picked as the canonical midpoint of the working range and is
 baked into the `OmrService` preprocessing step.
 
+**Update (Oct 2026): no binarization; resize after the crop.** "I Love the
+Mountains", a photographed page whose print came out grey and whose music
+fills only half the frame, failed with "no staves detected". Two things were
+wrong, and binarization was only the visible one:
+
+1. The fixed 128 threshold erased the grey staff lines.
+2. The app resized the *whole page* to 1920 and then cropped, so a half-page
+   crop reached homr at 960 px. Python homr resizes its input to exactly 1920
+   wide before CLAHE and segmentation (`homr/resize.py`), and SegNet tiles
+   320 px patches at that scale; the Dart orchestrator didn't resize at all.
+   The benchmark photos (1727-2055 px, music edge to edge) never exposed it.
+
+Measured on device (`homr_flutter/integration_test/threshold_strategy_test.dart`):
+
+| Mountains crop | raw colour as given | raw colour @1920 | Otsu @1920 |
+|---|---|---|---|
+| 960 px | 31 notes | 82 notes | 83 notes |
+| 1202 px | 74 notes | 82 notes | 83 notes |
+
+(~82 is the hand count: ~50 melody + 32 accompaniment.) On the four
+benchmarks and the original bleed-through book photo, raw colour @1920 scores
+the same as every other variant (Gavotte 99.5%, one note). So the app now
+crops the page in colour at full resolution and hands that crop straight to
+`OmrOrchestrator`, which resizes to 1920 and applies CLAHE, as Python homr
+does. Since the Phase 7 staff detection, bleed-through scores 97.3% with or
+without a threshold, so the binarization this section records is retired.
+`thresholdImage` / `otsuThreshold` remain in `homr_omr` for comparisons.
+
 ### 4.4 From Python reference to on-device Flutter (Stage B, complete)
 
 Homr's pipeline has two layers: ONNX models (segmentation + transformer
