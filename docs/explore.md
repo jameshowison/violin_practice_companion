@@ -175,7 +175,8 @@ crops the page in colour at full resolution and hands that crop straight to
 `OmrOrchestrator`, which resizes to 1920 and applies CLAHE, as Python homr
 does. Since the Phase 7 staff detection, bleed-through scores 97.3% with or
 without a threshold, so the binarization this section records is retired.
-`thresholdImage` / `otsuThreshold` remain in `homr_omr` for comparisons.
+`thresholdImage` / `otsuThreshold` remain in the package (now `homr_flutter`,
+`package:homr_flutter/preprocessing.dart`) for comparisons.
 
 ### 4.4 From Python reference to on-device Flutter (Stage B, complete)
 

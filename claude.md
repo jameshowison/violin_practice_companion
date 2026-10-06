@@ -96,9 +96,20 @@ xcrun simctl shutdown dev-iphone && xcrun simctl boot dev-iphone
 
 **Worktrees: two traps.** They branch from `origin/main`, *not* your current HEAD, so
 work based on an unmerged branch must `git checkout -b <name> <sha>` first and check
-`git log --oneline -1` before touching anything. And `flutter test` cannot resolve the
-`../homr_flutter` path dependency from inside a worktree without the symlink at
-`.claude/worktrees/homr_flutter` (it is there; leave it).
+`git log --oneline -1` before touching anything. And a worktree has no
+`pubspec_overrides.yaml` (it's gitignored), so it builds `homr_flutter` from the
+pinned git tag, not from `../homr_flutter`; nor does it have the models, so run
+`bash scripts/fetch_omr_models.sh` there before anything that scans.
+
+## homr_flutter dependency
+
+The OMR package is a git dependency pinned to a release tag (`ref:` in
+`pubspec.yaml`). The main checkout has a local `pubspec_overrides.yaml` pointing
+at `../homr_flutter/packages/homr_flutter`, so edits there take effect at once,
+and **what you build is not what's pinned** until you tag and bump. Before
+calling OMR work done, build once with the override moved aside. The models
+live in this app (`assets/omr_models/`, gitignored, `scripts/fetch_omr_models.sh`),
+never in the package. README "OMR" has the release procedure.
 
 ## Marionette MCP — Live UI Inspection
 

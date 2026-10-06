@@ -4,7 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_doc_scanner/flutter_doc_scanner.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:homr_omr/homr_omr.dart';
+import 'package:homr_flutter/homr_flutter.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -14,10 +14,13 @@ import 'omr_service_base.dart';
 
 /// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
 /// (document scanner, photo library, or file/PDF) → crop each page to the
-/// music region, in colour at full resolution → `homr_omr` recognition
+/// music region, in colour at full resolution → `homr_flutter` recognition
 /// (resize to 1920 + CLAHE inside), concatenated across pages into one piece.
 class OmrService implements OmrServiceBase {
   static const _contentResolverChannel = MethodChannel('dev.homr/content_resolver');
+
+  /// homr's models, bundled with the app by scripts/fetch_omr_models.sh.
+  static final _models = OmrModels.inAssetDir('assets/omr_models');
 
   @override
   Future<String?> scan({
@@ -55,7 +58,7 @@ class OmrService implements OmrServiceBase {
         ScanSourcePage(original: pages[i], cropped: croppedPages[i]),
     ]);
 
-    return OmrOrchestrator().recogniseMultiPage(
+    return OmrOrchestrator(models: _models).recogniseMultiPage(
       croppedPages,
       title: title,
       onProgress: (pageIndex, stage) => onProgress?.call(switch (stage) {

@@ -43,8 +43,14 @@ dependencies:
 
   # OMR scan-to-MusicXML pipeline (mobile/desktop only — see
   # lib/services/omr_service*.dart for the web conditional-import split).
-  homr_omr:
-    path: ../homr_flutter/packages/homr_omr
+  # Pinned to a release tag of github.com/jameshowison/homr_flutter; bump
+  # `ref:` then `flutter pub upgrade homr_flutter` to move. To edit both repos
+  # at once, use a local pubspec_overrides.yaml (gitignored; see README "OMR").
+  homr_flutter:
+    git:
+      url: git@github.com:jameshowison/homr_flutter.git
+      path: packages/homr_flutter
+      ref: v0.1.0
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
   # Alternative scan sources (mobile/desktop only — imported solely in
@@ -99,6 +105,9 @@ flutter:
     - assets/lookup_tables/
     - assets/osmd/
     - assets/soundfonts/
+    # homr's ONNX models, bundled so scanning needs no network (gitignored;
+    # scripts/fetch_omr_models.sh puts them here).
+    - assets/omr_models/
     # Per-piece play-along audio (gitignored — see .gitignore). Flutter only
     # bundles files it can enumerate at build time, so each piece's audio
     # folder needs its own line here.

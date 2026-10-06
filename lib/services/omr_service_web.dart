@@ -1,7 +1,7 @@
 import 'omr_service_base.dart';
 
 /// Web stub. `flutter_doc_scanner` and `flutter_onnxruntime` (used by
-/// `homr_omr`) are mobile/desktop only, so OMR is unavailable on web.
+/// `homr_flutter`) are mobile/desktop only, so OMR is unavailable on web.
 ///
 /// The planned web path is a server-side `homr` (Python) backend reachable
 /// from a laptop camera capture — not yet built.

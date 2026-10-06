@@ -65,3 +65,9 @@ docs/photos_no_share
 
 # Stray Flutter run log
 runlog.txt
+
+# homr's ONNX models (~150 MB) — fetch with scripts/fetch_omr_models.sh
+assets/omr_models/*.onnx
+
+# Local-only: point homr_flutter at a sibling checkout while editing both repos
+pubspec_overrides.yaml

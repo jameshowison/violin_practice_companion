@@ -87,9 +87,9 @@ device](#installing-on-a-physical-device) below. For the day-to-day simulator
 loop, see [From a cold Mac to the app on the iPad
 simulator](#from-a-cold-mac-to-the-app-on-the-ipad-simulator) below.
 
-The scan-to-MusicXML (OMR) feature requires the sibling `homr_flutter` repo and
-its ONNX models — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml) below. It
-is not available on the web build.
+The scan-to-MusicXML (OMR) feature needs homr's ONNX models, fetched once with
+`bash scripts/fetch_omr_models.sh` — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml)
+below. It is not available on the web build.
 
 ## Simulator names
 
@@ -412,16 +412,44 @@ and `docs/plan.md` for the remaining roadmap.
 ## OMR (Scan-to-MusicXML)
 
 The "scan a page" feature is powered by [`homr`](https://github.com/liebharc/homr),
-ported to a self-contained on-device Flutter package (`homr_omr`) and consumed
-as a sibling path dependency:
+ported to an on-device Flutter package, `homr_flutter`
+([github.com/jameshowison/homr_flutter](https://github.com/jameshowison/homr_flutter),
+AGPL-3.0), which this app pins to a release tag:
 
 ```yaml
-homr_omr:
-  path: ../homr_flutter/packages/homr_omr
+homr_flutter:
+  git:
+    url: git@github.com:jameshowison/homr_flutter.git
+    path: packages/homr_flutter
+    ref: v0.1.0
 ```
 
-This means **the `homr_flutter` repo must be checked out next to this one**
-(as a sibling directory) for `flutter pub get` to resolve.
+A fresh clone needs nothing next to it: `flutter pub get` fetches the tag.
+**Models** come separately. They're homr's FP16 ONNX weights (~150 MB, AGPL via
+`liebharc/homr`), which the app bundles from `assets/omr_models/` (gitignored).
+Run this once per checkout:
+
+```bash
+bash scripts/fetch_omr_models.sh   # copies from ../homr_flutter if present, else downloads; checksum-verified
+```
+
+`device_install.sh` refuses to build, and `dev_run.sh` warns, while they're
+missing; without them scanning would fail at the first recognition.
+
+**Working on both repos at once.** Create a `pubspec_overrides.yaml`
+(gitignored) so the app builds against the sibling checkout instead of the
+tag:
+
+```yaml
+dependency_overrides:
+  homr_flutter:
+    path: ../homr_flutter/packages/homr_flutter
+```
+
+Delete it to build exactly what's pinned. **To upgrade**: in homr_flutter, bump
+the package `version` and `CHANGELOG.md`, commit, tag `vX.Y.Z` and push the tag;
+here, change `ref:` and run `flutter pub upgrade homr_flutter`. `pubspec.lock`
+records the commit the tag resolved to.
 
 Pipeline (`lib/services/omr_service*.dart`): document scan
 (`flutter_doc_scanner`) → crop to the music region in colour, at full
@@ -446,18 +474,15 @@ support web, so `omr_service.dart` conditional-imports a stub on web
 - iOS deployment target 16.0+
 - macOS deployment target 14.0+
 
-**Models** (~147MB of FP16 ONNX weights, AGPL-licensed via `liebharc/homr`) are
-fetched by `homr_flutter/tools/fetch_models.py` into
-`homr_flutter/packages/homr_omr/assets/models/` and bundled as package assets —
-run that script once in the sibling `homr_flutter` checkout before building.
-
 OMR accuracy on Suzuki Book 1 (homr_flutter, 2026-06-09): **17/18 perfect**
 (SER=0%). Full findings in `homr_flutter/docs/omr_evaluation/`.
 
 ## Licence
 
-GPL-3.0. You may use, modify, and redistribute this code freely. You may not
-wrap it in a proprietary or subscription product.
+GPL-3.0-or-later (see `LICENSE`). You may use, modify, and redistribute this
+code freely. You may not wrap it in a proprietary or subscription product. The
+OMR package it uses, `homr_flutter`, is AGPL-3.0, as is homr; GPLv3 section 13
+permits the combination, with that part keeping its own terms.
 
 ## Profile run (logged to a file)
 
