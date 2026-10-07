@@ -204,7 +204,8 @@ class ChordEditor {
               lyrics: n.lyrics,
             );
     } else {
-      out[i] = n.copyWith(isRest: true);
+      // A rest is never tied.
+      out[i] = n.copyWith(isRest: true, tieStart: false, tieStop: false);
     }
     return normalize(out);
   }
@@ -317,7 +318,8 @@ class ChordEditor {
         displayAccidental: displayAccidental,
         chordSymbol: from.chordSymbol,
         isChord: from.isChord,
-        // The syllable belongs to the note's slot, not its pitch.
+        // The syllable belongs to the note's slot, not its pitch. A tie does
+        // not: it joins two notes of the SAME pitch, so a new pitch drops it.
         lyrics: from.lyrics,
         scoreFinger: keepFingering ? from.scoreFinger : null,
         fingerNumber: keepFingering ? from.fingerNumber : null,

@@ -121,6 +121,18 @@ class NoteEvent {
   /// editor writes back, so a syllable travels with its note through an edit.
   final Map<int, Lyric> lyrics;
 
+  /// Tied INTO the next note (MusicXML `<tie type="start"/>`): this note's
+  /// sound carries on through it instead of being struck again. A note in the
+  /// middle of a chain is both [tieStart] and [tieStop].
+  final bool tieStart;
+
+  /// Tied FROM the previous note (`<tie type="stop"/>`): a continuation, held
+  /// rather than struck. Still a note of its own in the score — it has its own
+  /// notehead, its own time and its own highlight — but [MidiGenerator] folds
+  /// its sound into the note it continues, provided they share a pitch and
+  /// follow each other in performance.
+  final bool tieStop;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -138,6 +150,8 @@ class NoteEvent {
     this.chordSymbol,
     this.isChord = false,
     this.lyrics = const {},
+    this.tieStart = false,
+    this.tieStop = false,
   });
 
   NoteEvent copyWith({
@@ -157,6 +171,8 @@ class NoteEvent {
     String? chordSymbol,
     bool? isChord,
     Map<int, Lyric>? lyrics,
+    bool? tieStart,
+    bool? tieStop,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -176,5 +192,7 @@ class NoteEvent {
         chordSymbol: chordSymbol ?? this.chordSymbol,
         isChord: isChord ?? this.isChord,
         lyrics: lyrics ?? this.lyrics,
+        tieStart: tieStart ?? this.tieStart,
+        tieStop: tieStop ?? this.tieStop,
       );
 }

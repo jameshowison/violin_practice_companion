@@ -20,11 +20,12 @@ import 'musicxml_parser.dart';
 ///
 /// ## What survives the trip
 ///
-/// Pitches (with octave marks), rests, note lengths including dots, stacked
-/// chord notes (`[CEG]`), chord symbols (`"Am"`), forward/backward repeats, the
-/// key signature with its mode, and the meter. What does NOT survive is anything
-/// [MusicXmlParser] itself drops — slurs, ties, tuplets, grace notes, dynamics,
-/// lyrics, voltas, and fingerings. This is a lossy export of the *tune*, not a
+/// Pitches (with octave marks), rests, note lengths including dots, ties
+/// (`A2-|A2`), stacked chord notes (`[CEG]`), chord symbols (`"Am"`),
+/// forward/backward repeats, the key signature with its mode, and the meter.
+/// What does NOT survive is anything [MusicXmlParser] itself drops — slurs,
+/// tuplets, grace notes, dynamics, voltas, and fingerings — and lyrics, which
+/// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
 /// round-trip of the document, and [AbcExporter.lossyFeatureNote] says so in the
 /// words the export dialog shows the user.
 class AbcExporter {
@@ -33,8 +34,8 @@ class AbcExporter {
   /// Shown under the exported text so nobody is surprised when a re-import comes
   /// back plainer than it went out.
   static const String lossyFeatureNote =
-      'Notes, chord symbols, repeats, key and time signature are exported. '
-      'Slurs, ties, triplets, grace notes and fingerings are not.';
+      'Notes, ties, chord symbols, repeats, key and time signature are exported. '
+      'Slurs, triplets, grace notes, lyrics and fingerings are not.';
 
   /// The ABC document for [piece], titled [title].
   ///
@@ -160,7 +161,11 @@ class AbcExporter {
       if (body.isNotEmpty && (beat != lastBeat || prefix.isNotEmpty)) {
         body.write(' ');
       }
-      body.write('$prefix$head${_lengthToken(units, unit)}');
+      // ABC's tie is a `-` after the length: `A2-|A2`. On a chord group it
+      // ties every note of the group, which is the common case for a tied
+      // double-stop.
+      final tie = group.any((n) => n.tieStart) ? '-' : '';
+      body.write('$prefix$head${_lengthToken(units, unit)}$tie');
       lastBeat = beat;
       position += units;
     }

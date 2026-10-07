@@ -23,6 +23,11 @@ class HighlightEvent {
   // index, so the minimap can light the exact pass (1st vs 2nd A). Folded
   // notation keys off measureNumber; the unfolded minimap keys off this.
   final int performanceIndex;
+  // This note continues a tie: it is held, not struck — its sound belongs to
+  // an earlier [ScheduledNote]. Kept as an event all the same (it has its own
+  // notehead, and a bar that opens with one would otherwise have no event to
+  // light the bar by); a consumer that wants only struck notes can skip it.
+  final bool isTieContinuation;
 
   const HighlightEvent({
     required this.measureNumber,
@@ -32,6 +37,7 @@ class HighlightEvent {
     required this.offsetSeconds,
     required this.beatPosition,
     this.performanceIndex = 0,
+    this.isTieContinuation = false,
   });
 }
 
@@ -100,6 +106,16 @@ class MidiGenerator {
   /// the beat value drops back, and the OSMD cursor's backward-seek reset jumps
   /// it to the repeat start (no bridge change needed). With no repeats the
   /// expanded order is identity and every value matches the un-repeated output.
+  ///
+  /// Ties are honoured in performance order: a [NoteEvent.tieStop] note whose
+  /// pitch matches a [NoteEvent.tieStart] note ending exactly where it begins
+  /// is folded into that note's [ScheduledNote] — one note-on, held through the
+  /// chain, across barlines and around repeats alike. A tie whose partner isn't
+  /// there (the repeat sent playback elsewhere, an edit changed one end's
+  /// pitch, a rest in between) is just struck again. Time itself is untouched:
+  /// every note still advances the cursor, so measure onsets, the total length
+  /// and every highlight are exactly what they were without ties — which is
+  /// what keeps a saved audio alignment, keyed to measure onsets, valid.
   MidiData generate(ParsedPiece piece, int bpm) {
     assert(_initialized, 'Call init() before generate()');
     final secsPerTick = 60.0 / (bpm * _tpb);
@@ -109,6 +125,13 @@ class MidiGenerator {
     final measureNoteTimings = <List<(double, double)>>[];
     final highlightEvents = <HighlightEvent>[];
     double cursor = 0.0;
+    // The cursor in ticks, in performance order, so "ends where it begins" is
+    // an exact comparison rather than a float one.
+    int perfTick = 0;
+    // Open ties by MIDI number: the [notes] entry still sounding, and the tick
+    // its written note ends at. Pitch-keyed, so each voice of a double-stop
+    // ties on its own.
+    final openTies = <int, ({int noteIndex, int endTick})>{};
 
     // Pre-pass: cumulative score ticks at each measure's document start
     // (including hidden lead/pickup notes), used to anchor beatPosition.
@@ -136,6 +159,7 @@ class MidiGenerator {
         final t = _ticks(hidden);
         cursor += t * secsPerTick;
         scoreTick += t;
+        perfTick += t;
       }
       final noteTimings = <(double, double)>[];
       // A chord member reuses the primary note's onset/duration/beat and does
@@ -143,6 +167,7 @@ class MidiGenerator {
       double chordOnset = cursor;
       double chordDur = 0.0;
       int chordScoreTick = scoreTick;
+      int chordPerfTick = perfTick;
       for (int ni = 0; ni < measure.notes.length; ni++) {
         final note = measure.notes[ni];
         final isChordMember = note.isChord && ni > 0;
@@ -157,9 +182,32 @@ class MidiGenerator {
           chordOnset = onset;
           chordDur = dur;
           chordScoreTick = scoreTick;
+          chordPerfTick = perfTick;
         }
         final offset = onset + dur;
         noteTimings.add((onset, offset));
+
+        var continuesTie = false;
+        if (!note.isRest) {
+          final midi = note.midiNumber;
+          final open = openTies[midi];
+          if (note.tieStop && open != null && open.endTick == chordPerfTick) {
+            final held = notes[open.noteIndex];
+            notes[open.noteIndex] = ScheduledNote(held.onsetSeconds, offset, midi);
+            continuesTie = true;
+          } else {
+            notes.add(ScheduledNote(onset, offset, midi));
+          }
+          if (note.tieStart) {
+            openTies[midi] = (
+              noteIndex: continuesTie ? open!.noteIndex : notes.length - 1,
+              endTick: chordPerfTick + _ticks(note),
+            );
+          } else {
+            openTies.remove(midi);
+          }
+        }
+
         highlightEvents.add(HighlightEvent(
           measureNumber: measure.number,
           noteIndex: ni,
@@ -168,13 +216,12 @@ class MidiGenerator {
           offsetSeconds: offset,
           beatPosition: chordScoreTick / (_tpb * 4),
           performanceIndex: oi,
+          isTieContinuation: continuesTie,
         ));
-        if (!note.isRest) {
-          notes.add(ScheduledNote(onset, offset, note.midiNumber));
-        }
         if (!isChordMember) {
           cursor += dur;
           scoreTick += _ticks(note);
+          perfTick += _ticks(note);
         }
       }
       measureNoteTimings.add(noteTimings);

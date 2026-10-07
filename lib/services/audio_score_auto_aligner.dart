@@ -189,12 +189,69 @@ class AudioScoreAutoAligner {
       ));
     }
 
+    final held = heldBarlines(
+        _midiGenerator.generate(piece, estimatedBpm), anchors);
+    final placed = interpolateHeld(anchors, held);
+
     return AutoAlignmentResult(
-      anchors,
+      placed,
       estimatedBpm,
       dtwResult.averageCost,
-      hasCompressedAnchors: hasCompressedRun(anchors),
+      hasCompressedAnchors: hasCompressedRun(placed),
     );
+  }
+
+  /// Which of [anchors] fall on a barline that a note is HELD across — a tie
+  /// into the bar, or any note sounding over it — with nothing struck there.
+  ///
+  /// Such a barline can't be seen in the recording. Chroma is the same on
+  /// either side of it (the same pitch, still sounding), so every placement
+  /// within the held note costs DTW the same and the path puts it wherever:
+  /// on Gundagai, the bar held through by `G2-|G8-|G4` came out 0.16 s long
+  /// against its neighbours' 1.4 s, with the time it lost added to the bars
+  /// either side. Known from the score alone, before any audio is involved —
+  /// which is the difference from [hasCompressedRun]'s after-the-fact
+  /// guessing, and why this one can safely act rather than only flag.
+  static List<bool> heldBarlines(
+      MidiData midi, List<ScoreAudioAnchor> anchors) {
+    const eps = 1e-6;
+    return [
+      for (final a in anchors)
+        () {
+          final t = a.scoreMs / 1000;
+          final struck =
+              midi.notes.any((n) => (n.onsetSeconds - t).abs() < eps);
+          final sounding = midi.notes.any(
+              (n) => n.onsetSeconds < t - eps && n.offsetSeconds > t + eps);
+          return sounding && !struck;
+        }(),
+    ];
+  }
+
+  /// [anchors] with each [held] one moved onto the straight line between the
+  /// nearest unheld anchors either side, by score time — the steady-tempo
+  /// guess, which for a bar the recording gives no evidence about is the
+  /// honest one. A held anchor with no unheld neighbour on one side (the very
+  /// start or end of the tune) is left where DTW put it.
+  static List<ScoreAudioAnchor> interpolateHeld(
+      List<ScoreAudioAnchor> anchors, List<bool> held) {
+    final out = [...anchors];
+    for (var i = 0; i < anchors.length; i++) {
+      if (!held[i]) continue;
+      var lo = i - 1, hi = i + 1;
+      while (lo >= 0 && held[lo]) {
+        lo--;
+      }
+      while (hi < anchors.length && held[hi]) {
+        hi++;
+      }
+      if (lo < 0 || hi >= anchors.length) continue;
+      final a = anchors[lo], b = anchors[hi];
+      final f = (anchors[i].scoreMs - a.scoreMs) / (b.scoreMs - a.scoreMs);
+      out[i] = ScoreAudioAnchor(
+          anchors[i].scoreMs, a.audioSec + f * (b.audioSec - a.audioSec));
+    }
+    return out;
   }
 
   /// Anchor count below which [hasCompressedRun] won't attempt outlier

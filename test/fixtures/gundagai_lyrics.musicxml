@@ -70,17 +70,17 @@
         <root><root-step>G</root-step></root>
         <kind>major</kind>
         </harmony>
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><lyric number="1"><syllabic>end</syllabic><text>gai</text><extend/></lyric></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><tie type="start"/><type>eighth</type><notations><tied type="start"/></notations><lyric number="1"><syllabic>end</syllabic><text>gai</text><extend/></lyric></note>
     </measure>
     <measure number="8">
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>192</duration><tie type="stop"/><tie type="start"/><type>half</type><notations><tied type="stop"/><tied type="start"/></notations></note>
     </measure>
     <measure number="9">
       <harmony>
         <root><root-step>G</root-step></root>
         <kind>dominant</kind>
         </harmony>
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><tie type="stop"/><type>quarter</type><notations><tied type="stop"/></notations></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam><lyric number="1"><syllabic>single</syllabic><text>Where</text></lyric></note>
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam><lyric number="1"><syllabic>single</syllabic><text>the</text></lyric></note>
     </measure>
@@ -131,13 +131,13 @@
         <root><root-step>D</root-step></root>
         <kind>dominant</kind>
         </harmony>
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><lyric number="1"><syllabic>single</syllabic><text>sky</text><extend/></lyric></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><tie type="start"/><type>eighth</type><notations><tied type="start"/></notations><lyric number="1"><syllabic>single</syllabic><text>sky</text><extend/></lyric></note>
     </measure>
     <measure number="16">
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><tie type="stop"/><tie type="start"/><type>half</type><notations><tied type="stop"/><tied type="start"/></notations></note>
     </measure>
     <measure number="17">
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><tie type="stop"/><type>eighth</type><notations><tied type="stop"/></notations></note>
       <note><rest/><duration>48</duration><type>eighth</type></note>
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam><lyric number="1"><syllabic>single</syllabic><text>There's</text></lyric></note>
       <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam><lyric number="1"><syllabic>single</syllabic><text>my</text></lyric></note>
@@ -196,15 +196,15 @@
         </harmony>
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam><lyric number="1"><syllabic>single</syllabic><text>I</text></lyric></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam><lyric number="1"><syllabic>single</syllabic><text>will</text></lyric></note>
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam><lyric number="1"><syllabic>single</syllabic><text>see</text><extend/></lyric></note>
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><tie type="start"/><type>eighth</type><beam number="1">begin</beam><notations><tied type="start"/></notations><lyric number="1"><syllabic>single</syllabic><text>see</text><extend/></lyric></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><tie type="stop"/><tie type="start"/><type>eighth</type><beam number="1">end</beam><notations><tied type="stop"/><tied type="start"/></notations></note>
     </measure>
     <measure number="25">
       <harmony>
         <root><root-step>D</root-step></root>
         <kind>dominant</kind>
         </harmony>
-      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><tie type="stop"/><type>quarter</type><notations><tied type="stop"/></notations></note>
       <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam><lyric number="1"><syllabic>single</syllabic><text>No</text></lyric></note>
       <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam><lyric number="1"><syllabic>single</syllabic><text>more</text></lyric></note>
     </measure>
@@ -267,11 +267,11 @@
         <root><root-step>G</root-step></root>
         <kind>major</kind>
         </harmony>
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type><lyric number="1"><syllabic>end</syllabic><text>gai</text></lyric></note>
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><tie type="start"/><type>quarter</type><notations><tied type="start"/></notations><lyric number="1"><syllabic>end</syllabic><text>gai</text></lyric></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><tie type="stop"/><tie type="start"/><type>quarter</type><notations><tied type="stop"/><tied type="start"/></notations></note>
     </measure>
     <measure number="33">
-      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><tie type="stop"/><type>eighth</type><notations><tied type="stop"/></notations></note>
       <note><rest/><duration>48</duration><type>eighth</type></note>
     </measure>
   </part>

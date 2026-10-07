@@ -85,6 +85,16 @@ class MusicXmlParser {
         // A <chord/> child marks a note stacked on the previous note's stem: it
         // shares that note's onset and adds no time (see MidiGenerator).
         final isChord = noteEl.findElements('chord').isNotEmpty;
+        // Ties: <tie> is the sounding half, <notations><tied> the engraved arc.
+        // Read both, since some exporters write only the arc. A note in the
+        // middle of a chain carries a stop and a start.
+        final tieTypes = {
+          for (final t in noteEl.findElements('tie')) t.getAttribute('type'),
+          for (final t in noteEl
+              .findElements('notations')
+              .expand((n) => n.findElements('tied')))
+            t.getAttribute('type'),
+        };
         final isRest = noteEl.findElements('rest').isNotEmpty;
         final dotted = noteEl.findElements('dot').isNotEmpty;
         final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
@@ -154,6 +164,8 @@ class MusicXmlParser {
           chordSymbol: pendingChord,
           isChord: isChord,
           lyrics: lyrics,
+          tieStart: !isRest && tieTypes.contains('start'),
+          tieStop: !isRest && tieTypes.contains('stop'),
         ));
         pendingChord = null;
       }

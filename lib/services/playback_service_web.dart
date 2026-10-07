@@ -77,8 +77,12 @@ class PlaybackService extends PlaybackServiceBase {
     final audioT0 = _ctx.currentTime + 0.1;
     for (final note in data.notes) {
       if (note.offsetSeconds <= startOffsetSeconds) continue;
-      final onset = audioT0 + (note.onsetSeconds - startOffsetSeconds);
-      final dur = note.offsetSeconds - note.onsetSeconds;
+      // A note already sounding at the start (a tie held over into the start
+      // bar is one note with an earlier onset) is struck at the start, for
+      // what is left of it.
+      final from = math.max(note.onsetSeconds, startOffsetSeconds);
+      final onset = audioT0 + (from - startOffsetSeconds);
+      final dur = note.offsetSeconds - from;
       if (onset < _ctx.currentTime) continue;
       _scheduleNote(note.midiNote, onset, dur);
     }
