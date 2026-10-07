@@ -2,6 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+// ignore: implementation_imports — parseSync is the only pure-Dart entry point
+// into the hit map (see verovio_annotation_anchor_test.dart).
+import 'package:verovio_flutter/src/hit_map/parser.dart';
+import 'package:verovio_flutter/verovio_flutter.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/piece.dart';
@@ -295,10 +299,48 @@ void main() {
         svg.replaceAll('class="syl">', 'class="syl-ignored">'))!;
     expect(withLyrics.length, notesOnly.length);
     expect(withLyrics, isNotEmpty);
+    // Never shallower, and deeper wherever the words hang below the notes
+    // (not every system: a low enough note can reach as far as its lyric).
     for (var i = 0; i < withLyrics.length; i++) {
-      expect(withLyrics[i].bottom, greaterThan(notesOnly[i].bottom),
+      expect(withLyrics[i].bottom, greaterThanOrEqualTo(notesOnly[i].bottom),
           reason: 'system $i');
       expect(withLyrics[i].top, notesOnly[i].top, reason: 'system $i');
     }
+    expect(
+        [for (var i = 0; i < withLyrics.length; i++)
+          if (withLyrics[i].bottom > notesOnly[i].bottom) i],
+        isNotEmpty);
+  });
+
+  test('note boxes exclude their lyrics, so every note stays in its bar', () {
+    // Verovio puts a note's lyric inside the note's group. With the words in,
+    // "gai"'s extender — held over the tie into bars 8 and 9 — dragged its
+    // note's box centre into bar 8, and every fingering chip after it in the
+    // line moved one note along. The engraver reads its hit map from
+    // [VerovioEngraver.withoutLyrics] instead. Real Verovio 6.2 output of the
+    // tied gundagai_lyrics.musicxml.
+    final svg = File('test/fixtures/verovio_verse.svg').readAsStringSync();
+    List<int> notesPerBar(String s) {
+      final map = HitMapParser.parseSync(s,
+          config: const ParseConfig(captureClasses: {'note', 'rest', 'measure'}));
+      final hits = map.byType.where((h) => !h.id.startsWith('bbox-')).toList();
+      final bars = [for (final h in hits) if (h.type == 'measure') h.bbox];
+      final counts = List.filled(bars.length, 0);
+      for (final h in hits) {
+        if (h.type != 'note' && h.type != 'rest') continue;
+        final i = bars.indexWhere((b) => b.contains(h.bbox.center));
+        if (i >= 0) counts[i]++;
+      }
+      return counts;
+    }
+
+    final expected = [
+      for (final m in parse(golden('gundagai_lyrics')).measures) m.notes.length
+    ];
+    expect(notesPerBar(svg), isNot(expected),
+        reason: 'the fixture should show the bug this guards against');
+    final bare = VerovioEngraver.withoutLyrics(svg);
+    expect(bare, isNot(contains('class="verse"')));
+    expect(notesPerBar(bare), expected);
   });
 }

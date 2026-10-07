@@ -243,7 +243,24 @@ class VerovioEngraver {
     await svc.loadData(stripPartLabels(musicXml));
 
     final res = await svc.renderPageWithHitMap(1, config: _hitMapConfig);
-    final hitMap = res.hitMap;
+    var hitMap = res.hitMap;
+    // Verovio draws a note's lyric INSIDE the note's group, so with lyrics the
+    // hit map's note (and measure) boxes take in the syllable and, for a held
+    // one, its extender line. Everything positioned off those boxes then
+    // drifts: fingering chips sit over the word rather than the notehead, and
+    // a note whose extender runs on over a tie is counted into the next bar
+    // (Gundagai's "gai", held through `G2-|G8-|G4`, took the chips after it
+    // along). So the hit map is read from a copy without lyrics, and every
+    // box is the one it would be with no words at all. Their vertical room is
+    // accounted for separately — see [systemInkBoxes].
+    //
+    // Under page 0, which is never rendered: the plugin caches a parsed page
+    // WITH the svg it was given, and a cached page 1 would hand the lyric-free
+    // copy back as the score to draw.
+    if (res.svg.contains('class="verse"')) {
+      hitMap = await svc.parseHitMap(withoutLyrics(res.svg),
+          pageIndex: 0, config: _hitMapConfig);
+    }
 
     // Optional timemap → qstamp per sounding note (cursor fallback).
     final qstampById = <String, double>{};
@@ -704,6 +721,15 @@ class VerovioEngraver {
   /// font size: Times' descender (g, p, y) is about 0.22 em, rounded up so
   /// the next system's chord bar clears it rather than touching.
   static const _lyricDescent = 0.3;
+
+    /// [svg] with every lyric `<g class="verse">` cut out — the input for a hit
+  /// map whose boxes don't include the words. Bounding-box groups go first:
+  /// they nest inside the verses, and [_removeGroups] can't take overlapping
+  /// ranges.
+  static String withoutLyrics(String svg) {
+    final bare = stripBoundingBoxes(svg);
+    return _removeGroups(bare, _allGroupRanges(bare, 'verse'));
+  }
 
     /// Names the serif Verovio laid its text out in by a family the platform
   /// actually has.
