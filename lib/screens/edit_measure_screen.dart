@@ -35,6 +35,8 @@ const _stepSemitone = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11};
 
 class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
   late List<NoteEvent> _notes;
+  // The bar as it was opened, to tell when an edit has moved its lyrics.
+  List<NoteEvent> _originalNotes = const [];
   int? _selectedIndex;
   // Repeat barlines on this measure, seeded from the parsed measure and toggled
   // by the REPEAT control group. Persisted via MeasureXmlEditor.setMeasureRepeats.
@@ -61,6 +63,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
       // Repair the chord invariant up front — OMR output can carry a stray
       // leading <chord/> or a member whose duration drifted from its primary.
       _notes = ChordEditor.normalize(measure.notes);
+      _originalNotes = _notes;
       _repeatStart = measure.repeatStart;
       _repeatEnd = measure.repeatEnd;
     } else {
@@ -321,7 +324,16 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
           updated.copyWith(sections: _sectionStarts);
       ref.invalidate(piecesProvider);
       ref.invalidate(parsedPieceProvider);
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      // The in-editor warning is gone with the editor, so say it once more
+      // where the bar can actually be seen under its words.
+      if (_lyricsMoved) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Saved. Check the lyrics in measure '
+              '${widget.measureNumber} — they may no longer line up.'),
+        ));
+      }
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -371,6 +383,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
     final mismatch =
         widget.measureNumber != 0 && actualUnits != expectedUnits;
     final actualBeats = actualUnits * parsed.beatType / 32;
+    final lyricsMoved = _lyricsMoved;
 
     return Scaffold(
       appBar: AppBar(
@@ -451,6 +464,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
               children: [
                 if (mismatch)
                   _warningBlock(actualBeats, parsed.beatsPerMeasure),
+                if (lyricsMoved) _lyricsWarningBlock(),
                 Expanded(
                   child: MeasureEditRow(
                     notes: _notes,
@@ -472,6 +486,41 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
 
   static String _fmtBeats(double v) =>
       v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
+
+  bool get _lyricsMoved =>
+      ChordEditor.lyricsMayBeMisaligned(_originalNotes, _notes);
+
+  // Lyrics no longer sit where they did (see
+  // ChordEditor.lyricsMayBeMisaligned). Nothing is dropped; this asks for a
+  // look. Same card as the beat warning, which it sits beside.
+  Widget _lyricsWarningBlock() {
+    return Container(
+      key: const ValueKey('lyrics_warning'),
+      width: 72,
+      height: 96,
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepOrange.shade200),
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lyrics_outlined, size: 22, color: Colors.deepOrange),
+          SizedBox(height: 4),
+          // One word: "Check lyrics" wraps in a 72px card and overflows it.
+          Text('Lyrics',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('may be out of line',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 10, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
 
   // Compact beat-mismatch warning, sized to match a note card so it sits flush
   // at the left of the note row.

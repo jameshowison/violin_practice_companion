@@ -18,6 +18,7 @@ const List<String> devLibrarySyncedFolders = [
   'media',
   'teacher_recordings',
   'scan_sources',
+  'abc_sources',
 ];
 
 /// The push half of the dev-library sync: merges a library staged in

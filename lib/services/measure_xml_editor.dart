@@ -14,10 +14,11 @@ import '../models/parsed_piece.dart';
 /// edit doesn't silently break the stack into sequential notes.
 ///
 /// **A rewritten measure keeps only what [NoteEvent] models.** Pitch, duration,
-/// dot, drawn accidental and fingering survive; grace notes are carried across
-/// as opaque elements (see [replaceMeasureNotes]); **slurs, ties, articulations,
-/// `<stem>` and `<lyric>` do not** — they live inside the `<note>` elements this
-/// rebuilds, and nothing holds them. Beams are the exception that proves the
+/// dot, drawn accidental, fingering and lyrics ([NoteEvent.lyrics]) survive;
+/// grace notes are carried across as opaque elements (see
+/// [replaceMeasureNotes]); **slurs, ties, articulations and `<stem>` do not**
+/// — they live inside the `<note>` elements this rebuilds, and nothing holds
+/// them. Beams are the exception that proves the
 /// rule: they aren't carried either, because a beam belongs to a *group* that
 /// an edit can invalidate, so [MusicXmlBeamer] recomputes them afterwards
 /// instead. Carrying the rest would mean growing [NoteEvent], which is a
@@ -398,6 +399,19 @@ class MeasureXmlEditor {
     return buf.toString();
   }
 
+  static String _lyricsXml(NoteEvent n) {
+    final verses = n.lyrics.keys.toList()..sort();
+    return [
+      for (final v in verses)
+        '<lyric number="$v"><syllabic>${n.lyrics[v]!.syllabic}</syllabic>'
+            '<text>${_escape(n.lyrics[v]!.text)}</text>'
+            '${n.lyrics[v]!.extend ? '<extend/>' : ''}</lyric>',
+    ].join();
+  }
+
+  static String _escape(String s) =>
+      s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
   static String _noteXml(NoteEvent n, int divisions) {
     final dur = _durationDivisions(n, divisions);
     final type = _typeName(n.noteValue);
@@ -412,8 +426,12 @@ class MeasureXmlEditor {
             '<fingering>${n.scoreFinger}</fingering>'
             '</technical></notations>'
         : '';
+    // Last in MusicXML's <note> order. Written for rests too: a syllable whose
+    // note was made a rest in the editor stays put (and the editor warns)
+    // rather than vanishing on save.
+    final lyrics = _lyricsXml(n);
     if (n.isRest) {
-      return '<note><rest/><duration>$dur</duration><type>$type</type>$dot</note>';
+      return '<note><rest/><duration>$dur</duration><type>$type</type>$dot$lyrics</note>';
     }
     // A chord member's marker comes first in MusicXML's <note> child order,
     // before <pitch>. Rests are never chord members.
@@ -428,6 +446,7 @@ class MeasureXmlEditor {
         '$dot'
         '$accidental'
         '$fingering'
+        '$lyrics'
         '</note>';
   }
 

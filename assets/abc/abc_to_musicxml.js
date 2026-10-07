@@ -93,8 +93,9 @@
   // wants the sounding pitch stated; MusicXmlNormalizer (Dart) resolves it on
   // import, and does so there rather than here so the circle of fifths lives in
   // exactly one place (models/key_signature.dart) instead of once per language.
-  function noteXml(el, warnings, beamXml) {
+  function noteXml(el, warnings, beamXml, lyricXml) {
     beamXml = beamXml || '';
+    lyricXml = lyricXml || '';
     var dur = durationToType(el.duration);
     if (!dur.exact) warnings.push('non-standard duration ' + el.duration + ' approximated as ' + dur.type + ' (e.g. a tuplet; timing may be off)');
     var divisions = Math.round(el.duration * 4 * DIVISIONS);
@@ -118,7 +119,58 @@
     }
     pitchXml += '<octave>' + so.octave + '</octave>';
     return '      <note><pitch>' + pitchXml + '</pitch><duration>' + divisions +
-      '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + beamXml + '</note>\n';
+      '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + beamXml + lyricXml + '</note>\n';
+  }
+
+  // abcjs aligns `w:` lyrics itself and hands each sung note
+  // el.lyric = [{syllable, divider}], one entry per verse (the Nth `w:` line
+  // under a music line is verse N). divider is what followed the syllable in
+  // the source: '-' (the word goes on), '_' (the syllable is held over the
+  // next note) or ' '. A note under a `_` or `*` gets an EMPTY syllable, and
+  // rests get no entry at all, so alignment is already done; what's left is
+  // the MusicXML word shape, which needs state carried from note to note —
+  // hence one pass over every note up front rather than inside noteXml.
+  //
+  // Returns a parallel array of `<lyric>` xml (possibly '') for [notes].
+  //
+  // A held syllable gets <extend/>. abcjs reports `d_ e` as divider '_' but a
+  // free-standing `_` (`d _e`) only as an empty syllable after the note, the
+  // same as `*` (skip a note) — so an empty successor counts as held too, and a
+  // `*` will draw an extender it shouldn't. `_` is by far the commoner of the
+  // two in folk-tune ABC.
+  //
+  // Never on a verse's LAST syllable, though (`see. _` at the end of a tune):
+  // Verovio ends an extender only at the verse's next syllable and ignores
+  // <extend type="stop"/>, so with no next syllable the line runs on under
+  // every remaining system to the end of the piece.
+  function lyricsXml(notes) {
+    var out = [];
+    var open = []; // per verse: is a hyphenated word in progress?
+    var last = []; // per verse: index of the note carrying its final syllable
+    for (var j = 0; j < notes.length; j++) {
+      var l = notes[j].lyric;
+      if (l) for (var u = 0; u < l.length; u++) if (l[u] && l[u].syllable) last[u] = j;
+    }
+    for (var i = 0; i < notes.length; i++) {
+      var lyr = notes[i].lyric, xml = '';
+      if (lyr) {
+        var next = null;
+        for (var k = i + 1; k < notes.length && !next; k++) if (notes[k].lyric) next = notes[k].lyric;
+        for (var v = 0; v < lyr.length; v++) {
+          var syl = lyr[v] && lyr[v].syllable;
+          if (!syl) continue; // held over, or skipped
+          var div = lyr[v].divider;
+          var cont = div === '-';
+          var syllabic = open[v] ? (cont ? 'middle' : 'end') : (cont ? 'begin' : 'single');
+          open[v] = cont;
+          var held = i < last[v] && (div === '_' || (next && next[v] && next[v].syllable === ''));
+          xml += '<lyric number="' + (v + 1) + '"><syllabic>' + syllabic + '</syllabic><text>' +
+            xmlEscape(syl) + '</text>' + (held && !cont ? '<extend/>' : '') + '</lyric>';
+        }
+      }
+      out.push(xml);
+    }
+    return out;
   }
 
   // abcjs attaches guitar chords (ABC `"A"`, `"Bm"`, `"E7"`) to a note as
@@ -221,6 +273,9 @@
     // open group and emit MusicXML <beam> begin/continue/end so beamed notes
     // (eighths and shorter) render with beams instead of individual flags.
     var inBeam = false;
+    var noteEls = [];
+    for (var ni = 0; ni < elements.length; ni++) if (elements[ni].el_type === 'note') noteEls.push(elements[ni]);
+    var lyrics = lyricsXml(noteEls), noteIx = 0;
     for (var ei = 0; ei < elements.length; ei++) {
       var el = elements[ei];
       if (el.el_type === 'note') {
@@ -239,7 +294,7 @@
         if (state) {
           for (var lv = 1; lv <= fl; lv++) beamXml += '<beam number="' + lv + '">' + state + '</beam>';
         }
-        cur.notes += chordHarmonyXml(el) + noteXml(el, warnings, beamXml);
+        cur.notes += chordHarmonyXml(el) + noteXml(el, warnings, beamXml, lyrics[noteIx++]);
       } else if (el.el_type === 'bar') {
         inBeam = false; // beams never cross a barline
         var hasContent = cur.notes.length > 0;
@@ -266,6 +321,19 @@
     out += '<score-partwise version="3.1">\n';
     if (tune.metaText && tune.metaText.title) {
       out += '  <work><work-title>' + xmlEscape(tune.metaText.title) + '</work-title></work>\n';
+    }
+    // `W:` words — verses printed after the tune, not aligned to notes. Kept
+    // (not yet displayed) in a miscellaneous field, which every renderer
+    // ignores; a <credit> would get engraved by Verovio as page text.
+    var words = tune.metaText && tune.metaText.unalignedWords;
+    if (words && words.length) {
+      var wordsText = [];
+      for (var wi = 0; wi < words.length; wi++) {
+        var w = words[wi];
+        wordsText.push(typeof w === 'string' ? w : (w && w.text) || '');
+      }
+      out += '  <identification><miscellaneous><miscellaneous-field name="abc-words">' +
+        xmlEscape(wordsText.join('\n')) + '</miscellaneous-field></miscellaneous></identification>\n';
     }
     out += '  <part-list><score-part id="P1"><part-name>Violin</part-name></score-part></part-list>\n';
     out += '  <part id="P1">\n';

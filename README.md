@@ -339,7 +339,7 @@ Pushing the library repo to GitHub is a separate, manual step.
 
 What syncs: everything a user makes, with the same ids on every device — the
 `scanned_pieces/`, `editable_fixtures/`, `section_overrides/`, `media/` and
-`teacher_recordings/` and `scan_sources/` folders of the app's Documents, plus the prefs-held titles,
+`teacher_recordings/`, `scan_sources/` and `abc_sources/` folders of the app's Documents, plus the prefs-held titles,
 media rows and library (collections, hidden pieces, renames) in `state.json`.
 
 How it decides: a three-way merge per item, against what that device held at its

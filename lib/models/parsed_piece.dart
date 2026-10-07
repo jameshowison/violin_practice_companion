@@ -124,6 +124,19 @@ class ParsedPiece {
   List<NoteEvent> get allNotes =>
       measures.expand((m) => m.notes).toList(growable: false);
 
+  /// The highest lyric verse number on any note — 0 for a piece with no lyrics.
+  int get verseCount {
+    var n = 0;
+    for (final m in measures) {
+      for (final note in m.notes) {
+        for (final v in note.lyrics.keys) {
+          if (v > n) n = v;
+        }
+      }
+    }
+    return n;
+  }
+
   /// Document-measure indices in performance order, honoring simple forward/
   /// backward repeats. A forward repeat ([Measure.repeatStart]) sets the return
   /// point; a backward repeat ([Measure.repeatEnd]), the first time it's

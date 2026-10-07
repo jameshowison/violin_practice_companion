@@ -34,7 +34,7 @@ for arg in "${@:2}"; do
   esac
 done
 BUNDLE="name.howison.violinPracticeCompanion"
-FOLDERS=(scanned_pieces editable_fixtures section_overrides media teacher_recordings scan_sources)
+FOLDERS=(scanned_pieces editable_fixtures section_overrides media teacher_recordings scan_sources abc_sources)
 
 if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   DATA=$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)

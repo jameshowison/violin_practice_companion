@@ -65,7 +65,13 @@ dependencies:
   device_info_plus: ^11.1.1
   verovio_flutter: ^0.3.1
   flutter_svg: ^2.3.0
-  jovial_svg: ^1.1.29
+  # Vendored 1.1.29 with one local patch, so an SVG's font-family is actually
+  # used (upstream only ever passes it as a fallback, which leaves Verovio's
+  # lyrics in the system sans while they were spaced for Times). See
+  # packages/jovial_svg/CHANGELOG.md. Drop back to the hosted package once
+  # upstream fixes `_doWithPainter`.
+  jovial_svg:
+    path: packages/jovial_svg
 
   # Play-along audio/score sync: `just_audio` drives backing-track playback,
   # `wav` decodes the analysis track to PCM (pure Dart, zero native deps — see

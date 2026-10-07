@@ -384,6 +384,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       onChanged: (v) =>
                           ref.read(showChordsProvider.notifier).state = v,
                     ),
+                    if (displayMode != DisplayMode.tab &&
+                        ref.watch(pieceVerseCountProvider) > 0)
+                      const _LyricVersePicker(),
                   ],
                   // Shared by the two views that put a number on a note: the tab
                   // staff's string lines and the annotation view's fingering
@@ -923,6 +926,35 @@ class _FingeringDensityPolicyPicker extends ConsumerWidget {
 /// Violin fingering vs mandolin fret, for the tab staff and the annotation
 /// view's fingering channel alike — one preference, so the same control appears
 /// in both sections of the drawer showing the same value.
+/// Which lyric verse the staff and annotated views engrave, or none. Only
+/// shown for a piece that has lyrics. Experimental: a change re-engraves, so
+/// the page can reflow — see [lyricVerseProvider].
+class _LyricVersePicker extends ConsumerWidget {
+  const _LyricVersePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(pieceVerseCountProvider);
+    final verse = ref.watch(lyricVerseProvider);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text('Lyrics'),
+        DropdownButton<int?>(
+          value: verse != null && verse > count ? null : verse,
+          isDense: true,
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('Off')),
+            for (var v = 1; v <= count; v++)
+              DropdownMenuItem<int?>(value: v, child: Text('Verse $v')),
+          ],
+          onChanged: (v) => ref.read(lyricVerseProvider.notifier).state = v,
+        ),
+      ],
+    );
+  }
+}
+
 class _NoteNumberPicker extends ConsumerWidget {
   const _NoteNumberPicker();
 
