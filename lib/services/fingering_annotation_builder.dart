@@ -100,10 +100,9 @@ List<FingeringAnnotation> fingeringAnnotations(
       // A chord member sounds at the primary note's onset, so its chip would
       // land on the same x. Skip it — but it still consumed a note index in
       // both the parsed model and the engraved anchors, so the indices stay
-      // aligned either way. A tie continuation is held, not played, so it
-      // gets no chip of its own either — the finger is the one already down.
-      final drawable =
-          hasFingering && !note.isChord && !note.tieStop && measureIndex >= 0;
+      // aligned either way. A tie continuation keeps its chip: it repeats the
+      // finger already down, which reads as "hold it" next to its notehead.
+      final drawable = hasFingering && !note.isChord && measureIndex >= 0;
 
       // What this note's chip would say and sit on. Resolved for every fingered
       // note, drawn or not, so `prevString` (the `onChange` letter) tracks the
