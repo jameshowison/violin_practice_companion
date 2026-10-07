@@ -14,9 +14,9 @@ import '../models/parsed_piece.dart';
 /// edit doesn't silently break the stack into sequential notes.
 ///
 /// **A rewritten measure keeps only what [NoteEvent] models.** Pitch, duration,
-/// dot, drawn accidental, fingering and lyrics ([NoteEvent.lyrics]) survive;
-/// grace notes are carried across as opaque elements (see
-/// [replaceMeasureNotes]); **slurs, ties, articulations and `<stem>` do not**
+/// dot, drawn accidental, fingering, ties and lyrics ([NoteEvent.lyrics])
+/// survive; grace notes are carried across as opaque elements (see
+/// [replaceMeasureNotes]); **slurs, articulations and `<stem>` do not**
 /// — they live inside the `<note>` elements this rebuilds, and nothing holds
 /// them. Beams are the exception that proves the
 /// rule: they aren't carried either, because a beam belongs to a *group* that
@@ -421,11 +421,20 @@ class MeasureXmlEditor {
     // <notations>. null means "follow the key signature, no sign drawn".
     final accidental =
         n.displayAccidental != null ? '<accidental>${n.displayAccidental}</accidental>' : '';
-    final fingering = n.scoreFinger != null
-        ? '<notations><technical>'
-            '<fingering>${n.scoreFinger}</fingering>'
-            '</technical></notations>'
+    // <tie> (sounding) goes after <duration>; <tied> (the arc) shares the one
+    // <notations> with the fingering. A tie crossing a barline lives in two
+    // bars and an edit rewrites one, so an edit can leave half a tie behind —
+    // harmless: MidiGenerator only joins a stop to a matching start.
+    final tie = '${n.tieStop ? '<tie type="stop"/>' : ''}'
+        '${n.tieStart ? '<tie type="start"/>' : ''}';
+    final tied = '${n.tieStop ? '<tied type="stop"/>' : ''}'
+        '${n.tieStart ? '<tied type="start"/>' : ''}';
+    final technical = n.scoreFinger != null
+        ? '<technical><fingering>${n.scoreFinger}</fingering></technical>'
         : '';
+    final fingering = (tied.isEmpty && technical.isEmpty)
+        ? ''
+        : '<notations>$tied$technical</notations>';
     // Last in MusicXML's <note> order. Written for rests too: a syllable whose
     // note was made a rest in the editor stays put (and the editor warns)
     // rather than vanishing on save.
@@ -442,6 +451,7 @@ class MeasureXmlEditor {
         '$chord'
         '<pitch><step>${p.step}</step>$alter<octave>${p.octave}</octave></pitch>'
         '<duration>$dur</duration>'
+        '$tie'
         '<type>$type</type>'
         '$dot'
         '$accidental'

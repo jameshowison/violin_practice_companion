@@ -118,8 +118,18 @@
       accXml = '<accidental>' + ACC_NAME[p.accidental] + '</accidental>';
     }
     pitchXml += '<octave>' + so.octave + '</octave>';
+    // Ties: abcjs marks `A2-` with pitch.startTie = {} and the next note (across
+    // a barline too) with pitch.endTie = true; a note in the middle of a chain
+    // carries both. <tie> is the sounding half (after <duration>), <tied> the
+    // engraved arc (in <notations>, after the beams). abcjs doesn't check that
+    // the two notes share a pitch; the app's MIDI generator does.
+    var tieXml = '', tiedXml = '';
+    if (p.endTie) { tieXml += '<tie type="stop"/>'; tiedXml += '<tied type="stop"/>'; }
+    if (p.startTie) { tieXml += '<tie type="start"/>'; tiedXml += '<tied type="start"/>'; }
+    var notationsXml = tiedXml ? '<notations>' + tiedXml + '</notations>' : '';
     return '      <note><pitch>' + pitchXml + '</pitch><duration>' + divisions +
-      '</duration><type>' + dur.type + '</type>' + dotsXml + accXml + beamXml + lyricXml + '</note>\n';
+      '</duration>' + tieXml + '<type>' + dur.type + '</type>' + dotsXml + accXml + beamXml +
+      notationsXml + lyricXml + '</note>\n';
   }
 
   // abcjs aligns `w:` lyrics itself and hands each sung note
