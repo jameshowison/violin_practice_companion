@@ -201,6 +201,7 @@ class ChordEditor {
               noteValue: n.noteValue,
               dotted: n.dotted,
               isRest: false,
+              lyrics: n.lyrics,
             );
     } else {
       out[i] = n.copyWith(isRest: true);
@@ -222,11 +223,37 @@ class ChordEditor {
   /// the stack isn't re-parented onto whatever precedes — deleting the bottom
   /// note of a double-stop leaves the top note sounding in the same slot, and
   /// the bar total is unchanged. Returns the index to select (null when empty).
+  ///
+  /// The deleted note's lyrics are not deleted with it: each verse's syllable
+  /// is handed to the next note in the bar (else the previous one) and merged
+  /// with whatever that note already sings — see [Lyric.mergedWith]. Words get
+  /// out of line rather than lost, and the editor flags the bar for a look.
+  /// Only the last note of a bar has nowhere to hand them.
   static ({List<NoteEvent> notes, int? selectedIndex}) deleteAt(
       List<NoteEvent> notes, int i) {
     final out = [...notes];
     if (!out[i].isChord && i + 1 < out.length && out[i + 1].isChord) {
       out[i + 1] = out[i + 1].copyWith(isChord: false);
+    }
+    final orphaned = out[i].lyrics;
+    if (orphaned.isNotEmpty) {
+      // A syllable sits on a stack's primary — chord members add no slot of
+      // their own — so the heir is the primary of the neighbouring slot.
+      final int? heir = i + 1 < out.length
+          ? primaryIndexOf(out, i + 1)
+          : (i > 0 ? primaryIndexOf(out, i - 1) : null);
+      if (heir != null && heir != i) {
+        // Which side the heir is on decides which syllable reads first.
+        final after = heir > i;
+        final merged = {...out[heir].lyrics};
+        orphaned.forEach((v, lyric) {
+          final there = merged[v];
+          merged[v] = there == null
+              ? lyric
+              : (after ? lyric.mergedWith(there) : there.mergedWith(lyric));
+        });
+        out[heir] = out[heir].copyWith(lyrics: merged);
+      }
     }
     out.removeAt(i);
     return (
@@ -234,6 +261,33 @@ class ChordEditor {
       selectedIndex: out.isEmpty ? null : i.clamp(0, out.length - 1),
     );
   }
+
+  /// Whether an edit from [original] to [edited] may have left a bar's lyrics
+  /// out of line with its notes, so the editor should say so.
+  ///
+  /// The editor never drops a syllable (see [deleteAt]), but it can't know
+  /// where one belongs once notes come and go: an inserted note sings nothing,
+  /// a deleted one hands its words to a neighbour, a note turned into a rest
+  /// keeps its syllable on the rest. So: any change to which note carries
+  /// which syllable, or a syllable now on a rest. False for a bar with no
+  /// lyrics, and for edits that leave every syllable where it was — a pitch or
+  /// duration fix, the common case.
+  static bool lyricsMayBeMisaligned(
+      List<NoteEvent> original, List<NoteEvent> edited) {
+    if (original.every((n) => n.lyrics.isEmpty) &&
+        edited.every((n) => n.lyrics.isEmpty)) {
+      return false;
+    }
+    if (original.length != edited.length) return true;
+    for (var i = 0; i < edited.length; i++) {
+      if (edited[i].isRest && edited[i].lyrics.isNotEmpty) return true;
+      if (!_sameLyrics(original[i].lyrics, edited[i].lyrics)) return true;
+    }
+    return false;
+  }
+
+  static bool _sameLyrics(Map<int, Lyric> a, Map<int, Lyric> b) =>
+      a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
   /// Rebuilds [from] with a new sounding pitch.
   ///
@@ -263,6 +317,8 @@ class ChordEditor {
         displayAccidental: displayAccidental,
         chordSymbol: from.chordSymbol,
         isChord: from.isChord,
+        // The syllable belongs to the note's slot, not its pitch.
+        lyrics: from.lyrics,
         scoreFinger: keepFingering ? from.scoreFinger : null,
         fingerNumber: keepFingering ? from.fingerNumber : null,
         fingerString: keepFingering ? from.fingerString : null,

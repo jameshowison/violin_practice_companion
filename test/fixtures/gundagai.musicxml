@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>Along the Road to Gundagai</work-title></work>
+  <part-list><score-part id="P1"><part-name>Violin</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1" implicit="yes">
+      <attributes>
+        <divisions>96</divisions>
+        <key><fifths>1</fifths><mode>major</mode></key>
+        <time><beats>2</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="2">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="3">
+      <harmony>
+        <root><root-step>B</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="4">
+      <harmony>
+        <root><root-step>C</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="5">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="6">
+      <harmony>
+        <root><root-step>A</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>144</duration><type>quarter</type><dot/></note>
+    </measure>
+    <measure number="7">
+      <harmony>
+        <root><root-step>D</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="8">
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
+    </measure>
+    <measure number="9">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="10">
+      <harmony>
+        <root><root-step>C</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="11">
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="12">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="13">
+      <harmony>
+        <root><root-step>E</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="14">
+      <harmony>
+        <root><root-step>A</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+    </measure>
+    <measure number="15">
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <harmony>
+        <root><root-step>D</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="16">
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
+    </measure>
+    <measure number="17">
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><rest/><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="18">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="19">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="20">
+      <harmony>
+        <root><root-step>C</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="21">
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="22">
+      <harmony>
+        <root><root-step>E</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="23">
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+    </measure>
+    <measure number="24">
+      <harmony>
+        <root><root-step>A</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="25">
+      <harmony>
+        <root><root-step>D</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="26">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="27">
+      <harmony>
+        <root><root-step>B</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="28">
+      <harmony>
+        <root><root-step>C</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>72</duration><type>eighth</type><dot/><beam number="1">begin</beam></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>24</duration><type>16th</type><beam number="1">end</beam><beam number="2">end</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="29">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
+    </measure>
+    <measure number="30">
+      <harmony>
+        <root><root-step>A</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>144</duration><type>quarter</type><dot/></note>
+    </measure>
+    <measure number="31">
+      <harmony>
+        <root><root-step>D</root-step></root>
+        <kind>dominant</kind>
+        </harmony>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>144</duration><type>quarter</type><dot/></note>
+    </measure>
+    <measure number="32">
+      <harmony>
+        <root><root-step>G</root-step></root>
+        <kind>major</kind>
+        </harmony>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+    </measure>
+    <measure number="33">
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type></note>
+      <note><rest/><duration>48</duration><type>eighth</type></note>
+    </measure>
+  </part>
+</score-partwise>

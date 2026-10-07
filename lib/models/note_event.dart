@@ -26,6 +26,52 @@ extension KeyModeInfo on KeyMode {
 
 enum DisplayMode { staff, staffFingering, jianpu, fingering, combined, tab }
 
+/// One lyric syllable: a MusicXML `<lyric>`'s `<text>`, `<syllabic>`
+/// (`single`/`begin`/`middle`/`end` — where it sits in its word, which is what
+/// draws the hyphens) and whether it carries an `<extend/>` (held over the
+/// following notes).
+class Lyric {
+  final String text;
+  final String syllabic;
+  final bool extend;
+
+  const Lyric(this.text, {this.syllabic = 'single', this.extend = false});
+
+  /// Whether this syllable carries on a word begun on an earlier note.
+  bool get continuesWord => syllabic == 'middle' || syllabic == 'end';
+
+  /// Whether its word goes on to a later note.
+  bool get wordGoesOn => syllabic == 'begin' || syllabic == 'middle';
+
+  /// This syllable followed by [next] as one: the joint is a hyphen inside a
+  /// word, else a space, and the result's place in its word is the first's
+  /// start and the second's end. How the measure editor keeps a deleted note's
+  /// words rather than losing them.
+  Lyric mergedWith(Lyric next) {
+    final starts = continuesWord, goesOn = next.wordGoesOn;
+    return Lyric(
+      '$text${wordGoesOn ? '' : ' '}${next.text}',
+      syllabic: starts
+          ? (goesOn ? 'middle' : 'end')
+          : (goesOn ? 'begin' : 'single'),
+      extend: next.extend,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Lyric &&
+      other.text == text &&
+      other.syllabic == syllabic &&
+      other.extend == extend;
+
+  @override
+  int get hashCode => Object.hash(text, syllabic, extend);
+
+  @override
+  String toString() => 'Lyric($text, $syllabic${extend ? ', extend' : ''})';
+}
+
 class NoteEvent {
   final String pitch;
   final int midiNumber;
@@ -67,6 +113,14 @@ class NoteEvent {
   /// by MidiGenerator so chord notes play together instead of sequentially.
   final bool isChord;
 
+  /// The lyric syllable sung on this note, by verse number (1-based, as in
+  /// MusicXML `<lyric number>`). Empty when nothing is sung here — a rest, or a
+  /// note a previous syllable is held over. Populated by [MusicXmlParser]; the
+  /// staff views engrave lyrics from the xml itself (see [LyricXmlInjector]),
+  /// so this is what the verse picker counts from — and what the measure
+  /// editor writes back, so a syllable travels with its note through an edit.
+  final Map<int, Lyric> lyrics;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -83,6 +137,7 @@ class NoteEvent {
     this.fingerNumber,
     this.chordSymbol,
     this.isChord = false,
+    this.lyrics = const {},
   });
 
   NoteEvent copyWith({
@@ -101,6 +156,7 @@ class NoteEvent {
     String? fingerNumber,
     String? chordSymbol,
     bool? isChord,
+    Map<int, Lyric>? lyrics,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -119,5 +175,6 @@ class NoteEvent {
         fingerNumber: fingerNumber ?? this.fingerNumber,
         chordSymbol: chordSymbol ?? this.chordSymbol,
         isChord: isChord ?? this.isChord,
+        lyrics: lyrics ?? this.lyrics,
       );
 }

@@ -463,6 +463,7 @@ class VerovioEngraver {
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
     }
+    processedSvg = resolveTextFont(processedSvg);
     processedSvg = flattenForRenderer(processedSvg);
 
     return EngravedScore(
@@ -622,6 +623,14 @@ class VerovioEngraver {
   /// `(y + translateY) * rootWidth / innerWidth`. All three terms are read out
   /// of this SVG rather than assumed, because they move with the engrave.
   ///
+  /// Lyrics are the exception to "anything carrying a rect": Verovio emits the
+  /// `verse`/`syl` boxes, and the `text` boxes inside them, EMPTY (Verovio 6.2,
+  /// checked on Gundagai: 84 of 84). Left out, a system's bottom stopped at its
+  /// notes and the next system's chord bars were drawn over the words. So each
+  /// syllable is added by hand, from its `<text>` baseline plus
+  /// [_lyricDescent] of its font size — the extenders and hyphens drawn between
+  /// syllables sit above the baseline, so the text alone bounds the line.
+  ///
   /// Returns null when [svg] carries no boxes, so callers can fall back: test
   /// fixtures recorded before `svgBoundingBoxes` was turned on have none.
   static List<({double top, double bottom})>? systemInkBoxes(String svg) {
@@ -672,10 +681,46 @@ class VerovioEngraver {
       // A system with no boxes at all means the option did not take; falling
       // back wholesale beats returning one bogus band among good ones.
       if (top == null || bottom == null) return null;
-      out.add((top: (top + dy) * factor, bottom: (bottom + dy) * factor));
+      var inkBottom = bottom;
+      for (final m in _sylText.allMatches(svg, starts[s])) {
+        if (m.start >= end) break;
+        final lyricBottom = double.parse(m.group(1)!) +
+            double.parse(m.group(2)!) * _lyricDescent;
+        if (lyricBottom > inkBottom) inkBottom = lyricBottom;
+      }
+      out.add((top: (top + dy) * factor, bottom: (inkBottom + dy) * factor));
     }
     return out;
   }
+
+  /// A lyric syllable's baseline and font size: `<g class="syl">` … `<text y>`
+  /// … `<tspan font-size>`, all inside the one group.
+  static final _sylText = RegExp(
+    r'class="syl">(?:(?!</g>\s*</g>)[\s\S])*?<text[^>]*\by="(-?[\d.]+)"[^>]*>'
+    r'[\s\S]*?<tspan font-size="([\d.]+)px"',
+  );
+
+  /// How far below the baseline a lyric's ink can reach, as a fraction of its
+  /// font size: Times' descender (g, p, y) is about 0.22 em, rounded up so
+  /// the next system's chord bar clears it rather than touching.
+  static const _lyricDescent = 0.3;
+
+    /// Names the serif Verovio laid its text out in by a family the platform
+  /// actually has.
+  ///
+  /// Verovio spaces lyrics (and sizes all its text) with Times metrics and
+  /// writes `font-family="Times, serif"` once, on its inner `<svg>`. Drawn in
+  /// the wider system sans instead, neighbouring words that Verovio had spaced
+  /// for Times ran together ("soundThat"). Three things stood between the name
+  /// and the glyphs: [flattenForRenderer] used to drop the attribute with the
+  /// inner `<svg>`; jovial_svg only ever passed it as a font FALLBACK (patched —
+  /// see packages/jovial_svg/CHANGELOG.md); and on iOS neither name resolves —
+  /// the family there is "Times New Roman", and Flutter has no `serif` generic
+  /// on iOS. Putting the real family first fixes iOS and macOS; Android still
+  /// falls through to `serif`.
+  static String resolveTextFont(String svg) => svg.replaceAll(
+      'font-family="Times, serif"',
+      'font-family="Times New Roman, Times, serif"');
 
   /// Cuts Verovio's `svgBoundingBoxes` groups back out. They are all one of two
   /// shallow shapes — empty, or a single `<rect/>` — and none nests a `<g>`
@@ -888,9 +933,15 @@ class VerovioEngraver {
       final ih = double.parse(innerOpen.group(2)!);
       final sx = (ow / iw).toStringAsFixed(6);
       final sy = (oh / ih).toStringAsFixed(6);
+      // Carry the inner svg's font-family across: it is the only place
+      // Verovio names a text font, and every `<text>` inherits it from there.
+      // Dropping it left all engraved text in the platform default — see
+      // [resolveTextFont].
+      final font =
+          RegExp(r'font-family="[^"]*"').firstMatch(innerOpen.group(0)!)?.group(0);
       out = out.replaceFirst(
         innerOpen.group(0)!,
-        '<g transform="scale($sx, $sy)">',
+        '<g transform="scale($sx, $sy)"${font == null ? '' : ' $font'}>',
       );
       // First </svg> closes the (removed) inner svg; outer </svg> stays.
       out = out.replaceFirst('</svg>', '</g>');

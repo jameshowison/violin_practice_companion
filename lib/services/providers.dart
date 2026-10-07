@@ -25,6 +25,7 @@ import 'musicxml_parser.dart';
 import 'fingering_xml_injector.dart';
 import 'chord_shape_library.dart';
 import 'chord_xml_injector.dart';
+import 'lyric_xml_injector.dart';
 import 'count_in_store.dart';
 import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
@@ -32,6 +33,7 @@ import 'piece_library_store.dart';
 import 'piece_repository.dart';
 import 'dev_library.dart';
 import 'scan_source_store.dart';
+import 'abc_source_store.dart';
 import 'media_alignment_store.dart';
 import 'media_catalog.dart';
 import 'media_paths.dart';
@@ -288,6 +290,7 @@ class LibraryActions {
     // piece with nothing left in the app pointing at it.
     await _ref.read(mediaActionsProvider).deleteAllFor(pieceId);
     await _ref.read(scanSourceStoreProvider).delete(pieceId);
+    await _ref.read(abcSourceStoreProvider).delete(pieceId);
     await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
     if (_ref.read(selectedPieceProvider)?.id == pieceId) {
       _ref.read(selectedPieceProvider.notifier).state = null;
@@ -351,6 +354,10 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 
 final scanSourceStoreProvider = Provider<ScanSourceStore>(
   (_) => ScanSourceStore(),
+);
+
+final abcSourceStoreProvider = Provider<AbcSourceStore>(
+  (_) => AbcSourceStore(),
 );
 
 final staffZoomStoreProvider = Provider<StaffZoomStore>(
@@ -667,6 +674,29 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 // Session-only, matching the other display-preference providers.
 final showChordsProvider = StateProvider<bool>((_) => true);
 
+// ── Lyric display preference ──────────────────────────────────────────────────
+/// Which lyric verse the staff and annotated views engrave: 1 by default, null
+/// for none. Resets to verse 1 when the piece changes, so a verse picked on a
+/// four-verse song doesn't leave the next piece silently showing nothing.
+/// Session-only, matching the other display-preference providers.
+///
+/// Unlike [showChordsProvider], this one DOES reach the xml under the native
+/// renderer, so changing it re-engraves and may reflow the page (see
+/// [_stripHarmonyFor] for why a chord toggle must not). That's deliberate:
+/// Verovio spaces the notes to fit the syllables, so hiding a verse while
+/// keeping its reservation would leave the staff full of gaps sized for words
+/// that aren't there. The picker is experimental; if the reflow grates, the
+/// reservation trick is the thing to revisit.
+final lyricVerseProvider = StateProvider<int?>((ref) {
+  ref.watch(selectedPieceProvider);
+  return 1;
+});
+
+/// How many lyric verses the selected piece has — 0 hides the verse picker.
+final pieceVerseCountProvider = Provider<int>(
+  (ref) => ref.watch(parsedPieceProvider).valueOrNull?.verseCount ?? 0,
+);
+
 /// The chords this piece introduces, in order of first appearance, limited to
 /// the ones [ChordShapeLibrary] can draw.
 ///
@@ -816,6 +846,7 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   xml = _lockedBreaksFor(ref, xml, piece.sections);
   xml = FingeringXmlInjector.stripFingerings(xml);
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
+  xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
   return xml;
 });
 
@@ -856,6 +887,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   }
   // Keep `<harmony>` for the native renderer so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
+  xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
   return xml;
 });
 
@@ -904,6 +936,9 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   // exactly what this comment used to claim was happening while the view in fact
   // showed no chords at all.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
+  // No lyrics in the tab view (yet): the melody staff would carry them, but
+  // the space under it is the tab staff's.
+  xml = LyricXmlInjector.selectVerse(xml, null);
   return TabScoreGenerator.generate(
     xml,
     parsed,

@@ -74,6 +74,7 @@ class _AbcImportScreenState extends ConsumerState<AbcImportScreen> {
 
       final piece =
           await ref.read(pieceRepositoryProvider).savePiece(title, result.musicXml);
+      await ref.read(abcSourceStoreProvider).save(piece.id, abc);
       ref.invalidate(piecesProvider);
 
       if (!mounted) return;

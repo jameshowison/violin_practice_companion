@@ -1,0 +1,49 @@
+name: jovial_svg
+description: SVG - Robust rendering of Scalable Vector Graphic images, supporting a well-defined profile of SVG, a fast-loading binary storage format, and animation.
+version: 1.1.29
+homepage:  https://bill.jovial.com/
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.27.0"
+    #  
+    #  Flutter 3.0 and SDK 2.17 marked as required on May 12, 2022 to work
+    #  around breakage on pub.dev.  
+    #  cf. https://pub.dev/packages/jovial_svg/versions/1.1.5-rc.1/score
+    #  Before that...
+    #  
+    #  Flutter 2.5.0 or better is needed, because previous versions had a bug
+    #  related to image disposal.  For versions prior to 2.5.0, one would need
+    #  to change the value of ScalableImage.imageDisposeBugWorkaround back
+    #  to disposeNeither, as was the case in jovial_svg 1.0.6 and prior.
+    #
+    #  Flutter 2.5 was introduced with SDK version 2.14.  Note that 
+    #  2.14 is also required for the migration away from Google's
+    #  "pedantic," since unawaited was moved to async.
+
+dependencies:
+  xml: ^6.3.0
+  collection: ^1.15.0
+  args: ^2.0.0
+  vector_math: ^2.1.0
+  jovial_misc: ^0.10.0
+  http: ^1.0.0
+  meta: ^1.7.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+executables:
+  avd_to_si:
+  svg_to_si:
+
+repository: https://github.com/zathras/jovial_svg
+
+issues: https://github.com/zathras/jovial_svg/issues
+
+flutter:
+

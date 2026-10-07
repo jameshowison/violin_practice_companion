@@ -697,10 +697,9 @@ packages:
   jovial_svg:
     dependency: "direct main"
     description:
-      name: jovial_svg
-      sha256: "99e9c3afcf7371ae38083ad52de23677d6d751f46150c3c6ae842e009e84d9f0"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/jovial_svg"
+      relative: true
+    source: path
     version: "1.1.29"
   js:
     dependency: transitive

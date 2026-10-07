@@ -124,6 +124,24 @@ class MusicXmlParser {
                 ? null
                 : accidentalText;
 
+        // <lyric number="N"><text>…</text></lyric>, one per verse. A missing
+        // number means verse 1 (the MusicXML default).
+        final lyrics = <int, Lyric>{};
+        for (final lyricEl in noteEl.findElements('lyric')) {
+          final verse = int.tryParse(lyricEl.getAttribute('number') ?? '1') ?? 1;
+          final text = lyricEl.findElements('text').map((t) => t.innerText).join();
+          if (text.isEmpty) continue;
+          lyrics[verse] = Lyric(
+            text,
+            syllabic:
+                lyricEl.findElements('syllabic').firstOrNull?.innerText.trim() ??
+                    'single',
+            extend: lyricEl
+                .findElements('extend')
+                .any((e) => e.getAttribute('type') != 'stop'),
+          );
+        }
+
         notes.add(NoteEvent(
           pitch: pitch,
           midiNumber: midiNumber,
@@ -135,6 +153,7 @@ class MusicXmlParser {
           displayAccidental: displayAccidental,
           chordSymbol: pendingChord,
           isChord: isChord,
+          lyrics: lyrics,
         ));
         pendingChord = null;
       }
