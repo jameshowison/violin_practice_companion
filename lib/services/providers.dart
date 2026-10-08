@@ -27,6 +27,7 @@ import 'chord_shape_library.dart';
 import 'chord_xml_injector.dart';
 import 'lyric_xml_injector.dart';
 import 'count_in_store.dart';
+import 'piece_display_prefs.dart';
 import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
@@ -338,7 +339,12 @@ final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 const staffSpacingMin = 0.1;
 const staffSpacingMax = 1.5;
 const staffSpacingDefault = 0.5;
-final staffSpacingProvider = StateProvider<double>((_) => staffSpacingDefault);
+final staffSpacingProvider = pieceDisplayPref<double>(
+  'staffSpacing',
+  staffSpacingDefault,
+  encode: (v) => '$v',
+  decode: double.parse,
+);
 
 // ── Measures per row (updated at runtime from screen width) ──────────────────
 
@@ -492,8 +498,12 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
 
 // ── Display mode ──────────────────────────────────────────────────────────────
 
-final displayModeProvider = StateProvider<DisplayMode>(
-  (_) => DisplayMode.staff,
+// Remembered per piece, like the other display preferences — see
+// [pieceDisplayPref].
+final displayModeProvider = pieceDisplayEnumPref<DisplayMode>(
+  'view',
+  DisplayMode.staff,
+  DisplayMode.values,
 );
 
 // ── Piece media (what plays the piece) ───────────────────────────────────────
@@ -671,14 +681,18 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 // ── Chord-symbol display preference ───────────────────────────────────────────
 // Chord symbols are shown above the staff in the staff, annotation & tab views;
 // toggling off hides them (and the "New chords" footer).
-// Session-only, matching the other display-preference providers.
-final showChordsProvider = StateProvider<bool>((_) => true);
+// Remembered per piece — see [pieceDisplayPref].
+final showChordsProvider = pieceDisplayPref<bool>(
+  'chords',
+  true,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
 
 // ── Lyric display preference ──────────────────────────────────────────────────
 /// Which lyric verse the staff and annotated views engrave: 1 by default, null
-/// for none. Resets to verse 1 when the piece changes, so a verse picked on a
+/// for none. Remembered per piece ([pieceDisplayPref]), so a verse picked on a
 /// four-verse song doesn't leave the next piece silently showing nothing.
-/// Session-only, matching the other display-preference providers.
 ///
 /// Unlike [showChordsProvider], this one DOES reach the xml under the native
 /// renderer, so changing it re-engraves and may reflow the page (see
@@ -687,10 +701,12 @@ final showChordsProvider = StateProvider<bool>((_) => true);
 /// keeping its reservation would leave the staff full of gaps sized for words
 /// that aren't there. The picker is experimental; if the reflow grates, the
 /// reservation trick is the thing to revisit.
-final lyricVerseProvider = StateProvider<int?>((ref) {
-  ref.watch(selectedPieceProvider);
-  return 1;
-});
+final lyricVerseProvider = pieceDisplayPref<int?>(
+  'lyricVerse',
+  1,
+  encode: (v) => v == null ? 'none' : '$v',
+  decode: (s) => s == 'none' ? null : int.parse(s),
+);
 
 /// How many lyric verses the selected piece has — 0 hides the verse picker.
 final pieceVerseCountProvider = Provider<int>(
@@ -765,7 +781,7 @@ bool _stripHarmonyFor(Ref ref) =>
 // All three apply to the annotation view only, and none of them changes what is
 // ENGRAVED — the labels are drawn in a Flutter lane (`_FingeringLanePainter`), so
 // every one of these repaints without a re-engrave.
-// Session-only, matching the other display-preference providers.
+// Remembered per piece — see [pieceDisplayPref].
 
 /// How the fingering channel shows the string (G green, D blue, A red, E
 /// yellow): as a filled chip, as a rule under near-black numbers, or not at all.
@@ -774,13 +790,17 @@ bool _stripHarmonyFor(Ref ref) =>
 /// [StringColourStyle.off] the [stringLabelStyleProvider] letter rules apply
 /// instead. Three styles so they can be compared on real music — see
 /// [StringColourStyle].
-final stringColourStyleProvider = StateProvider<StringColourStyle>(
-  (_) => StringColourStyle.chips,
+final stringColourStyleProvider = pieceDisplayEnumPref<StringColourStyle>(
+  'stringColour',
+  StringColourStyle.underline,
+  StringColourStyle.values,
 );
 
 /// How much fingering the annotation view shows.
-final fingeringDensityProvider = StateProvider<FingeringDensity>(
-  (_) => FingeringDensity.all,
+final fingeringDensityProvider = pieceDisplayEnumPref<FingeringDensity>(
+  'fingeringDetail',
+  FingeringDensity.all,
+  FingeringDensity.values,
 );
 
 /// Which rule decides what "crucial" fingering means at the lower densities.
@@ -895,20 +915,24 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
 /// labels a note: the tab staff's string lines AND the annotation view's
 /// fingering channel. ONE preference for both — see [NoteNumberMode].
 ///
-/// Session-only, matching the other display-preference providers.
+/// Remembered per piece — see [pieceDisplayPref].
 ///
 /// Note the asymmetry in what a change costs: the tab staff carries its numbers
 /// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
 /// while the channel draws them in a Flutter overlay, so there it is a repaint.
-final noteNumberModeProvider = StateProvider<NoteNumberMode>(
-  (_) => NoteNumberMode.violinFingering,
+final noteNumberModeProvider = pieceDisplayEnumPref<NoteNumberMode>(
+  'numbers',
+  NoteNumberMode.mandolinFret,
+  NoteNumberMode.values,
 );
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
 /// fret on the fingering's string. Shared by the same two views as
-/// [noteNumberModeProvider]. Session-only; only affects fret numbers.
-final fretStyleProvider = StateProvider<FretStyle>(
-  (_) => FretStyle.openStrings,
+/// [noteNumberModeProvider]. Remembered per piece; only affects fret numbers.
+final fretStyleProvider = pieceDisplayEnumPref<FretStyle>(
+  'fretStyle',
+  FretStyle.openStrings,
+  FretStyle.values,
 );
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
