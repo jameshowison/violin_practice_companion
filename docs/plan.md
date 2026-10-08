@@ -35,7 +35,7 @@ moving them. Signals worth combining:
 - **Authored ABC line breaks.** Each ABC music line of Along the Road to
   Gundagai is one section, starting on its lead-in. `abc_to_musicxml.js`
   `convertTune` concatenates `tune.lines` and throws these away. Keep them as a
-  hint, and re-run over `abc_sources/` to backfill.
+  hint, and re-run over `../violin_dev_library/abc_sources/` to backfill.
 - **Lyrics.** The first syllable of a `w:` line marks the lead-in note.
 - **Rests and long notes** that end the previous phrase.
 - **Repeat barlines and rehearsal marks**, as now.
@@ -146,9 +146,10 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
   `homr_flutter/docs/omr_evaluation/`. It's a candidate for deletion.
 - **`CLAUDE.md`** should say that OMR is mobile- and desktop-first, with web
   deferred to a possible server-side `homr` backend.
-- **Upstream `abc-music` patches**, prepared in `homr_flutter`
-  (`docs/omr_evaluation/abc_bug_{10,14,15}*.patch`), are not yet filed. This
-  is user-owned.
+- **Upstream `abc-music` patches**, prepared in
+  `../homr_flutter_private_archived/docs/omr_evaluation/abc_bug_{10,14,15}*.patch`
+  (they were not carried over to the public `homr_flutter`), are not yet
+  filed. This is user-owned.
 
 ---
 
