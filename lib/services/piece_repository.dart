@@ -137,7 +137,7 @@ class PieceRepository {
 
   /// The `abc_*`/`homr_*` OMR-comparison fixtures — kept as a side-by-side
   /// demonstration of scan quality, but 10 of the 13 bundled pieces and pure
-  /// noise for everyday practice (docs/plan.md §4). Seeded hidden on first run;
+  /// noise for everyday practice. Seeded hidden on first run;
   /// see `seedLibrary`.
   static final List<String> omrDemoFixtureIds = [
     for (final f in _fixtures)

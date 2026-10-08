@@ -21,7 +21,7 @@ class StaffView extends ConsumerStatefulWidget {
 
   /// Tap-to-select callback. Accepted for signature parity with the iOS
   /// variant, but the web iframe has no HTML→Dart return channel yet, so it is
-  /// not invoked (deferred — see plan.md "iOS first, web later").
+  /// not invoked (deferred — see `docs/plan.md` §3, web).
   final ValueChanged<int>? onMeasureTapped;
 
   /// Measures whose beat total doesn't match the time signature (OMR errors);
