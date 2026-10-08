@@ -371,11 +371,28 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   if (displayMode == DisplayMode.staff ||
                       displayMode == DisplayMode.staffFingering ||
                       displayMode == DisplayMode.tab) ...[
-                    const _MeasuresPerLineSlider(),
+                    // Tab is never laid out by section (its xml carries no
+                    // section breaks — see [staffBySectionProvider]).
+                    if (displayMode != DisplayMode.tab &&
+                        ref.watch(sectionLayoutAvailableProvider))
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Layout by section'),
+                        value: ref.watch(sectionLayoutProvider),
+                        onChanged: (v) =>
+                            ref.read(sectionLayoutProvider.notifier).state = v,
+                      ),
+                    _MeasuresPerLineSlider(
+                      bySection: displayMode != DisplayMode.tab &&
+                          ref.watch(staffBySectionProvider),
+                    ),
                     // Guaranteed-exact breaks aren't wired up for the tab
                     // view (see `system_break_injector.dart`'s callers) —
-                    // only offer it where it actually takes effect.
-                    if (displayMode != DisplayMode.tab)
+                    // only offer it where it actually takes effect. The
+                    // section layout's breaks are exact already.
+                    if (displayMode != DisplayMode.tab &&
+                        !ref.watch(staffBySectionProvider))
                       const _MeasuresPerLineLockToggle(),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -665,26 +682,45 @@ class _CountInSlider extends ConsumerWidget {
 /// caption under the label names which one is being edited. Pinching the staff
 /// drives this same setting (see `staff_view_verovio.dart`), so the thumb tracks
 /// a pinch.
+///
+/// [bySection]: the piece is laid out by section ([staffBySectionProvider]), and
+/// the same slider sets lines per section instead ([linesPerSectionProvider]):
+/// auto is the fewest lines that fit at the minimum note size, and more lines
+/// mean bigger notes. Its breaks are exact, so its readout never says "≈".
 class _MeasuresPerLineSlider extends ConsumerWidget {
-  const _MeasuresPerLineSlider();
+  const _MeasuresPerLineSlider({required this.bySection});
+
+  final bool bySection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final zoom = ref.watch(measuresPerLineProvider);
+    final provider =
+        bySection ? linesPerSectionProvider : measuresPerLineProvider;
+    final min = bySection ? linesPerSectionMin : measuresPerLineMin;
+    final max = bySection ? linesPerSectionMax : measuresPerLineMax;
+    final zoom = ref.watch(provider);
     final override = zoom.value;
-    final achieved = ref.watch(effectiveMeasuresPerLineProvider);
+    final achieved = ref.watch(bySection
+        ? effectiveLinesPerSectionProvider
+        : effectiveMeasuresPerLineProvider);
     final orientation = ref.watch(staffOrientationProvider);
     // On auto, park the thumb on whatever the renderer settled at.
-    final position = (override ?? achieved ?? measuresPerLineForWidth(
-            MediaQuery.sizeOf(context).width))
-        .clamp(measuresPerLineMin, measuresPerLineMax);
+    final position = (override ??
+            achieved ??
+            (bySection
+                ? linesPerSectionMin
+                : measuresPerLineForWidth(MediaQuery.sizeOf(context).width)))
+        .clamp(min, max);
     // Locked is guaranteed exact (explicit system breaks), so it drops the
-    // "≈" the approximate auto-breaking modes carry.
-    final readout = zoom.locked && override != null
+    // "≈" the approximate auto-breaking modes carry; so is the section layout.
+    final exact = bySection || zoom.locked;
+    final readout = exact && override != null
         ? '$override'
         : (achieved == null
             ? (override == null ? 'Auto' : '$override')
-            : (override == null ? 'Auto (≈$achieved)' : '≈$achieved'));
+            : override == null
+                ? (exact ? 'Auto ($achieved)' : 'Auto (≈$achieved)')
+                : '≈$achieved');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -705,7 +741,7 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Measures per line'),
+                  Text(bySection ? 'Lines per section' : 'Measures per line'),
                   Text(orientation.name,
                       style: Theme.of(context).textTheme.bodySmall,
                       maxLines: 1,
@@ -719,7 +755,7 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
                 if (override != null)
                   TextButton(
                     onPressed: () =>
-                        ref.read(measuresPerLineProvider.notifier).commit(null),
+                        ref.read(provider.notifier).commit(null),
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -733,16 +769,14 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
         ),
         Slider(
           value: position.toDouble(),
-          min: measuresPerLineMin.toDouble(),
-          max: measuresPerLineMax.toDouble(),
-          divisions: measuresPerLineMax - measuresPerLineMin,
+          min: min.toDouble(),
+          max: max.toDouble(),
+          divisions: max - min,
           label: '$position',
           // Drag moves the state (and so re-engraves); the write to disk waits
           // for the finger to lift so a drag persists once, not per frame.
-          onChanged: (v) =>
-              ref.read(measuresPerLineProvider.notifier).preview(v.round()),
-          onChangeEnd: (v) =>
-              ref.read(measuresPerLineProvider.notifier).commit(v.round()),
+          onChanged: (v) => ref.read(provider.notifier).preview(v.round()),
+          onChangeEnd: (v) => ref.read(provider.notifier).commit(v.round()),
         ),
       ],
     );
@@ -1509,13 +1543,14 @@ class _NotationView extends ConsumerWidget {
     // The notation is always folded, so the index↔number map is the plain
     // document order (numbers are unique) — except that the staff views, laid
     // out by section, engrave a bar split at a section's lead-in as two
-    // measures. Tab is never split (see [staffBreakModeProvider]).
-    final breakMode = ref.watch(staffBreakModeProvider);
+    // measures. Tab is never split (see [staffBySectionProvider]).
+    final bySection =
+        mode != DisplayMode.tab && ref.watch(staffBySectionProvider);
     final measureMap = parsed == null
         ? EngravedMeasureMap.empty
         : mode == DisplayMode.tab
             ? EngravedMeasureMap.identity(parsed.measures.map((m) => m.number))
-            : staffMeasureMapFor(parsed.measures, sections, breakMode);
+            : staffMeasureMapFor(parsed.measures, sections, bySection: bySection);
     // Per-section background wash (note-level edges so a mid-measure section
     // start/end splits the boundary measure). Empty without sections.
     final sectionTints = (parsed == null || sections.isEmpty)
@@ -1592,7 +1627,7 @@ class _NotationView extends ConsumerWidget {
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
           measureMap: measureMap,
-          sectionLayout: breakMode.sectionAuto,
+          sectionLayout: bySection,
           sectionTints: sectionTints,
           chordRuns: chordRuns,
           fingeringAnnotations: annotations,

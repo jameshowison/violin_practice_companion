@@ -13,8 +13,13 @@ import 'dart:math' as math;
 /// * [maxLineUnits] — the widest a line may be and still engrave at the
 ///   smallest acceptable staff size.
 ///
-/// Returns the positions of the extra breaks planned inside segments, and the
-/// width of the widest resulting line, which sets the scale.
+/// * [lines] — when set, every segment takes exactly this many lines (or one
+///   per bar, if it has fewer bars), whatever the width: the user's own
+///   lines-per-section zoom. [maxLineUnits] is then ignored.
+///
+/// Returns the positions of the extra breaks planned inside segments, the
+/// width of the widest resulting line, which sets the scale, and the most
+/// lines any segment took.
 ///
 /// Why by width rather than bar count: a section often carries a lead-in half
 /// bar at its start and a half bar at its end, and a bar of running eighths
@@ -26,26 +31,31 @@ import 'dart:math' as math;
 ///
 /// Ties go to the plan whose EARLIER lines are shorter, so a section's first
 /// line — the one that opens with the lead-in — is the lighter one.
-({Set<int> breaks, double widestUnits}) planSectionLines({
+({Set<int> breaks, double widestUnits, int maxLines}) planSectionLines({
   required List<double> widths,
   required List<int> segmentStarts,
   required double maxLineUnits,
+  int? lines,
 }) {
   final starts = {...segmentStarts, 0}.where((s) => s < widths.length).toList()
     ..sort();
   final breaks = <int>{};
   var widest = 0.0;
+  var maxLines = 0;
   for (var g = 0; g < starts.length; g++) {
     final from = starts[g];
     final to = g + 1 < starts.length ? starts[g + 1] : widths.length;
     final seg = widths.sublist(from, to);
-    final plan = _fewestLines(seg, maxLineUnits);
+    final plan = lines == null
+        ? _fewestLines(seg, maxLineUnits)
+        : balancedLines(seg, lines);
     for (final b in plan.breaks) {
       breaks.add(from + b);
     }
     widest = math.max(widest, plan.widest);
+    maxLines = math.max(maxLines, plan.breaks.length + 1);
   }
-  return (breaks: breaks, widestUnits: widest);
+  return (breaks: breaks, widestUnits: widest, maxLines: maxLines);
 }
 
 /// The fewest lines [seg] fits in at ≤ [maxLine] each (or one bar a line when

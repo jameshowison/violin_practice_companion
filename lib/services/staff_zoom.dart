@@ -131,6 +131,35 @@ int pinchTargetMeasuresPerLine({required int from, required double scale}) {
   );
 }
 
+// ── The section layout's zoom: lines per section ─────────────────────────────
+//
+// Under the section layout (`StaffViewVerovio.sectionLayout`) the same slider
+// and pinch set how many lines each section spreads over instead. The knob
+// runs the other way: MORE lines per section ⇒ fewer bars a line ⇒ bigger
+// notes, so the note size is roughly proportional to the line count.
+
+const int linesPerSectionMin = 1;
+const int linesPerSectionMax = 4;
+
+/// The lines-per-section a pinch of accumulated factor [scale] is asking for,
+/// having started from [from] — [pinchTargetMeasuresPerLine]'s mirror image:
+/// notes [scale] times bigger want [scale] times the lines.
+int pinchTargetLinesPerSection({required int from, required double scale}) {
+  if (from <= 0 || scale <= 0 || !scale.isFinite) {
+    return from.clamp(linesPerSectionMin, linesPerSectionMax);
+  }
+  return (from * scale).round().clamp(linesPerSectionMin, linesPerSectionMax);
+}
+
+/// [pinchScaleLimits] for [pinchTargetLinesPerSection].
+({double min, double max}) pinchScaleLimitsForLines(int from) {
+  if (from <= 0) return (min: 1, max: 1);
+  return (
+    min: math.min(1, linesPerSectionMin / from),
+    max: math.max(1, linesPerSectionMax / from),
+  );
+}
+
 /// Fraction of the viewport the auto default aims to fill, leaving the rest as
 /// breathing room. Only applies when the whole piece fits — see
 /// [autoMeasuresPerLine].

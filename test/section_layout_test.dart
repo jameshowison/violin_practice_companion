@@ -8,6 +8,7 @@ import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 import 'package:violin_practice_companion/services/section_line_planner.dart';
+import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/services/system_break_injector.dart';
 
 /// Section-aware staff layout, end to end on Along the Road to Gundagai (2/4,
@@ -247,6 +248,40 @@ void main() {
       // 460 | 550 — a narrower widest line, so the planner takes it.
       expect(plan.breaks, [4]);
       expect(plan.widest, 550);
+    });
+
+    test('a set line count overrides the fit, and is reported', () {
+      final widths = List<double>.filled(16, 100);
+      // Room for a whole section a line, but the user asked for two.
+      final plan = planSectionLines(
+          widths: widths,
+          segmentStarts: const [0, 8],
+          maxLineUnits: 900,
+          lines: 2);
+      expect(plan.breaks, {4, 12});
+      expect(plan.maxLines, 2);
+      // A three-bar section can't take four lines: one bar each.
+      final short = planSectionLines(
+          widths: List<double>.filled(3, 100),
+          segmentStarts: const [0],
+          maxLineUnits: 900,
+          lines: 4);
+      expect(short.breaks, {1, 2});
+      expect(short.maxLines, 3);
+      // Auto reports the most lines any section needed.
+      expect(
+          planSectionLines(
+                  widths: widths, segmentStarts: const [0, 8], maxLineUnits: 500)
+              .maxLines,
+          2);
+    });
+
+    test('pinching out asks for more lines per section', () {
+      expect(pinchTargetLinesPerSection(from: 1, scale: 2), 2);
+      expect(pinchTargetLinesPerSection(from: 2, scale: 0.5), 1);
+      expect(pinchTargetLinesPerSection(from: 2, scale: 10), linesPerSectionMax);
+      expect(pinchScaleLimitsForLines(1), (min: 1.0, max: 4.0));
+      expect(pinchScaleLimitsForLines(2), (min: 0.5, max: 2.0));
     });
 
     test('ties go to the lighter first line', () {

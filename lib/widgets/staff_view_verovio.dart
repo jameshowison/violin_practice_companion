@@ -52,8 +52,9 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 
   /// Lay the piece out by section: every section starts a line (the xml
   /// already carries those breaks) and fills one line, or the fewest that
-  /// fit, balanced by measured width — see `planSectionLines`. Applies only
-  /// while the zoom is on Auto; an explicit measures-per-line wins.
+  /// fit, balanced by measured width — see `planSectionLines`. The zoom is
+  /// then [linesPerSectionProvider] (auto = the fewest that fit) in place of
+  /// [measuresPerLineProvider], for the slider and the pinch alike.
   final bool sectionLayout;
 
   /// Parity with [StaffView]; the engraver always wraps systems to the page
@@ -267,12 +268,21 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   void _onScaleStart(ScaleStartDetails d) {
     // Same expression the drawer's slider parks its thumb on: the explicit
     // override if there is one, else what the renderer actually achieved.
-    _pinchFrom =
-        (ref.read(measuresPerLineProvider).value ??
-                ref.read(effectiveMeasuresPerLineProvider) ??
-                measuresPerLineForWidth(_layoutWidth))
-            .clamp(measuresPerLineMin, measuresPerLineMax);
-    _pinchLimits = pinchScaleLimits(_pinchFrom);
+    if (widget.sectionLayout) {
+      _pinchFrom =
+          (ref.read(linesPerSectionProvider).value ??
+                  ref.read(effectiveLinesPerSectionProvider) ??
+                  linesPerSectionMin)
+              .clamp(linesPerSectionMin, linesPerSectionMax);
+      _pinchLimits = pinchScaleLimitsForLines(_pinchFrom);
+    } else {
+      _pinchFrom =
+          (ref.read(measuresPerLineProvider).value ??
+                  ref.read(effectiveMeasuresPerLineProvider) ??
+                  measuresPerLineForWidth(_layoutWidth))
+              .clamp(measuresPerLineMin, measuresPerLineMax);
+      _pinchLimits = pinchScaleLimits(_pinchFrom);
+    }
     _pinchAnchor = (_layoutWidth <= 0 || _renderHeight <= 0)
         ? Alignment.center
         : Alignment(
@@ -291,11 +301,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    final target = pinchTargetMeasuresPerLine(
-      from: _pinchFrom,
-      scale: _pinchScale,
-    );
-    final current = ref.read(measuresPerLineProvider).value;
+    final zoom = _zoomProvider;
+    final target = widget.sectionLayout
+        ? pinchTargetLinesPerSection(from: _pinchFrom, scale: _pinchScale)
+        : pinchTargetMeasuresPerLine(from: _pinchFrom, scale: _pinchScale);
+    final current = ref.read(zoom).value;
     if (target == current) {
       // Nothing to engrave, so nothing will come along to clear the preview.
       setState(() => _pinchScale = 1);
@@ -305,9 +315,20 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // the fresh score is published (see [_engrave]). Dropping it at the release
     // instead would snap back to the old size for the length of the engrave and
     // then jump.
-    setState(() => _pinchScale = _pinchFrom / target);
-    ref.read(measuresPerLineProvider.notifier).commit(target);
+    setState(
+      () => _pinchScale = widget.sectionLayout
+          ? target / _pinchFrom
+          : _pinchFrom / target,
+    );
+    ref.read(zoom.notifier).commit(target);
   }
+
+  /// The zoom this view answers to: lines per section under the section
+  /// layout, else measures per line.
+  StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>
+      get _zoomProvider => widget.sectionLayout
+          ? linesPerSectionProvider
+          : measuresPerLineProvider;
 
   /// Whether the score being engraved carries the annotations the app draws its
   /// own rows on, and so needs the room reserved from Verovio. See
@@ -341,6 +362,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // place it can change. Clearing _engravedWidth kicks the fresh request.
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
+        old.sectionLayout != widget.sectionLayout ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
@@ -683,6 +705,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       widths: _naturalWidths,
       segmentStarts: starts,
       maxLineUnits: usableUnits - _lineStartUnits,
+      lines: req.target,
     );
     final scale = (req.widthPx *
             100 /
@@ -710,6 +733,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     );
     if (!mounted || seq != _engraveSeq) return;
     _publish(score, req);
+    if (widget.zoomable) {
+      ref.read(effectiveLinesPerSectionProvider.notifier).state =
+          plan.maxLines;
+    }
   }
 
   /// Wide enough that the natural-width engrave keeps the whole piece on one
@@ -1014,11 +1041,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     }
     // Null = auto-fit. The previews (measure editor, palette) opt out so a
     // whole-piece zoom doesn't shrink their single bar.
-    final zoom = ref.watch(measuresPerLineProvider);
+    final zoom = ref.watch(_zoomProvider);
     final target = widget.zoomable ? zoom.value : null;
     // Only meaningful alongside an explicit target — the notifier already
-    // forces it false whenever value is cleared back to auto.
-    final locked = widget.zoomable && zoom.locked;
+    // forces it false whenever value is cleared back to auto. The section
+    // layout's breaks are exact anyway, and its own.
+    final locked = widget.zoomable && zoom.locked && !widget.sectionLayout;
     // Hold off the first engrave until the piece's saved zoom has been read,
     // otherwise every piece with an override engraves the auto default first and
     // throws it away. Previews don't read the setting, so they never wait.
@@ -1081,7 +1109,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 target: target,
                 spacingUnits: spacingUnits,
                 locked: locked,
-                sections: widget.sectionLayout && target == null && !locked,
+                sections: widget.sectionLayout,
               ));
             }
           });
