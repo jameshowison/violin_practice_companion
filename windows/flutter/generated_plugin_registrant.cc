@@ -11,6 +11,7 @@
 #include <flutter_js/flutter_js_plugin.h>
 #include <flutter_onnxruntime/flutter_onnxruntime_plugin.h>
 #include <pdfx/pdfx_plugin.h>
+#include <printing/printing_plugin.h>
 #include <record_windows/record_windows_plugin_c_api.h>
 #include <url_launcher_windows/url_launcher_windows.h>
 
@@ -25,6 +26,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterOnnxruntimePlugin"));
   PdfxPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("PdfxPlugin"));
+  PrintingPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("PrintingPlugin"));
   RecordWindowsPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("RecordWindowsPluginCApi"));
   UrlLauncherWindowsRegisterWithRegistrar(

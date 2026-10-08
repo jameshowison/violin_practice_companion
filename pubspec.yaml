@@ -92,6 +92,11 @@ dependencies:
   camera: ^0.12.1
   record: ^7.1.1
   video_player: ^2.14.0
+  # Print mode (lib/services/score_printer.dart): `pdf` assembles the pages
+  # (pure Dart), `printing` hands them to the system print/share sheet. Both
+  # declare iOS, Android, macOS and web, so no conditional-import split.
+  pdf: ^3.12.0
+  printing: ^5.14.3
 
 dev_dependencies:
   flutter_test:

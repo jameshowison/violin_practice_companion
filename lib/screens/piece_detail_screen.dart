@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
-import '../models/chord_palette.dart';
 import '../models/count_in.dart';
-import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -18,7 +16,6 @@ import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
 import '../models/piece_media.dart';
 import '../services/abc_converter.dart';
-import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
@@ -27,6 +24,7 @@ import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/media_catalog.dart';
 import '../services/media_playback_service.dart';
+import '../services/staff_overlays.dart';
 import '../services/staff_zoom.dart';
 import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
@@ -36,6 +34,7 @@ import '../widgets/new_chords_block.dart';
 import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
+import '../widgets/print_sheet.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
@@ -259,6 +258,15 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         ),
         actions: [
           if (!useCompact) const _NotePaletteToggle(),
+          // A phone's bar has no room to spare (the title gives it up first);
+          // there Print lives in the drawer only.
+          if (!useCompact && printAvailableFor(ref, displayMode))
+            IconButton(
+              key: const ValueKey('print_button'),
+              tooltip: 'Print',
+              icon: const Icon(Icons.print_outlined),
+              onPressed: () => showPrintSheet(context, displayMode),
+            ),
           // No mode toggles here any more. "Play Along", "Teacher Demo" and
           // "record a demo" were three app-bar buttons for what is one
           // question — what should play this piece — and two of them had to be
@@ -386,6 +394,18 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       ),
                     if (displayMode != DisplayMode.tab)
                       const _RedetectSectionsButton(),
+                    if (printAvailableFor(ref, displayMode))
+                      ListTile(
+                        key: const ValueKey('print_drawer_tile'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        leading: const Icon(Icons.print_outlined),
+                        title: const Text('Print or share PDF…'),
+                        onTap: () {
+                          Navigator.of(context).pop(); // the drawer
+                          showPrintSheet(context, displayMode);
+                        },
+                      ),
                     _MeasuresPerLineSlider(
                       bySection: displayMode != DisplayMode.tab &&
                           ref.watch(staffBySectionProvider),
@@ -1648,52 +1668,20 @@ class _NotationView extends ConsumerWidget {
     // measures. Tab is never split (see [staffBySectionProvider]).
     final bySection =
         mode != DisplayMode.tab && ref.watch(staffBySectionProvider);
-    final measureMap = parsed == null
-        ? EngravedMeasureMap.empty
-        : mode == DisplayMode.tab
-            ? EngravedMeasureMap.identity(parsed.measures.map((m) => m.number))
-            : staffMeasureMapFor(parsed.measures, sections, bySection: bySection);
-    // Per-section background wash (note-level edges so a mid-measure section
-    // start/end splits the boundary measure). Empty without sections.
-    final sectionTints = (parsed == null || sections.isEmpty)
-        ? const <SectionTintRegion>[]
-        : sectionTintRegions(
-            measureMap, sections, sectionColors, parsed.measures);
-    // Chord runs as labelled bars in a lane above the staff — the native renderer
-    // owns the chord label now (the XML providers strip `<harmony>` for it), so
-    // this list is the only thing that puts chords on the score.
-    final chordRuns = (parsed == null || !ref.watch(showChordsProvider))
-        ? const <ChordRunRegion>[]
-        : chordRunRegions(measureMap, parsed);
-    // Fingering labels as chips in a channel between the notes and the chord
-    // lane. Built for the annotation view only, and — like the chord runs — this
-    // list is now the ONLY thing that puts fingerings on the score: the XML
-    // provider strips them so Verovio engraves none.
-    final colourStyle = ref.watch(stringColourStyleProvider);
-    final annotations = (parsed == null || mode != DisplayMode.staffFingering)
-        ? const <FingeringAnnotation>[]
-        : fingeringAnnotations(
-            measureMap,
-            parsed,
-            density: ref.watch(fingeringDensityProvider),
-            policy: ref.watch(fingeringDensityPolicyProvider),
-            colourByString: colourStyle != StringColourStyle.off,
-            stringLabelStyle: ref.watch(stringLabelStyleProvider),
-            numberMode: ref.watch(noteNumberModeProvider),
-            fretStyle: ref.watch(fretStyleProvider),
-          );
-    // The underline's string track spans every note, so it needs its own pass
-    // over the piece — and only that style has any use for it.
-    final stringRuns = (parsed == null ||
-            mode != DisplayMode.staffFingering ||
-            colourStyle != StringColourStyle.underline)
-        ? const <StringRunRegion>[]
-        : stringRunRegions(
-            measureMap,
-            parsed,
-            numberMode: ref.watch(noteNumberModeProvider),
-            fretStyle: ref.watch(fretStyleProvider),
-          );
+    final overlays = staffOverlaysFor(
+      ref.watch,
+      parsed: parsed,
+      mode: mode,
+      sections: sections,
+      sectionColors: sectionColors,
+      bySection: bySection,
+    );
+    final measureMap = overlays.measureMap;
+    final sectionTints = overlays.sectionTints;
+    final chordRuns = overlays.chordRuns;
+    final colourStyle = overlays.colourStyle;
+    final annotations = overlays.annotations;
+    final stringRuns = overlays.stringRuns;
     // Minimap tap → scroll the staff to the (folded) run's first measure index.
     // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)

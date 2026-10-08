@@ -66,6 +66,8 @@ PODS:
     - Flutter
   - pdfx (1.0.0):
     - Flutter
+  - printing (1.0.0):
+    - Flutter
   - record_ios (2.0.0):
     - Flutter
   - SDWebImage (5.21.7):
@@ -104,6 +106,7 @@ DEPENDENCIES:
   - just_audio (from `.symlinks/plugins/just_audio/darwin`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - pdfx (from `.symlinks/plugins/pdfx/ios`)
+  - printing (from `.symlinks/plugins/printing/ios`)
   - record_ios (from `.symlinks/plugins/record_ios/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
@@ -151,6 +154,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/package_info_plus/ios"
   pdfx:
     :path: ".symlinks/plugins/pdfx/ios"
+  printing:
+    :path: ".symlinks/plugins/printing/ios"
   record_ios:
     :path: ".symlinks/plugins/record_ios/ios"
   shared_preferences_foundation:
@@ -185,6 +190,7 @@ SPEC CHECKSUMS:
   onnxruntime-objc: 99e0fe4b6d606970c6c1350c194c7629ef6e6fc9
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   pdfx: 77f4dddc48361fbb01486fa2bdee4532cbb97ef3
+  printing: 54ff03f28fe9ba3aa93358afb80a8595a071dd07
   record_ios: 390a30c7caaf8b5d0fb1cb1d2fd5064b48b4520c
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb

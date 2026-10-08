@@ -14,7 +14,7 @@ import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
-import '../services/section_line_planner.dart';
+import '../services/section_engraving.dart';
 import '../services/staff_zoom.dart';
 import '../services/system_break_injector.dart';
 import '../services/verovio_engraver.dart';
@@ -685,7 +685,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     );
     if (_naturalWidthsFor != _calibratedFor) {
       final line = await _engraveAt(
-        _naturalLineWidthPx,
+        sectionNaturalLineWidthPx,
         staffScaleProbe,
         spacingSystem: spacing,
         breaks: 'none',
@@ -697,29 +697,22 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       _naturalWidthsFor = _calibratedFor;
     }
 
-    final usableUnits = (req.widthPx * 100 / minStaffScaleFor(req.shortestSidePx) -
-            _pageMarginUnits) /
-        staffFitSlack;
-    final starts = systemStartPositions(widget.musicXml);
-    final plan = planSectionLines(
-      widths: _naturalWidths,
-      segmentStarts: starts,
-      maxLineUnits: usableUnits - _lineStartUnits,
-      lines: req.target,
+    final solved = solveSectionLayout(
+      musicXml: widget.musicXml,
+      naturalWidths: _naturalWidths,
+      widthPx: req.widthPx,
+      minScale: minStaffScaleFor(req.shortestSidePx),
+      linesPerSection: req.target,
     );
-    final scale = (req.widthPx *
-            100 /
-            ((plan.widestUnits + _lineStartUnits) * staffFitSlack +
-                _pageMarginUnits))
-        .clamp(staffScaleMin, staffScaleMax);
-    final lines = starts.length + plan.breaks.length;
+    final scale = solved.scale;
+    final lines = solved.lines;
     if (VerovioEngraver.debugLogging) {
       debugPrint(
         '[sections] w=${req.widthPx.round()} bars=${_naturalWidths.length} '
-        'segments=${starts.length} lines=$lines '
-        'widest=${plan.widestUnits.round()}u '
+        'segments=${lines - solved.breaks.length} lines=$lines '
+        'widest=${solved.widestUnits.round()}u '
         'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
-        'scale=${scale.toStringAsFixed(1)} breaks=${(plan.breaks.toList()..sort())}',
+        'scale=${scale.toStringAsFixed(1)} breaks=${(solved.breaks.toList()..sort())}',
       );
     }
     final score = await _engraveAt(
@@ -729,30 +722,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       spacingSystem: spacing,
       pageMarginTopReserve: _reservePageMarginUnits,
       breaks: 'encoded',
-      musicXmlOverride: insertBreaksAtPositions(widget.musicXml, plan.breaks),
+      musicXmlOverride: solved.xml,
     );
     if (!mounted || seq != _engraveSeq) return;
     _publish(score, req);
     if (widget.zoomable) {
       ref.read(effectiveLinesPerSectionProvider.notifier).state =
-          plan.maxLines;
+          solved.maxLines;
     }
   }
-
-  /// Wide enough that the natural-width engrave keeps the whole piece on one
-  /// line: 39000px at the probe's scale is a 97500-unit page, just inside
-  /// Verovio's 100000 maximum. Verovio leaves a last (here: only) system
-  /// unjustified while it fills under 80% of the page, so the widths are
-  /// natural ones for any piece under ~200 bars.
-  static const _naturalLineWidthPx = 39000.0;
-
-  /// Verovio's default left + right page margins, in MEI units.
-  static const _pageMarginUnits = 100.0;
-
-  /// What every line spends before its first note that no measure's natural
-  /// width includes: the restated key signature (clef and time are hidden at
-  /// each break — see `insertSystemBreaks`).
-  static const _lineStartUnits = 60.0;
 
   /// Backstop on corrective engraves per calibration (see [_refinements]).
   static const _maxRefinements = 2;
@@ -1285,6 +1263,44 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   static int _bucket(double w) => (w / 48).round();
+}
+
+/// Paints an engraved score the way [StaffViewVerovio] stacks it — section
+/// washes, the notation, the fingering lane, the chord lane — onto any canvas
+/// [size] wide, at [scale] (viewBox → canvas). Print draws its pages with this
+/// (`score_printer.dart`), so paper and screen share one set of painters.
+///
+/// Only the static layers: selection, flags, the cursor and the count-in are
+/// the screen's alone.
+void paintStaffScore(
+  Canvas canvas,
+  Size size, {
+  required EngravedScore score,
+  required ScalableImage image,
+  required double scale,
+  List<SectionTintRegion> sectionTints = const [],
+  List<ChordRunRegion> chordRuns = const [],
+  List<FingeringAnnotation> fingeringAnnotations = const [],
+  List<StringRunRegion> stringRuns = const [],
+  StringColourStyle stringColourStyle = StringColourStyle.chips,
+}) {
+  _UnderlayPainter(score: score, scale: scale, sectionTints: sectionTints)
+      .paint(canvas, size);
+  canvas.save();
+  // What `ScalableImageWidget(fit: BoxFit.fitWidth)` does on screen.
+  final fit = size.width / image.viewport.width;
+  canvas.scale(fit, fit);
+  image.paint(canvas);
+  canvas.restore();
+  _FingeringLanePainter(
+    score: score,
+    scale: scale,
+    annotations: fingeringAnnotations,
+    stringRuns: stringRuns,
+    style: stringColourStyle,
+  ).paint(canvas, size);
+  _ChordLanePainter(score: score, scale: scale, runs: chordRuns)
+      .paint(canvas, size);
 }
 
 /// A [ScaleGestureRecognizer] that cannot win on a single pointer.
