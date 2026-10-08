@@ -80,24 +80,26 @@ the UI should only offer primary notes.
 
 ### 1.3 Lead-ins across repeats
 
-Devil's Dream is written `e2 |: agae … A2 e2 :| |: ceAe …`. The `e2` before
-`:|` is a lead-in twice: back into A's second playing, then into B. It plays
-exactly like `|: e2 agae … A2 :| e2 | ceAe …`, with the forward repeat before
-the pickup and the backward repeat mid-bar. Each playing of A is then a
-clean section that carries its lead-in, and B starts mid-bar on the `e2`.
+Landed for the plain case. Devil's Dream is written `e2 |: agae … A2 e2 :|
+|: ceAe …`, and Galopede has the same shape (`d c |: … A4 A2 dc :| [P:B] …`).
+The tail of the `:|` bar leads back into A and then on into B. When that tail
+is the same music as the lead-in before the `|:`, detection starts B on it
+(`B@9:5`). In "Layout by section", where that tail opens B's line, the staff
+engraves the equivalent `|: e2 | … A2 :| e2 |: ceAe …` so each pass reads its
+own lead-in (`movedRepeats`, `moveRepeatsOntoLeadIns`). The written score is
+unchanged elsewhere. The tail belongs to the run it leads into: A² on the pass
+that jumps back (and the cursor draws it on the pickup), B on the pass that
+falls through. A run selection carries its pass (`MeasureSelection.startPerf`
+/ `endPerf`), so playing B no longer starts on the first pass of bar 9.
 
-Detection leaves a start at a repeat boundary on its downbeat, because the
-model can't express this yet. Repeats are per bar (`Measure.repeatStart` /
-`repeatEnd`), `ParsedPiece.performanceOrder` lists bars, and `sectionRuns`
-labels whole bars, so a marker on that `e2` would tint it B on both passes.
+Still open:
 
-- **Detection's part:** when the tail of a `:|` bar matches the strain's
-  opening pickup (same durations and pitches), propose the moved repeats.
-- **The model's part:** repeats at note positions. Probably done by splitting
-  such a bar into two sub-measures in the model, as `splitBarsAtSections`
-  already does for the staff, so playback and the cursor stay bar-granular.
-- **Open:** whether the engraving shows the moved, mid-bar repeat or keeps
-  the written one, and whether Verovio renders a `location="middle"` barline.
+- **Endings.** A lead-in at the end of a first ending (Devil's Dream's
+  `|1 … A2 e2 :|2`, leading back into B²) stays as written, before the `:|`.
+  B² replays from its `|:`, and that `e2` stays with B¹. Moving it would mean
+  dropping it from ending 1 and moving B's `|:` onto 9's tail, which is itself
+  a split slice.
+- **Voltas** are not in `performanceOrder` at all.
 
 ---
 

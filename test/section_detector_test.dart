@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
+import 'package:violin_practice_companion/models/section_run.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 
@@ -359,9 +360,9 @@ void main() {
       expect(detect('amazing_grace'), 'A@1:0 B@5:1 C@9:1 A@13:1');
     });
 
-    test("Devil's Dream: starts at repeats stay on the downbeat (plan §1.3)",
+    test("Devil's Dream: B starts on the `e2` that also leads back into A",
         () {
-      expect(detect('devils_dream'), 'A@1:0 B@10:0');
+      expect(detect('devils_dream'), 'A@1:0 B@9:5');
     });
 
     test("Devil's Dream: A starts on its pickup and still plays twice", () {
@@ -371,8 +372,14 @@ void main() {
       final runs = sectionRuns(measures, SectionDetector.detect(measures));
       expect([for (final r in runs) '${r.label}${r.passIndex}'],
           ['A0', 'A1', 'B0', 'B1']);
-      expect(runs.first.firstMeasure, 1);
-      expect(runs[1].firstMeasure, 2); // the replay starts on the `|:`
+      String edges(SectionRun r) =>
+          '${r.firstMeasure}:${r.startNote}-${r.lastMeasure}:${r.endNote}';
+      // Played 1, 2-9, 2-9, 10-17, 10-17, 18. Bar 9's `e2` leads back into
+      // A on the first pass and on into B on the second; B's replay starts on
+      // its `|:`, so ending 1's `e2` stays with B¹.
+      expect([for (final r in runs) edges(r)],
+          ['1:0-9:5', '9:5-9:5', '9:5-17:-1', '10:0-18:-1']);
+      expect([for (final r in runs) r.perfStart], [0, 8, 16, 25]);
     });
   });
 }

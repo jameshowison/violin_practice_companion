@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/duration_step.dart';
+import '../models/engraved_measure_map.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/section.dart';
@@ -89,8 +90,9 @@ class SectionDetector {
   /// The first section's lead-in is the opening pickup itself, so a first
   /// section starting on the bar after it moves back onto the pickup bar. Any
   /// section already off its downbeat is left alone, as is a start at a
-  /// repeat boundary — the tail of a `:|` bar leads
-  /// back into the repeat, not on (see docs/plan.md §1.3).
+  /// repeat boundary, unless the tail of the `:|` bar before it is the same
+  /// music as the lead-in into that repeat (Devil's Dream's `e2`), which
+  /// then serves both.
   static List<Section> withLeadIns(
       List<Section> sections, List<Measure> measures) {
     if (measures.length < 2 || sections.length < 2) return sections;
@@ -122,12 +124,22 @@ class SectionDetector {
     final i = indexOf[s.startMeasure];
     if (i == null || i == 0) return null;
     final here = measures[i], prev = measures[i - 1];
-    if (here.repeatStart || prev.repeatEnd) return null;
+    if (here.repeatStart && !prev.repeatEnd) return null;
     if (prev.actualUnits != fullBar) return null;
     final afterEnd = _afterPhraseEnd(prev.notes, pickup, fullBar);
     if (afterEnd == _noLeadIn) return null;
     final j = afterEnd ?? _pickupTail(prev.notes, pickup);
     if (j == null) return null;
+    if (prev.repeatEnd) {
+      // The tail of a `:|` bar also leads back into the repeat. It is this
+      // section's lead-in only when it is the same music as the lead-in into
+      // that repeat, so a section layout can move the repeat to include it
+      // (`movedRepeats`).
+      final o = repeatTargetIndex(measures, i - 1);
+      if (o <= 0 || !sameMusic(prev.notes.sublist(j), measures[o - 1].notes)) {
+        return null;
+      }
+    }
     return Section(label: s.label, startMeasure: prev.number, startNote: j);
   }
 

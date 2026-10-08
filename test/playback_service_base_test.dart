@@ -183,4 +183,47 @@ void main() {
       service.stop();
     });
   });
+
+  group('a section pinned to one pass of a repeat', () {
+    // Played 1, 2, 1, 2, 3: measure onsets at 0s, 3s, 6s, 9s, 12s.
+    final repeated = ParsedPiece(
+      keySignature: 'C',
+      keyFifths: 0,
+      keyMode: KeyMode.major,
+      measures: [
+        Measure(number: 1, notes: [_quarter(60), _quarter(62), _quarter(64)]),
+        Measure(
+            number: 2,
+            notes: [_quarter(65), _quarter(67), _quarter(69)],
+            repeatEnd: true),
+        Measure(number: 3, notes: [_quarter(71), _quarter(72), _quarter(74)]),
+      ],
+    );
+
+    setUp(() async => service.loadPieceAtBpm(repeated, 60));
+
+    test('starts on the pass it names, not the first', () {
+      service.play(fromMeasure: 2, fromNote: 2, fromIndex: 3);
+      expect(service.startOffsetSeconds, 11.0);
+    });
+
+    testWidgets('a run from a bar\'s tail to the same note a pass later',
+        (tester) async {
+      // Devil's Dream's A²: from the `e2` before `:|` round to it again.
+      service.play(
+          fromMeasure: 2,
+          fromNote: 2,
+          toMeasure: 2,
+          toNote: 2,
+          fromIndex: 1,
+          toIndex: 3);
+      expect(service.startOffsetSeconds, 5.0);
+      service.fakeSeconds = 10.9;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.playing);
+      service.fakeSeconds = 11.0;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.stopped);
+    });
+  });
 }

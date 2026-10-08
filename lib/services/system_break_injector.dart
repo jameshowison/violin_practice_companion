@@ -238,6 +238,53 @@ String splitBarsAtSections(String musicXml, List<BarSplit> splits) {
   return doc.toXmlString();
 }
 
+/// Engraves each [MovedRepeat] in xml that [splitBarsAtSections] has already
+/// cut: the backward repeat moves from the close bar's tail slice onto its
+/// head, in place of the head's invisible barline, and the forward repeat
+/// moves from the `|:` bar to the left edge of the lead-in bar before it.
+/// Devil's Dream's `e2 |: … A2 | e2 :|` then reads `|: e2 | … A2 :| e2`.
+String moveRepeatsOntoLeadIns(String musicXml, List<MovedRepeat> moved) {
+  if (moved.isEmpty) return musicXml;
+  final doc = XmlDocument.parse(musicXml);
+  bool isRepeat(XmlElement b, String direction) => b
+      .findElements('repeat')
+      .any((r) => r.getAttribute('direction') == direction);
+
+  for (final part in doc.findAllElements('part')) {
+    final measures = part.findElements('measure').toList();
+    XmlElement? byNumber(String n) =>
+        measures.where((m) => m.getAttribute('number') == n).firstOrNull;
+    for (final mr in moved) {
+      final head = byNumber('${mr.closeMeasure}');
+      final tail = byNumber('${mr.closeMeasure}b');
+      final open = byNumber('${mr.openMeasure}');
+      final leadIn = byNumber('${mr.leadInMeasure}');
+      if (head == null || tail == null || open == null || leadIn == null) {
+        continue;
+      }
+      final backward = tail
+          .findElements('barline')
+          .where((b) => isRepeat(b, 'backward'))
+          .firstOrNull;
+      final forward = open
+          .findElements('barline')
+          .where((b) =>
+              b.getAttribute('location') == 'left' && isRepeat(b, 'forward'))
+          .firstOrNull;
+      if (backward == null || forward == null) continue;
+      for (final b in head
+          .findElements('barline')
+          .where((b) => b.getAttribute('location') != 'left')
+          .toList()) {
+        b.remove();
+      }
+      head.children.add(_detach(backward));
+      leadIn.children.insert(0, _detach(forward));
+    }
+  }
+  return doc.toXmlString();
+}
+
 /// The model measure number a [splitBarsAtSections] continuation slice
 /// (`<n>b`, `<n>c`…) belongs to, or null for any ordinary measure.
 int? _continuationOf(XmlElement measure) {

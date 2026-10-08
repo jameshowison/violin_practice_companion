@@ -58,6 +58,10 @@ abstract class PlaybackServiceBase {
   // Note edges within those measures, for a section starting or ending mid-bar.
   int _fromNote = 0;
   int _toNote = -1;
+  // Which pass of those measures, as performance-order indices; -1 = the
+  // first occurrence at or after the start.
+  int _fromIndex = -1;
+  int _toIndex = -1;
   DateTime? _t0;
   double _startOffset = 0.0;
   Timer? _timer;
@@ -110,6 +114,9 @@ abstract class PlaybackServiceBase {
   /// Starts (or resumes) playback of measures [fromMeasure]…[toMeasure].
   /// [fromNote] starts part-way into [fromMeasure]; [toNote] stops before that
   /// note of [toMeasure] (`-1` plays all of it) — a section's mid-bar edges.
+  /// [fromIndex]/[toIndex] pin those measures to one pass, as indices into
+  /// the performance order (`MeasureSelection.startPerf`/`endPerf`); `-1`
+  /// takes the first occurrence.
   ///
   /// [countIn], when given, is counted off before the first note sounds; null
   /// starts immediately. Only the Play/Rewind buttons ask for a count — a loop
@@ -120,6 +127,8 @@ abstract class PlaybackServiceBase {
     int fromNote = 0,
     int? toMeasure,
     int toNote = -1,
+    int fromIndex = -1,
+    int toIndex = -1,
     CountInPlan? countIn,
   }) {
     final d = _data;
@@ -129,10 +138,15 @@ abstract class PlaybackServiceBase {
     _toMeasure = toMeasure;
     _fromNote = fromNote;
     _toNote = toNote;
+    final pinned = fromIndex >= 0 &&
+        fromIndex < d.measureNumbers.length &&
+        d.measureNumbers[fromIndex] == fromMeasure;
+    _fromIndex = pinned ? fromIndex : -1;
+    _toIndex = pinned && toIndex >= fromIndex ? toIndex : -1;
     // fromMeasure is a Measure.number, not an array index — map it via the
     // document-order measureNumbers list so a pickup (number 0) and any
     // non-1-based numbering resolve correctly. Falls back to the start.
-    final fromIdx = d.indexOfMeasure(fromMeasure);
+    final fromIdx = _fromIndex >= 0 ? _fromIndex : d.indexOfMeasure(fromMeasure);
     _startOffset = d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
     if (fromIdx >= 0 &&
         fromNote > 0 &&
@@ -193,6 +207,10 @@ abstract class PlaybackServiceBase {
     final savedFromNote = savedMeasure == _fromMeasure ? _fromNote : 0;
     final savedTo = _toMeasure;
     final savedToNote = _toNote;
+    final savedFromIndex = _lastEmittedMeasure > 0
+        ? currentHighlightNotifier.value?.performanceIndex ?? -1
+        : _fromIndex;
+    final savedToIndex = _toIndex;
     _stopInternal(silent: true);
     _bpm = bpm;
     if (_piece != null) _data = generator.generate(_piece!, bpm);
@@ -201,7 +219,9 @@ abstract class PlaybackServiceBase {
           fromMeasure: savedMeasure,
           fromNote: savedFromNote,
           toMeasure: savedTo,
-          toNote: savedToNote);
+          toNote: savedToNote,
+          fromIndex: savedFromIndex,
+          toIndex: savedToIndex);
     }
   }
 
@@ -314,8 +334,11 @@ abstract class PlaybackServiceBase {
     final int toIdx;
     if (_toMeasure == null) {
       toIdx = onsets.length - 1;
+    } else if (_toIndex >= 0) {
+      toIdx = _toIndex;
     } else {
-      final startIdx = d.indexOfMeasure(_fromMeasure);
+      final startIdx =
+          _fromIndex >= 0 ? _fromIndex : d.indexOfMeasure(_fromMeasure);
       toIdx = d.measureNumbers.indexOf(_toMeasure!, startIdx >= 0 ? startIdx : 0);
     }
     final endIdx = (toIdx >= 0 ? toIdx : onsets.length - 1) + 1;
@@ -333,7 +356,9 @@ abstract class PlaybackServiceBase {
             fromMeasure: _fromMeasure,
             fromNote: _fromNote,
             toMeasure: _toMeasure,
-            toNote: _toNote);
+            toNote: _toNote,
+            fromIndex: _fromIndex,
+            toIndex: _toIndex);
       } else {
         _stopInternal();
       }

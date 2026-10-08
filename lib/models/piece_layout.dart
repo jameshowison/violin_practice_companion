@@ -202,17 +202,25 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
   //  startNote, endNote].
   final segs = <List<dynamic>>[];
   var runHasReal = false;
+  // The run in progress began on a split tail that leads back into a repeat.
+  var tailLeadsBack = false;
   for (var oi = 0; oi < order.length; oi++) {
     final m = measures[order[oi]];
     final split = splitAt[m.number];
     final lbl = split != null ? headLabel[m.number] : labelByMeasure[m.number];
     final atSectionStart = markerMeasures.contains(m.number);
-    // A section marked on the pickup into its `|:` is replayed from the bar
-    // after that pickup, so a jump back onto it begins the next pass.
+    // A section that starts on the lead-in into its `|:` (a marked pickup
+    // bar, or a split bar's tail) is replayed from the `|:`, so a jump back
+    // onto it begins the next pass — unless that pass already began on the
+    // tail it jumped back from.
     final i = order[oi];
-    final replay = oi > 0 && i <= order[oi - 1] && i > 0 &&
-        markerMeasures.contains(measures[i - 1].number);
-    final begin = segs.isEmpty || ((atSectionStart || replay) && runHasReal);
+    final jumpedBack = oi > 0 && i <= order[oi - 1];
+    final replay = jumpedBack && i > 0 &&
+        (markerMeasures.contains(measures[i - 1].number) ||
+            splitAt.containsKey(measures[i - 1].number));
+    final begin = segs.isEmpty ||
+        ((atSectionStart || replay) && runHasReal && !(jumpedBack && tailLeadsBack));
+    tailLeadsBack = false;
     if (begin) {
       segs.add([lbl ?? '', oi, oi + 1, m.number >= 1 ? m.number : -1, m.number,
           0, -1]);
@@ -228,10 +236,17 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
       }
     }
     if (split != null) {
+      // A tail followed by a jump back leads into the repeat's next pass, so
+      // it takes the label there; on the pass that falls through, its own.
+      final leadsBack = oi + 1 < order.length && order[oi + 1] <= order[oi];
+      final tailLabel = leadsBack
+          ? labelByMeasure[measures[order[oi + 1]].number]
+          : labelByMeasure[m.number];
       segs.last[6] = split;
-      segs.add([labelByMeasure[m.number] ?? '', oi, oi + 1,
+      segs.add([tailLabel ?? '', oi, oi + 1,
           m.number >= 1 ? m.number : -1, m.number, split, -1]);
       runHasReal = m.number >= 1;
+      tailLeadsBack = leadsBack;
     }
   }
 

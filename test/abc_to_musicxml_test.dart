@@ -163,10 +163,12 @@ void main() {
       expect(sections.map((s) => s.label).toList(), ['A', 'B', 'C']);
       // A's marker sits on the pickup (measure 1, before the pickup notes),
       // and A starts there: the opening pickup is the first section's
-      // lead-in. B/C stay right where their markers are.
-      expect(sections.map((s) => s.startMeasure).toList(), [1, 6, 13]);
-      // C's `[P:C]` sits mid-bar, before its lead-in `Bc` (`A4 A2 [P:C] Bc |`).
-      expect(sections.map((s) => s.startNote).toList(), [0, 0, 2]);
+      // lead-in. C's `[P:C]` sits mid-bar, before its lead-in `Bc`
+      // (`A4 A2 [P:C] Bc |`). B's `[P:B]` can only follow the `:|`, but its
+      // lead-in is the `dc` before it, the same music as the opening pickup,
+      // so B moves back onto it (a section layout then moves the repeat).
+      expect(sections.map((s) => s.startMeasure).toList(), [1, 5, 13]);
+      expect(sections.map((s) => s.startNote).toList(), [0, 2, 2]);
     });
 
     test('the repeat still unfolds into two A runs (A1/A2) in the minimap',
