@@ -149,9 +149,13 @@ class PieceLayout {
     // `SectionDetector` (see musicxml_parser.dart) — an internal signal, not
     // something meant to be engraved. `parsedPieceProvider` reads the piece's
     // untouched XML, so it still sees them; only the rendered copy has them
-    // removed.
+    // removed. The same goes for the converter's authored line starts
+    // (`<other-direction>abc-line`).
     for (final el in doc.findAllElements('direction').toList()) {
-      if (el.findAllElements('rehearsal').isNotEmpty) {
+      if (el.findAllElements('rehearsal').isNotEmpty ||
+          el
+              .findAllElements('other-direction')
+              .any((o) => o.innerText.trim() == 'abc-line')) {
         el.parent?.children.remove(el);
       }
     }

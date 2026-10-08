@@ -166,6 +166,8 @@ void main() {
       // still visible to sectionRuns below. B/C have no repeat of their own,
       // so they stay right where their markers are.
       expect(sections.map((s) => s.startMeasure).toList(), [2, 6, 13]);
+      // C's `[P:C]` sits mid-bar, before its lead-in `Bc` (`A4 A2 [P:C] Bc |`).
+      expect(sections.map((s) => s.startNote).toList(), [0, 0, 2]);
     });
 
     test('the repeat still unfolds into two A runs (A1/A2) in the minimap',
@@ -182,10 +184,13 @@ void main() {
       expect(runs[3].passCount, 1);
     });
 
-    test('rehearsal marks are stripped from the rendered/engraved copy', () {
+    test('rehearsal marks and line starts are stripped from the engraved copy',
+        () {
       const layout = PieceLayout([]);
       final stripped = layout.stripLayoutHints(goldenParts);
       expect(stripped, isNot(contains('<rehearsal>')));
+      expect(goldenParts, contains('abc-line'));
+      expect(stripped, isNot(contains('abc-line')));
       // The parser-facing copy (parsedPieceProvider's own load) is untouched —
       // only the copy handed to the engraver has them removed.
       expect(goldenParts, contains('<rehearsal>'));

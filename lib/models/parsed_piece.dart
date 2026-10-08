@@ -21,6 +21,16 @@ class Measure {
   /// fingerprint guessing, whenever a piece has enough of them.
   final String? partLabel;
 
+  /// Where in [notes] the [partLabel] sits: 0 at the bar start, more when the
+  /// author put `[P:X]` mid-bar, on the part's lead-in.
+  final int partLabelNote;
+
+  /// Index into [notes] where an authored ABC music line begins in this
+  /// measure (0 at the bar start, more when the line starts mid-bar, on a
+  /// lead-in), or null if none does. A phrase-start hint for
+  /// [SectionDetector]; see abc_to_musicxml.js.
+  final int? lineStartNote;
+
   const Measure({
     required this.number,
     required this.notes,
@@ -28,10 +38,12 @@ class Measure {
     this.repeatStart = false,
     this.repeatEnd = false,
     this.partLabel,
+    this.partLabelNote = 0,
+    this.lineStartNote,
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
-  /// pickup rests, repeat flags, and part label through unless explicitly
+  /// pickup rests, repeat flags, part label and line start through unless explicitly
   /// overridden. The jianpu/fingering processors rebuild measures via this
   /// method, so all of that must survive to `parsedPieceProvider`'s output.
   Measure copyWithNotes(List<NoteEvent> notes,
@@ -43,6 +55,8 @@ class Measure {
         repeatStart: repeatStart ?? this.repeatStart,
         repeatEnd: repeatEnd ?? this.repeatEnd,
         partLabel: partLabel,
+        partLabelNote: partLabelNote,
+        lineStartNote: lineStartNote,
       );
 
   /// True when this measure's visible notes don't sum to the expected number of

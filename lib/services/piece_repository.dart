@@ -265,6 +265,22 @@ class PieceRepository {
     return piece;
   }
 
+  /// Runs section detection again over [piece] as it stands now, measure
+  /// edits included, and returns what it finds without saving it. Detection
+  /// otherwise only runs at import, so this is how an existing piece gets a
+  /// better detector. [sourceXml] is the piece re-converted from its stored
+  /// ABC source: it carries where the author began each line and part, which
+  /// an import before those were kept doesn't have. Never rewrites the XML.
+  Future<List<Section>> redetectSections(Piece piece,
+      {String? sourceXml}) async {
+    var measures = MusicXmlParser().parse(await loadMusicXml(piece)).measures;
+    if (sourceXml != null) {
+      measures = SectionDetector.withAuthoredHints(
+          measures, MusicXmlParser().parse(sourceXml).measures);
+    }
+    return SectionDetector.detect(measures);
+  }
+
   /// Overwrites a scanned piece's MusicXML file with [newMusicXml] (used by the
   /// measure editor). Mirrors the [savePiece] → `saveScannedPiece` passthrough.
   Future<void> updateScannedPiece(String musicXmlFilePath, String newMusicXml) {

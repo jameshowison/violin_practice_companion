@@ -63,6 +63,7 @@
       <note><pitch><step>E</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="6">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <harmony>
         <root><root-step>A</root-step></root>
         <kind>major</kind>
@@ -123,6 +124,7 @@
     </measure>
     <measure number="10">
       <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <harmony>
         <root><root-step>A</root-step></root>
         <kind>major</kind>
@@ -171,6 +173,7 @@
       <note><pitch><step>E</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="14">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <harmony>
         <root><root-step>A</root-step></root>
         <kind>major</kind>

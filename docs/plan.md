@@ -19,30 +19,32 @@ looks depends entirely on where the section markers sit.
 
 ### 1.1 Lead-ins as part of section detection
 
-Today the shift of a section start onto its lead-in is a post-pass on the
-heuristic detector: `SectionDetector.withLeadIns` takes the tail of the
-previous bar that matches the opening pickup's length, skipping leading rests.
-It only runs inside `detect()` on new imports, and it is skipped when there is
-no opening pickup, at a repeat boundary, or when the previous bar isn't full.
-Existing pieces keep their downbeat sections.
+Landed: `SectionDetector.detect` finds strain boundaries from part labels,
+repeats, the author's ABC lines (new), then 8/4-bar blocks. A boundary the
+author put mid-bar is kept exactly. That covers a `[P:X]` before a lead-in,
+and an ABC line that starts on one (Amazing Grace's `…| D4` / `D2 | G4…`).
+The converter now writes both as positional `<direction>`s, which the parser
+reads as `Measure.partLabelNote` / `lineStartNote`. Downbeat starts then move
+back onto their lead-in: the first sounding note after the previous bar's
+phrase end (a rest, a held-over note, a note of half a bar or more), falling
+back to the opening pickup's length. A bar that ends on its phrase end has
+none. Existing pieces get this through "Re-detect sections" in the display
+drawer. It re-converts the stored ABC source for the line hints, and asks
+before it replaces anything.
 
-Fold it into a general approach to finding sections instead of bolting it on
-afterwards. A phrase's real start is the lead-in, so the detector should look
-for phrase starts in the first place rather than finding downbeats and then
-moving them. Signals worth combining:
+Still open:
 
-- **The opening pickup's length.** This is the current heuristic.
-- **Authored ABC line breaks.** Each ABC music line of Along the Road to
-  Gundagai is one section, starting on its lead-in. `abc_to_musicxml.js`
-  `convertTune` concatenates `tune.lines` and throws these away. Keep them as a
-  hint, and re-run over `../violin_dev_library/abc_sources/` to backfill.
-- **Lyrics.** The first syllable of a `w:` line marks the lead-in note.
-- **Rests and long notes** that end the previous phrase.
-- **Repeat barlines and rehearsal marks**, as now.
-
-When it lands, decide how existing pieces get it. The options are a one-time
-"re-detect sections" action, or a sidecar migration. Either way, never
-silently overwrite a sidecar the user has edited.
+- **Lyrics.** Not used. The plan's "first syllable of a `w:` line marks
+  the lead-in" is wrong for Gundagai, whose lead-in words ("Where the",
+  "There's my") end the previous `w:` line while its lines open on the
+  downbeat. A usable signal would be a sung word starting after a held note
+  or extend.
+- **Lines in a repeat tail.** A straight-through tail after the last `:|`
+  is still tiled into 8/4-bar blocks; the author's lines could split it.
+- **Marker drift.** The measure editor rebuilds a bar's notes in one run,
+  so a mid-bar marker ends up after them. Detection ignores a marker past the
+  bar's last note; re-detection takes fresh positions from the ABC source
+  when the bars still line up.
 
 ### 1.2 Section markers on specific notes
 
@@ -66,6 +68,27 @@ Constraints already in the code: `startNote` counts visible, non-grace notes,
 including rests and chord members. A marker always sits on a chord's primary
 note (`ChordEditor.primaryIndexOf` in the editor, and `sectionBarSplits`), so
 the UI should only offer primary notes.
+
+### 1.3 Lead-ins across repeats
+
+Devil's Dream is written `e2 |: agae … A2 e2 :| |: ceAe …`. The `e2` before
+`:|` is a lead-in twice: back into A's second playing, then into B. It plays
+exactly like `|: e2 agae … A2 :| e2 | ceAe …`, with the forward repeat before
+the pickup and the backward repeat mid-bar. Each playing of A is then a
+clean section that carries its lead-in, and B starts mid-bar on the `e2`.
+
+Detection leaves a start at a repeat boundary on its downbeat, because the
+model can't express this yet. Repeats are per bar (`Measure.repeatStart` /
+`repeatEnd`), `ParsedPiece.performanceOrder` lists bars, and `sectionRuns`
+labels whole bars, so a marker on that `e2` would tint it B on both passes.
+
+- **Detection's part:** when the tail of a `:|` bar matches the strain's
+  opening pickup (same durations and pitches), propose the moved repeats.
+- **The model's part:** repeats at note positions. Probably done by splitting
+  such a bar into two sub-measures in the model, as `splitBarsAtSections`
+  already does for the staff, so playback and the cursor stay bar-granular.
+- **Open:** whether the engraving shows the moved, mid-bar repeat or keeps
+  the written one, and whether Verovio renders a `location="middle"` barline.
 
 ---
 

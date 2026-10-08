@@ -49,6 +49,7 @@
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
     </measure>
     <measure number="6">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <harmony>
         <root><root-step>A</root-step></root>
         <kind>major</kind>
@@ -88,6 +89,7 @@
     </measure>
     <measure number="10">
       <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
     </measure>
     <measure number="11">
@@ -123,6 +125,7 @@
       <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
     </measure>
     <measure number="15">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
