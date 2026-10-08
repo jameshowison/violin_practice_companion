@@ -1,6 +1,7 @@
 import 'package:flutter/painting.dart';
 
 import '../services/chord_analysis.dart';
+import 'engraved_measure_map.dart';
 import 'parsed_piece.dart';
 import 'section.dart';
 
@@ -75,7 +76,7 @@ class ChordPalette {
 /// chord that changes mid-measure colors only its own notes.
 ///
 /// Coordinates are engraved measure INDICES (matching the staff's
-/// `measureNumbers` list), exactly as for `SectionTintRegion`: [startNote] is the
+/// [EngravedMeasureMap]), exactly as for `SectionTintRegion`: [startNote] is the
 /// first governed note in [startMeasureIndex] (0 = bar start); [endNote] is the
 /// EXCLUSIVE last note in [endMeasureIndex] (`-1` = the whole [endMeasureIndex]).
 typedef ChordRunRegion = ({
@@ -88,15 +89,15 @@ typedef ChordRunRegion = ({
   bool minorQuality, // picks the dimmer shade of [degree]'s hue
 });
 
-/// Builds one region per chord run over the folded staff. [measureNumbers] is the
-/// engraved order (index → measure number).
+/// Builds one region per chord run over the folded staff. [measureMap] is the
+/// engraved order (index → measure number, split bars included).
 ///
 /// A chord run has the same shape as a section run — a marker that holds until
 /// the next marker, at note-level granularity — so the boundary resolution is
 /// delegated to [resolveSectionRanges] rather than re-derived. Measures before
 /// the first chord are covered by no region.
 List<ChordRunRegion> chordRunRegions(
-    List<int> measureNumbers, ParsedPiece parsed) {
+    EngravedMeasureMap measureMap, ParsedPiece parsed) {
   // Chord starts as markers. NoteEvent.chordSymbol is non-null exactly where a
   // chord begins, so the note index IS the marker's note offset.
   final markers = <Section>[];
@@ -113,19 +114,19 @@ List<ChordRunRegion> chordRunRegions(
 
   final regions = <ChordRunRegion>[];
   for (final r in resolveSectionRanges(markers, parsed.measures)) {
-    final startIdx = measureNumbers.indexOf(r.startMeasure);
-    final endIdx = measureNumbers.indexOf(r.endMeasure);
-    if (startIdx < 0 || endIdx < 0) continue;
+    final at = measureMap.range(
+        r.startMeasure, r.startNote, r.endMeasure, r.endNote);
+    if (at == null) continue;
     final a = ChordAnalysis.analyze(
       keyFifths: parsed.keyFifths,
       keyMode: parsed.keyMode,
       chordName: r.label,
     );
     regions.add((
-      startMeasureIndex: startIdx,
-      startNote: r.startNote,
-      endMeasureIndex: endIdx,
-      endNote: r.endNote,
+      startMeasureIndex: at.startMeasureIndex,
+      startNote: at.startNote,
+      endMeasureIndex: at.endMeasureIndex,
+      endNote: at.endNote,
       // Degree-primary, matching how the symbol used to be engraved.
       label: a == null ? r.label : '${a.roman} (${r.label})',
       degree: a?.degreeIndex,

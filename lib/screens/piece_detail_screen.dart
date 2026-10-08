@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/chord_palette.dart';
 import '../models/count_in.dart';
+import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -1506,21 +1507,27 @@ class _NotationView extends ConsumerWidget {
       }
     }
     // The notation is always folded, so the index↔number map is the plain
-    // document order (numbers are unique).
-    final measureNumbers =
-        parsed == null ? const <int>[] : parsed.measures.map((m) => m.number).toList();
+    // document order (numbers are unique) — except that the staff views, laid
+    // out by section, engrave a bar split at a section's lead-in as two
+    // measures. Tab is never split (see [staffBreakModeProvider]).
+    final breakMode = ref.watch(staffBreakModeProvider);
+    final measureMap = parsed == null
+        ? EngravedMeasureMap.empty
+        : mode == DisplayMode.tab
+            ? EngravedMeasureMap.identity(parsed.measures.map((m) => m.number))
+            : staffMeasureMapFor(parsed.measures, sections, breakMode);
     // Per-section background wash (note-level edges so a mid-measure section
     // start/end splits the boundary measure). Empty without sections.
     final sectionTints = (parsed == null || sections.isEmpty)
         ? const <SectionTintRegion>[]
         : sectionTintRegions(
-            measureNumbers, sections, sectionColors, parsed.measures);
+            measureMap, sections, sectionColors, parsed.measures);
     // Chord runs as labelled bars in a lane above the staff — the native renderer
     // owns the chord label now (the XML providers strip `<harmony>` for it), so
     // this list is the only thing that puts chords on the score.
     final chordRuns = (parsed == null || !ref.watch(showChordsProvider))
         ? const <ChordRunRegion>[]
-        : chordRunRegions(measureNumbers, parsed);
+        : chordRunRegions(measureMap, parsed);
     // Fingering labels as chips in a channel between the notes and the chord
     // lane. Built for the annotation view only, and — like the chord runs — this
     // list is now the ONLY thing that puts fingerings on the score: the XML
@@ -1529,7 +1536,7 @@ class _NotationView extends ConsumerWidget {
     final annotations = (parsed == null || mode != DisplayMode.staffFingering)
         ? const <FingeringAnnotation>[]
         : fingeringAnnotations(
-            measureNumbers,
+            measureMap,
             parsed,
             density: ref.watch(fingeringDensityProvider),
             policy: ref.watch(fingeringDensityPolicyProvider),
@@ -1545,7 +1552,7 @@ class _NotationView extends ConsumerWidget {
             colourStyle != StringColourStyle.underline)
         ? const <StringRunRegion>[]
         : stringRunRegions(
-            measureNumbers,
+            measureMap,
             parsed,
             numberMode: ref.watch(noteNumberModeProvider),
             fretStyle: ref.watch(fretStyleProvider),
@@ -1556,7 +1563,7 @@ class _NotationView extends ConsumerWidget {
         ? null
         : () {
             final run = layout.runs[navTarget.run];
-            final idx = measureNumbers.indexOf(run.firstMeasure);
+            final idx = measureMap.firstIndexOf(run.firstMeasure);
             return idx < 0 ? null : (index: idx, seq: navTarget.seq);
           }();
     // Build the staff via the selected renderer (native Verovio or OSMD
@@ -1584,7 +1591,8 @@ class _NotationView extends ConsumerWidget {
           selection: selection,
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
-          measureNumbers: measureNumbers,
+          measureMap: measureMap,
+          sectionLayout: breakMode.sectionAuto,
           sectionTints: sectionTints,
           chordRuns: chordRuns,
           fingeringAnnotations: annotations,
@@ -1599,7 +1607,7 @@ class _NotationView extends ConsumerWidget {
         selection: selection,
         onMeasureTapped: (m) => _selectMeasure(ref, m),
         flaggedMeasures: flaggedMeasures,
-        measureNumbers: measureNumbers,
+        measureNumbers: measureMap.numbers,
         sectionTints: sectionTints,
         scrollNav: staffNav,
       );
@@ -1691,7 +1699,7 @@ class _NotationView extends ConsumerWidget {
                   selection: selection,
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
                   flaggedMeasures: flaggedMeasures,
-                  measureNumbers: measureNumbers,
+                  measureMap: measureMap,
                   sectionTints: sectionTints,
                   chordRuns: chordRuns,
                   scrollNav: staffNav,

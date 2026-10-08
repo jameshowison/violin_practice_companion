@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../models/duration_step.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 import '../models/section.dart';
@@ -28,10 +29,86 @@ class SectionDetector {
     if (seg == null || seg.strains.length < _minStrains) return const [];
     final prints = [for (final s in seg.strains) _fingerprint(s)];
     final labels = _assignLabels(prints);
-    return [
+    return withLeadIns([
       for (var i = 0; i < seg.strains.length; i++)
         Section(label: labels[i], startMeasure: seg.starts[i]),
+    ], measures);
+  }
+
+  // ── Lead-ins ────────────────────────────────────────────────────────────────
+
+  /// Moves each section start back onto its LEAD-IN: the notes at the end of
+  /// the bar before it that lead into the section the way the piece's opening
+  /// pickup leads into the first. A strain that starts on an upbeat is found
+  /// by bar-counting on its downbeat, but musically (and in the words, for a
+  /// song) it begins on the upbeat — Along the Road to Gundagai's "Where the |
+  /// gum-trees", "There's my | moth-er", "No more | will I roam", each the last
+  /// beat of the bar before, just as "there's a | track" is the opening
+  /// pickup. Starting the section there is what lets a section-aware staff
+  /// open the line with it.
+  ///
+  /// The lead-in is the tail of the previous bar as long as the opening pickup
+  /// (so only a piece that HAS an opening pickup gets any), and it must start
+  /// on a note boundary; leading rests in it are skipped, so it begins on the
+  /// first sounding note. The first section and any section already off its
+  /// downbeat are left alone, as is a start at a repeat boundary — the tail of
+  /// a `:|` bar leads back into the repeat, not on.
+  static List<Section> withLeadIns(
+      List<Section> sections, List<Measure> measures) {
+    if (measures.length < 2 || sections.length < 2) return sections;
+    final pickup = measures.first.actualUnits;
+    final fullBar = _commonUnits(measures);
+    if (pickup <= 0 || pickup >= fullBar) return sections;
+    final indexOf = {
+      for (var i = 0; i < measures.length; i++) measures[i].number: i,
+    };
+    final first = sections.reduce((a, b) =>
+        (indexOf[a.startMeasure] ?? 0) <= (indexOf[b.startMeasure] ?? 0)
+            ? a
+            : b);
+    return [
+      for (final s in sections)
+        if (identical(s, first) || s.startNote != 0)
+          s
+        else
+          _leadIn(s, measures, indexOf, pickup, fullBar) ?? s,
     ];
+  }
+
+  static Section? _leadIn(Section s, List<Measure> measures,
+      Map<int, int> indexOf, int pickup, int fullBar) {
+    final i = indexOf[s.startMeasure];
+    if (i == null || i == 0) return null;
+    final here = measures[i], prev = measures[i - 1];
+    if (here.repeatStart || prev.repeatEnd) return null;
+    if (prev.actualUnits != fullBar) return null;
+    final notes = prev.notes;
+    var tail = 0;
+    var j = notes.length;
+    while (j > 0 && tail < pickup) {
+      j--;
+      if (!notes[j].isChord) {
+        tail += thirtySecondUnits(notes[j].noteValue, notes[j].dotted);
+      }
+    }
+    while (j > 0 && notes[j].isChord) {
+      j--; // a chord's members start with its primary note
+    }
+    if (tail != pickup) return null;
+    while (j < notes.length && notes[j].isRest) {
+      j++;
+    }
+    if (j <= 0 || j >= notes.length) return null;
+    return Section(label: s.label, startMeasure: prev.number, startNote: j);
+  }
+
+  /// The commonest bar length — a full bar, whatever the time signature.
+  static int _commonUnits(List<Measure> measures) {
+    final counts = <int, int>{};
+    for (final m in measures) {
+      counts[m.actualUnits] = (counts[m.actualUnits] ?? 0) + 1;
+    }
+    return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
   }
 
   // ── Authored part labels ────────────────────────────────────────────────────

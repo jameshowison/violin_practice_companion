@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/chord_palette.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 
 NoteEvent _n({String? chord}) => NoteEvent(
       pitch: 'A4',
@@ -40,7 +41,7 @@ void main() {
       ];
       final piece = _piece(measures);
       final regions =
-          chordRunRegions([for (final m in measures) m.number], piece);
+          chordRunRegions(EngravedMeasureMap.identity([for (final m in measures) m.number]), piece);
 
       expect(regions.length, 2);
       // A covers engraved indices 0..1 whole (E starts at the bar line of 2).
@@ -63,7 +64,7 @@ void main() {
       ];
       final piece = _piece(measures);
       final regions =
-          chordRunRegions([for (final m in measures) m.number], piece);
+          chordRunRegions(EngravedMeasureMap.identity([for (final m in measures) m.number]), piece);
 
       expect(regions.length, 2);
       // A ends inside engraved measure 1, exclusive of note 2.
@@ -77,7 +78,7 @@ void main() {
     test('measures before the first chord get no region', () {
       final measures = [_m(1), _m(2, chords: {0: 'A'})];
       final regions = chordRunRegions(
-          [for (final m in measures) m.number], _piece(measures));
+          EngravedMeasureMap.identity([for (final m in measures) m.number]), _piece(measures));
       expect(regions.length, 1);
       expect(regions.single.startMeasureIndex, 1);
     });
@@ -85,7 +86,7 @@ void main() {
     test('a piece with no chords yields nothing', () {
       final measures = [_m(1), _m(2)];
       expect(
-        chordRunRegions([for (final m in measures) m.number], _piece(measures)),
+        chordRunRegions(EngravedMeasureMap.identity([for (final m in measures) m.number]), _piece(measures)),
         isEmpty,
       );
     });
@@ -99,7 +100,7 @@ void main() {
         _m(4, chords: {0: 'Bm'}),
       ];
       final regions = chordRunRegions(
-          [for (final m in measures) m.number], _piece(measures));
+          EngravedMeasureMap.identity([for (final m in measures) m.number]), _piece(measures));
 
       expect(regions.map((r) => r.label).toList(),
           ['I (A)', 'V (E)', '♭VII (G)', 'ii (Bm)']);
@@ -111,7 +112,7 @@ void main() {
     test('an unanalyzable chord name still gets a bar, with no degree', () {
       final measures = [_m(1, chords: {0: 'N.C.'})];
       final regions = chordRunRegions(
-          [for (final m in measures) m.number], _piece(measures));
+          EngravedMeasureMap.identity([for (final m in measures) m.number]), _piece(measures));
       expect(regions.single.label, 'N.C.');
       expect(regions.single.degree, isNull);
     });

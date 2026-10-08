@@ -5,6 +5,7 @@ import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/string_label_style.dart';
 import 'package:violin_practice_companion/services/fingering_annotation_builder.dart';
+import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 
 NoteEvent _n(String? string, String? finger,
         {bool rest = false, bool chord = false, int midi = 69}) =>
@@ -37,7 +38,7 @@ List<FingeringAnnotation> _build(
   FretStyle fretStyle = FretStyle.openStrings,
 }) =>
     fingeringAnnotations(
-      [for (final m in measures) m.number],
+      EngravedMeasureMap.identity([for (final m in measures) m.number]),
       _piece(measures),
       density: density,
       policy: policy,
@@ -286,7 +287,7 @@ void main() {
       NoteNumberMode numberMode = NoteNumberMode.violinFingering,
       FretStyle fretStyle = FretStyle.openStrings,
     }) =>
-        stringRunRegions([for (final m in measures) m.number], _piece(measures),
+        stringRunRegions(EngravedMeasureMap.identity([for (final m in measures) m.number]), _piece(measures),
             numberMode: numberMode, fretStyle: fretStyle);
 
     test('consecutive notes on one string are a single run', () {

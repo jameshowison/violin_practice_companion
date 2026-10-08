@@ -1,4 +1,5 @@
 import 'package:flutter/painting.dart';
+import 'engraved_measure_map.dart';
 import 'parsed_piece.dart';
 import 'section.dart';
 
@@ -38,7 +39,7 @@ class SectionPalette {
 /// A section's background-wash region over the engraved (folded) score, with
 /// note-level edges so a section that begins/ends mid-measure colors only its
 /// notes. Coordinates are engraved measure INDICES (matching the staff's
-/// `measureNumbers` list). [startNote] is the first tinted note in
+/// [EngravedMeasureMap]), with notes counted within the engraved slice. [startNote] is the first tinted note in
 /// [startMeasureIndex] (0 = bar start); [endNote] is the EXCLUSIVE last note in
 /// [endMeasureIndex] (`-1` = the whole [endMeasureIndex]).
 typedef SectionTintRegion = ({
@@ -49,12 +50,12 @@ typedef SectionTintRegion = ({
   String color,
 });
 
-/// Builds per-section wash regions over the folded staff. [measureNumbers] is
-/// the engraved order (index → measure number); [measures] is the parsed
+/// Builds per-section wash regions over the folded staff. [measureMap] is
+/// the engraved order (index → measure number, split bars included); [measures] is the parsed
 /// measure list (for resolving marker note offsets); [colors] maps label → hue.
 /// Sections sharing a label share a color (so A/B yield two colors).
 List<SectionTintRegion> sectionTintRegions(
-  List<int> measureNumbers,
+  EngravedMeasureMap measureMap,
   List<Section> sections,
   Map<String, Color> colors,
   List<Measure> measures,
@@ -63,14 +64,14 @@ List<SectionTintRegion> sectionTintRegions(
   const fallback = Color(0xFF888888);
   final regions = <SectionTintRegion>[];
   for (final r in ranges) {
-    final startIdx = measureNumbers.indexOf(r.startMeasure);
-    final endIdx = measureNumbers.indexOf(r.endMeasure);
-    if (startIdx < 0 || endIdx < 0) continue;
+    final at = measureMap.range(
+        r.startMeasure, r.startNote, r.endMeasure, r.endNote);
+    if (at == null) continue;
     regions.add((
-      startMeasureIndex: startIdx,
-      startNote: r.startNote,
-      endMeasureIndex: endIdx,
-      endNote: r.endNote,
+      startMeasureIndex: at.startMeasureIndex,
+      startNote: at.startNote,
+      endMeasureIndex: at.endMeasureIndex,
+      endNote: at.endNote,
       color: SectionPalette.hex(colors[r.label] ?? fallback),
     ));
   }

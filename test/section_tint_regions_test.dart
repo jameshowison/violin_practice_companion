@@ -3,6 +3,7 @@ import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/models/section_palette.dart';
+import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 
 NoteEvent _n() => const NoteEvent(
       pitch: 'A4',
@@ -28,7 +29,7 @@ void main() {
       ];
       final colors = SectionPalette.colorsForSections(starts);
       final regions =
-          sectionTintRegions(measureNumbers, starts, colors, measures);
+          sectionTintRegions(EngravedMeasureMap.identity(measureNumbers), starts, colors, measures);
       expect(regions.length, 2);
       expect(regions.map((r) => r.color).toSet().length, 2);
       // A covers engraved indices 0..1 (whole), B covers 2..3 (whole).
@@ -47,7 +48,7 @@ void main() {
       ];
       final colors = SectionPalette.colorsForSections(starts);
       final regions =
-          sectionTintRegions(measureNumbers, starts, colors, measures);
+          sectionTintRegions(EngravedMeasureMap.identity(measureNumbers), starts, colors, measures);
       expect(regions.length, 3);
       expect(regions[0].color, regions[2].color); // both A
       expect(regions[0].color, isNot(regions[1].color)); // A ≠ B
@@ -60,7 +61,7 @@ void main() {
       ];
       final colors = SectionPalette.colorsForSections(starts);
       final regions =
-          sectionTintRegions(measureNumbers, starts, colors, measures);
+          sectionTintRegions(EngravedMeasureMap.identity(measureNumbers), starts, colors, measures);
       // A ends mid-measure 2 (engraved index 1), just before note 2.
       expect(regions[0].endMeasureIndex, 1);
       expect(regions[0].endNote, 2);

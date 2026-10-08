@@ -8,11 +8,13 @@ import 'package:jovial_svg/jovial_svg.dart';
 
 import '../models/chord_palette.dart';
 import '../models/count_in.dart';
+import '../models/engraved_measure_map.dart';
 import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
+import '../services/section_line_planner.dart';
 import '../services/staff_zoom.dart';
 import '../services/system_break_injector.dart';
 import '../services/verovio_engraver.dart';
@@ -44,9 +46,15 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   final ValueChanged<int>? onMeasureTapped;
   final Set<int> flaggedMeasures;
 
-  /// Model measure numbers in document (or unfolded performance) order; maps an
-  /// engraved measure index ↔ our measure number, both directions.
-  final List<int> measureNumbers;
+  /// Engraved measure index ↔ model measure number (and, for a bar split at a
+  /// section's lead-in, the note offset of each slice), both directions.
+  final EngravedMeasureMap measureMap;
+
+  /// Lay the piece out by section: every section starts a line (the xml
+  /// already carries those breaks) and fills one line, or the fewest that
+  /// fit, balanced by measured width — see `planSectionLines`. Applies only
+  /// while the zoom is on Auto; an explicit measures-per-line wins.
+  final bool sectionLayout;
 
   /// Parity with [StaffView]; the engraver always wraps systems to the page
   /// width, so there's no last-system justification to toggle.
@@ -108,7 +116,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.selection,
     this.onMeasureTapped,
     this.flaggedMeasures = const {},
-    this.measureNumbers = const [],
+    this.measureMap = EngravedMeasureMap.empty,
+    this.sectionLayout = false,
     this.stretchLastSystem = true,
     this.sectionTints = const [],
     this.chordRuns = const [],
@@ -153,6 +162,7 @@ typedef _EngraveRequest = ({
   int? target,
   int spacingUnits,
   bool locked,
+  bool sections,
 });
 
 class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
@@ -372,6 +382,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   String _calibrationKeyFor(int spacingUnits, bool locked) =>
       '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits|$locked';
 
+  /// Natural (unjustified) width of every engraved measure in MEI units, for
+  /// the section layout — measured once per calibration from a one-line
+  /// engrave. Keyed like the calibration it belongs to.
+  List<double> _naturalWidths = const [];
+  String? _naturalWidthsFor;
+
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
   // Latest-wins: a new request replaces any queued one, and the in-flight run
@@ -451,6 +467,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 probe.staffSpaceViewBox;
       }
 
+      if (req.sections) {
+        await _engraveSections(req, seq);
+        return;
+      }
+
       // 2. Resolve the target and solve for Verovio's scale.
       final target =
           req.target ??
@@ -528,16 +549,16 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //     Verovio's `breaks: 'auto'` engrave above just chose, hiding the
       //     preamble at each — the same recovery locked mode gets from its
       //     own (computed, not discovered) break points. Skipped for
-      //     previews (zoomable: false — measureNumbers is empty there, and a
+      //     previews (zoomable: false — measureMap is empty there, and a
       //     1-2 bar preview has nothing to freeze anyway) and already-locked
       //     engraves (already frozen upstream). One more full engrave, so
       //     only worth it when there is more than one system to fix.
-      if (!req.locked && widget.zoomable) {
+      if (!req.locked && widget.zoomable && !widget.measureMap.hasSplits) {
         final breakNumbers = <int>{};
         for (var i = 1; i < score.measureLine.length; i++) {
-          if (i >= widget.measureNumbers.length) break;
+          if (i >= widget.measureMap.length) break;
           if (score.measureLine[i] != score.measureLine[i - 1]) {
-            breakNumbers.add(widget.measureNumbers[i]);
+            breakNumbers.add(widget.measureMap.numberAt(i));
           }
         }
         if (breakNumbers.isNotEmpty) {
@@ -558,34 +579,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         }
       }
 
-      // jovial parse is synchronous and fast (a few ms); currentColor resolves
-      // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
-      final image = ScalableImage.fromSvgString(
-        score.svg,
-        currentColor: Colors.black,
-        warnF: (_) {},
-      );
-      setState(() {
-        _score = score;
-        _image = image;
-        _error = null;
-        _engravedWidth = req.widthPx;
-        _engravedTarget = req.target;
-        _engravedSpacingUnits = req.spacingUnits;
-        // The real layout has landed, so a pinch preview standing in for it has
-        // nothing left to say. Cleared here rather than at the release so the
-        // page doesn't shrink back for the length of the engrave.
-        _pinchScale = 1;
-      });
-      // Report what Verovio actually did — its break points are musical, so a
-      // dense bar can land one short of the target. Drives the slider readout.
-      // Only the whole-piece views speak for it; a one-bar preview would
-      // otherwise overwrite the readout with its own count.
-      if (widget.zoomable) {
-        ref.read(effectiveMeasuresPerLineProvider.notifier).state =
-            measuresPerLineOf(score.measureLine);
-      }
-      _onHighlight(); // re-place the cursor on the fresh layout
+      _publish(score, req);
 
       // 4. Learn from what just happened. This engrave is itself an observation
       //    of how tightly Verovio packs these bars, and it is a tighter one than
@@ -615,6 +609,123 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       }
     }
   }
+
+  /// Puts a finished engrave on screen and reports what it achieved.
+  void _publish(EngravedScore score, _EngraveRequest req) {
+    // jovial parse is synchronous and fast (a few ms); currentColor resolves
+    // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
+    final image = ScalableImage.fromSvgString(
+      score.svg,
+      currentColor: Colors.black,
+      warnF: (_) {},
+    );
+    setState(() {
+      _score = score;
+      _image = image;
+      _error = null;
+      _engravedWidth = req.widthPx;
+      _engravedTarget = req.target;
+      _engravedSpacingUnits = req.spacingUnits;
+      // The real layout has landed, so a pinch preview standing in for it has
+      // nothing left to say. Cleared here rather than at the release so the
+      // page doesn't shrink back for the length of the engrave.
+      _pinchScale = 1;
+    });
+    // Report what Verovio actually did — its break points are musical, so a
+    // dense bar can land one short of the target. Drives the slider readout.
+    // Only the whole-piece views speak for it; a one-bar preview would
+    // otherwise overwrite the readout with its own count.
+    if (widget.zoomable) {
+      ref.read(effectiveMeasuresPerLineProvider.notifier).state =
+          measuresPerLineOf(score.measureLine);
+    }
+    _onHighlight(); // re-place the cursor on the fresh layout
+  }
+
+  /// The section layout's engrave (`StaffViewVerovio.sectionLayout`): the xml
+  /// already breaks before every section start, so what is left to choose is
+  /// how each section fills its lines, and the scale.
+  ///
+  /// The smallest acceptable staff size (`minStaffScaleFor`) fixes how wide a
+  /// line may be; each section then takes the fewest lines that fit inside
+  /// that, cut where the lines come out most even (`planSectionLines`), and
+  /// the scale is solved so the widest planned line fills the width. Widths
+  /// come from one engrave of the whole piece on a single unjustified line, so
+  /// a split bar's half slices and a wide bar of words are each measured as
+  /// they are rather than averaged.
+  ///
+  /// No refinement pass: the breaks are encoded, so Verovio cannot pack more
+  /// onto a line than planned, and there is no per-measure average to tighten.
+  Future<void> _engraveSections(_EngraveRequest req, int seq) async {
+    final spacing = (req.spacingUnits + _reserveSpacingUnits).clamp(
+      0,
+      verovioSpacingSystemMax,
+    );
+    if (_naturalWidthsFor != _calibratedFor) {
+      final line = await _engraveAt(
+        _naturalLineWidthPx,
+        staffScaleProbe,
+        spacingSystem: spacing,
+        breaks: 'none',
+      );
+      if (!mounted || seq != _engraveSeq) return;
+      _naturalWidths = [
+        for (final m in line.measures) m.rect.width * 100 / staffScaleProbe,
+      ];
+      _naturalWidthsFor = _calibratedFor;
+    }
+
+    final usableUnits = (req.widthPx * 100 / minStaffScaleFor(req.shortestSidePx) -
+            _pageMarginUnits) /
+        staffFitSlack;
+    final starts = systemStartPositions(widget.musicXml);
+    final plan = planSectionLines(
+      widths: _naturalWidths,
+      segmentStarts: starts,
+      maxLineUnits: usableUnits - _lineStartUnits,
+    );
+    final scale = (req.widthPx *
+            100 /
+            ((plan.widestUnits + _lineStartUnits) * staffFitSlack +
+                _pageMarginUnits))
+        .clamp(staffScaleMin, staffScaleMax);
+    final lines = starts.length + plan.breaks.length;
+    if (VerovioEngraver.debugLogging) {
+      debugPrint(
+        '[sections] w=${req.widthPx.round()} bars=${_naturalWidths.length} '
+        'segments=${starts.length} lines=$lines '
+        'widest=${plan.widestUnits.round()}u '
+        'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
+        'scale=${scale.toStringAsFixed(1)} breaks=${(plan.breaks.toList()..sort())}',
+      );
+    }
+    final score = await _engraveAt(
+      req.widthPx,
+      scale,
+      measuresPerLine: math.max(1, (_measureCount / lines).ceil()),
+      spacingSystem: spacing,
+      pageMarginTopReserve: _reservePageMarginUnits,
+      breaks: 'encoded',
+      musicXmlOverride: insertBreaksAtPositions(widget.musicXml, plan.breaks),
+    );
+    if (!mounted || seq != _engraveSeq) return;
+    _publish(score, req);
+  }
+
+  /// Wide enough that the natural-width engrave keeps the whole piece on one
+  /// line: 39000px at the probe's scale is a 97500-unit page, just inside
+  /// Verovio's 100000 maximum. Verovio leaves a last (here: only) system
+  /// unjustified while it fills under 80% of the page, so the widths are
+  /// natural ones for any piece under ~200 bars.
+  static const _naturalLineWidthPx = 39000.0;
+
+  /// Verovio's default left + right page margins, in MEI units.
+  static const _pageMarginUnits = 100.0;
+
+  /// What every line spends before its first note that no measure's natural
+  /// width includes: the restated key signature (clef and time are hidden at
+  /// each break — see `insertSystemBreaks`).
+  static const _lineStartUnits = 60.0;
 
   /// Backstop on corrective engraves per calibration (see [_refinements]).
   static const _maxRefinements = 2;
@@ -737,9 +848,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // Map our measure number → engraved measure index. In folded mode numbers
     // are unique so this is exact; in unfolded/sectioned mode a repeated number
     // resolves to its first rendered copy (cursor sits on the first pass).
-    final mi = widget.measureNumbers.indexOf(ev.measureNumber);
-    if (mi < 0) return null;
-    return score.noteAt(mi, ev.noteIndex);
+    final at = widget.measureMap.locate(ev.measureNumber, ev.noteIndex);
+    if (at == null) return null;
+    return score.noteAt(at.index, at.note);
   }
 
   // ── Scrolling ──────────────────────────────────────────────────────────
@@ -816,7 +927,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     double scale,
     double width,
   ) {
-    final found = widget.measureNumbers.indexOf(tick.startMeasure);
+    final found = widget.measureMap.firstIndexOf(tick.startMeasure);
     final index = found < 0 ? 0 : found;
     final line = score.lineOfMeasure(index);
     if (line < 0 || line >= score.lineContent.length) return null;
@@ -884,8 +995,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // Measure tap (existing select-on-notation behavior).
     for (final m in score.measures) {
       if (m.rect.contains(p)) {
-        if (m.index >= 0 && m.index < widget.measureNumbers.length) {
-          widget.onMeasureTapped?.call(widget.measureNumbers[m.index]);
+        if (m.index >= 0 && m.index < widget.measureMap.length) {
+          widget.onMeasureTapped?.call(widget.measureMap.numberAt(m.index));
         }
         return;
       }
@@ -970,6 +1081,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 target: target,
                 spacingUnits: spacingUnits,
                 locked: locked,
+                sections: widget.sectionLayout && target == null && !locked,
               ));
             }
           });
@@ -1026,7 +1138,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               repaint: widget.highlightNotifier,
                               score: score,
                               scale: scale,
-                              measureNumbers: widget.measureNumbers,
+                              measureMap: widget.measureMap,
                               selection: widget.selection,
                               flaggedMeasures: widget.flaggedMeasures,
                               highlight: widget.highlightNotifier,
@@ -1942,7 +2054,7 @@ class _OverlayPainter extends CustomPainter {
     required Listenable repaint,
     required this.score,
     required this.scale,
-    required this.measureNumbers,
+    required this.measureMap,
     required this.selection,
     required this.flaggedMeasures,
     required this.highlight,
@@ -1952,7 +2064,7 @@ class _OverlayPainter extends CustomPainter {
 
   final EngravedScore score;
   final double scale;
-  final List<int> measureNumbers;
+  final EngravedMeasureMap measureMap;
   final MeasureSelection? selection;
   final Set<int> flaggedMeasures;
   final ValueNotifier<HighlightEvent?> highlight;
@@ -1965,8 +2077,6 @@ class _OverlayPainter extends CustomPainter {
     r.right * scale,
     r.bottom * scale,
   );
-
-  int _indexOf(int measureNumber) => measureNumbers.indexOf(measureNumber);
 
   /// Scaled rects covering measure indices [startIdx]..[endIdx], one per system
   /// line: measures unioned horizontally, the line's tiled band as the height.
@@ -2006,8 +2116,8 @@ class _OverlayPainter extends CustomPainter {
     // a clean even band rather than stepping with note heights.
     final sel = selection;
     if (sel != null) {
-      final start = _indexOf(sel.startMeasure);
-      final end = _indexOf(sel.endMeasure);
+      final start = measureMap.firstIndexOf(sel.startMeasure);
+      final end = measureMap.lastIndexOf(sel.endMeasure);
       if (start >= 0 && end >= 0) {
         final fill = Paint()..color = primary.withValues(alpha: 0.16);
         for (final rect in _measureBandRects(start, end)) {
@@ -2018,7 +2128,7 @@ class _OverlayPainter extends CustomPainter {
 
     // Flagged-measure markers: a small warning triangle at the measure's top-left.
     for (final number in flaggedMeasures) {
-      final i = _indexOf(number);
+      final i = measureMap.firstIndexOf(number);
       final m = score.measureAt(i);
       if (m == null) continue;
       _drawFlag(canvas, _scaled(m.rect), (_bandPx(i) * 0.13).clamp(7.0, 26.0));
@@ -2027,8 +2137,9 @@ class _OverlayPainter extends CustomPainter {
     // Current-note highlight + playback cursor.
     final ev = highlight.value;
     if (ev != null) {
-      final mi = _indexOf(ev.measureNumber);
-      final anchor = mi < 0 ? null : score.noteAt(mi, ev.noteIndex);
+      final at = measureMap.locate(ev.measureNumber, ev.noteIndex);
+      final mi = at?.index ?? -1;
+      final anchor = at == null ? null : score.noteAt(at.index, at.note);
       if (anchor != null) {
         final pad = (_bandPx(mi) * 0.035).clamp(2.0, 9.0);
         final r = _scaled(anchor.rect).inflate(pad);
@@ -2080,7 +2191,7 @@ class _OverlayPainter extends CustomPainter {
       old.scale != scale ||
       old.selection != selection ||
       old.flaggedMeasures != flaggedMeasures ||
-      old.measureNumbers != measureNumbers ||
+      old.measureMap != measureMap ||
       old.primary != primary ||
       // flagColor too: a theme change that moves only the error colour would
       // otherwise leave every flag painted in the old one.
