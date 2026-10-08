@@ -522,3 +522,62 @@ with OSMD is proven:
   `staff_view_io/web.dart` bridge, the spike artifacts (`lib/spike/`, the
   `_kVerovioSpike` flag in `lib/main.dart`), and `flutter_svg` if nothing else
   kept it. Keep the OSMD path only if macOS-via-OSMD is retained.
+
+---
+
+## 8. Section detection and note-level section markers (next)
+
+The staff can now lay a piece out by section, with each section starting its
+own line and a bar split where a section starts on a lead-in ("Layout by
+section" in the display drawer). How good that looks depends entirely on where
+the section markers sit. Two pieces of work follow from that.
+
+### 8.1 Lead-ins as part of section detection
+
+Today the shift of a section start onto its lead-in is a post-pass on the
+heuristic detector: `SectionDetector.withLeadIns` takes the tail of the
+previous bar that matches the opening pickup's length, skipping leading rests.
+It only runs inside `detect()` on new imports, and it is skipped when there is
+no opening pickup, at a repeat boundary, or when the previous bar isn't full.
+Existing pieces keep their downbeat sections.
+
+Fold it into a general approach to finding sections instead of bolting it on
+afterwards. A phrase's real start is the lead-in, so the detector should look
+for phrase starts in the first place rather than finding downbeats and then
+moving them. Signals worth combining:
+
+- **The opening pickup's length.** This is the current heuristic.
+- **Authored ABC line breaks.** Each ABC music line of Along the Road to
+  Gundagai is one section, starting on its lead-in. `abc_to_musicxml.js`
+  `convertTune` concatenates `tune.lines` and throws these away. Keep them as a
+  hint, and re-run over `abc_sources/` to backfill.
+- **Lyrics.** The first syllable of a `w:` line marks the lead-in note.
+- **Rests and long notes** that end the previous phrase.
+- **Repeat barlines and rehearsal marks**, as now.
+
+When it lands, decide how existing pieces get it. The options are a one-time
+"re-detect sections" action, or a sidecar migration. Either way, never
+silently overwrite a sidecar the user has edited.
+
+### 8.2 Section markers on specific notes
+
+`Section` already carries `startNote`, and everything downstream honours it:
+tints, bar splits, the engraved measure map and `resolveSectionRanges`. The
+measure editor can already put a marker on a note: select it, then use "Mark
+section start" (`edit_measure_screen.dart` `_editSectionMarker`). But that is
+buried. It means opening the editor bar by bar, and moving a marker onto a
+lead-in means removing it in one bar and adding it in another.
+
+Make marker placement at the note level a first-class part of working with
+sections:
+
+- From the score itself, tap a note to start a section there.
+- Drag or nudge an existing marker onto a lead-in, or back to the downbeat,
+  without deleting and recreating it.
+- Show where a marker sits when it is mid-bar, so a lead-in start is visible
+  as one.
+
+Constraints already in the code: `startNote` counts visible, non-grace notes,
+including rests and chord members. A marker always sits on a chord's primary
+note (`ChordEditor.primaryIndexOf` in the editor, and `sectionBarSplits`), so
+the UI should only offer primary notes.
