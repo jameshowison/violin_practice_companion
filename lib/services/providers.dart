@@ -287,6 +287,7 @@ class LibraryActions {
     }
     await repo.deletePiece(pieceId);
     await _ref.read(staffZoomStoreProvider).clear(pieceId);
+    await _ref.read(linesPerSectionStoreProvider).clear(pieceId);
     // Media are files under the documents directory, not prefs rows, so
     // leaving them behind would leak a recording's worth of disk per deleted
     // piece with nothing left in the app pointing at it.
@@ -467,6 +468,39 @@ class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
 /// slider position and readout while on auto, and honest feedback that Verovio's
 /// musical break points may differ from the target by one. Set by the staff view.
 final effectiveMeasuresPerLineProvider = StateProvider<int?>((_) => null);
+
+/// "Layout by section": each section of a sectioned piece starts its own line
+/// and fills whole lines (see [staffBySectionProvider] for when it applies).
+/// On by default; remembered per piece ([pieceDisplayPref]).
+final sectionLayoutProvider = pieceDisplayPref<bool>(
+  'sectionLayout',
+  true,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
+final linesPerSectionStoreProvider = Provider<StaffZoomStore>(
+  (_) => StaffZoomStore(prefix: 'linesPerSection.'),
+);
+
+/// The section layout's zoom: how many lines each section spreads over (null =
+/// auto, the fewest that fit at the minimum staff size). The same state shape,
+/// notifier and per-piece, per-orientation storage as [measuresPerLineProvider],
+/// under its own keys; `locked` is unused, the section layout's breaks being
+/// exact by construction.
+final linesPerSectionProvider =
+    StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
+      return MeasuresPerLineNotifier(
+        ref.watch(linesPerSectionStoreProvider),
+        ref.watch(selectedPieceProvider)?.id,
+        ref.watch(staffOrientationProvider),
+      );
+    });
+
+/// Lines per section the last section-layout engrave used — the most any
+/// section took. The slider readout and thumb while on auto, as
+/// [effectiveMeasuresPerLineProvider] is for the measures-per-line zoom.
+final effectiveLinesPerSectionProvider = StateProvider<int?>((_) => null);
 
 // ── Piece layout (single source of truth for all notation views) ──────────────
 // Always folded — the notation shows the score as written (repeat barlines
@@ -829,53 +863,50 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 bool _injectFingeringFor(Ref ref) =>
     ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
-/// How the staff views break lines for the selected piece.
-///
-/// [bySection]: a piece with two or more sections, engraved natively, on
-/// either the Auto zoom (the section layout — see
-/// `StaffViewVerovio.sectionLayout`) or a locked measures-per-line (which has
-/// always broken at section starts). Every section then starts a line, and a
+/// Whether the staff views lay the selected piece out by section: it has two
+/// or more sections, is engraved natively, and "Layout by section"
+/// ([sectionLayoutProvider]) is on. Every section then starts a line, and a
 /// section that starts on a lead-in mid-bar has that bar split so the lead-in
-/// opens its line ([sectionBarSplits]).
+/// opens its line ([sectionBarSplits]). The staff view decides how each
+/// section fills its lines, from [linesPerSectionProvider]; the measures-per-
+/// line zoom is set aside.
 ///
-/// [sectionAuto]: the Auto half of that — the staff view, not the xml, then
-/// decides how each section fills its lines.
-///
-/// Neither applies to an explicit but unlocked measures-per-line (Verovio's
-/// own approximate breaking), to OSMD, or to the tab view.
-typedef StaffBreakMode = ({bool bySection, bool sectionAuto});
+/// Never the tab view, whose xml is not broken by section.
+final staffBySectionProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(sectionLayoutAvailableProvider) &&
+      ref.watch(sectionLayoutProvider),
+);
 
-final staffBreakModeProvider = Provider<StaffBreakMode>((ref) {
+/// Whether "Layout by section" is offered for the selected piece at all — the
+/// conditions of [staffBySectionProvider] short of the toggle itself.
+final sectionLayoutAvailableProvider = Provider<bool>((ref) {
   final piece = ref.watch(selectedPieceProvider);
-  final mpl = ref.watch(measuresPerLineProvider);
-  final eligible = piece != null &&
+  return piece != null &&
       piece.sections.length >= 2 &&
       ref.watch(staffRendererProvider) == StaffRenderer.verovio;
-  final auto = mpl.value == null;
-  return (
-    bySection: eligible && (auto || mpl.locked),
-    sectionAuto: eligible && auto,
-  );
 });
 
 /// The staff views' engraved measure map: one slice per measure, plus the
-/// extra slice of every bar [staffBreakModeProvider] splits. Must agree with
-/// [_breaksFor], which splits the xml at the same [sectionBarSplits].
+/// extra slice of every bar a [staffBySectionProvider] layout splits. Must
+/// agree with [_breaksFor], which splits the xml at the same
+/// [sectionBarSplits].
 EngravedMeasureMap staffMeasureMapFor(
   List<Measure> measures,
-  List<Section> sections,
-  StaffBreakMode mode,
-) =>
-    mode.bySection
+  List<Section> sections, {
+  required bool bySection,
+}) =>
+    bySection
         ? EngravedMeasureMap.withSplits(
             measures, sectionBarSplits(sections, measures))
         : EngravedMeasureMap.identity(measures.map((m) => m.number));
 
 /// The staff views' line breaks, applied last so every injector before it
 /// still addresses whole model measures:
-///  * by section (see [StaffBreakMode]): bars split at section lead-ins, and a
-///    break before every section — plus, when locked, every N measures.
-///  * locked without sections: every N measures (`insertSystemBreaks`).
+///  * by section ([staffBySectionProvider]): bars split at section lead-ins,
+///    and a break before every section. The staff view plans the rest.
+///  * locked: every N measures, and before every section start
+///    (`insertSystemBreaks`).
 ///  * otherwise untouched; Verovio breaks it.
 String _breaksFor(
   Ref ref,
@@ -883,18 +914,12 @@ String _breaksFor(
   List<Section> sections,
   ParsedPiece? parsed,
 ) {
-  final mpl = ref.watch(measuresPerLineProvider);
-  final mode = ref.watch(staffBreakModeProvider);
-  final locked = mpl.locked && mpl.value != null;
-  if (mode.bySection && parsed != null) {
+  if (ref.watch(staffBySectionProvider) && parsed != null) {
     xml = splitBarsAtSections(xml, sectionBarSplits(sections, parsed.measures));
-    return insertSystemBreaks(
-      xml,
-      measuresPerLine: locked ? mpl.value : null,
-      sections: sections,
-    );
+    return insertSystemBreaks(xml, sections: sections);
   }
-  if (!locked) return xml;
+  final mpl = ref.watch(measuresPerLineProvider);
+  if (!mpl.locked || mpl.value == null) return xml;
   return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
 }
 

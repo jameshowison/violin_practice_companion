@@ -31,24 +31,34 @@ import 'staff_zoom.dart' show StaffOrientation;
 /// (see [_retireLegacy]) instead of just writing the new one. Otherwise clearing
 /// an orientation back to auto could never stick: the `remove` would succeed and
 /// the next [load] would fall straight back through to the legacy value.
+///
+/// ## Lines per section
+///
+/// The section layout's zoom (lines per section, see `linesPerSectionMin`) is
+/// stored by a second instance with its own [prefix], so switching the layout
+/// on and off never reads one knob's value as the other's. It has no legacy
+/// key, so the fallback in [load] simply never finds one.
 class StaffZoomStore {
-  static const _prefix = 'measuresPerLine.';
+  StaffZoomStore({this.prefix = 'measuresPerLine.'});
+
+  /// Leads every key this store writes.
+  final String prefix;
 
   SharedPreferences? _prefs;
 
   Future<SharedPreferences> _open() async =>
       _prefs ??= await SharedPreferences.getInstance();
 
-  String _legacyKey(String pieceId) => '$_prefix$pieceId';
+  String _legacyKey(String pieceId) => '$prefix$pieceId';
 
   String _key(String pieceId, StaffOrientation orientation) =>
-      '$_prefix$pieceId.${orientation.name}';
+      '$prefix$pieceId.${orientation.name}';
 
   /// Parallel key for the "lock exactly" flag (see [loadLocked]/[saveLocked]).
   /// Distinct prefix (`measuresPerLine.locked.`), so it can't collide with
   /// [_legacyKey] (`measuresPerLine.$pieceId`, no `.locked` infix).
   String _lockedKey(String pieceId, StaffOrientation orientation) =>
-      '${_prefix}locked.$pieceId.${orientation.name}';
+      '${prefix}locked.$pieceId.${orientation.name}';
 
   /// The stored override for [pieceId] in [orientation], or null when that
   /// orientation is on auto. Never throws — a preferences failure just means
