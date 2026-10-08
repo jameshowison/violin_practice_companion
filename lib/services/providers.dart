@@ -916,13 +916,16 @@ String _breaksFor(
   Ref ref,
   String xml,
   List<Section> sections,
-  ParsedPiece? parsed,
-) {
-  if (ref.watch(staffBySectionProvider) && parsed != null) {
+  ParsedPiece? parsed, {
+  bool? bySection,
+  bool honourLock = true,
+}) {
+  if ((bySection ?? ref.watch(staffBySectionProvider)) && parsed != null) {
     xml = splitBarsAtSections(xml, sectionBarSplits(sections, parsed.measures));
     xml = moveRepeatsOntoLeadIns(xml, movedRepeats(sections, parsed.measures));
     return insertSystemBreaks(xml, sections: sections);
   }
+  if (!honourLock) return xml;
   final mpl = ref.watch(measuresPerLineProvider);
   if (!mpl.locked || mpl.value == null) return xml;
   return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
@@ -942,7 +945,16 @@ String _hidePreambleFor(Ref ref, String xml) {
 
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
-final staffXmlProvider = FutureProvider<String?>((ref) async {
+final staffXmlProvider = FutureProvider<String?>(
+  (ref) => _staffXml(ref, fingering: false),
+);
+
+/// The staff views' xml: plain, or with the fingering row reserved
+/// ([fingering], the annotation view). With [print], the xml print engraves
+/// (`score_printer.dart`): the same pipeline, except that it keeps the opening
+/// clef/key/time — paper has no title bar to move them to — and is always laid
+/// out by section when the piece has sections, whatever the on-screen toggle.
+Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
   final layout = await ref.watch(pieceLayoutProvider.future);
@@ -950,13 +962,37 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
-  xml = _hidePreambleFor(ref, xml);
-  xml = FingeringXmlInjector.stripFingerings(xml);
+  if (!print) xml = _hidePreambleFor(ref, xml);
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (!fingering) {
+    xml = FingeringXmlInjector.stripFingerings(xml);
+  } else if (_injectFingeringFor(ref)) {
+    // Both renderers inject; see [_injectFingeringFor] for why the text differs.
+    // The publisher's own fingerings are replaced either way, so a leftover
+    // engraved label can never contradict the app's note for note.
+    //
+    // Watched inside the branch on purpose: only here is the style an engraving
+    // input, because only here is the engraved label the display.
+    final style = ref.watch(stringLabelStyleProvider);
+    if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
+  } else if (parsed != null) {
+    xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
+  }
+  // Keep `<harmony>` for the native renderer so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
-  final parsed = await ref.watch(parsedPieceProvider.future);
-  return _breaksFor(ref, xml, piece.sections, parsed);
-});
+  return print
+      ? _breaksFor(ref, xml, piece.sections, parsed,
+          bySection: ref.watch(sectionLayoutAvailableProvider),
+          honourLock: false)
+      : _breaksFor(ref, xml, piece.sections, parsed);
+}
+
+/// The xml print engraves, by whether it carries the fingering row (the
+/// annotation view) — see [_staffXml].
+final printStaffXmlProvider = FutureProvider.family<String?, bool>(
+  (ref, fingering) => _staffXml(ref, fingering: fingering, print: true),
+);
 
 /// The piece's opening clef/key/time, engraved alone — the counterpart to
 /// [_hidePreambleFor] stripping it from the main render. Read off the piece's
@@ -971,32 +1007,9 @@ final preambleMusicXmlProvider = FutureProvider<String?>((ref) async {
   return buildPreambleXml(xml);
 });
 
-final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
-  final piece = ref.watch(selectedPieceProvider);
-  if (piece == null) return null;
-  final layout = await ref.watch(pieceLayoutProvider.future);
-  if (layout == null) return null;
-  final repo = ref.watch(pieceRepositoryProvider);
-  String xml = await repo.loadMusicXml(piece);
-  xml = layout.stripLayoutHints(xml);
-  xml = _hidePreambleFor(ref, xml);
-  // Both renderers inject; see [_injectFingeringFor] for why the text differs.
-  // The publisher's own fingerings are replaced either way, so a leftover
-  // engraved label can never contradict the app's note for note.
-  final parsed = await ref.watch(parsedPieceProvider.future);
-  if (_injectFingeringFor(ref)) {
-    // Watched inside the branch on purpose: only here is the style an engraving
-    // input, because only here is the engraved label the display.
-    final style = ref.watch(stringLabelStyleProvider);
-    if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
-  } else if (parsed != null) {
-    xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
-  }
-  // Keep `<harmony>` for the native renderer so the chord row is reserved too.
-  if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
-  xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
-  return _breaksFor(ref, xml, piece.sections, parsed);
-});
+final staffFingeringXmlProvider = FutureProvider<String?>(
+  (ref) => _staffXml(ref, fingering: true),
+);
 
 /// Violin fingering (default) vs true mandolin fret numbers, wherever a number
 /// labels a note: the tab staff's string lines AND the annotation view's
