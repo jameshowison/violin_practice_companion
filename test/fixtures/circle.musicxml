@@ -45,6 +45,7 @@
       <note><pitch><step>E</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type><lyric number="1"><syllabic>single</syllabic><text>Lord,</text></lyric></note>
     </measure>
     <measure number="7">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>D</step><octave>4</octave></pitch><duration>192</duration><type>half</type><lyric number="1"><syllabic>single</syllabic><text>by</text></lyric><lyric number="2"><syllabic>single</syllabic><text>in</text></lyric></note>
       <note><pitch><step>B</step><octave>3</octave></pitch><duration>192</duration><type>half</type><lyric number="1"><syllabic>single</syllabic><text>and</text></lyric><lyric number="2"><syllabic>single</syllabic><text>the</text></lyric></note>
     </measure>

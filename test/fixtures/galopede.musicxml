@@ -42,6 +42,7 @@
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="5">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
       <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
@@ -75,6 +76,7 @@
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="9">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
       <note><pitch><step>D</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
@@ -101,9 +103,10 @@
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="13">
-      <direction placement="above"><direction-type><rehearsal>C</rehearsal></direction-type></direction>
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
+      <direction placement="above"><direction-type><rehearsal>C</rehearsal></direction-type></direction>
       <note><pitch><step>B</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">begin</beam></note>
       <note><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
@@ -130,6 +133,7 @@
       <note><pitch><step>A</step><octave>4</octave></pitch><duration>48</duration><type>eighth</type><beam number="1">end</beam></note>
     </measure>
     <measure number="17">
+      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>
       <note><pitch><step>G</step><octave>4</octave></pitch><duration>192</duration><type>half</type></note>
       <note><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration><type>quarter</type></note>
       <note><rest/><duration>96</duration><type>quarter</type></note>

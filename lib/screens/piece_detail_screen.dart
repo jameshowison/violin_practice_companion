@@ -17,6 +17,7 @@ import '../models/section_palette.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
 import '../models/piece_media.dart';
+import '../services/abc_converter.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
@@ -383,6 +384,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         onChanged: (v) =>
                             ref.read(sectionLayoutProvider.notifier).state = v,
                       ),
+                    if (displayMode != DisplayMode.tab)
+                      const _RedetectSectionsButton(),
                     _MeasuresPerLineSlider(
                       bySection: displayMode != DisplayMode.tab &&
                           ref.watch(staffBySectionProvider),
@@ -964,6 +967,105 @@ class _FingeringDensityPolicyPicker extends ConsumerWidget {
 /// Which lyric verse the staff and annotated views engrave, or none. Only
 /// shown for a piece that has lyrics. Experimental: a change re-engraves, so
 /// the page can reflow — see [lyricVerseProvider].
+/// Runs section detection again over the open piece (see
+/// [PieceRepository.redetectSections]) and, once confirmed, replaces its
+/// sections. The only way an existing piece gets a newer detector: import is
+/// the only other place detection runs, and nothing records whether the
+/// sections it would replace were detected or placed by hand.
+class _RedetectSectionsButton extends ConsumerWidget {
+  const _RedetectSectionsButton();
+
+  static String _describe(List<Section> sections) => sections.isEmpty
+      ? 'none'
+      : [
+          for (final s in sections)
+            s.startNote > 0
+                ? '${s.label}: bar ${s.startMeasure}, note ${s.startNote + 1}'
+                : '${s.label}: bar ${s.startMeasure}',
+        ].join('\n');
+
+  Future<void> _redetect(BuildContext context, WidgetRef ref) async {
+    // The drawer can rebuild this button away while the dialog is up, taking
+    // its `ref` with it; the container outlives it.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final piece = container.read(selectedPieceProvider);
+    if (piece == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) =>
+        messenger.showSnackBar(SnackBar(content: Text(text)));
+
+    final List<Section> found;
+    try {
+      String? sourceXml;
+      final abc = await container.read(abcSourceStoreProvider).read(piece.id);
+      if (abc != null) {
+        final converter = AbcConverter();
+        try {
+          sourceXml = (await converter.convert(abc)).musicXml;
+        } catch (_) {
+          // Detect from the piece alone.
+        } finally {
+          converter.dispose();
+        }
+      }
+      found = await container
+          .read(pieceRepositoryProvider)
+          .redetectSections(piece, sourceXml: sourceXml);
+    } catch (e) {
+      say('Could not detect sections: $e');
+      return;
+    }
+    if (listEquals(found, piece.sections)) {
+      say('Sections already match what detection finds.');
+      return;
+    }
+    if (found.isEmpty) {
+      say('No sections found; left as they are.');
+      return;
+    }
+    if (piece.sections.isNotEmpty) {
+      if (!context.mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Replace sections?'),
+          content: Text('Now:\n${_describe(piece.sections)}\n\n'
+              'Detected:\n${_describe(found)}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const ValueKey('redetect_sections_replace'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Replace'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    await container.read(pieceRepositoryProvider).saveSections(piece.id, found);
+    container.read(selectedPieceProvider.notifier).state =
+        piece.copyWith(sections: found);
+    container.invalidate(piecesProvider);
+    container.invalidate(parsedPieceProvider);
+    say('Sections re-detected.');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          key: const ValueKey('redetect_sections'),
+          icon: const Icon(Icons.auto_fix_high, size: 18),
+          label: const Text('Re-detect sections'),
+          onPressed: () => _redetect(context, ref),
+        ),
+      );
+}
+
 class _LyricVersePicker extends ConsumerWidget {
   const _LyricVersePicker();
 

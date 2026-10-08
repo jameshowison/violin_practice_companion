@@ -21,9 +21,14 @@ class SectionDetector {
   /// Candidate strain sizes (in bars) for tunes without explicit repeat brackets.
   static const _blockSizes = [8, 4];
 
+  /// Strain boundaries come from, in order of trust: the author's part labels,
+  /// repeat brackets, the author's ABC music lines, then equal 8/4-bar
+  /// blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
+  /// begins on a lead-in) is kept exactly; the rest start on a downbeat and
+  /// are then moved back onto their lead-in by [withLeadIns].
   static List<Section> detect(List<Measure> measures) {
     final fromLabels = _fromPartLabels(measures);
-    if (fromLabels != null) return fromLabels;
+    if (fromLabels != null) return withLeadIns(fromLabels, measures);
 
     final seg = _segment(measures);
     if (seg == null || seg.strains.length < _minStrains) return const [];
@@ -31,8 +36,36 @@ class SectionDetector {
     final labels = _assignLabels(prints);
     return withLeadIns([
       for (var i = 0; i < seg.strains.length; i++)
-        Section(label: labels[i], startMeasure: seg.starts[i]),
+        Section(
+            label: labels[i],
+            startMeasure: seg.starts[i],
+            startNote: seg.startNotes?[i] ?? 0),
     ], measures);
+  }
+
+  /// [measures] with the authored line starts and part labels of [source]
+  /// (the same tune converted afresh from its ABC), bar for bar. Unchanged
+  /// unless the two still line up — the same bars with the same number of
+  /// notes — since the hints are note positions and an edit can move them.
+  static List<Measure> withAuthoredHints(
+      List<Measure> measures, List<Measure> source) {
+    if (source.length != measures.length) return measures;
+    for (var i = 0; i < measures.length; i++) {
+      if (source[i].notes.length != measures[i].notes.length) return measures;
+    }
+    return [
+      for (var i = 0; i < measures.length; i++)
+        Measure(
+          number: measures[i].number,
+          notes: measures[i].notes,
+          hiddenLeadNotes: measures[i].hiddenLeadNotes,
+          repeatStart: measures[i].repeatStart,
+          repeatEnd: measures[i].repeatEnd,
+          partLabel: source[i].partLabel,
+          partLabelNote: source[i].partLabelNote,
+          lineStartNote: source[i].lineStartNote,
+        ),
+    ];
   }
 
   // ── Lead-ins ────────────────────────────────────────────────────────────────
@@ -47,12 +80,15 @@ class SectionDetector {
   /// pickup. Starting the section there is what lets a section-aware staff
   /// open the line with it.
   ///
-  /// The lead-in is the tail of the previous bar as long as the opening pickup
-  /// (so only a piece that HAS an opening pickup gets any), and it must start
-  /// on a note boundary; leading rests in it are skipped, so it begins on the
-  /// first sounding note. The first section and any section already off its
-  /// downbeat are left alone, as is a start at a repeat boundary — the tail of
-  /// a `:|` bar leads back into the repeat, not on.
+  /// Only a piece that HAS an opening pickup gets lead-ins, and a lead-in is
+  /// never longer than that pickup. Within the previous bar it starts on the
+  /// first sounding note after the phrase's END — a rest, a note held over
+  /// from the bar before, or a note of half a bar or more (Gundagai's tied
+  /// G, the rest in `A2 z2 B2c2`). With no such ending, it is the tail as
+  /// long as the opening pickup, on a note boundary, skipping leading rests.
+  /// The first section and any section already off its downbeat are left
+  /// alone, as is a start at a repeat boundary — the tail of a `:|` bar leads
+  /// back into the repeat, not on (see docs/plan.md §1.3).
   static List<Section> withLeadIns(
       List<Section> sections, List<Measure> measures) {
     if (measures.length < 2 || sections.length < 2) return sections;
@@ -82,14 +118,51 @@ class SectionDetector {
     final here = measures[i], prev = measures[i - 1];
     if (here.repeatStart || prev.repeatEnd) return null;
     if (prev.actualUnits != fullBar) return null;
-    final notes = prev.notes;
+    final afterEnd = _afterPhraseEnd(prev.notes, pickup, fullBar);
+    if (afterEnd == _noLeadIn) return null;
+    final j = afterEnd ?? _pickupTail(prev.notes, pickup);
+    if (j == null) return null;
+    return Section(label: s.label, startMeasure: prev.number, startNote: j);
+  }
+
+  static int _units(NoteEvent n) => thirtySecondUnits(n.noteValue, n.dotted);
+
+  /// [_afterPhraseEnd]'s answer when the bar itself ends the phrase.
+  static const _noLeadIn = -1;
+
+  /// The first sounding note after the last phrase ending in [notes], if what
+  /// follows it is a lead-in no longer than [pickup]. [_noLeadIn] when nothing
+  /// sounds after the ending (the bar ends on a rest or a long note, so the
+  /// next phrase starts on the downbeat); null when there is no ending to go
+  /// by, or too much follows it.
+  static int? _afterPhraseEnd(List<NoteEvent> notes, int pickup, int fullBar) {
+    var end = -1;
+    for (var k = 0; k < notes.length; k++) {
+      final n = notes[k];
+      if (n.isChord) continue;
+      if (n.isRest || n.tieStop || _units(n) * 2 >= fullBar) end = k;
+    }
+    if (end < 0) return null;
+    var j = end + 1;
+    while (j < notes.length && (notes[j].isChord || notes[j].isRest)) {
+      j++;
+    }
+    if (j >= notes.length) return _noLeadIn;
+    var tail = 0;
+    for (var k = j; k < notes.length; k++) {
+      if (!notes[k].isChord) tail += _units(notes[k]);
+    }
+    return tail <= pickup ? j : null;
+  }
+
+  /// The tail of [notes] as long as [pickup], from its first sounding note;
+  /// null if no note boundary falls exactly there.
+  static int? _pickupTail(List<NoteEvent> notes, int pickup) {
     var tail = 0;
     var j = notes.length;
     while (j > 0 && tail < pickup) {
       j--;
-      if (!notes[j].isChord) {
-        tail += thirtySecondUnits(notes[j].noteValue, notes[j].dotted);
-      }
+      if (!notes[j].isChord) tail += _units(notes[j]);
     }
     while (j > 0 && notes[j].isChord) {
       j--; // a chord's members start with its primary note
@@ -99,7 +172,7 @@ class SectionDetector {
       j++;
     }
     if (j <= 0 || j >= notes.length) return null;
-    return Section(label: s.label, startMeasure: prev.number, startNote: j);
+    return j;
   }
 
   /// The commonest bar length — a full bar, whatever the time signature.
@@ -149,9 +222,16 @@ class SectionDetector {
           break;
         }
       }
+      // Otherwise a label the author put mid-bar, on the part's lead-in,
+      // starts the section on that note.
+      final m = measures[markIdx];
+      final note = anchor == markIdx && m.partLabelNote < m.notes.length
+          ? m.partLabelNote
+          : 0;
       sections.add(Section(
-          label: measures[markIdx].partLabel!,
-          startMeasure: measures[anchor].number));
+          label: m.partLabel!,
+          startMeasure: measures[anchor].number,
+          startNote: note));
     }
     return sections;
   }
@@ -160,7 +240,7 @@ class SectionDetector {
 
   /// Split the measures into strains. Primary signal: repeat brackets (each `|:`
   /// starts a strain). Fallback: equal blocks of 8 then 4 bars.
-  static ({List<List<Measure>> strains, List<int> starts})? _segment(
+  static _Strains? _segment(
       List<Measure> measures) {
     if (measures.length < 2) return null;
 
@@ -204,8 +284,11 @@ class SectionDetector {
       }
 
       if (strains.length < 2) return null;
-      return (strains: strains, starts: starts);
+      return (strains: strains, starts: starts, startNotes: null);
     }
+
+    final lines = _lineStrains(measures);
+    if (lines != null) return lines;
 
     // No repeats: group into equal blocks, optionally dropping a one-measure
     // pickup, preferring 8-bar then 4-bar strains. Require ≥2 whole strains.
@@ -221,11 +304,61 @@ class SectionDetector {
             strains.add(chunk);
             starts.add(chunk.first.number);
           }
-          return (strains: strains, starts: starts);
+          return (strains: strains, starts: starts, startNotes: null);
         }
       }
     }
     return null;
+  }
+
+  /// One strain per authored ABC music line ([Measure.lineStartNote]), for a
+  /// tune with no repeats to go by. A line that begins mid-bar starts its
+  /// strain on that note: the author began the line on the phrase's lead-in
+  /// (Amazing Grace's `…| D4` / `D2 | G4…`). The first strain starts on the
+  /// first full bar, as with blocks, so an opening pickup adopts its label.
+  /// Null unless there are at least [_minStrains] lines of two or more bars.
+  static _Strains? _lineStrains(List<Measure> measures) {
+    final fullBar = _commonUnits(measures);
+    final first = measures.first.actualUnits < fullBar ? 1 : 0;
+    final idx = <int>[first], notes = <int>[0];
+    for (var i = first + 1; i < measures.length; i++) {
+      final k = measures[i].lineStartNote;
+      // Past the end means the marker drifted there in an edit; ignore it.
+      if (k == null || k >= measures[i].notes.length) continue;
+      idx.add(i);
+      notes.add(k);
+    }
+    if (idx.length < _minStrains) return null;
+    for (var k = 0; k < idx.length; k++) {
+      final end = k + 1 < idx.length ? idx[k + 1] : measures.length;
+      if (end - idx[k] < 2) return null;
+    }
+    // Each strain holds just its own notes, from its start note up to the
+    // next strain's, for fingerprinting: a line that starts mid-bar shares
+    // that bar with the line before. The first strain gets the opening
+    // pickup, the counterpart of the lead-ins the others begin with.
+    List<Measure> strain(int k) {
+      final from = k == 0 ? 0 : idx[k];
+      final to = k + 1 < idx.length ? idx[k + 1] : measures.length;
+      final out = <Measure>[];
+      for (var i = from; i < to; i++) {
+        final m = measures[i];
+        out.add(i == idx[k] && notes[k] > 0
+            ? m.copyWithNotes(m.notes.sublist(notes[k]))
+            : m);
+      }
+      if (k + 1 < idx.length && notes[k + 1] > 0) {
+        final m = measures[to];
+        out.add(m.copyWithNotes(m.notes.sublist(0, notes[k + 1])));
+      }
+      return out;
+    }
+
+    return (
+      strains: [for (var k = 0; k < idx.length; k++) strain(k)],
+      starts: [for (final i in idx) measures[i].number],
+      startNotes: notes,
+    );
   }
 
   /// Tiles a straight-through tail (no repeat brackets of its own) using a mix
@@ -234,7 +367,7 @@ class SectionDetector {
   /// above, which requires one uniform size across an entire piece, a tail
   /// can legitimately hold differently-sized parts (an 8-bar B next to a
   /// 4-bar C). Null if the tail can't be tiled exactly by these two sizes.
-  static ({List<List<Measure>> strains, List<int> starts})? _tileTail(
+  static _Strains? _tileTail(
       List<Measure> tail) {
     final sizes = _tiling(tail.length);
     if (sizes == null) return null;
@@ -247,7 +380,7 @@ class SectionDetector {
       starts.add(chunk.first.number);
       i += size;
     }
-    return (strains: strains, starts: starts);
+    return (strains: strains, starts: starts, startNotes: null);
   }
 
   /// Fewest-chunk tiling of [total] bars using [_blockSizes] (8 then 4), most
@@ -326,3 +459,11 @@ class SectionDetector {
     return true;
   }
 }
+
+/// Strains with their start measure numbers and, when some start mid-bar, the
+/// note each starts on (null means every one starts on its downbeat).
+typedef _Strains = ({
+  List<List<Measure>> strains,
+  List<int> starts,
+  List<int>? startNotes,
+});

@@ -260,7 +260,12 @@
       if (staff.meter && !meter) meter = staff.meter;
       if (staff.voices) {
         if (staff.voices.length > 1) sawMultiVoice = true;
-        if (staff.voices[0]) elements = elements.concat(staff.voices[0]);
+        if (staff.voices[0]) {
+          // Where each authored music line begins — a phrase start the
+          // section detector can use (see `line_start` below).
+          if (elements.length) elements.push({ el_type: 'line_start' });
+          elements = elements.concat(staff.voices[0]);
+        }
       }
     }
     if (sawMultiVoice) warnings.push('multiple voices/staves; only the first is used');
@@ -268,16 +273,18 @@
     var km = keyToFifthsMode(key, warnings);
     var time = meterToTime(meter);
 
-    // Split the element stream into measures on bar elements; carry repeats
-    // and part labels (ABC's own `[P:A]`/`[P:B]`/… inline markers).
+    // Split the element stream into measures on bar elements; carry repeats.
+    // Part labels (ABC's own `[P:A]`/`[P:B]`/… inline markers) and line starts
+    // are written into the notes as positional <direction>s, so one that sits
+    // mid-bar (on a lead-in) keeps the note it starts on.
     var measures = [];
-    var cur = { notes: '', repeatStart: false, repeatEnd: false, partLabel: null };
+    var cur = { notes: '', noteCount: 0, repeatStart: false, repeatEnd: false };
     var pendingForwardRepeat = false;
     function flush() {
       cur.repeatStart = cur.repeatStart || pendingForwardRepeat;
       pendingForwardRepeat = false;
       measures.push(cur);
-      cur = { notes: '', repeatStart: false, repeatEnd: false, partLabel: null };
+      cur = { notes: '', noteCount: 0, repeatStart: false, repeatEnd: false };
     }
     // abcjs marks beam groups on note elements via startBeam/endBeam. Track an
     // open group and emit MusicXML <beam> begin/continue/end so beamed notes
@@ -305,24 +312,26 @@
           for (var lv = 1; lv <= fl; lv++) beamXml += '<beam number="' + lv + '">' + state + '</beam>';
         }
         cur.notes += chordHarmonyXml(el) + noteXml(el, warnings, beamXml, lyrics[noteIx++]);
+        cur.noteCount++;
       } else if (el.el_type === 'bar') {
         inBeam = false; // beams never cross a barline
-        var hasContent = cur.notes.length > 0;
+        var hasContent = cur.noteCount > 0;
         // bar_dbl_repeat (`::` / `:||:`) closes one strain and opens the next.
         if (el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat') cur.repeatEnd = true;
         if (hasContent) flush();
         if (el.type === 'bar_left_repeat' || el.type === 'bar_dbl_repeat') pendingForwardRepeat = true;
       } else if (el.el_type === 'part') {
-        // abcjs emits one 'part' element wherever `[P:X]` sits in the source —
-        // attach it to whichever measure is currently accumulating (its
-        // notes, if any, haven't been added yet unless `[P:X]` sits mid-bar,
-        // in which case it lands on that same measure — the closest a
-        // measure-level model can get to a mid-measure marker).
-        cur.partLabel = el.title;
+        // abcjs emits one 'part' element wherever `[P:X]` sits in the source;
+        // it lands before the next note, mid-bar if that's where it was put.
+        cur.notes += '      <direction placement="above"><direction-type><rehearsal>' + xmlEscape(el.title) + '</rehearsal></direction-type></direction>\n';
+      } else if (el.el_type === 'line_start') {
+        // Not engraved: PieceLayout.stripLayoutHints removes it, and
+        // musicxml_parser.dart reads it as Measure.lineStartNote.
+        cur.notes += '      <direction><direction-type><other-direction>abc-line</other-direction></direction-type></direction>\n';
       }
       // ignore other non-note/bar/part elements (chord symbols live on notes)
     }
-    if (cur.notes.length > 0) flush();
+    if (cur.noteCount > 0) flush();
 
     // Build MusicXML. First (anacrusis) measure is numbered 1 and may be short;
     // the app treats a short first measure as a pickup.
@@ -360,7 +369,6 @@
         out += '      </attributes>\n';
       }
       if (m.repeatStart) out += '      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n';
-      if (m.partLabel) out += '      <direction placement="above"><direction-type><rehearsal>' + xmlEscape(m.partLabel) + '</rehearsal></direction-type></direction>\n';
       out += m.notes;
       if (m.repeatEnd) out += '      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n';
       out += '    </measure>\n';

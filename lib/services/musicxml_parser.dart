@@ -51,12 +51,32 @@ class MusicXmlParser {
       // a sibling just before its note). Hold it until the next visible note
       // consumes it, so it survives intervening grace/hidden notes.
       String? pendingChord;
+      // Rehearsal marks (an ABC tune's `[P:A]`, see abc_to_musicxml.js) and
+      // authored line starts, each with the note index it sits before.
+      String? partLabel;
+      var partLabelNote = 0;
+      int? lineStartNote;
 
       // Iterate children in document order so `<harmony>` and `<note>` interleave
       // correctly; `findElements('note')` would skip the harmony siblings.
       for (final el in measureEl.childElements) {
         if (el.name.local == 'harmony') {
           pendingChord = parseHarmonyLabel(el) ?? pendingChord;
+          continue;
+        }
+        if (el.name.local == 'direction') {
+          final types = el.findElements('direction-type');
+          final rehearsal =
+              types.expand((dt) => dt.findElements('rehearsal')).firstOrNull;
+          if (rehearsal != null && rehearsal.innerText.isNotEmpty) {
+            partLabel = rehearsal.innerText;
+            partLabelNote = notes.length;
+          }
+          if (types
+              .expand((dt) => dt.findElements('other-direction'))
+              .any((o) => o.innerText.trim() == 'abc-line')) {
+            lineStartNote ??= notes.length;
+          }
           continue;
         }
         if (el.name.local != 'note') continue;
@@ -181,19 +201,6 @@ class MusicXmlParser {
         if (dir == 'backward') repeatEnd = true;
       }
 
-      // Rehearsal mark: <direction><direction-type><rehearsal>. This is how an
-      // ABC tune's own inline part marker (`[P:A]`) survives conversion — see
-      // abc_to_musicxml.js — trusted directly by SectionDetector when present.
-      String? partLabel;
-      for (final directionEl in measureEl.findElements('direction')) {
-        final text = directionEl
-            .findElements('direction-type')
-            .expand((dt) => dt.findElements('rehearsal'))
-            .firstOrNull
-            ?.innerText;
-        if (text != null && text.isNotEmpty) partLabel = text;
-      }
-
       measures.add(Measure(
         number: number,
         notes: notes,
@@ -201,6 +208,8 @@ class MusicXmlParser {
         repeatStart: repeatStart,
         repeatEnd: repeatEnd,
         partLabel: partLabel,
+        partLabelNote: partLabelNote,
+        lineStartNote: lineStartNote,
       ));
     }
 
