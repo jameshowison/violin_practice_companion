@@ -1261,9 +1261,24 @@ class EngravedScore {
 
   /// The tiled vertical band (top/bottom, viewBox coords) for a measure's
   /// system line, or null if out of range.
+  ///
+  /// The outer edges of the first and last lines have no neighbour to tile
+  /// against, so [lineBands] stops them at the measure boxes — which come from
+  /// a lyric-free hit map, leaving the last line's words outside its band
+  /// while every other line's fall in the gap its band reaches into. Those two
+  /// edges reach out to [lineContent], which counts the lyrics.
   ({double top, double bottom})? bandForMeasure(int index) {
     final l = lineOfMeasure(index);
-    return (l < 0 || l >= lineBands.length) ? null : lineBands[l];
+    if (l < 0 || l >= lineBands.length) return null;
+    final band = lineBands[l];
+    final content = l < lineContent.length ? lineContent[l] : null;
+    if (content == null) return band;
+    return (
+      top: l == 0 && content.top < band.top ? content.top : band.top,
+      bottom: l == lineBands.length - 1 && content.bottom > band.bottom
+          ? content.bottom
+          : band.bottom,
+    );
   }
 
   /// The meter signature engraved on system line [l], or null when that line has

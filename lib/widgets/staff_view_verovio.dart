@@ -1295,6 +1295,65 @@ class _PinchOnlyScaleRecognizer extends ScaleGestureRecognizer {
   }
 }
 
+/// Drawn (viewBox→screen scaled) rects for an engraved range, one per system
+/// line — shared by the section wash and the selection, so a selection of a
+/// section covers exactly what its tint does. Measures are unioned
+/// horizontally within a line; the line's TILED band (from the engraving)
+/// sets the height so adjacent lines neither overlap nor gap; the first
+/// measure's left and a partial last measure's right are clipped to notes
+/// (mid-measure section edges). The range is [EngravedMeasureMap.range]'s
+/// shape: [endNote] is exclusive, `-1` for the whole of [endIndex].
+List<Rect> _rangeRowRects(EngravedScore score, double scale, int startIndex,
+    int startNote, int endIndex, int endNote) {
+  final r = (
+    startMeasureIndex: startIndex,
+    startNote: startNote,
+    endMeasureIndex: endIndex,
+    endNote: endNote,
+  );
+  // Last measure index that gets any wash: a whole-measure end (-1) or a
+  // mid-measure end (endNote>0) includes endMeasureIndex; endNote==0 stops at
+  // the measure before it.
+  final lastIdx = r.endNote == -1
+      ? r.endMeasureIndex
+      : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
+  if (lastIdx < r.startMeasureIndex) return const [];
+
+  final byLine =
+      <int, ({double left, double right, double top, double bottom})>{};
+  for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
+    final m = score.measureAt(i);
+    final band = score.bandForMeasure(i);
+    if (m == null || band == null) continue;
+    var left = m.rect.left;
+    var right = m.rect.right;
+    if (i == r.startMeasureIndex && r.startNote > 0) {
+      final n = score.noteAt(i, r.startNote);
+      if (n != null) left = n.rect.left;
+    }
+    if (r.endNote > 0 && i == r.endMeasureIndex) {
+      final n = score.noteAt(i, r.endNote);
+      if (n != null) right = n.rect.left;
+    }
+    if (right <= left) continue;
+    final line = score.lineOfMeasure(i);
+    final cur = byLine[line];
+    byLine[line] = cur == null
+        ? (left: left, right: right, top: band.top, bottom: band.bottom)
+        : (
+            left: left < cur.left ? left : cur.left,
+            right: right > cur.right ? right : cur.right,
+            top: cur.top,
+            bottom: cur.bottom,
+          );
+  }
+  return [
+    for (final s in byLine.values)
+      Rect.fromLTRB(s.left * scale, s.top * scale, s.right * scale,
+          s.bottom * scale),
+  ];
+}
+
 /// Drawn UNDER the notation: per-section background washes. Each region paints
 /// one rect per system line it spans (a section can wrap several lines), clipped
 /// to the section's first/last note so a mid-measure section start/end colors
@@ -1326,60 +1385,8 @@ class _UnderlayPainter extends CustomPainter {
     }
   }
 
-  /// Drawn (viewBox→screen scaled) rects for [r], one per system line. Measures
-  /// are unioned horizontally within a line; the line's TILED band (from the
-  /// engraving) sets the height so adjacent lines neither overlap nor gap; the
-  /// first measure's left and a partial last measure's right are clipped to
-  /// notes (mid-measure section edges).
-  List<Rect> _regionRowRects(SectionTintRegion r) {
-    // Last measure index that gets any wash: a whole-measure end (-1) or a
-    // mid-measure end (endNote>0) includes endMeasureIndex; endNote==0 stops at
-    // the measure before it.
-    final lastIdx = r.endNote == -1
-        ? r.endMeasureIndex
-        : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
-    if (lastIdx < r.startMeasureIndex) return const [];
-
-    final byLine =
-        <int, ({double left, double right, double top, double bottom})>{};
-    for (var i = r.startMeasureIndex; i <= lastIdx; i++) {
-      final m = score.measureAt(i);
-      final band = score.bandForMeasure(i);
-      if (m == null || band == null) continue;
-      var left = m.rect.left;
-      var right = m.rect.right;
-      if (i == r.startMeasureIndex && r.startNote > 0) {
-        final n = score.noteAt(i, r.startNote);
-        if (n != null) left = n.rect.left;
-      }
-      if (r.endNote > 0 && i == r.endMeasureIndex) {
-        final n = score.noteAt(i, r.endNote);
-        if (n != null) right = n.rect.left;
-      }
-      if (right <= left) continue;
-      final line = score.lineOfMeasure(i);
-      final cur = byLine[line];
-      byLine[line] = cur == null
-          ? (left: left, right: right, top: band.top, bottom: band.bottom)
-          : (
-              left: left < cur.left ? left : cur.left,
-              right: right > cur.right ? right : cur.right,
-              top: cur.top,
-              bottom: cur.bottom,
-            );
-    }
-    return [
-      for (final s in byLine.values)
-        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom)),
-    ];
-  }
-
-  Rect _scaled(Rect r) => Rect.fromLTRB(
-    r.left * scale,
-    r.top * scale,
-    r.right * scale,
-    r.bottom * scale,
-  );
+  List<Rect> _regionRowRects(SectionTintRegion r) => _rangeRowRects(score,
+      scale, r.startMeasureIndex, r.startNote, r.endMeasureIndex, r.endNote);
 
   static Color _parseHex(String hex) {
     final v = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0x888888;
@@ -2106,49 +2113,19 @@ class _OverlayPainter extends CustomPainter {
     r.bottom * scale,
   );
 
-  /// Scaled rects covering measure indices [startIdx]..[endIdx], one per system
-  /// line: measures unioned horizontally, the line's tiled band as the height.
-  List<Rect> _measureBandRects(int startIdx, int endIdx) {
-    final byLine =
-        <int, ({double left, double right, double top, double bottom})>{};
-    for (var i = startIdx; i <= endIdx; i++) {
-      final m = score.measureAt(i);
-      final band = score.bandForMeasure(i);
-      if (m == null || band == null) continue;
-      final line = score.lineOfMeasure(i);
-      final cur = byLine[line];
-      byLine[line] = cur == null
-          ? (
-              left: m.rect.left,
-              right: m.rect.right,
-              top: band.top,
-              bottom: band.bottom,
-            )
-          : (
-              left: m.rect.left < cur.left ? m.rect.left : cur.left,
-              right: m.rect.right > cur.right ? m.rect.right : cur.right,
-              top: cur.top,
-              bottom: cur.bottom,
-            );
-    }
-    return [
-      for (final s in byLine.values)
-        _scaled(Rect.fromLTRB(s.left, s.top, s.right, s.bottom)),
-    ];
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
-    // Selection range fill (measure numbers → indices, mirroring the OSMD path).
-    // Uses the same tiled per-line bands as the section wash so the highlight is
-    // a clean even band rather than stepping with note heights.
+    // Selection range fill, through the same note-edged geometry as the
+    // section wash: a selected section covers exactly its tint, mid-bar
+    // starts and ends included, on the same tiled per-line bands.
     final sel = selection;
     if (sel != null) {
-      final start = measureMap.firstIndexOf(sel.startMeasure);
-      final end = measureMap.lastIndexOf(sel.endMeasure);
-      if (start >= 0 && end >= 0) {
+      final r = measureMap.range(
+          sel.startMeasure, sel.startNote, sel.endMeasure, sel.endNote);
+      if (r != null) {
         final fill = Paint()..color = primary.withValues(alpha: 0.16);
-        for (final rect in _measureBandRects(start, end)) {
+        for (final rect in _rangeRowRects(score, scale, r.startMeasureIndex,
+            r.startNote, r.endMeasureIndex, r.endNote)) {
           canvas.drawRect(rect, fill);
         }
       }
@@ -2191,7 +2168,11 @@ class _OverlayPainter extends CustomPainter {
   /// the notes at any zoom (`scale` itself is ~1 at every zoom level, because the
   /// score is always engraved to the render width).
   double _bandPx(int measureIndex) {
-    final band = score.bandForMeasure(measureIndex);
+    // The tiled band itself, not [EngravedScore.bandForMeasure]'s, whose
+    // last line reaches down over its lyrics: a decoration shouldn't grow there.
+    final l = score.lineOfMeasure(measureIndex);
+    final band =
+        l < 0 || l >= score.lineBands.length ? null : score.lineBands[l];
     if (band == null) return 48 * scale;
     return (band.bottom - band.top) * scale;
   }

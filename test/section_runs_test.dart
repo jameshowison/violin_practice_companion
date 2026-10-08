@@ -4,6 +4,7 @@ import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
+import 'package:violin_practice_companion/services/providers.dart';
 
 NoteEvent _n() => const NoteEvent(
       pitch: 'A4',
@@ -87,6 +88,60 @@ void main() {
           .map((e) => e.performanceIndex)
           .toList();
       expect(m1, [0, 2]);
+    });
+  });
+
+  group('a section that starts mid-bar', () {
+    Measure bar(int number, {bool repeatStart = false, bool repeatEnd = false}) =>
+        Measure(
+          number: number,
+          notes: [_n(), _n(), _n(), _n()],
+          repeatStart: repeatStart,
+          repeatEnd: repeatEnd,
+        );
+    // A at bar 1; B on the last note of bar 2 (its lead-in).
+    final measures = [bar(1), bar(2), bar(3), bar(4)];
+    const sections = [
+      Section(label: 'A', startMeasure: 1),
+      Section(label: 'B', startMeasure: 2, startNote: 3),
+    ];
+
+    test('shares the split bar: head to the run before, tail to its own', () {
+      final runs = sectionRuns(measures, sections);
+      expect(
+          runs.map((r) => '${r.label} ${r.firstMeasure}:${r.startNote}-'
+              '${r.lastMeasure}:${r.endNote}'),
+          ['A 1:0-2:3', 'B 2:3-4:-1']);
+    });
+
+    test('the playing note picks the run inside the shared bar', () {
+      final runs = sectionRuns(measures, sections);
+      // Performance index 1 is bar 2.
+      expect(runs[0].containsPerf(1, noteIndex: 2), isTrue);
+      expect(runs[1].containsPerf(1, noteIndex: 2), isFalse);
+      expect(runs[0].containsPerf(1, noteIndex: 3), isFalse);
+      expect(runs[1].containsPerf(1, noteIndex: 3), isTrue);
+    });
+
+    test('selecting a run selects exactly its notes', () {
+      final runs = sectionRuns(measures, sections);
+      expect(MeasureSelection.ofRun(runs[1]),
+          const MeasureSelection(2, 4, startNote: 3));
+      expect(MeasureSelection.ofRun(runs[0]),
+          const MeasureSelection(1, 2, endNote: 3));
+    });
+
+    test('a repeat around both still unfolds into two passes of each', () {
+      final repeated = [
+        bar(1, repeatStart: true),
+        bar(2),
+        bar(3),
+        bar(4, repeatEnd: true),
+      ];
+      final runs = sectionRuns(repeated, sections);
+      expect(runs.map((r) => '${r.label}${r.passIndex}'),
+          ['A0', 'B0', 'A1', 'B1']);
+      expect(runs.map((r) => r.startNote), [0, 3, 0, 3]);
     });
   });
 }

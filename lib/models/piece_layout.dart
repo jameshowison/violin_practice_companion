@@ -177,18 +177,40 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
   if (sections.isEmpty || measures.isEmpty) return const [];
   final order = ParsedPiece.performanceOrder(measures);
   final labelByMeasure = sectionLabelByMeasure(sections, measures);
-  final markerMeasures = {for (final s in sections) s.startMeasure};
+  // A marker on a bar's first note starts a run there; one further in splits
+  // the bar, its head ending the run before and its tail starting the next.
+  final markerMeasures = {
+    for (final s in sections)
+      if (s.startNote == 0) s.startMeasure,
+  };
+  final splitAt = {
+    for (final s in sections)
+      if (s.startNote > 0) s.startMeasure: s.startNote,
+  };
+  // The label in force over a split bar's head: a marker on its first note,
+  // else whatever the bar before it was.
+  final headLabel = <int, String?>{};
+  for (var i = 0; i < measures.length; i++) {
+    final n = measures[i].number;
+    if (!splitAt.containsKey(n)) continue;
+    headLabel[n] = markerMeasures.contains(n)
+        ? sections.lastWhere((s) => s.startMeasure == n && s.startNote == 0).label
+        : (i > 0 ? labelByMeasure[measures[i - 1].number] : null);
+  }
 
-  // [label, perfStart, perfEnd(excl), firstRealMeasure(-1 until seen), lastReal].
+  // [label, perfStart, perfEnd(excl), firstRealMeasure(-1 until seen), lastReal,
+  //  startNote, endNote].
   final segs = <List<dynamic>>[];
   var runHasReal = false;
   for (var oi = 0; oi < order.length; oi++) {
     final m = measures[order[oi]];
-    final lbl = labelByMeasure[m.number];
+    final split = splitAt[m.number];
+    final lbl = split != null ? headLabel[m.number] : labelByMeasure[m.number];
     final atSectionStart = markerMeasures.contains(m.number);
     final begin = segs.isEmpty || (atSectionStart && runHasReal);
     if (begin) {
-      segs.add([lbl ?? '', oi, oi + 1, m.number >= 1 ? m.number : -1, m.number]);
+      segs.add([lbl ?? '', oi, oi + 1, m.number >= 1 ? m.number : -1, m.number,
+          0, -1]);
       runHasReal = m.number >= 1;
     } else {
       segs.last[2] = oi + 1;
@@ -199,6 +221,12 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
         segs.last[4] = m.number;
         runHasReal = true;
       }
+    }
+    if (split != null) {
+      segs.last[6] = split;
+      segs.add([labelByMeasure[m.number] ?? '', oi, oi + 1,
+          m.number >= 1 ? m.number : -1, m.number, split, -1]);
+      runHasReal = m.number >= 1;
     }
   }
 
@@ -218,6 +246,8 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
         lastMeasure: s[4] as int,
         perfStart: s[1] as int,
         perfEnd: s[2] as int,
+        startNote: s[5] as int,
+        endNote: s[6] as int,
       ),
   ]);
 }

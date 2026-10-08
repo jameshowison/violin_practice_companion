@@ -55,6 +55,9 @@ abstract class PlaybackServiceBase {
   PlaybackState _state = PlaybackState.stopped;
   int _fromMeasure = 1;
   int? _toMeasure;
+  // Note edges within those measures, for a section starting or ending mid-bar.
+  int _fromNote = 0;
+  int _toNote = -1;
   DateTime? _t0;
   double _startOffset = 0.0;
   Timer? _timer;
@@ -105,22 +108,37 @@ abstract class PlaybackServiceBase {
   }
 
   /// Starts (or resumes) playback of measures [fromMeasure]…[toMeasure].
+  /// [fromNote] starts part-way into [fromMeasure]; [toNote] stops before that
+  /// note of [toMeasure] (`-1` plays all of it) — a section's mid-bar edges.
   ///
   /// [countIn], when given, is counted off before the first note sounds; null
   /// starts immediately. Only the Play/Rewind buttons ask for a count — a loop
   /// repeat and a tempo change both re-enter [play] mid-practice, where counting
   /// in again would be an interruption rather than a service.
-  void play({int fromMeasure = 1, int? toMeasure, CountInPlan? countIn}) {
+  void play({
+    int fromMeasure = 1,
+    int fromNote = 0,
+    int? toMeasure,
+    int toNote = -1,
+    CountInPlan? countIn,
+  }) {
     final d = _data;
     if (d == null) return;
     _stopInternal(silent: true);
     _fromMeasure = fromMeasure;
     _toMeasure = toMeasure;
+    _fromNote = fromNote;
+    _toNote = toNote;
     // fromMeasure is a Measure.number, not an array index — map it via the
     // document-order measureNumbers list so a pickup (number 0) and any
     // non-1-based numbering resolve correctly. Falls back to the start.
     final fromIdx = d.indexOfMeasure(fromMeasure);
     _startOffset = d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
+    if (fromIdx >= 0 &&
+        fromNote > 0 &&
+        fromNote < d.measureNoteTimings[fromIdx].length) {
+      _startOffset = d.measureNoteTimings[fromIdx][fromNote].$1;
+    }
     _countInPlan = countIn;
     final unitSeconds = countInUnitSeconds(_bpm);
     _countInBeatSeconds = countIn == null ? 0 : countIn.unit * unitSeconds;
@@ -172,11 +190,19 @@ abstract class PlaybackServiceBase {
   void setTempo(int bpm) {
     final wasPlaying = _state == PlaybackState.playing;
     final savedMeasure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;
+    final savedFromNote = savedMeasure == _fromMeasure ? _fromNote : 0;
     final savedTo = _toMeasure;
+    final savedToNote = _toNote;
     _stopInternal(silent: true);
     _bpm = bpm;
     if (_piece != null) _data = generator.generate(_piece!, bpm);
-    if (wasPlaying) play(fromMeasure: savedMeasure, toMeasure: savedTo);
+    if (wasPlaying) {
+      play(
+          fromMeasure: savedMeasure,
+          fromNote: savedFromNote,
+          toMeasure: savedTo,
+          toNote: savedToNote);
+    }
   }
 
   void _stopInternal({bool silent = false}) {
@@ -293,10 +319,21 @@ abstract class PlaybackServiceBase {
       toIdx = d.measureNumbers.indexOf(_toMeasure!, startIdx >= 0 ? startIdx : 0);
     }
     final endIdx = (toIdx >= 0 ? toIdx : onsets.length - 1) + 1;
-    final endT = endIdx < onsets.length ? onsets[endIdx] : d.totalDurationSeconds;
+    var endT = endIdx < onsets.length ? onsets[endIdx] : d.totalDurationSeconds;
+    // A mid-bar end stops on the onset of the first note past it.
+    if (_toMeasure != null &&
+        toIdx >= 0 &&
+        _toNote >= 0 &&
+        _toNote < d.measureNoteTimings[toIdx].length) {
+      endT = d.measureNoteTimings[toIdx][_toNote].$1;
+    }
     if (pt >= endT) {
       if (loopEnabled) {
-        play(fromMeasure: _fromMeasure, toMeasure: _toMeasure);
+        play(
+            fromMeasure: _fromMeasure,
+            fromNote: _fromNote,
+            toMeasure: _toMeasure,
+            toNote: _toNote);
       } else {
         _stopInternal();
       }

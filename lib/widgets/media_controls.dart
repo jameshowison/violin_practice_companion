@@ -561,9 +561,13 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
     final countIn = ref.watch(resolvedCountInProvider);
     final startMeasure = ref.watch(playbackStartMeasureProvider);
 
+    final startNote = ref.watch(playbackStartNoteProvider);
+
     void start() => service.play(
           fromMeasure: startMeasure,
+          fromNote: startNote,
           toMeasure: selection?.endMeasure,
+          toNote: selection?.endNote ?? -1,
           countIn: countIn,
         );
 
@@ -723,7 +727,9 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
               icon: const Icon(Icons.play_arrow),
               iconSize: 26,
               tooltip: 'Play',
-              onPressed: () => service.play(fromMeasure: startMeasure),
+              onPressed: () => service.play(
+                  fromMeasure: startMeasure,
+                  fromNote: ref.read(playbackStartNoteProvider)),
             ),
             IconButton(
               icon: const Icon(Icons.pause),
