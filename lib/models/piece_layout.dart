@@ -207,7 +207,12 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
     final split = splitAt[m.number];
     final lbl = split != null ? headLabel[m.number] : labelByMeasure[m.number];
     final atSectionStart = markerMeasures.contains(m.number);
-    final begin = segs.isEmpty || (atSectionStart && runHasReal);
+    // A section marked on the pickup into its `|:` is replayed from the bar
+    // after that pickup, so a jump back onto it begins the next pass.
+    final i = order[oi];
+    final replay = oi > 0 && i <= order[oi - 1] && i > 0 &&
+        markerMeasures.contains(measures[i - 1].number);
+    final begin = segs.isEmpty || ((atSectionStart || replay) && runHasReal);
     if (begin) {
       segs.add([lbl ?? '', oi, oi + 1, m.number >= 1 ? m.number : -1, m.number,
           0, -1]);

@@ -40,7 +40,7 @@ void main() {
   group('lead-ins', () {
     test('each later strain starts on the last beat of the bar before', () {
       expect(sections, const [
-        Section(label: 'A', startMeasure: 2),
+        Section(label: 'A', startMeasure: 1), // the opening pickup
         Section(label: 'B', startMeasure: 9, startNote: 1), // "Where the"
         Section(label: 'C', startMeasure: 17, startNote: 2), // past the rest
         Section(label: 'D', startMeasure: 25, startNote: 1), // "No more"
@@ -186,7 +186,7 @@ void main() {
       final ranges = resolveSectionRanges(sections, measures);
       final a = ranges.first;
       expect(map.range(a.startMeasure, a.startNote, a.endMeasure, a.endNote), (
-        startMeasureIndex: 1,
+        startMeasureIndex: 0, // the pickup
         startNote: 0,
         endMeasureIndex: 8, // m9's first slice, whole
         endNote: -1,

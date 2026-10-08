@@ -28,7 +28,9 @@ reads as `Measure.partLabelNote` / `lineStartNote`. Downbeat starts then move
 back onto their lead-in: the first sounding note after the previous bar's
 phrase end (a rest, a held-over note, a note of half a bar or more), falling
 back to the opening pickup's length. A bar that ends on its phrase end has
-none. Existing pieces get this through "Re-detect sections" in the display
+none. The first section starts on the opening pickup itself, its lead-in; when
+that pickup sits outside a `|:`, `sectionRuns` starts the replay on the `|:`
+bar, so A still plays as A¹ and A². Existing pieces get this through "Re-detect sections" in the display
 drawer. It re-converts the stored ABC source for the line hints, and asks
 before it replaces anything.
 

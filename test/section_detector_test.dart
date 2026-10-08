@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/models/piece_layout.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 
@@ -214,35 +215,35 @@ void main() {
 
     test('starts after a long note, even when shorter than the pickup', () {
       // A three-beat tail would end mid-way through the half note.
-      expect(starts(tune(threeBeats, [n(h), n(q), n(e), n(e)])), '2:0 9:1');
+      expect(starts(tune(threeBeats, [n(h), n(q), n(e), n(e)])), '1:0 9:1');
     });
 
     test('starts after a note held over from the bar before', () {
       // A three-beat tail would give 9:1.
       expect(
           starts(tune(threeBeats, [n(q), n(q, tieStop: true), n(q), n(q)])),
-          '2:0 9:2');
+          '1:0 9:2');
     });
 
     test('a bar that ends on a rest or a long note has no lead-in', () {
       expect(starts(tune([n(h)], [n(h), n(e), n(e), n(q, rest: true)])),
-          '2:0 10:0');
-      expect(starts(tune([n(q)], [n(q), n(q), n(h)])), '2:0 10:0');
+          '1:0 10:0');
+      expect(starts(tune([n(q)], [n(q), n(q), n(h)])), '1:0 10:0');
     });
 
     test('starts after a rest, skipping it', () {
       expect(starts(tune([n(q)], [n(q), n(q), n(q, rest: true), n(q)])),
-          '2:0 9:3');
+          '1:0 9:3');
     });
 
     test('falls back to the pickup length with no phrase end', () {
-      expect(starts(tune([n(q)], [n(q), n(q), n(q), n(q)])), '2:0 9:3');
+      expect(starts(tune([n(q)], [n(q), n(q), n(q), n(q)])), '1:0 9:3');
     });
 
     test('a lead-in is never longer than the pickup', () {
       // After the held note, three quarters follow; the pickup is one.
       expect(starts(tune([n(q)], [n(q, tieStop: true), n(q), n(q), n(q)])),
-          '2:0 9:3');
+          '1:0 9:3');
     });
 
     test('no opening pickup, no lead-ins', () {
@@ -355,12 +356,23 @@ void main() {
     });
 
     test('Amazing Grace: each line begins on its lead-in, mid-bar', () {
-      expect(detect('amazing_grace'), 'A@2:0 B@5:1 C@9:1 A@13:1');
+      expect(detect('amazing_grace'), 'A@1:0 B@5:1 C@9:1 A@13:1');
     });
 
     test("Devil's Dream: starts at repeats stay on the downbeat (plan §1.3)",
         () {
-      expect(detect('devils_dream'), 'A@2:0 B@10:0');
+      expect(detect('devils_dream'), 'A@1:0 B@10:0');
+    });
+
+    test("Devil's Dream: A starts on its pickup and still plays twice", () {
+      final measures = MusicXmlParser()
+          .parse(File('test/fixtures/devils_dream.musicxml').readAsStringSync())
+          .measures;
+      final runs = sectionRuns(measures, SectionDetector.detect(measures));
+      expect([for (final r in runs) '${r.label}${r.passIndex}'],
+          ['A0', 'A1', 'B0', 'B1']);
+      expect(runs.first.firstMeasure, 1);
+      expect(runs[1].firstMeasure, 2); // the replay starts on the `|:`
     });
   });
 }

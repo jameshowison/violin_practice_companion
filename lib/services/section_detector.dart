@@ -86,8 +86,10 @@ class SectionDetector {
   /// from the bar before, or a note of half a bar or more (Gundagai's tied
   /// G, the rest in `A2 z2 B2c2`). With no such ending, it is the tail as
   /// long as the opening pickup, on a note boundary, skipping leading rests.
-  /// The first section and any section already off its downbeat are left
-  /// alone, as is a start at a repeat boundary — the tail of a `:|` bar leads
+  /// The first section's lead-in is the opening pickup itself, so a first
+  /// section starting on the bar after it moves back onto the pickup bar. Any
+  /// section already off its downbeat is left alone, as is a start at a
+  /// repeat boundary — the tail of a `:|` bar leads
   /// back into the repeat, not on (see docs/plan.md §1.3).
   static List<Section> withLeadIns(
       List<Section> sections, List<Measure> measures) {
@@ -104,7 +106,11 @@ class SectionDetector {
             : b);
     return [
       for (final s in sections)
-        if (identical(s, first) || s.startNote != 0)
+        if (identical(s, first))
+          indexOf[s.startMeasure] == 1 && s.startNote == 0
+              ? Section(label: s.label, startMeasure: measures.first.number)
+              : s
+        else if (s.startNote != 0)
           s
         else
           _leadIn(s, measures, indexOf, pickup, fullBar) ?? s,
@@ -209,12 +215,9 @@ class SectionDetector {
       // A `[P:A]` marker commonly lands on a pickup just before the part's
       // own `|:` (abcjs attaches it wherever `[P:X]` sits in the source,
       // which is often right before the pickup notes leading into the
-      // repeat). A pickup is never revisited in performance order, so
-      // anchoring the Section there would fold both playings of a repeated
-      // part into one undivided run instead of the two (A1/A2) `sectionRuns`
-      // is built to show. Anchor on the repeat start instead, when there is
-      // one before the next marker — the pickup still adopts this section's
-      // label via `sectionRuns`' unmarked-leading-pickup handling.
+      // repeat). Anchor on the repeat start instead, when there is one
+      // before the next marker: the pickup is only a lead-in, and
+      // [withLeadIns] gives the opening one back to the first section.
       var anchor = markIdx;
       for (var i = markIdx; i < nextMarkIdx; i++) {
         if (measures[i].repeatStart) {
@@ -245,8 +248,8 @@ class SectionDetector {
     if (measures.length < 2) return null;
 
     if (measures.any((m) => m.repeatStart || m.repeatEnd)) {
-      // A `|:` begins each strain; leading measures before the first one (a
-      // pickup) are left unmarked so they adopt the following section's label.
+      // A `|:` begins each strain; an opening pickup before the first one
+      // joins it in [withLeadIns].
       final marks = [
         for (var i = 0; i < measures.length; i++)
           if (measures[i].repeatStart) i,
@@ -315,7 +318,7 @@ class SectionDetector {
   /// tune with no repeats to go by. A line that begins mid-bar starts its
   /// strain on that note: the author began the line on the phrase's lead-in
   /// (Amazing Grace's `…| D4` / `D2 | G4…`). The first strain starts on the
-  /// first full bar, as with blocks, so an opening pickup adopts its label.
+  /// first full bar, as with blocks; [withLeadIns] adds the opening pickup.
   /// Null unless there are at least [_minStrains] lines of two or more bars.
   static _Strains? _lineStrains(List<Measure> measures) {
     final fullBar = _commonUnits(measures);
