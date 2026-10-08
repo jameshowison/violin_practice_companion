@@ -1,3 +1,4 @@
+import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/gdae_tuning.dart';
 import '../models/note_event.dart';
@@ -48,8 +49,8 @@ const int maxFirstPositionFret = 7;
 /// whitespace is measured from). Drawing them in a lane instead makes the level
 /// flat by construction and hands the vertical budget back to the chord lane.
 ///
-/// [measureNumbers] is the engraved order (index → measure number), matching
-/// [chordRunRegions].
+/// [measureMap] is the engraved order (index → measure number, split bars
+/// included), matching [chordRunRegions].
 /// [numberMode] swaps the violin finger for the mandolin fret; [fretStyle] then
 /// decides which string carries it (and so, since the colour follows the string,
 /// whether the chips keep their colours). Both are shared with the tab staff.
@@ -61,7 +62,7 @@ const int maxFirstPositionFret = 7;
 /// facts don't change because the label is now expressed as a fret. It also means
 /// switching the number mode never makes labels appear or disappear.
 List<FingeringAnnotation> fingeringAnnotations(
-  List<int> measureNumbers,
+  EngravedMeasureMap measureMap,
   ParsedPiece parsed, {
   required FingeringDensity density,
   required FingeringDensityPolicy policy,
@@ -83,7 +84,7 @@ List<FingeringAnnotation> fingeringAnnotations(
   var isFirstNote = true;
 
   for (final m in parsed.measures) {
-    final measureIndex = measureNumbers.indexOf(m.number);
+    final engraved = measureMap.firstIndexOf(m.number) >= 0;
     var isMeasureStart = true;
 
     for (var j = 0; j < m.notes.length; j++) {
@@ -102,7 +103,7 @@ List<FingeringAnnotation> fingeringAnnotations(
       // both the parsed model and the engraved anchors, so the indices stay
       // aligned either way. A tie continuation keeps its chip: it repeats the
       // finger already down, which reads as "hold it" next to its notehead.
-      final drawable = hasFingering && !note.isChord && measureIndex >= 0;
+      final drawable = hasFingering && !note.isChord && engraved;
 
       // What this note's chip would say and sit on. Resolved for every fingered
       // note, drawn or not, so `prevString` (the `onChange` letter) tracks the
@@ -120,9 +121,10 @@ List<FingeringAnnotation> fingeringAnnotations(
           afterRest: afterRest,
         );
         if (showFingering(c, density: density, policy: policy)) {
+          final at = measureMap.locate(m.number, j)!;
           out.add((
-            measureIndex: measureIndex,
-            noteIndex: j,
+            measureIndex: at.index,
+            noteIndex: at.note,
             label: _label(
                 shown, colourByString, stringLabelStyle, prevString),
             string: shown.string,
@@ -159,7 +161,7 @@ List<FingeringAnnotation> fingeringAnnotations(
 /// fingering alone would have continued. Resolved through the same [_shown] the
 /// labels use, so the runs and the chips can never disagree.
 List<StringRunRegion> stringRunRegions(
-  List<int> measureNumbers,
+  EngravedMeasureMap measureMap,
   ParsedPiece parsed, {
   NoteNumberMode numberMode = NoteNumberMode.violinFingering,
   FretStyle fretStyle = FretStyle.openStrings,
@@ -184,14 +186,14 @@ List<StringRunRegion> stringRunRegions(
 
   final out = <StringRunRegion>[];
   for (final r in resolveSectionRanges(markers, parsed.measures)) {
-    final startIdx = measureNumbers.indexOf(r.startMeasure);
-    final endIdx = measureNumbers.indexOf(r.endMeasure);
-    if (startIdx < 0 || endIdx < 0) continue;
+    final at = measureMap.range(
+        r.startMeasure, r.startNote, r.endMeasure, r.endNote);
+    if (at == null) continue;
     out.add((
-      startMeasureIndex: startIdx,
-      startNote: r.startNote,
-      endMeasureIndex: endIdx,
-      endNote: r.endNote,
+      startMeasureIndex: at.startMeasureIndex,
+      startNote: at.startNote,
+      endMeasureIndex: at.endMeasureIndex,
+      endNote: at.endNote,
       string: r.label,
     ));
   }

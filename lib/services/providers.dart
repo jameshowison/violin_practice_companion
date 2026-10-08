@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
 import '../models/count_in.dart';
+import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -828,20 +829,77 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 bool _injectFingeringFor(Ref ref) =>
     ref.watch(staffRendererProvider) == StaffRenderer.osmd;
 
-/// Injects explicit system breaks — every N measures, with each [sections]
-/// entry forcing its own fresh line — when the user has locked
-/// measures-per-line to an exact value (see [MeasuresPerLineState.locked]),
-/// so `VerovioEngraver` can be told `breaks: 'encoded'` instead of leaving
-/// Verovio to choose its own — the guaranteed-exact counterpart to the
-/// ordinary approximate zoom. A no-op on auto or on the approximate setting.
-String _lockedBreaksFor(Ref ref, String xml, List<Section> sections) {
+/// How the staff views break lines for the selected piece.
+///
+/// [bySection]: a piece with two or more sections, engraved natively, on
+/// either the Auto zoom (the section layout — see
+/// `StaffViewVerovio.sectionLayout`) or a locked measures-per-line (which has
+/// always broken at section starts). Every section then starts a line, and a
+/// section that starts on a lead-in mid-bar has that bar split so the lead-in
+/// opens its line ([sectionBarSplits]).
+///
+/// [sectionAuto]: the Auto half of that — the staff view, not the xml, then
+/// decides how each section fills its lines.
+///
+/// Neither applies to an explicit but unlocked measures-per-line (Verovio's
+/// own approximate breaking), to OSMD, or to the tab view.
+typedef StaffBreakMode = ({bool bySection, bool sectionAuto});
+
+final staffBreakModeProvider = Provider<StaffBreakMode>((ref) {
+  final piece = ref.watch(selectedPieceProvider);
   final mpl = ref.watch(measuresPerLineProvider);
-  if (!mpl.locked || mpl.value == null) return xml;
+  final eligible = piece != null &&
+      piece.sections.length >= 2 &&
+      ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+  final auto = mpl.value == null;
+  return (
+    bySection: eligible && (auto || mpl.locked),
+    sectionAuto: eligible && auto,
+  );
+});
+
+/// The staff views' engraved measure map: one slice per measure, plus the
+/// extra slice of every bar [staffBreakModeProvider] splits. Must agree with
+/// [_breaksFor], which splits the xml at the same [sectionBarSplits].
+EngravedMeasureMap staffMeasureMapFor(
+  List<Measure> measures,
+  List<Section> sections,
+  StaffBreakMode mode,
+) =>
+    mode.bySection
+        ? EngravedMeasureMap.withSplits(
+            measures, sectionBarSplits(sections, measures))
+        : EngravedMeasureMap.identity(measures.map((m) => m.number));
+
+/// The staff views' line breaks, applied last so every injector before it
+/// still addresses whole model measures:
+///  * by section (see [StaffBreakMode]): bars split at section lead-ins, and a
+///    break before every section — plus, when locked, every N measures.
+///  * locked without sections: every N measures (`insertSystemBreaks`).
+///  * otherwise untouched; Verovio breaks it.
+String _breaksFor(
+  Ref ref,
+  String xml,
+  List<Section> sections,
+  ParsedPiece? parsed,
+) {
+  final mpl = ref.watch(measuresPerLineProvider);
+  final mode = ref.watch(staffBreakModeProvider);
+  final locked = mpl.locked && mpl.value != null;
+  if (mode.bySection && parsed != null) {
+    xml = splitBarsAtSections(xml, sectionBarSplits(sections, parsed.measures));
+    return insertSystemBreaks(
+      xml,
+      measuresPerLine: locked ? mpl.value : null,
+      sections: sections,
+    );
+  }
+  if (!locked) return xml;
   return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
 }
 
 /// Hides the piece's own opening clef/key/time so the main render's first
-/// system gets the same space back that [_lockedBreaksFor]/`freezeSystemBreaks`
+/// system gets the same space back that [_breaksFor]/`freezeSystemBreaks`
 /// already recover on every later one — paired with [preambleMusicXmlProvider],
 /// which shows the same preamble next to the piece title instead.
 ///
@@ -863,11 +921,11 @@ final staffXmlProvider = FutureProvider<String?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = _hidePreambleFor(ref, xml);
-  xml = _lockedBreaksFor(ref, xml, piece.sections);
   xml = FingeringXmlInjector.stripFingerings(xml);
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
-  return xml;
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  return _breaksFor(ref, xml, piece.sections, parsed);
 });
 
 /// The piece's opening clef/key/time, engraved alone — the counterpart to
@@ -892,7 +950,6 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   String xml = await repo.loadMusicXml(piece);
   xml = layout.stripLayoutHints(xml);
   xml = _hidePreambleFor(ref, xml);
-  xml = _lockedBreaksFor(ref, xml, piece.sections);
   // Both renderers inject; see [_injectFingeringFor] for why the text differs.
   // The publisher's own fingerings are replaced either way, so a leftover
   // engraved label can never contradict the app's note for note.
@@ -908,7 +965,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>((ref) async {
   // Keep `<harmony>` for the native renderer so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
-  return xml;
+  return _breaksFor(ref, xml, piece.sections, parsed);
 });
 
 /// Violin fingering (default) vs true mandolin fret numbers, wherever a number

@@ -1,5 +1,6 @@
 import 'package:xml/xml.dart';
 
+import '../models/engraved_measure_map.dart';
 import '../models/section.dart';
 
 /// Inserts explicit MusicXML system breaks so Verovio can be told to honor
@@ -33,9 +34,14 @@ import '../models/section.dart';
 /// A pickup never stands alone on a line: a budget-triggered break
 /// (`count >= measuresPerLine`) is deferred past a pickup measure to the next
 /// one, so the pickup joins the tail of the still-open line. A section-forced
-/// break is different — it always fires, since there is no earlier line for a
-/// section-starting pickup to join (mirrors how the piece's own opening
-/// pickup already behaves).
+/// break fires even on a pickup, since a section-starting pickup has no
+/// earlier line to join — except when everything on the line so far is
+/// itself pickup: the piece's opening anacrusis before section A's downbeat
+/// stays on A's first line instead of standing alone.
+///
+/// [measuresPerLine] null means no budget at all: only the section starts
+/// break, and the lines within a section are left to the caller (the
+/// section-aware layout plans those against measured widths).
 ///
 /// Every break also hides the clef/key/time Verovio would otherwise
 /// auto-repeat at the new system (`<clef print-object="no">` etc., carrying
@@ -55,14 +61,25 @@ import '../models/section.dart';
 /// the established assumption in `measure_xml_editor.dart`.
 String insertSystemBreaks(
   String musicXml, {
-  required int measuresPerLine,
+  int? measuresPerLine,
   required List<Section> sections,
 }) {
-  final sectionStarts = {for (final s in sections) s.startMeasure};
   final doc = XmlDocument.parse(musicXml);
 
   for (final part in doc.findAllElements('part')) {
     final measures = part.findElements('measure').toList();
+    // A section that starts mid-bar is a break before that bar — unless
+    // [splitBarsAtSections] has cut the bar there, in which case the cut's
+    // continuation slice is where the section (and its line) begins.
+    final continued = {
+      for (final m in measures)
+        if (_continuationOf(m) case final n?) n,
+    };
+    final sectionStarts = {
+      for (final s in sections)
+        if (s.startNote == 0 || !continued.contains(s.startMeasure))
+          s.startMeasure,
+    };
     final state = _AttrState();
     var count = 0; // real (non-pickup) measures placed on the current line
     var pendingBreak = false; // budget hit while sitting on a pickup
@@ -79,10 +96,17 @@ String insertSystemBreaks(
       }
 
       final number = int.tryParse(measure.getAttribute('number') ?? '');
-      final isSectionStart = number != null && sectionStarts.contains(number);
-      final atBudget = count >= measuresPerLine || pendingBreak;
+      final isSectionStart =
+          (number != null && sectionStarts.contains(number)) ||
+              _continuationOf(measure) != null;
+      final atBudget = measuresPerLine != null &&
+          (count >= measuresPerLine || pendingBreak);
 
-      if (isSectionStart || (atBudget && !isPickup)) {
+      // A section start whose line so far holds only pickups (the piece's
+      // opening anacrusis before section A's downbeat) keeps them: breaking
+      // there would leave the pickup alone on a line of its own.
+      final sectionBreak = isSectionStart && count > 0;
+      if (sectionBreak || (atBudget && !isPickup)) {
         _insertPrintBreak(measure);
         _hidePreamble(measure, state);
         count = 0;
@@ -97,6 +121,198 @@ String insertSystemBreaks(
 
   return doc.toXmlString();
 }
+
+/// Cuts each bar in [splits] into consecutive `<measure>`s at the given note
+/// (see [sectionBarSplits]), so a section's lead-in can open its line while
+/// the rest of its bar ends the line above.
+///
+/// The first slice keeps the bar's number and ends with an invisible barline
+/// (`<bar-style>none</bar-style>`) — it is not a real bar end. Each later
+/// slice is numbered `<n>b`, `<n>c`… and marked `implicit="yes"`; its
+/// shortness also makes it a pickup to [insertSystemBreaks], which breaks
+/// before it as the section's start.
+///
+/// Notes are counted the way the parser counts them (visible, non-grace;
+/// chord members and rests included), so a cut index is the same number as
+/// `Section.startNote`. Anything between the note before the cut and the cut
+/// note — a chord symbol, a direction, grace notes — travels with the cut
+/// note. A left barline stays on the first slice; a right one (or a repeat
+/// end) on the last.
+///
+/// Engraving-only fix-ups at each cut: a beam open across it is ended on one
+/// side and restarted on the other, and a lyric extender on the slice's last
+/// note is dropped (Verovio would otherwise draw it on into the next line).
+/// Ties are left alone: Verovio draws a tie across a measure boundary.
+String splitBarsAtSections(String musicXml, List<BarSplit> splits) {
+  if (splits.isEmpty) return musicXml;
+  final cutsByMeasure = <int, List<int>>{};
+  for (final s in splits) {
+    (cutsByMeasure[s.measure] ??= []).add(s.note);
+  }
+  final doc = XmlDocument.parse(musicXml);
+
+  for (final part in doc.findAllElements('part')) {
+    final done = <int>{};
+    for (final measure in part.findElements('measure').toList()) {
+      final number = int.tryParse(measure.getAttribute('number') ?? '');
+      final cuts = number == null || done.contains(number)
+          ? null
+          : cutsByMeasure[number];
+      if (cuts == null) continue;
+      done.add(number!);
+      final sorted = cuts.toSet().toList()..sort();
+
+      // Partition the children into slices.
+      final slices = <List<XmlNode>>[[]];
+      final pending = <XmlNode>[];
+      var noteIndex = 0;
+      var cutAt = 0;
+      for (final child in measure.children.toList()) {
+        final isCounted = child is XmlElement &&
+            child.name.local == 'note' &&
+            child.findElements('grace').isEmpty &&
+            child.getAttribute('print-object') != 'no';
+        final isRightBarline = child is XmlElement &&
+            child.name.local == 'barline' &&
+            child.getAttribute('location') != 'left';
+        if (isRightBarline) continue; // re-attached to the last slice below
+        if (!isCounted) {
+          pending.add(child);
+          continue;
+        }
+        if (cutAt < sorted.length && noteIndex == sorted[cutAt]) {
+          slices.add([]);
+          cutAt++;
+        }
+        slices.last
+          ..addAll(pending)
+          ..add(child);
+        pending.clear();
+        noteIndex++;
+      }
+      slices.last.addAll(pending);
+      final rightBarlines = measure.findElements('barline')
+          .where((b) => b.getAttribute('location') != 'left')
+          .toList();
+      if (slices.length < 2) continue;
+
+      // Beams and extenders at each seam.
+      for (var k = 0; k + 1 < slices.length; k++) {
+        final before = _countedNotes(slices[k]).lastOrNull;
+        final after = _countedNotes(slices[k + 1]).firstOrNull;
+        if (before != null) {
+          _closeBeams(before);
+          for (final ext in before.findAllElements('extend').toList()) {
+            ext.remove();
+          }
+        }
+        if (after != null) _openBeams(after);
+      }
+
+      // Rebuild: this measure becomes slice 0; later slices are new measures.
+      for (final c in measure.children.toList()) {
+        c.remove();
+      }
+      measure.children.addAll(slices.first.map(_detach));
+      measure.children.add(XmlElement(XmlName('barline'), [
+        XmlAttribute(XmlName('location'), 'right'),
+      ], [
+        XmlElement(XmlName('bar-style'), [], [XmlText('none')]),
+      ]));
+      var anchor = measure;
+      for (var k = 1; k < slices.length; k++) {
+        final slice = XmlElement(XmlName('measure'), [
+          XmlAttribute(XmlName('number'),
+              '$number${String.fromCharCode(0x61 + k)}'),
+          XmlAttribute(XmlName('implicit'), 'yes'),
+        ], [
+          ...slices[k].map(_detach),
+          if (k == slices.length - 1) ...rightBarlines.map(_detach),
+        ]);
+        final parent = anchor.parent!;
+        parent.children.insert(parent.children.indexOf(anchor) + 1, slice);
+        anchor = slice;
+      }
+    }
+  }
+  return doc.toXmlString();
+}
+
+/// The model measure number a [splitBarsAtSections] continuation slice
+/// (`<n>b`, `<n>c`…) belongs to, or null for any ordinary measure.
+int? _continuationOf(XmlElement measure) {
+  final m = RegExp(r'^(\d+)[b-z]$').firstMatch(measure.getAttribute('number') ?? '');
+  return m == null ? null : int.parse(m.group(1)!);
+}
+
+XmlNode _detach(XmlNode n) => n.hasParent ? (n..remove()) : n;
+
+Iterable<XmlElement> _countedNotes(List<XmlNode> slice) => slice
+    .whereType<XmlElement>()
+    .where((e) => e.name.local == 'note' && e.findElements('grace').isEmpty);
+
+/// The slice's last note: a beam still open here ends here.
+void _closeBeams(XmlElement note) {
+  for (final b in note.findElements('beam').toList()) {
+    switch (b.innerText.trim()) {
+      case 'begin':
+        b.remove(); // a one-note "group"
+      case 'continue':
+        b.innerText = 'end';
+    }
+  }
+}
+
+/// The next slice's first note: a beam continuing into it starts again here.
+void _openBeams(XmlElement note) {
+  for (final b in note.findElements('beam').toList()) {
+    switch (b.innerText.trim()) {
+      case 'end':
+        b.remove();
+      case 'continue':
+        b.innerText = 'begin';
+    }
+  }
+}
+
+/// Inserts a system break before each measure at a document POSITION in
+/// [positions] (0-based, per part; position 0 is ignored) — for a layout
+/// whose break points were planned against the engraved measures, where a
+/// split bar's slices have no plain number to name them by. Same mechanics
+/// as every other break here: `<print new-system>` plus the hidden clef/time.
+String insertBreaksAtPositions(String musicXml, Set<int> positions) {
+  if (positions.isEmpty) return musicXml;
+  final doc = XmlDocument.parse(musicXml);
+  for (final part in doc.findAllElements('part')) {
+    final measures = part.findElements('measure').toList();
+    final state = _AttrState();
+    for (var i = 0; i < measures.length; i++) {
+      state.update(measures[i]);
+      if (i == 0 || !positions.contains(i)) continue;
+      if (_hasSystemBreak(measures[i])) continue;
+      _insertPrintBreak(measures[i]);
+      _hidePreamble(measures[i], state);
+    }
+  }
+  return doc.toXmlString();
+}
+
+/// Document positions of the first part's measures that open a system: 0,
+/// then every measure carrying `<print new-system="yes">`.
+List<int> systemStartPositions(String musicXml) {
+  final doc = XmlDocument.parse(musicXml);
+  final part = doc.findAllElements('part').firstOrNull;
+  if (part == null) return const [];
+  final measures = part.findElements('measure').toList();
+  return [
+    for (var i = 0; i < measures.length; i++)
+      if (i == 0 || _hasSystemBreak(measures[i])) i,
+  ];
+}
+
+bool _hasSystemBreak(XmlElement measure) => measure
+    .findElements('print')
+    .any((p) => p.getAttribute('new-system') == 'yes');
 
 /// Freezes system breaks Verovio's own `breaks: 'auto'` layout already chose
 /// — [breakMeasureNumbers], each the first measure of a system after the
