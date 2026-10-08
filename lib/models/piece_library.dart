@@ -523,7 +523,7 @@ const omrDemoCollectionName = 'OMR demos';
 /// Step 1 hides the `abc_*`/`homr_*` OMR comparison pairs and files them under
 /// [omrDemoCollectionName]. They ship as a side-by-side demonstration of scan
 /// quality, but they are 10 of the 13 bundled pieces — pure noise for everyday
-/// practice (docs/plan.md §4). Hidden rather than removed: the comparison is
+/// practice. Hidden rather than removed: the comparison is
 /// one toggle away.
 ///
 /// [omrDemoIds] is a parameter so this file stays free of `PieceRepository`.

@@ -9,7 +9,7 @@ import '../models/parsed_piece.dart';
 /// Sibling to `fingering_xml_injector.dart` (same parse/mutate/`toXmlString`
 /// approach), but it rewrites a measure's note list rather than annotating
 /// existing notes, so it's a separate class. Single-voice only — `<backup>`/
-/// `<forward>` are out of scope (see `docs/plan.md` §6). Chords aren't editable
+/// `<forward>` are out of scope (see `docs/plan.md` §2). Chords aren't editable
 /// as such, but a chord member's `<chord/>` marker round-trips so saving an
 /// edit doesn't silently break the stack into sequential notes.
 ///

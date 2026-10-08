@@ -13,7 +13,7 @@ import '../widgets/measure_edit_row.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 
-/// Single-measure note editor for scanned pieces (`docs/plan.md` §6).
+/// Single-measure note editor for scanned pieces (open gaps: `docs/plan.md` §2).
 ///
 /// Edits are screen-local and ephemeral: [_notes] is seeded from the parsed
 /// measure, mutated in place, and only persisted on Save (which re-serializes
