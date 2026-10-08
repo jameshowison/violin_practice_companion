@@ -568,6 +568,8 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           fromNote: startNote,
           toMeasure: selection?.endMeasure,
           toNote: selection?.endNote ?? -1,
+          fromIndex: selection?.startPerf ?? -1,
+          toIndex: selection?.endPerf ?? -1,
           countIn: countIn,
         );
 

@@ -875,7 +875,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // Map our measure number → engraved measure index. In folded mode numbers
     // are unique so this is exact; in unfolded/sectioned mode a repeated number
     // resolves to its first rendered copy (cursor sits on the first pass).
-    final at = widget.measureMap.locate(ev.measureNumber, ev.noteIndex);
+    // A moved repeat's tail is drawn on its lead-in on the pass that jumps back.
+    final at = widget.measureMap
+        .locatePlayed(ev.measureNumber, ev.noteIndex, ev.performanceIndex);
     if (at == null) return null;
     return score.noteAt(at.index, at.note);
   }
@@ -954,7 +956,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     double scale,
     double width,
   ) {
-    final found = widget.measureMap.firstIndexOf(tick.startMeasure);
+    // A selected pass that starts on a moved repeat's tail counts in over the
+    // lead-in it is drawn on.
+    final sel = widget.selection;
+    final found = sel != null && sel.startMeasure == tick.startMeasure
+        ? widget.measureMap
+                .locatePlayed(sel.startMeasure, sel.startNote, sel.startPerf)
+                ?.index ??
+            -1
+        : widget.measureMap.firstIndexOf(tick.startMeasure);
     final index = found < 0 ? 0 : found;
     final line = score.lineOfMeasure(index);
     if (line < 0 || line >= score.lineContent.length) return null;
@@ -2121,7 +2131,8 @@ class _OverlayPainter extends CustomPainter {
     final sel = selection;
     if (sel != null) {
       final r = measureMap.range(
-          sel.startMeasure, sel.startNote, sel.endMeasure, sel.endNote);
+          sel.startMeasure, sel.startNote, sel.endMeasure, sel.endNote,
+          startPerf: sel.startPerf);
       if (r != null) {
         final fill = Paint()..color = primary.withValues(alpha: 0.16);
         for (final rect in _rangeRowRects(score, scale, r.startMeasureIndex,
@@ -2142,7 +2153,8 @@ class _OverlayPainter extends CustomPainter {
     // Current-note highlight + playback cursor.
     final ev = highlight.value;
     if (ev != null) {
-      final at = measureMap.locate(ev.measureNumber, ev.noteIndex);
+      final at = measureMap.locatePlayed(
+          ev.measureNumber, ev.noteIndex, ev.performanceIndex);
       final mi = at?.index ?? -1;
       final anchor = at == null ? null : score.noteAt(at.index, at.note);
       if (anchor != null) {

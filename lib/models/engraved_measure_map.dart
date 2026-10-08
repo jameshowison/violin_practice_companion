@@ -1,3 +1,4 @@
+import 'note_event.dart';
 import 'parsed_piece.dart';
 import 'section.dart';
 
@@ -38,6 +39,78 @@ List<BarSplit> sectionBarSplits(List<Section> sections, List<Measure> measures) 
     });
 }
 
+/// A `:|` bar whose tail a section split sends to the next line, where a
+/// player repeating would never see it. Devil's Dream's `e2 |: … A2 e2 :|`:
+/// the tail `e2` opens B's line, yet it is also the lead-in back into A. When
+/// that tail is the same music as the lead-in before the `|:`, a section
+/// layout engraves the equivalent `|: e2 | … A2 :| e2 |: …` instead — the
+/// backward repeat on [closeMeasure]'s head, the forward one moved from
+/// [openMeasure] onto [leadInMeasure] — so each pass reads its own lead-in.
+///
+/// [tailNote] is where [closeMeasure] is cut, as in [BarSplit]. The lead-in
+/// is all of [leadInMeasure], the bar before [openMeasure]; a lead-in that
+/// is itself a split tail (a first ending's, say) is not handled.
+typedef MovedRepeat = ({
+  int closeMeasure,
+  int tailNote,
+  int openMeasure,
+  int leadInMeasure,
+});
+
+/// The repeats a section layout moves onto their lead-ins (see [MovedRepeat]).
+List<MovedRepeat> movedRepeats(List<Section> sections, List<Measure> measures) {
+  final out = <MovedRepeat>[];
+  final indexOf = {for (var i = 0; i < measures.length; i++) measures[i].number: i};
+  for (final split in sectionBarSplits(sections, measures)) {
+    final c = indexOf[split.measure]!;
+    final close = measures[c];
+    if (!close.repeatEnd) continue;
+    final o = repeatTargetIndex(measures, c);
+    if (o <= 0) continue;
+    final leadIn = measures[o - 1];
+    if (!sections.any((s) => s.startMeasure == leadIn.number && s.startNote == 0)) {
+      continue;
+    }
+    if (!sameMusic(close.notes.sublist(split.note), leadIn.notes)) continue;
+    out.add((
+      closeMeasure: close.number,
+      tailNote: split.note,
+      openMeasure: measures[o].number,
+      leadInMeasure: leadIn.number,
+    ));
+  }
+  return out;
+}
+
+/// The index a `:|` at [closeIndex] jumps back to, as
+/// [ParsedPiece.performanceOrder] plays it: the last `|:` at or before it,
+/// else the piece's start.
+int repeatTargetIndex(List<Measure> measures, int closeIndex) {
+  for (var i = closeIndex; i >= 0; i--) {
+    if (measures[i].repeatStart) return i;
+  }
+  return 0;
+}
+
+/// Whether two runs of notes play the same: pitches, rhythms, rests, chords
+/// and ties alike.
+bool sameMusic(List<NoteEvent> a, List<NoteEvent> b) {
+  if (a.length != b.length || a.isEmpty) return false;
+  for (var k = 0; k < a.length; k++) {
+    final x = a[k], y = b[k];
+    if (x.isRest != y.isRest ||
+        (!x.isRest && x.midiNumber != y.midiNumber) ||
+        x.noteValue != y.noteValue ||
+        x.dotted != y.dotted ||
+        x.isChord != y.isChord ||
+        x.tieStart != y.tieStart ||
+        x.tieStop != y.tieStop) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /// The engraved staff's measures, in engraved order, each tied back to the
 /// model measure it shows — the translation between what Verovio numbers
 /// (engraved measure INDEX, note index within that engraved measure) and what
@@ -54,7 +127,14 @@ List<BarSplit> sectionBarSplits(List<Section> sections, List<Measure> measures) 
 class EngravedMeasureMap {
   final List<({int number, int noteOffset})> slices;
 
-  const EngravedMeasureMap(this.slices);
+  /// The layout's [MovedRepeat]s, and the performance order (indices into
+  /// the model measures) that tells which pass of a repeat a note plays on —
+  /// see [playedAt].
+  final List<MovedRepeat> moved;
+  final List<int> order;
+
+  const EngravedMeasureMap(this.slices,
+      {this.moved = const [], this.order = const []});
 
   static const empty = EngravedMeasureMap([]);
 
@@ -65,7 +145,8 @@ class EngravedMeasureMap {
   /// [measures] in document order, with each bar in [splits] engraved as
   /// consecutive slices.
   factory EngravedMeasureMap.withSplits(
-      List<Measure> measures, List<BarSplit> splits) {
+      List<Measure> measures, List<BarSplit> splits,
+      {List<MovedRepeat> moved = const [], List<int> order = const []}) {
     final cuts = <int, List<int>>{};
     for (final s in splits) {
       (cuts[s.measure] ??= []).add(s.note);
@@ -76,7 +157,7 @@ class EngravedMeasureMap {
         for (final c in [...?cuts[m.number]]..sort())
           (number: m.number, noteOffset: c),
       ],
-    ]);
+    ], moved: moved, order: order);
   }
 
   int get length => slices.length;
@@ -133,13 +214,39 @@ class EngravedMeasureMap {
     return (index: i, note: noteIndex - slices[i].noteOffset);
   }
 
+  /// Where the staff draws model note [noteIndex] of measure [number] when it
+  /// plays at [performanceIndex] of [order]. A note in a moved repeat's tail,
+  /// on the pass that jumps back, is drawn on the lead-in it duplicates;
+  /// everything else where it is written.
+  ({int number, int note}) playedAt(
+      int number, int noteIndex, int performanceIndex) {
+    for (final mr in moved) {
+      if (mr.closeMeasure != number || noteIndex < mr.tailNote) continue;
+      final next = performanceIndex + 1;
+      if (performanceIndex < 0 || next >= order.length) continue;
+      if (order[next] > order[performanceIndex]) continue; // falls through
+      return (number: mr.leadInMeasure, note: noteIndex - mr.tailNote);
+    }
+    return (number: number, note: noteIndex);
+  }
+
+  /// [locate] for a note playing at [performanceIndex] (see [playedAt]).
+  ({int index, int note})? locatePlayed(
+      int number, int noteIndex, int performanceIndex) {
+    final at = playedAt(number, noteIndex, performanceIndex);
+    return locate(at.number, at.note);
+  }
+
   /// A model range — inclusive [startMeasure]/[startNote], and [endMeasure]
   /// with an EXCLUSIVE [endNote] (`-1` = the whole of [endMeasure]), the shape
   /// `resolveSectionRanges` produces — in engraved coordinates of the same
-  /// shape. Null when either end isn't engraved.
+  /// shape. Null when either end isn't engraved. With [startPerf], the start
+  /// is the note as it plays at that performance index ([playedAt]), so a
+  /// pass that begins on a moved repeat's tail is drawn from its lead-in.
   ({int startMeasureIndex, int startNote, int endMeasureIndex, int endNote})?
-      range(int startMeasure, int startNote, int endMeasure, int endNote) {
-    final start = locate(startMeasure, startNote);
+      range(int startMeasure, int startNote, int endMeasure, int endNote,
+          {int startPerf = -1}) {
+    final start = locatePlayed(startMeasure, startNote, startPerf);
     if (start == null) return null;
     int endIndex;
     int endNoteOut;

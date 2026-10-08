@@ -126,9 +126,9 @@ void main() {
     test('selecting a run selects exactly its notes', () {
       final runs = sectionRuns(measures, sections);
       expect(MeasureSelection.ofRun(runs[1]),
-          const MeasureSelection(2, 4, startNote: 3));
+          const MeasureSelection(2, 4, startNote: 3, startPerf: 1, endPerf: 3));
       expect(MeasureSelection.ofRun(runs[0]),
-          const MeasureSelection(1, 2, endNote: 3));
+          const MeasureSelection(1, 2, endNote: 3, startPerf: 0, endPerf: 1));
     });
 
     test('a repeat around both still unfolds into two passes of each', () {

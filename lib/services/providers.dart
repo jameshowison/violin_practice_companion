@@ -898,13 +898,17 @@ EngravedMeasureMap staffMeasureMapFor(
 }) =>
     bySection
         ? EngravedMeasureMap.withSplits(
-            measures, sectionBarSplits(sections, measures))
+            measures, sectionBarSplits(sections, measures),
+            moved: movedRepeats(sections, measures),
+            order: ParsedPiece.performanceOrder(measures))
         : EngravedMeasureMap.identity(measures.map((m) => m.number));
 
 /// The staff views' line breaks, applied last so every injector before it
 /// still addresses whole model measures:
 ///  * by section ([staffBySectionProvider]): bars split at section lead-ins,
-///    and a break before every section. The staff view plans the rest.
+///    repeats moved to include a lead-in the split sent to the next line
+///    ([movedRepeats]), and a break before every section. The staff view
+///    plans the rest.
 ///  * locked: every N measures, and before every section start
 ///    (`insertSystemBreaks`).
 ///  * otherwise untouched; Verovio breaks it.
@@ -916,6 +920,7 @@ String _breaksFor(
 ) {
   if (ref.watch(staffBySectionProvider) && parsed != null) {
     xml = splitBarsAtSections(xml, sectionBarSplits(sections, parsed.measures));
+    xml = moveRepeatsOntoLeadIns(xml, movedRepeats(sections, parsed.measures));
     return insertSystemBreaks(xml, sections: sections);
   }
   final mpl = ref.watch(measuresPerLineProvider);
@@ -1073,13 +1078,27 @@ class MeasureSelection {
   final int startNote;
   final int endNote;
 
+  /// The pass, for a selected section run: the performance-order indices of
+  /// its first and last bars ([SectionRun.perfStart], `perfEnd - 1`). A run
+  /// can start in a bar another run also starts in, on another pass (Devil's
+  /// Dream's `e2` before `:|` leads into A², then into B), so the measure
+  /// numbers alone don't say which. `-1` for a tapped selection.
+  final int startPerf;
+  final int endPerf;
+
   const MeasureSelection(this.startMeasure, this.endMeasure,
-      {this.startNote = 0, this.endNote = -1});
+      {this.startNote = 0,
+      this.endNote = -1,
+      this.startPerf = -1,
+      this.endPerf = -1});
 
   /// The selection covering exactly [run], mid-bar edges included.
   factory MeasureSelection.ofRun(SectionRun run) => MeasureSelection(
       run.firstMeasure, run.lastMeasure,
-      startNote: run.startNote, endNote: run.endNote);
+      startNote: run.startNote,
+      endNote: run.endNote,
+      startPerf: run.perfStart,
+      endPerf: run.perfEnd < 0 ? -1 : run.perfEnd - 1);
 
   bool contains(int measure) =>
       measure >= startMeasure && measure <= endMeasure;
@@ -1110,11 +1129,13 @@ class MeasureSelection {
       other.startMeasure == startMeasure &&
       other.endMeasure == endMeasure &&
       other.startNote == startNote &&
-      other.endNote == endNote;
+      other.endNote == endNote &&
+      other.startPerf == startPerf &&
+      other.endPerf == endPerf;
 
   @override
-  int get hashCode =>
-      Object.hash(startMeasure, endMeasure, startNote, endNote);
+  int get hashCode => Object.hash(
+      startMeasure, endMeasure, startNote, endNote, startPerf, endPerf);
 }
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
