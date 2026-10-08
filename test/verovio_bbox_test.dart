@@ -84,6 +84,28 @@ void main() {
       );
       expect(VerovioEngraver.systemInkBoxes(withMilestone)!.length, 2);
     });
+
+    // A tie across a system break is boxed in the system it starts in but at
+    // the continuation's position, down on the next system's staff.
+    test('a tie boxed on the next system does not stretch this one', () {
+      final strayTie = synthetic.replaceFirst(
+        '<g id="bbox-st1"',
+        '<g id="bbox-t1" class="tie bounding-box"><rect x="10" y="510" height="12" width="80" fill="transparent"/></g>\n        '
+            '<g id="bbox-st1"',
+      );
+      final boxes = VerovioEngraver.systemInkBoxes(strayTie)!;
+      expect(boxes[0].bottom, closeTo((130 + 70 + 60) * 0.1, 1e-9));
+    });
+
+    test('a tie touching its notes still counts', () {
+      final lowTie = synthetic.replaceFirst(
+        '<g id="bbox-st1"',
+        '<g id="bbox-t1" class="slur bounding-box"><rect x="10" y="190" height="30" width="80" fill="transparent"/></g>\n        '
+            '<g id="bbox-st1"',
+      );
+      final boxes = VerovioEngraver.systemInkBoxes(lowTie)!;
+      expect(boxes[0].bottom, closeTo((190 + 30 + 60) * 0.1, 1e-9));
+    });
   });
 
   group('a real engrave', () {

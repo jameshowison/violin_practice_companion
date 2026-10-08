@@ -686,14 +686,35 @@ class VerovioEngraver {
     for (var s = 0; s < starts.length; s++) {
       final end = s + 1 < starts.length ? starts[s + 1] : svg.length;
       double? top, bottom;
+      final spanners = <({double top, double bottom})>[];
       for (final g in _bboxGroupWithRect.allMatches(svg, starts[s])) {
         if (g.start >= end) break;
         final r = rectGeom.firstMatch(g.group(0)!);
         if (r == null) continue;
         final y = double.parse(r.group(1)!);
         final h = double.parse(r.group(2)!);
+        if (_spannerBox.hasMatch(g.group(0)!)) {
+          spanners.add((top: y, bottom: y + h));
+          continue;
+        }
         if (top == null || y < top) top = y;
         if (bottom == null || y + h > bottom) bottom = y + h;
+      }
+      // A tie or slur that crosses a system break is drawn in two halves but
+      // boxed once, in the system it starts in, at the CONTINUATION's position
+      // (Verovio 6.2, Gundagai at 8 bars a line: the first half's path at
+      // y 1955 on system 0, its box at y 4415 on system 1's staff). Counted,
+      // it pushed a system's bottom past the next one's top, the room above
+      // that system's fingerings came out negative, and the annotation reserve
+      // opened every gap on the page by ~10 spaces. A real tie or slur hugs
+      // its notes, so only one touching the rest of the system's ink counts.
+      if (top != null && bottom != null) {
+        final (noteTop, noteBottom) = (top, bottom);
+        for (final b in spanners) {
+          if (b.bottom < noteTop || b.top > noteBottom) continue;
+          if (b.top < top!) top = b.top;
+          if (b.bottom > bottom!) bottom = b.bottom;
+        }
       }
       // A system with no boxes at all means the option did not take; falling
       // back wholesale beats returning one bogus band among good ones.
@@ -709,6 +730,9 @@ class VerovioEngraver {
     }
     return out;
   }
+
+  /// The box of a tie or slur — see the cross-system note in [systemInkBoxes].
+  static final _spannerBox = RegExp(r'class="(?:tie|slur) bounding-box');
 
   /// A lyric syllable's baseline and font size: `<g class="syl">` … `<text y>`
   /// … `<tspan font-size>`, all inside the one group.
