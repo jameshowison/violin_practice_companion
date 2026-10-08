@@ -157,15 +157,14 @@ void main() {
     });
 
     test(
-        'SectionDetector trusts the markers directly, anchoring A on its '
-        'repeat start (not the pickup) so the repeat still unfolds', () {
+        'SectionDetector trusts the markers, and A carries its opening '
+        'pickup', () {
       final sections = SectionDetector.detect(pieceWithParts.measures);
       expect(sections.map((s) => s.label).toList(), ['A', 'B', 'C']);
       // A's marker sits on the pickup (measure 1, before the pickup notes),
-      // but is anchored to measure 2 — the actual `|:` — so the repeat is
-      // still visible to sectionRuns below. B/C have no repeat of their own,
-      // so they stay right where their markers are.
-      expect(sections.map((s) => s.startMeasure).toList(), [2, 6, 13]);
+      // and A starts there: the opening pickup is the first section's
+      // lead-in. B/C stay right where their markers are.
+      expect(sections.map((s) => s.startMeasure).toList(), [1, 6, 13]);
       // C's `[P:C]` sits mid-bar, before its lead-in `Bc` (`A4 A2 [P:C] Bc |`).
       expect(sections.map((s) => s.startNote).toList(), [0, 0, 2]);
     });
