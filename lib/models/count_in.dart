@@ -68,16 +68,27 @@ typedef CountInPlan = ({List<int> labels, int totalUnits, int unit});
 /// BARLINE, so a pickup written as "hidden eighth rest + eighth note" occupies a
 /// whole beat of the bar even though only half of it sounds — and the count has to
 /// yield that whole beat.
+///
+/// A start part-way into a full bar, at note [fromNote] (a section that begins
+/// on its lead-in), is a pickup too: what's left of the bar from that note.
 int pickupUnitsOf(
   Measure? measure, {
   required int beatsPerMeasure,
   required int beatType,
+  int fromNote = 0,
 }) {
   if (measure == null || beatsPerMeasure <= 0 || beatType <= 0) return 0;
   final barUnits = beatsPerMeasure * 32 ~/ beatType;
-  var units = measure.actualUnits;
-  for (final hidden in measure.hiddenLeadNotes) {
-    units += thirtySecondUnits(hidden.noteValue, hidden.dotted);
+  var units = 0;
+  if (fromNote > 0 && fromNote < measure.notes.length) {
+    for (final n in measure.notes.skip(fromNote)) {
+      if (!n.isChord) units += thirtySecondUnits(n.noteValue, n.dotted);
+    }
+  } else {
+    units = measure.actualUnits;
+    for (final hidden in measure.hiddenLeadNotes) {
+      units += thirtySecondUnits(hidden.noteValue, hidden.dotted);
+    }
   }
   if (units <= 0 || units >= barUnits) return 0;
   return units;

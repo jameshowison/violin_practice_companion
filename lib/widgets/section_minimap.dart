@@ -58,7 +58,8 @@ class SectionMinimap extends ConsumerWidget {
       MeasureSelection? sel) {
     if (play != null) {
       // Pass-accurate: match the run whose performance-order slice is playing.
-      final i = runs.indexWhere((r) => r.containsPerf(play.performanceIndex));
+      final i = runs.indexWhere((r) =>
+          r.containsPerf(play.performanceIndex, noteIndex: play.noteIndex));
       if (i >= 0) return i;
       // Fallback (e.g. a run with no perf slice): match by measure number.
       final byMeasure = runs.indexWhere((r) =>
@@ -72,8 +73,7 @@ class SectionMinimap extends ConsumerWidget {
       if (i >= 0) return i;
     }
     if (sel != null) {
-      final exact = runs.indexWhere((r) =>
-          r.firstMeasure == sel.startMeasure && r.lastMeasure == sel.endMeasure);
+      final exact = runs.indexWhere((r) => MeasureSelection.ofRun(r) == sel);
       if (exact >= 0) return exact;
       final inside = runs.indexWhere((r) =>
           sel.startMeasure >= r.firstMeasure &&

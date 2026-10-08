@@ -55,6 +55,13 @@ section start" (`edit_measure_screen.dart` `_editSectionMarker`). But that is
 buried. It means opening the editor bar by bar, and moving a marker onto a
 lead-in means removing it in one bar and adding it in another.
 
+Already note-level, ahead of this: a section run (`SectionRun.startNote` /
+`endNote`) shares a split bar with its neighbour. Selecting it from the minimap
+(`MeasureSelection.ofRun`) highlights exactly its tint on the Verovio staff,
+and plays and loops from its lead-in to the next one, with the count-in
+treating a mid-bar start as a pickup. Still whole-bar: the jianpu and
+fingering views' selected cells, and the OSMD overlay.
+
 Make marker placement at the note level a first-class part of working with
 sections:
 

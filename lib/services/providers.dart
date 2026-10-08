@@ -1066,7 +1066,20 @@ class MeasureSelection {
   final int startMeasure;
   final int endMeasure;
 
-  const MeasureSelection(this.startMeasure, this.endMeasure);
+  /// Note edges, for a selection of a section that starts or ends mid-bar
+  /// (see [SectionRun.startNote]): [startNote] is the first selected note of
+  /// [startMeasure], [endNote] the EXCLUSIVE end in [endMeasure], `-1` for
+  /// the whole bar. A tapped selection is always whole bars.
+  final int startNote;
+  final int endNote;
+
+  const MeasureSelection(this.startMeasure, this.endMeasure,
+      {this.startNote = 0, this.endNote = -1});
+
+  /// The selection covering exactly [run], mid-bar edges included.
+  factory MeasureSelection.ofRun(SectionRun run) => MeasureSelection(
+      run.firstMeasure, run.lastMeasure,
+      startNote: run.startNote, endNote: run.endNote);
 
   bool contains(int measure) =>
       measure >= startMeasure && measure <= endMeasure;
@@ -1095,10 +1108,13 @@ class MeasureSelection {
   bool operator ==(Object other) =>
       other is MeasureSelection &&
       other.startMeasure == startMeasure &&
-      other.endMeasure == endMeasure;
+      other.endMeasure == endMeasure &&
+      other.startNote == startNote &&
+      other.endNote == endNote;
 
   @override
-  int get hashCode => Object.hash(startMeasure, endMeasure);
+  int get hashCode =>
+      Object.hash(startMeasure, endMeasure, startNote, endNote);
 }
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
@@ -1179,6 +1195,11 @@ final playbackStartMeasureProvider = Provider<int>((ref) {
   return (measures == null || measures.isEmpty) ? 1 : measures.first.number;
 });
 
+/// The note within [playbackStartMeasureProvider] Play starts on: 0 but for a
+/// selected section that begins mid-bar, on its lead-in.
+final playbackStartNoteProvider = Provider<int>(
+    (ref) => ref.watch(measureSelectionProvider)?.startNote ?? 0);
+
 /// The count-off Play will actually give: the preference resolved against this
 /// score's meter and shortened by a pickup at the start measure. Null = no count.
 ///
@@ -1204,6 +1225,7 @@ final resolvedCountInProvider = Provider<CountInPlan?>((ref) {
       startMeasure,
       beatsPerMeasure: beatsPerMeasure,
       beatType: beatType,
+      fromNote: ref.watch(playbackStartNoteProvider),
     ),
   );
 });

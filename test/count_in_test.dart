@@ -71,6 +71,20 @@ void main() {
           4);
     });
 
+    test('a start part-way into a full bar is a pickup of what is left', () {
+      // A section starting on its lead-in: the last two eighths of 4/4.
+      final bar = _bar([
+        _note(NoteValue.half),
+        _note(NoteValue.quarter),
+        _note(NoteValue.eighth),
+        _note(NoteValue.eighth),
+      ]);
+      expect(pickupUnitsOf(bar, beatsPerMeasure: 4, beatType: 4, fromNote: 2),
+          8);
+      expect(pickupUnitsOf(bar, beatsPerMeasure: 4, beatType: 4, fromNote: 0),
+          0);
+    });
+
     test('null (no such measure) is no pickup', () {
       expect(pickupUnitsOf(null, beatsPerMeasure: 4, beatType: 4), 0);
     });

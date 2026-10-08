@@ -515,7 +515,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       onTapRun: (i) {
                         final run = unfoldedRuns[i];
                         ref.read(measureSelectionProvider.notifier).state =
-                            MeasureSelection(run.firstMeasure, run.lastMeasure);
+                            MeasureSelection.ofRun(run);
                         final foldedIdx = layout.runs.indexWhere((r) =>
                             run.firstMeasure >= r.firstMeasure &&
                             run.firstMeasure <= r.lastMeasure);

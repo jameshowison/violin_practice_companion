@@ -156,4 +156,31 @@ void main() {
           reason: 'at t=$t within measure 1');
     }
   });
+
+  group('a section that starts or ends mid-bar', () {
+    test('play starts on fromNote, not the barline', () {
+      service.play(fromMeasure: 2, fromNote: 1);
+      expect(service.startOffsetSeconds, 4.0);
+    });
+
+    testWidgets('play stops before toNote of toMeasure', (tester) async {
+      service.play(fromMeasure: 1, toMeasure: 2, toNote: 1);
+      service.fakeSeconds = 3.9;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.playing);
+      service.fakeSeconds = 4.0; // measure 2, note 1
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.stopped);
+    });
+
+    testWidgets('a loop goes back to fromNote', (tester) async {
+      service.loopEnabled = true;
+      service.play(fromMeasure: 1, fromNote: 2, toMeasure: 2, toNote: 1);
+      service.fakeSeconds = 4.0;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.playing);
+      expect(service.startOffsetSeconds, 2.0);
+      service.stop();
+    });
+  });
 }
