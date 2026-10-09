@@ -22,8 +22,8 @@ import 'musicxml_parser.dart';
 ///
 /// Pitches (with octave marks), rests, note lengths including dots, ties
 /// (`A2-|A2`), stacked chord notes (`[CEG]`), chord symbols (`"Am"`),
-/// forward/backward repeats, the key signature with its mode, and the meter.
-/// What does NOT survive is anything [MusicXmlParser] itself drops — slurs,
+/// forward/backward repeats, D.C./D.S./Fine/segno/coda marks, the key
+/// signature with its mode, and the meter. What does NOT survive is anything [MusicXmlParser] itself drops — slurs,
 /// tuplets, grace notes, dynamics, voltas, and fingerings — and lyrics, which
 /// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
 /// round-trip of the document, and [AbcExporter.lossyFeatureNote] says so in the
@@ -34,7 +34,8 @@ class AbcExporter {
   /// Shown under the exported text so nobody is surprised when a re-import comes
   /// back plainer than it went out.
   static const String lossyFeatureNote =
-      'Notes, ties, chord symbols, repeats, key and time signature are exported. '
+      'Notes, ties, chord symbols, repeats, D.C./D.S. marks, key and time signature '
+      'are exported. '
       'Slurs, triplets, grace notes, lyrics and fingerings are not.';
 
   /// The ABC document for [piece], titled [title].
@@ -76,9 +77,12 @@ class AbcExporter {
         // the bar above stays with it, and only a repeat-open leads the new
         // line. Writing the whole thing on either side would strand a `:|` at
         // the head of a line, reading as though it closed the bar below it.
+        // A mark closing the bar above needs a barline after it on its own
+        // line, or abcjs drops it at the line end.
+        final marked = _navClosing(measures[i - 1], measures).isNotEmpty;
         final (closing, opening) = switch (leading) {
           '::' => (':|', '|:'),
-          '|:' => ('', '|:'),
+          '|:' => (marked ? '|' : '', '|:'),
           _ => (leading, ''),
         };
         write(closing);
@@ -87,12 +91,39 @@ class AbcExporter {
         leading = opening;
       }
       write(leading);
+      write(_navOpening(m));
       write(_measureBody(m, piece.keyFifths, unit, beamUnits));
+      write(_navClosing(m, measures));
     }
     write(measures.isNotEmpty && measures.last.repeatEnd ? ':|' : '|]');
     if (line.isNotEmpty) buffer.writeln(line.toString());
 
     return buffer.toString();
+  }
+
+  /// The navigation marks that land where a measure begins. A text annotation
+  /// must precede a note, so To Coda goes here too — like every mark, the
+  /// importer gives it to the whole bar.
+  static String _navOpening(Measure m) => [
+        if (m.segno) '!segno!',
+        if (m.coda) '!coda!',
+        if (m.toCoda) '"^To Coda"',
+      ].join(' ');
+
+  /// The marks that act at a measure's end, written just before its barline,
+  /// where abcjs attaches them to the bar they close. A D.C./D.S. says where
+  /// it ends by whether the piece has a Fine or a To Coda.
+  static String _navClosing(Measure m, List<Measure> measures) {
+    String jump(String mark) => measures.any((x) => x.fine)
+        ? '!${mark}alfine!'
+        : measures.any((x) => x.toCoda)
+            ? '!${mark}alcoda!'
+            : '!$mark!';
+    return [
+      if (m.fine) '!fine!',
+      if (m.daCapo) jump('D.C.'),
+      if (m.dalSegno) jump('D.S.'),
+    ].join(' ');
   }
 
   /// The barline that *precedes* a measure, folding the previous bar's closing

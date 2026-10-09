@@ -198,6 +198,56 @@
     return chordToHarmony(String(name).split('\n')[0]);
   }
 
+  // Navigation marks: abcjs's decorations (`!segno!`, `!fine!`, `!D.C.!`,
+  // `!D.S.alcoda!` …) and the same marks written as text annotations
+  // (`"^D.C. al Fine"`, `"^To Coda"` — abcjs has no `!dacoda!`), emitted as
+  // <direction>s whose <sound> carries the playback meaning that
+  // musicxml_parser.dart reads into the performance order.
+  var DC = 'dacapo="yes"', DS = 'dalsegno="segno"';
+  var NAV_DECORATIONS = {
+    'segno': { symbol: 'segno', sound: 'segno="segno"' },
+    'coda': { symbol: 'coda', sound: 'coda="coda"' },
+    'fine': { words: 'Fine', sound: 'fine="yes"' },
+    'D.C.': { words: 'D.C.', sound: DC },
+    'D.C.alfine': { words: 'D.C. al Fine', sound: DC },
+    'D.C.alcoda': { words: 'D.C. al Coda', sound: DC },
+    'D.S.': { words: 'D.S.', sound: DS },
+    'D.S.alfine': { words: 'D.S. al Fine', sound: DS },
+    'D.S.alcoda': { words: 'D.S. al Coda', sound: DS }
+  };
+
+  function navFromText(text) {
+    var t = String(text).trim(), l = t.toLowerCase();
+    if (/^(d\.c\.|da capo)/.test(l)) return { words: t, sound: DC };
+    if (/^(d\.s\.|dal segno)/.test(l)) return { words: t, sound: DS };
+    if (/^to coda/.test(l)) return { words: t, sound: 'tocoda="coda"' };
+    if (/^fine\W*$/.test(l)) return { words: t, sound: 'fine="yes"' };
+    return null;
+  }
+
+  function navMarksXml(el) {
+    var navs = [];
+    var decs = el.decoration || [];
+    for (var i = 0; i < decs.length; i++) {
+      if (NAV_DECORATIONS[decs[i]]) navs.push(NAV_DECORATIONS[decs[i]]);
+    }
+    var chords = el.chord || [];
+    for (var j = 0; j < chords.length; j++) {
+      var c = chords[j];
+      if (c.position === undefined || c.position === 'default') continue;
+      var nav = navFromText(c.name);
+      if (nav) navs.push(nav);
+    }
+    var out = '';
+    for (var k = 0; k < navs.length; k++) {
+      var n = navs[k];
+      var dt = n.symbol ? '<' + n.symbol + '/>' : '<words>' + xmlEscape(n.words) + '</words>';
+      out += '      <direction placement="above"><direction-type>' + dt +
+        '</direction-type><sound ' + n.sound + '/></direction>\n';
+    }
+    return out;
+  }
+
   // Maps an ABC chord-quality suffix to a MusicXML <kind> value. Kept in sync
   // with MusicXmlParser._kindSuffix so names round-trip (kind → suffix → name).
   function qualityToKind(q) {
@@ -311,11 +361,18 @@
         if (state) {
           for (var lv = 1; lv <= fl; lv++) beamXml += '<beam number="' + lv + '">' + state + '</beam>';
         }
-        cur.notes += chordHarmonyXml(el) + noteXml(el, warnings, beamXml, lyrics[noteIx++]);
+        cur.notes += navMarksXml(el) + chordHarmonyXml(el) + noteXml(el, warnings, beamXml, lyrics[noteIx++]);
         cur.noteCount++;
       } else if (el.el_type === 'bar') {
         inBeam = false; // beams never cross a barline
         var hasContent = cur.noteCount > 0;
+        // A mark written just before the barline (`g2 !D.C.!|`) belongs to the
+        // bar it closes — the one already flushed, if this barline closes none.
+        var barNav = navMarksXml(el);
+        if (barNav) {
+          if (hasContent || !measures.length) cur.notes += barNav;
+          else measures[measures.length - 1].notes += barNav;
+        }
         // bar_dbl_repeat (`::` / `:||:`) closes one strain and opens the next.
         if (el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat') cur.repeatEnd = true;
         if (hasContent) flush();
