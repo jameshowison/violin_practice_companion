@@ -1,7 +1,9 @@
 {
   "sections": [
-    { "label": "A", "startMeasure": 1, "endMeasure": 8 },
-    { "label": "B", "startMeasure": 9, "endMeasure": 16 },
-    { "label": "A", "startMeasure": 17, "endMeasure": 20 }
+    { "label": "A", "startMeasure": 0, "startNote": 0 },
+    { "label": "A", "startMeasure": 4, "startNote": 4 },
+    { "label": "B", "startMeasure": 8, "startNote": 4 },
+    { "label": "C", "startMeasure": 12, "startNote": 5 },
+    { "label": "A", "startMeasure": 16, "startNote": 5 }
   ]
 }
