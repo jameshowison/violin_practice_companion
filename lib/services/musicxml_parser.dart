@@ -201,12 +201,41 @@ class MusicXmlParser {
         if (dir == 'backward') repeatEnd = true;
       }
 
+      // Navigation marks. `<sound>` attributes are the playback meaning; the
+      // words are a fallback for a score that has only the text — matched
+      // whole, so the "Fine" inside "D.C. al Fine" doesn't mark a Fine.
+      bool hasSound(String attr) => measureEl
+          .findAllElements('sound')
+          .any((s) => s.getAttribute(attr) != null);
+      final words = [
+        for (final w in measureEl.findAllElements('words'))
+          w.innerText.trim().toLowerCase(),
+      ];
+      bool wordsStart(List<String> prefixes) =>
+          words.any((w) => prefixes.any(w.startsWith));
+      final daCapo = hasSound('dacapo') || wordsStart(['d.c.', 'da capo']);
+      final dalSegno = hasSound('dalsegno') || wordsStart(['d.s.', 'dal segno']);
+      final fine = hasSound('fine') ||
+          words.any((w) => RegExp(r'^fine\W*$').hasMatch(w));
+      final toCoda = hasSound('tocoda') || wordsStart(['to coda']);
+      final segno =
+          hasSound('segno') || measureEl.findAllElements('segno').isNotEmpty;
+      // A `<coda/>` symbol also decorates the To Coda mark itself.
+      final coda = hasSound('coda') ||
+          (!toCoda && measureEl.findAllElements('coda').isNotEmpty);
+
       measures.add(Measure(
         number: number,
         notes: notes,
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart,
         repeatEnd: repeatEnd,
+        daCapo: daCapo,
+        dalSegno: dalSegno,
+        fine: fine,
+        toCoda: toCoda,
+        segno: segno,
+        coda: coda,
         partLabel: partLabel,
         partLabelNote: partLabelNote,
         lineStartNote: lineStartNote,

@@ -13,6 +13,21 @@ class Measure {
   final bool repeatStart;
   final bool repeatEnd;
 
+  /// Navigation marks, parsed from MusicXML `<sound>` attributes (and the
+  /// `<segno/>` symbol, and "D.C."/"D.S."/"Fine" words when a score has only
+  /// the text). All act at this measure's END except [segno] and [coda],
+  /// which mark where a jump lands — see [ParsedPiece.performanceOrder].
+  ///  * [daCapo] — `D.C.`: back to the start.
+  ///  * [dalSegno] — `D.S.`: back to the [segno].
+  ///  * [fine] — after a D.C./D.S., the piece ends here.
+  ///  * [toCoda] — after a D.C./D.S., skip ahead to the [coda].
+  final bool daCapo;
+  final bool dalSegno;
+  final bool fine;
+  final bool toCoda;
+  final bool segno;
+  final bool coda;
+
   /// This measure's authored part label (e.g. `'A'`, `'B'`), parsed from a
   /// MusicXML `<direction><rehearsal>` — how an ABC tune's own inline
   /// `[P:A]`/`[P:B]`/`[P:C]` markers survive the conversion (see
@@ -37,13 +52,19 @@ class Measure {
     this.hiddenLeadNotes = const [],
     this.repeatStart = false,
     this.repeatEnd = false,
+    this.daCapo = false,
+    this.dalSegno = false,
+    this.fine = false,
+    this.toCoda = false,
+    this.segno = false,
+    this.coda = false,
     this.partLabel,
     this.partLabelNote = 0,
     this.lineStartNote,
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
-  /// pickup rests, repeat flags, part label and line start through unless explicitly
+  /// pickup rests, repeat and navigation flags, part label and line start through unless explicitly
   /// overridden. The jianpu/fingering processors rebuild measures via this
   /// method, so all of that must survive to `parsedPieceProvider`'s output.
   Measure copyWithNotes(List<NoteEvent> notes,
@@ -54,6 +75,12 @@ class Measure {
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart ?? this.repeatStart,
         repeatEnd: repeatEnd ?? this.repeatEnd,
+        daCapo: daCapo,
+        dalSegno: dalSegno,
+        fine: fine,
+        toCoda: toCoda,
+        segno: segno,
+        coda: coda,
         partLabel: partLabel,
         partLabelNote: partLabelNote,
         lineStartNote: lineStartNote,
@@ -159,12 +186,23 @@ class ParsedPiece {
   /// arrival. Nested repeats and voltas/endings are out of scope. With no
   /// repeats the result is the identity `[0, 1, … n-1]`.
   ///
+  /// Then the navigation marks: at the end of a [Measure.daCapo] (or
+  /// [Measure.dalSegno]) bar — once its own `:|`, if any, has been taken — the
+  /// one jump goes back to the start (or the last [Measure.segno] before it).
+  /// On that pass every repeat already taken falls straight through, the
+  /// usual reading of a D.C., and a [Measure.fine] ends the piece or a
+  /// [Measure.toCoda] skips to the next [Measure.coda]. Before the jump, Fine
+  /// and To Coda are ignored. Gossec's Gavotte, `|: 1–8 :| 9–16 Fine |: 17–24
+  /// :| |: 25–32 :| D.C. al Fine`, plays 1–8 1–8 9–16 17–24 17–24 25–32 25–32
+  /// 1–8 9–16.
+  ///
   /// Shared by MIDI generation (audio order) and the section-organized layout /
   /// staff unfold (so a `|: A :|` span shows up as two `A`s on the staff).
   static List<int> performanceOrder(List<Measure> measures) {
     final order = <int>[];
     final endRepeatTaken = <int>{};
     var returnIndex = 0;
+    var jumped = false;
     var i = 0;
     var guard = 0;
     while (i < measures.length) {
@@ -175,6 +213,25 @@ class ParsedPiece {
       if (m.repeatEnd && !endRepeatTaken.contains(i)) {
         endRepeatTaken.add(i);
         i = returnIndex;
+        continue;
+      }
+      if (jumped) {
+        if (m.fine) break;
+        if (m.toCoda) {
+          final c = measures.indexWhere((x) => x.coda, i + 1);
+          if (c > i) {
+            i = c;
+            continue;
+          }
+        }
+      } else if (m.daCapo || m.dalSegno) {
+        jumped = true;
+        var target = 0;
+        if (!m.daCapo) {
+          final s = measures.lastIndexWhere((x) => x.segno, i);
+          if (s >= 0) target = s;
+        }
+        i = returnIndex = target;
         continue;
       }
       i++;
