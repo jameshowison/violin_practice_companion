@@ -132,6 +132,23 @@ void main() {
     });
   });
 
+  // Golden fixtures, captured from the .abc beside them with the bundled
+  // converter (`node scripts/abc_to_musicxml.cjs`), as in old_joe_clark_test.
+  group('ABC imports', () {
+    List<int> playedFixture(String name) => _played(MusicXmlParser()
+        .parse(File('test/fixtures/$name.musicxml').readAsStringSync())
+        .measures);
+
+    test('!fine! and a !D.C.alfine! before the final barline', () {
+      expect(playedFixture('dc_al_fine'),
+          [1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 7, 8, 1, 2, 3, 4]);
+    });
+
+    test('!segno!, a "^To Coda" annotation, !D.S.alcoda! and !coda!', () {
+      expect(playedFixture('ds_al_coda'), [1, 2, 3, 4, 2, 3, 5, 6]);
+    });
+  });
+
   test('Gossec Gavotte plays its D.C. al Fine as the recording does', () {
     final p = MusicXmlParser()
         .parse(File('assets/fixtures/gossec_gavotte.xml').readAsStringSync());

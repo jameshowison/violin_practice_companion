@@ -323,4 +323,28 @@ void main() {
       expect(body.trimRight(), endsWith(':|'));
     });
   });
+  group('navigation marks', () {
+    String exportFixture(String name) => AbcExporter.export(
+        MusicXmlParser()
+            .parse(File('test/fixtures/$name.musicxml').readAsStringSync()),
+        title: name);
+
+    // Written where abcjs reads them back onto the same bars — checked by
+    // converting this output with scripts/abc_to_musicxml.cjs.
+    // A Fine before a wrapped `|:` still gets its own barline: abcjs drops a
+    // mark left dangling at a line end.
+    test('Fine and D.C. al Fine close their bars', () {
+      final body = _split(exportFixture('dc_al_fine')).body.join(' ');
+      expect(body, contains('g8 !fine! |'));
+      expect(body, contains('G4 !D.C.alfine! |]'));
+    });
+
+    test('segno, To Coda and coda open their bars; D.S. al Coda closes one', () {
+      final body = _split(exportFixture('ds_al_coda')).body.join(' ');
+      expect(body, contains('| !segno! d2'));
+      expect(body, contains('| "^To Coda" a2'));
+      expect(body, contains('G4 !D.S.alcoda! |'));
+      expect(body, contains('!coda! G2'));
+    });
+  });
 }
