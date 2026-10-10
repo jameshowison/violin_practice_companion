@@ -68,6 +68,22 @@ void main() {
       expect(runs.single.perfStart, 0); // includes the pickup slot
       expect(runs.single.firstMeasure, 1); // first real measure
     });
+
+    test('a marked pickup is the first bar of its section', () {
+      final measures = [
+        Measure(number: 0, notes: [_n()]),
+        for (var i = 1; i <= 4; i++) _m(i),
+      ];
+      const starts = [
+        Section(label: 'A', startMeasure: 0),
+        Section(label: 'B', startMeasure: 3),
+      ];
+      final runs = sectionRuns(measures, starts);
+      expect(runs.map((r) => r.label).toList(), ['A', 'B']);
+      expect((runs[0].firstMeasure, runs[0].lastMeasure), (0, 2));
+      expect(runs[0].perfStart, 0);
+      expect(MeasureSelection.ofRun(runs[0]).contains(0), isTrue);
+    });
   });
 
   group('HighlightEvent.performanceIndex', () {
