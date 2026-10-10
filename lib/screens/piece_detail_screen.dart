@@ -534,8 +534,16 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       service: activeService,
                       onTapRun: (i) {
                         final run = unfoldedRuns[i];
-                        ref.read(measureSelectionProvider.notifier).state =
-                            MeasureSelection.ofRun(run);
+                        final picked = MeasureSelection.ofRun(run);
+                        final selection =
+                            ref.read(measureSelectionProvider.notifier);
+                        // Tapping the selected section again clears it, back
+                        // to how the piece opens.
+                        if (selection.state == picked) {
+                          selection.state = null;
+                          return;
+                        }
+                        selection.state = picked;
                         final foldedIdx = layout.runs.indexWhere((r) =>
                             run.firstMeasure >= r.firstMeasure &&
                             run.firstMeasure <= r.lastMeasure);
