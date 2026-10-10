@@ -101,6 +101,34 @@ Still open:
   a split slice.
 - **Voltas** are not in `performanceOrder` at all.
 
+### 1.4 Offer to fold a written-out restatement into a repeat
+
+Happy Farmer writes its A strain out twice (A A B C A) instead of `|: A :|`.
+The bundled score stays as written, so the screen matches the printed sheet.
+Since 2026-10-09 the second A's wash is a darker shade
+(`SectionPalette.neighbour`), so the seam shows.
+
+For an imported or scanned tune there is no printed original to match. After
+detection there (`PieceRepository.savePiece`), when two back-to-back sections
+share a label, offer: *"A is played twice in a row. Write it as a repeat?"*
+Detection already decides that the two are the same music; that is why both
+are labelled A. Accepting rewrites the MusicXML with `|:`/`:|`, and
+`performanceOrder` is unchanged. The same check could back a later action on
+the minimap or the Re-detect button, but import is where it fits the workflow.
+
+Two shapes:
+
+- **Identical strains** (Happy Farmer's two As end alike) fold into a plain
+  `|: A :|`.
+- **Strains that differ only at the end** are a repeat with first and second
+  endings, `|: A |1 … :|2 … |`. This needs detection to report "same up to
+  the last bar or two" rather than only "same", and it is blocked on voltas
+  entering `performanceOrder` (§1.3). Lead-ins at the end of ending 1 then
+  carry the open problem in §1.3.
+
+Never fold a bundled fixture. And keep the fold reversible (unfold back to
+written-out) before offering it on existing pieces.
+
 ---
 
 ## 2. Note editor gaps
