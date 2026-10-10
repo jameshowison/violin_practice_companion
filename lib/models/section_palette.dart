@@ -31,14 +31,6 @@ class SectionPalette {
     return map;
   }
 
-  /// A slightly darker shade of [c], for a section that directly follows one
-  /// with the same label (A A in AABA), so the seam between them shows in the
-  /// wash. Darker rather than a new hue: it is still the same section.
-  static Color neighbour(Color c) {
-    final hsl = HSLColor.fromColor(c);
-    return hsl.withLightness((hsl.lightness - 0.18).clamp(0.0, 1.0)).toColor();
-  }
-
   /// `#rrggbb` for the OSMD bridge (which applies its own low opacity).
   static String hex(Color c) =>
       '#${(c.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
@@ -61,8 +53,7 @@ typedef SectionTintRegion = ({
 /// Builds per-section wash regions over the folded staff. [measureMap] is
 /// the engraved order (index → measure number, split bars included); [measures] is the parsed
 /// measure list (for resolving marker note offsets); [colors] maps label → hue.
-/// Sections sharing a label share a color (so A/B yield two colors), except
-/// that one directly after a same-label neighbour takes [SectionPalette.neighbour].
+/// Sections sharing a label share a color (so A/B yield two colors).
 List<SectionTintRegion> sectionTintRegions(
   EngravedMeasureMap measureMap,
   List<Section> sections,
@@ -72,12 +63,7 @@ List<SectionTintRegion> sectionTintRegions(
   final ranges = resolveSectionRanges(sections, measures);
   const fallback = Color(0xFF888888);
   final regions = <SectionTintRegion>[];
-  String? prevLabel;
-  var shaded = false;
   for (final r in ranges) {
-    // Alternate within a run of same-label sections, so A A A reads as three.
-    shaded = r.label == prevLabel && !shaded;
-    prevLabel = r.label;
     final at = measureMap.range(
         r.startMeasure, r.startNote, r.endMeasure, r.endNote);
     if (at == null) continue;
@@ -86,9 +72,7 @@ List<SectionTintRegion> sectionTintRegions(
       startNote: at.startNote,
       endMeasureIndex: at.endMeasureIndex,
       endNote: at.endNote,
-      color: SectionPalette.hex(shaded
-          ? SectionPalette.neighbour(colors[r.label] ?? fallback)
-          : colors[r.label] ?? fallback),
+      color: SectionPalette.hex(colors[r.label] ?? fallback),
     ));
   }
   return regions;

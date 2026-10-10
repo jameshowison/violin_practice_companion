@@ -1400,15 +1400,49 @@ class _UnderlayPainter extends CustomPainter {
   final double scale;
   final List<SectionTintRegion> sectionTints;
 
+  /// White left between two different sections' washes, in logical pixels,
+  /// so back-to-back sections of one color (A A) still read as two.
+  static const sectionGap = 3.0;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (sectionTints.isEmpty) return;
-    for (final region in sectionTints) {
-      final color = _parseHex(region.color).withValues(alpha: 0.10);
-      for (final rect in _regionRowRects(region)) {
-        canvas.drawRect(rect, Paint()..color = color);
+    final rects = [for (final region in sectionTints) _regionRowRects(region)];
+    for (var i = 0; i < sectionTints.length; i++) {
+      final color = _parseHex(sectionTints[i].color).withValues(alpha: 0.10);
+      final others = [
+        for (var j = 0; j < rects.length; j++)
+          if (j != i) ...rects[j],
+      ];
+      for (final rect in rects[i]) {
+        canvas.drawRect(_insetWhereTouching(rect, others), Paint()..color = color);
       }
     }
+  }
+
+  /// [rect] pulled back by half the gap on each side that meets one of
+  /// [others] — a line above or below, or a mid-line section edge — and left
+  /// alone where it meets the next line of its own section.
+  static Rect _insetWhereTouching(Rect rect, List<Rect> others) {
+    const eps = 0.5, half = sectionGap / 2;
+    bool overlapsX(Rect o) => o.left < rect.right && o.right > rect.left;
+    bool overlapsY(Rect o) => o.top < rect.bottom && o.bottom > rect.top;
+    var r = rect;
+    for (final o in others) {
+      if ((o.bottom - rect.top).abs() < eps && overlapsX(o)) {
+        r = Rect.fromLTRB(r.left, rect.top + half, r.right, r.bottom);
+      }
+      if ((o.top - rect.bottom).abs() < eps && overlapsX(o)) {
+        r = Rect.fromLTRB(r.left, r.top, r.right, rect.bottom - half);
+      }
+      if ((o.right - rect.left).abs() < eps && overlapsY(o)) {
+        r = Rect.fromLTRB(rect.left + half, r.top, r.right, r.bottom);
+      }
+      if ((o.left - rect.right).abs() < eps && overlapsY(o)) {
+        r = Rect.fromLTRB(r.left, r.top, rect.right - half, r.bottom);
+      }
+    }
+    return r;
   }
 
   List<Rect> _regionRowRects(SectionTintRegion r) => _rangeRowRects(score,
