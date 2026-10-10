@@ -222,8 +222,10 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
         ((atSectionStart || replay) && runHasReal && !(jumpedBack && tailLeadsBack));
     tailLeadsBack = false;
     if (begin) {
-      segs.add([lbl ?? '', oi, oi + 1, m.number >= 1 ? m.number : -1, m.number,
-          0, -1]);
+      // A marked pickup is its section's first bar, so selecting the run
+      // covers it; an unmarked one is only adopted, from the first real bar.
+      segs.add([lbl ?? '', oi, oi + 1,
+          m.number >= 1 || atSectionStart ? m.number : -1, m.number, 0, -1]);
       runHasReal = m.number >= 1;
     } else {
       segs.last[2] = oi + 1;
