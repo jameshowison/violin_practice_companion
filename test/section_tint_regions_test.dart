@@ -54,23 +54,6 @@ void main() {
       expect(regions[0].color, isNot(regions[1].color)); // A ≠ B
     });
 
-    test('back-to-back same-label sections alternate a shade', () {
-      const starts = [
-        Section(label: 'A', startMeasure: 1),
-        Section(label: 'A', startMeasure: 2),
-        Section(label: 'B', startMeasure: 3),
-        Section(label: 'A', startMeasure: 4),
-      ];
-      final colors = SectionPalette.colorsForSections(starts);
-      final regions =
-          sectionTintRegions(EngravedMeasureMap.identity(measureNumbers), starts, colors, measures);
-      final base = SectionPalette.hex(colors['A']!);
-      expect(regions[0].color, base);
-      expect(regions[1].color, SectionPalette.hex(SectionPalette.neighbour(colors['A']!)));
-      expect(regions[1].color, isNot(base));
-      expect(regions[3].color, base); // an A after B is not a neighbour
-    });
-
     test('a mid-measure start carries note-level edges', () {
       const starts = [
         Section(label: 'A', startMeasure: 1),

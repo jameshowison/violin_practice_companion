@@ -105,8 +105,8 @@ Still open:
 
 Happy Farmer writes its A strain out twice (A A B C A) instead of `|: A :|`.
 The bundled score stays as written, so the screen matches the printed sheet.
-Since 2026-10-09 the second A's wash is a darker shade
-(`SectionPalette.neighbour`), so the seam shows.
+Since 2026-10-09 a thin white gap separates every pair of section washes
+(`_UnderlayPainter.sectionGap`), so the seam between the two As shows.
 
 For an imported or scanned tune there is no printed original to match. After
 detection there (`PieceRepository.savePiece`), when two back-to-back sections
