@@ -12,11 +12,12 @@ class PlaybackService extends PlaybackServiceBase {
   int _velocity = 90;
   bool _midiReady = false;
 
-  // Pointers into the sorted notes list for efficient per-tick scheduling
+  // Pointers into [scheduledNotes] (by onset) and the same notes by offset,
+  // for efficient per-tick scheduling.
   int _nextOnIdx = 0;
   int _nextOffIdx = 0;
-  List<ScheduledNote> _sortedByOffset = [];
-  List<ScheduledNote> _heldAtStart = const [];
+  List<ScheduledNote> _byOnset = const [];
+  List<ScheduledNote> _byOffset = const [];
 
   PlaybackService(super.generator) {
     _initMidi();
@@ -43,32 +44,14 @@ class PlaybackService extends PlaybackServiceBase {
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
     if (!_midiReady) return;
-    // Reset sorted offset list and pointers
-    _sortedByOffset = List.of(data.notes)
+    // A note tied over into the start bar comes back from the shared schedule
+    // struck at the start, so it sounds on the first tick — which comes after
+    // any count-in: [onTick] only runs once the cursor reaches the start.
+    _byOnset = scheduledNotes;
+    _byOffset = List.of(_byOnset)
       ..sort((a, b) => a.offsetSeconds.compareTo(b.offsetSeconds));
-
-    // Skip notes that already ended before startOffset
     _nextOnIdx = 0;
-    while (_nextOnIdx < data.notes.length &&
-        data.notes[_nextOnIdx].onsetSeconds < startOffsetSeconds) {
-      _nextOnIdx++;
-    }
     _nextOffIdx = 0;
-    while (_nextOffIdx < _sortedByOffset.length &&
-        _sortedByOffset[_nextOffIdx].offsetSeconds < startOffsetSeconds) {
-      _nextOffIdx++;
-    }
-    // Notes already sounding at the start — a tie held over the barline into
-    // the bar playback starts from is ONE note whose onset is in the bar
-    // before. Skipped above, they'd leave the bar silent until its next note,
-    // so strike them on the first tick instead (which comes after any
-    // count-in: [onTick] only runs once the cursor reaches the start).
-    _heldAtStart = [
-      for (final n in data.notes)
-        if (n.onsetSeconds < startOffsetSeconds &&
-            n.offsetSeconds > startOffsetSeconds)
-          n,
-    ];
   }
 
   @override
@@ -88,23 +71,16 @@ class PlaybackService extends PlaybackServiceBase {
 
     // Note-offs before note-ons: prevents outgoing same-pitch note from
     // immediately silencing the newly started note in the same tick.
-    while (_nextOffIdx < _sortedByOffset.length &&
-        _sortedByOffset[_nextOffIdx].offsetSeconds <= playbackTime) {
-      final n = _sortedByOffset[_nextOffIdx];
+    while (_nextOffIdx < _byOffset.length &&
+        _byOffset[_nextOffIdx].offsetSeconds <= playbackTime) {
+      final n = _byOffset[_nextOffIdx];
       _midi.stopNote(sfId: _sfId!, channel: _channel, key: n.midiNote);
       _nextOffIdx++;
     }
 
-    for (final n in _heldAtStart) {
-      if (n.offsetSeconds <= playbackTime) continue;
-      _midi.playNote(
-          sfId: _sfId!, channel: _channel, key: n.midiNote, velocity: _velocity);
-    }
-    _heldAtStart = const [];
-
-    while (_nextOnIdx < data.notes.length &&
-        data.notes[_nextOnIdx].onsetSeconds <= playbackTime) {
-      final n = data.notes[_nextOnIdx];
+    while (_nextOnIdx < _byOnset.length &&
+        _byOnset[_nextOnIdx].onsetSeconds <= playbackTime) {
+      final n = _byOnset[_nextOnIdx];
       _midi.playNote(
           sfId: _sfId!, channel: _channel, key: n.midiNote, velocity: _velocity);
       _nextOnIdx++;
