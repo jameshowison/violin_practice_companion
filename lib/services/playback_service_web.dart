@@ -13,6 +13,11 @@ class _AudioContext {
 
 extension _AudioContextExt on _AudioContext {
   external double get currentTime;
+  // Seconds from a sample leaving the context to it being heard. Not every
+  // browser has outputLatency (older Safari), hence the nullable reads.
+  external JSNumber? get outputLatency;
+  external JSNumber? get baseLatency;
+  external JSPromise<JSAny?> resume();
   external _OscillatorNode createOscillator();
   external _GainNode createGain();
   external _AudioDestinationNode get destination;
@@ -64,27 +69,38 @@ extension _GainNodeExt on _GainNode {
 
 class PlaybackService extends PlaybackServiceBase {
   late final _AudioContext _ctx;
-  final _oscillators = <_OscillatorNode>[];
+  // Each live voice with the context time it ends, so finished ones can be
+  // dropped while a long play-through runs.
+  final _voices = <(_OscillatorNode, double)>[];
 
   PlaybackService(super.generator) {
     _ctx = _AudioContext();
   }
 
+  double get _outputLatency =>
+      (_ctx.outputLatency ?? _ctx.baseLatency)?.toDartDouble ?? 0;
+
+  /// The moment now being heard, on the context's clock — the clock the
+  /// notes are scheduled on — so the highlight, count-in and loop end run
+  /// with the sound instead of beside it.
+  @override
+  double clockNow() => _ctx.currentTime - _outputLatency;
+
+  /// Time to get the first notes into the context before they're due, on
+  /// top of the output latency [clockNow] takes off.
+  @override
+  double get startLookaheadSeconds => 0.1 + _outputLatency;
+
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
-    _oscillators.clear();
-    // 100ms lookahead so notes don't clip at the very start
-    final audioT0 = _ctx.currentTime + 0.1;
-    for (final note in data.notes) {
-      if (note.offsetSeconds <= startOffsetSeconds) continue;
-      // A note already sounding at the start (a tie held over into the start
-      // bar is one note with an earlier onset) is struck at the start, for
-      // what is left of it.
-      final from = math.max(note.onsetSeconds, startOffsetSeconds);
-      final onset = audioT0 + (from - startOffsetSeconds);
-      final dur = note.offsetSeconds - from;
+    _ctx.resume();
+    _voices.clear();
+    final t0 = playStartClock;
+    if (t0 == null) return;
+    for (final note in scheduledNotes) {
+      final onset = t0 + note.onsetSeconds - startOffsetSeconds;
       if (onset < _ctx.currentTime) continue;
-      _scheduleNote(note.midiNote, onset, dur);
+      _scheduleNote(note.midiNote, onset, note.offsetSeconds - note.onsetSeconds);
     }
   }
 
@@ -110,22 +126,24 @@ class PlaybackService extends PlaybackServiceBase {
 
     osc.start(startTime);
     osc.stop(startTime + duration + 0.02);
-    _oscillators.add(osc);
+    _voices.add((osc, startTime + duration + 0.02));
   }
 
   @override
   void onStopped() {
     final now = _ctx.currentTime;
-    for (final osc in _oscillators) {
+    for (final (osc, _) in _voices) {
       try {
         osc.stop(now);
       } catch (_) {}
     }
-    _oscillators.clear();
+    _voices.clear();
   }
 
   @override
   void onTick(double playbackTime, MidiData data) {
-    // Notes are pre-scheduled via AudioContext; no per-tick work needed.
+    // Notes are pre-scheduled via AudioContext; just let go of finished ones.
+    final now = _ctx.currentTime;
+    _voices.removeWhere((v) => v.$2 < now);
   }
 }

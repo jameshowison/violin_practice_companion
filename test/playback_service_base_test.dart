@@ -35,6 +35,30 @@ class _FakeClockPlaybackService extends PlaybackServiceBase {
   void onTick(double playbackTime, MidiData data) {}
 }
 
+/// A player that schedules ahead on its own clock, as the web one does: only
+/// [clockNow] and [startLookaheadSeconds] are faked, so [currentPlaybackSeconds]
+/// and the schedule both come from the base.
+class _OwnClockPlaybackService extends PlaybackServiceBase {
+  _OwnClockPlaybackService(super.generator);
+
+  double clock = 100.0;
+
+  @override
+  double clockNow() => clock;
+
+  @override
+  double get startLookaheadSeconds => 0.25;
+
+  @override
+  void onPlayStarted(MidiData data, double startOffsetSeconds) {}
+
+  @override
+  void onStopped() {}
+
+  @override
+  void onTick(double playbackTime, MidiData data) {}
+}
+
 NoteEvent _quarter(int midi) => NoteEvent(
       pitch: 'X',
       midiNumber: midi,
@@ -224,6 +248,71 @@ void main() {
       service.fakeSeconds = 11.0;
       await tester.pump(const Duration(milliseconds: 50));
       expect(service.playbackState, PlaybackState.stopped);
+    });
+  });
+
+  group('scheduleFrom', () {
+    // A 1s note, a 2s note tied over the barline at 2s, then a 1s note.
+    const d = MidiData(
+      notes: [
+        ScheduledNote(0, 1, 60),
+        ScheduledNote(1, 3, 62),
+        ScheduledNote(3, 4, 64),
+      ],
+      measureOnsetSeconds: [0, 2],
+      measureNumbers: [1, 2],
+      totalDurationSeconds: 4,
+      measureNoteTimings: [],
+      highlightEvents: [],
+    );
+    List<(double, double, int)> sched(double start, double end) => [
+          for (final n in PlaybackServiceBase.scheduleFrom(d, start, end))
+            (n.onsetSeconds, n.offsetSeconds, n.midiNote),
+        ];
+
+    test('strikes a note held over the start at the start', () {
+      expect(sched(2, 4), [(2.0, 3.0, 62), (3.0, 4.0, 64)]);
+    });
+
+    test('drops a note that ends on the start and cuts one at the end', () {
+      expect(sched(1, 3.5), [(1.0, 3.0, 62), (3.0, 3.5, 64)]);
+    });
+
+    test('an empty range schedules nothing', () {
+      expect(sched(2, 2), isEmpty);
+    });
+  });
+
+  group('one clock for the sound and the highlight', () {
+    late _OwnClockPlaybackService own;
+
+    setUp(() async {
+      own = _OwnClockPlaybackService(MidiGenerator.forTest());
+      await own.loadPieceAtBpm(piece, 60);
+    });
+
+    tearDown(() => own.dispose());
+
+    test('the start sounds after the lookahead and the count-in', () {
+      // 3s of count at 60 BPM: 24 units of 1/8 beat.
+      own.play(fromMeasure: 2, countIn: (labels: [1, 2, 3], totalUnits: 24, unit: 8));
+      expect(own.playStartClock, closeTo(100.0 + 0.25 + 3.0, 1e-9));
+      expect(own.scheduledNotes.first.onsetSeconds, own.startOffsetSeconds);
+    });
+
+    test('playback time reaches the start exactly when the first note sounds',
+        () {
+      own.play(fromMeasure: 2, countIn: (labels: [1, 2, 3], totalUnits: 24, unit: 8));
+      own.clock = own.playStartClock! - 0.5;
+      expect(own.currentPlaybackSeconds(), closeTo(own.startOffsetSeconds - 0.5, 1e-9));
+      own.clock = own.playStartClock!;
+      expect(own.currentPlaybackSeconds(), closeTo(own.startOffsetSeconds, 1e-9));
+    });
+
+    test('a selection is scheduled only up to its end', () {
+      own.play(fromMeasure: 1, toMeasure: 2);
+      expect(own.scheduledNotes.length, 6);
+      expect(own.scheduledNotes.last.offsetSeconds, lessThanOrEqualTo(6.0));
     });
   });
 }

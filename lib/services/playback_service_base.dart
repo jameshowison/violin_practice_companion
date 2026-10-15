@@ -62,8 +62,10 @@ abstract class PlaybackServiceBase {
   // first occurrence at or after the start.
   int _fromIndex = -1;
   int _toIndex = -1;
-  DateTime? _t0;
+  // [clockNow] reading at which [_startOffset] sounds.
+  double? _t0;
   double _startOffset = 0.0;
+  List<ScheduledNote> _schedule = const [];
   Timer? _timer;
 
   int _hlPointer = 0;
@@ -162,8 +164,8 @@ abstract class PlaybackServiceBase {
     // the first note instead of from it — no note sounds and no highlight
     // advances while the cursor is behind the start, so the count-in needs no
     // separate clock, no separate timer and no state machine.
-    _t0 = DateTime.now()
-        .add(Duration(microseconds: (_countInSeconds * 1e6).round()));
+    _t0 = clockNow() + startLookaheadSeconds + _countInSeconds;
+    _schedule = scheduleFrom(d, _startOffset, _endSeconds(d));
     countInNotifier.value = countIn == null
         ? null
         : (labels: countIn.labels, index: 0, startMeasure: fromMeasure);
@@ -229,6 +231,7 @@ abstract class PlaybackServiceBase {
     _timer?.cancel();
     _timer = null;
     _t0 = null;
+    _schedule = const [];
     _countInPlan = null;
     _countInSeconds = 0;
     countInNotifier.value = null;
@@ -241,13 +244,53 @@ abstract class PlaybackServiceBase {
 
   /// Current position on the playback timeline, in score-seconds, or null if
   /// playback hasn't truly started (nothing to advance to yet). Default:
-  /// wall-clock elapsed time since [play]/[_t0]. Override to drive the cursor
+  /// [clockNow] elapsed since [play]/[_t0]. Override to drive the cursor
   /// from a different clock — see AudioSyncPlaybackService, which maps real
   /// audio file position through a calibration curve instead.
   double? currentPlaybackSeconds() {
     final t0 = _t0;
     if (t0 == null) return null;
-    return _startOffset + DateTime.now().difference(t0).inMicroseconds / 1e6;
+    return _startOffset + clockNow() - t0;
+  }
+
+  /// The clock everything in a play-through runs on — the highlight, the
+  /// count-in, the loop end AND the notes — in seconds. Wall time by default,
+  /// which is what a player that strikes notes from [onTick] needs. A player
+  /// that schedules its notes ahead on its own clock (the web's AudioContext)
+  /// overrides this with that clock, read as the moment now being HEARD, so
+  /// the highlight can't drift from the sound.
+  double clockNow() => DateTime.now().microsecondsSinceEpoch / 1e6;
+
+  /// How long after [play] the start (or the count-in, if any) begins, for a
+  /// player that needs time to schedule its first notes. 0 by default.
+  double get startLookaheadSeconds => 0;
+
+  /// The [clockNow] reading at which [startOffsetSeconds] sounds — after the
+  /// lookahead and any count-in — or null when not playing. A player that
+  /// schedules ahead places note `n` at
+  /// `playStartClock + n.onsetSeconds - startOffsetSeconds`.
+  double? get playStartClock => _t0;
+
+  /// What this play-through sounds, from [scheduleFrom]: set before
+  /// [onPlayStarted] is called.
+  List<ScheduledNote> get scheduledNotes => _schedule;
+
+  /// The notes to sound when playing [d] from [start] to [end] (score-seconds),
+  /// sorted by onset. A note already sounding at [start] — a tie held over the
+  /// barline into the start bar is ONE note with an earlier onset — is struck
+  /// at [start] for what is left of it, rather than leaving the bar silent
+  /// until its next note; anything sounding past [end] is cut there.
+  static List<ScheduledNote> scheduleFrom(
+      MidiData d, double start, double end) {
+    return [
+      for (final n in d.notes)
+        if (n.offsetSeconds > start && n.onsetSeconds < end && start < end)
+          ScheduledNote(
+            n.onsetSeconds < start ? start : n.onsetSeconds,
+            n.offsetSeconds > end ? end : n.offsetSeconds,
+            n.midiNote,
+          ),
+    ]..sort((a, b) => a.onsetSeconds.compareTo(b.onsetSeconds));
   }
 
   /// Score-seconds position used only to pick the "current" highlight event —
@@ -324,12 +367,32 @@ abstract class PlaybackServiceBase {
       }
     }
 
-    // Check loop / end. End time = onset of the measure AFTER the selection end
-    // (toMeasure), or the piece end. Map toMeasure (a Measure.number) to its
-    // array index first, then advance one — never assume number == index. Bind to
-    // the FIRST occurrence of toMeasure at or after the play start, so a range
-    // inside a repeated strain stops after that pass (and, with loop on, repeats
-    // just the selection) instead of running on through every repeat pass.
+    if (pt >= _endSeconds(d)) {
+      if (loopEnabled) {
+        play(
+            fromMeasure: _fromMeasure,
+            fromNote: _fromNote,
+            toMeasure: _toMeasure,
+            toNote: _toNote,
+            fromIndex: _fromIndex,
+            toIndex: _toIndex);
+      } else {
+        _stopInternal();
+      }
+      return;
+    }
+
+    onTick(pt, d);
+  }
+
+  /// Where the current play-through stops (or loops), in score-seconds.
+  /// End time = onset of the measure AFTER the selection end (toMeasure), or
+  /// the piece end. Map toMeasure (a Measure.number) to its array index first,
+  /// then advance one — never assume number == index. Bind to the FIRST
+  /// occurrence of toMeasure at or after the play start, so a range inside a
+  /// repeated strain stops after that pass (and, with loop on, repeats just
+  /// the selection) instead of running on through every repeat pass.
+  double _endSeconds(MidiData d) {
     final onsets = d.measureOnsetSeconds;
     final int toIdx;
     if (_toMeasure == null) {
@@ -350,22 +413,7 @@ abstract class PlaybackServiceBase {
         _toNote < d.measureNoteTimings[toIdx].length) {
       endT = d.measureNoteTimings[toIdx][_toNote].$1;
     }
-    if (pt >= endT) {
-      if (loopEnabled) {
-        play(
-            fromMeasure: _fromMeasure,
-            fromNote: _fromNote,
-            toMeasure: _toMeasure,
-            toNote: _toNote,
-            fromIndex: _fromIndex,
-            toIndex: _toIndex);
-      } else {
-        _stopInternal();
-      }
-      return;
-    }
-
-    onTick(pt, d);
+    return endT;
   }
 
   /// The highlight-event stream actually driving the notifiers — every note,
@@ -441,7 +489,8 @@ abstract class PlaybackServiceBase {
 
   // --- Overridden by platform implementations ---
 
-  /// Called when play() begins; subclass starts audio output.
+  /// Called when play() begins, with [scheduledNotes] and [playStartClock]
+  /// already set; subclass starts audio output.
   void onPlayStarted(MidiData data, double startOffsetSeconds);
 
   /// Called when playback stops or pauses; subclass silences audio.
