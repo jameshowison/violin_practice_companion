@@ -44,6 +44,18 @@ notation that works for your family:
   recording has talking or tuning before the tune, you can say where the music
   starts and ends and it will be matched against just that
 
+<p align="center">
+  <img src="docs/images/web-lightly-row.png" width="600"
+       alt="Lightly Row in the Annotated view, running in Chrome: chord-labelled
+            sections above each line, open-string fret numbers underlined in
+            the string's colour, chord diagrams below, and the view settings
+            panel open on the right">
+</p>
+
+*Lightly Row in the web build, Annotated view, laid out by section with chord
+symbols, fret numbers and string-colour underlines. To run it yourself, see
+[Running in a browser](#running-in-a-browser).*
+
 ## What It Does Not Do
 
 - Connect to the internet — ever
@@ -90,6 +102,31 @@ simulator](#from-a-cold-mac-to-the-app-on-the-ipad-simulator) below.
 The scan-to-MusicXML (OMR) feature needs homr's ONNX models, fetched once with
 `bash scripts/fetch_omr_models.sh` — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml)
 below. It is not available on the web build.
+
+### Running in a browser
+
+The quickest way to try the app — no Xcode, simulator or device needed, just
+Flutter and Chrome:
+
+```bash
+flutter pub get
+flutter run -d chrome --web-port 8686    # opens Chrome at http://localhost:8686
+```
+
+`--web-port` is optional, but a fixed port keeps the browser's saved pieces
+between runs: the web build stores its library in the browser, keyed by origin,
+so a new random port starts with an empty library. To serve a release build to
+another browser on your network instead:
+
+```bash
+flutter build web
+python3 -m http.server 8686 --directory build/web
+```
+
+What differs from iOS: scanning (OMR) is not available, so add pieces with
+**Import from ABC** on the piece list. Everything needed to render notation in the browser
+(the Verovio worker and WASM toolkit, pdf.js) is already vendored in `web/`;
+there is no extra setup step.
 
 ## Simulator names
 
