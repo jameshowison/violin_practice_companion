@@ -23,8 +23,8 @@ class SectionDetector {
   static const _blockSizes = [8, 4];
 
   /// Strain boundaries come from, in order of trust: the author's part labels,
-  /// repeat brackets, the author's ABC music lines, then equal 8/4-bar
-  /// blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
+  /// repeat brackets, the author's ABC music lines, double barlines, then
+  /// equal 8/4-bar blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
   /// begins on a lead-in) is kept exactly; the rest start on a downbeat and
   /// are then moved back onto their lead-in by [withLeadIns].
   static List<Section> detect(List<Measure> measures) {
@@ -62,6 +62,7 @@ class SectionDetector {
           hiddenLeadNotes: measures[i].hiddenLeadNotes,
           repeatStart: measures[i].repeatStart,
           repeatEnd: measures[i].repeatEnd,
+          doubleBarEnd: measures[i].doubleBarEnd,
           daCapo: measures[i].daCapo,
           dalSegno: measures[i].dalSegno,
           fine: measures[i].fine,
@@ -311,8 +312,29 @@ class SectionDetector {
     final lines = _lineStrains(measures);
     if (lines != null) return lines;
 
-    // No repeats: group into equal blocks, optionally dropping a one-measure
-    // pickup, preferring 8-bar then 4-bar strains. Require ≥2 whole strains.
+    final doubleBars = _doubleBarStrains(measures);
+    if (doubleBars != null) return doubleBars;
+
+    // No repeats: group into equal blocks of counted bars (lead-ins left out,
+    // see [_leadInBars]), preferring 8-bar then 4-bar strains. Require ≥2
+    // whole strains.
+    final leadIns = _leadInBars(measures);
+    final counted = [
+      for (var i = 0; i < measures.length; i++)
+        if (!leadIns.contains(i)) i,
+    ];
+    for (final block in _blockSizes) {
+      if (counted.length >= block * 2 && counted.length % block == 0) {
+        final strains = <List<Measure>>[];
+        final starts = <int>[];
+        _addBlocks(measures, leadIns, counted,
+            [for (var k = 0; k < counted.length; k += block) block],
+            strains, starts);
+        return (strains: strains, starts: starts, startNotes: null);
+      }
+    }
+
+    // Otherwise the same, optionally dropping a one-measure pickup.
     for (final block in _blockSizes) {
       for (final drop in const [0, 1]) {
         if (drop >= measures.length) continue;
@@ -330,6 +352,75 @@ class SectionDetector {
       }
     }
     return null;
+  }
+
+  /// The strains between double barlines ([Measure.doubleBarEnd]), for a
+  /// tune with no repeats or authored lines to go by: a song's verse and
+  /// chorus. Each passage is tiled into 8- and 4-bar strains when its counted
+  /// bars allow (see [_tiling]), else kept whole. Null unless a bar before
+  /// the last has a double bar and that yields [_minStrains] strains.
+  static _Strains? _doubleBarStrains(List<Measure> measures) {
+    final ends = [
+      for (var i = 0; i < measures.length - 1; i++)
+        if (measures[i].doubleBarEnd) i,
+    ];
+    if (ends.isEmpty) return null;
+    final leadIns = _leadInBars(measures);
+    final strains = <List<Measure>>[];
+    final starts = <int>[];
+    var from = 0;
+    for (final end in [...ends, measures.length - 1]) {
+      final counted = [
+        for (var i = from; i <= end; i++)
+          if (!leadIns.contains(i)) i,
+      ];
+      from = end + 1;
+      if (counted.isEmpty) continue;
+      _addBlocks(measures, leadIns, counted,
+          _tiling(counted.length) ?? [counted.length], strains, starts);
+    }
+    if (strains.length < _minStrains) return null;
+    return (strains: strains, starts: starts, startNotes: null);
+  }
+
+  /// LEAD-IN bars: short bars that open a phrase rather than end one, so
+  /// they aren't counted when strains are measured in bars. The opening
+  /// pickup, and the second of two short bars that make one full bar between
+  /// them — a score splitting a bar at a section break, its first half ending
+  /// one section and its second the next one's pickup (Gundagai's `A z ‖ d c`,
+  /// The Single Girl's `…G2 ‖ G`).
+  static Set<int> _leadInBars(List<Measure> measures) {
+    final fullBar = _commonUnits(measures);
+    return {
+      for (var i = 0; i < measures.length; i++)
+        if (measures[i].actualUnits < fullBar &&
+            (i == 0 ||
+                (measures[i - 1].actualUnits < fullBar &&
+                    measures[i - 1].actualUnits + measures[i].actualUnits ==
+                        fullBar)))
+          i,
+    };
+  }
+
+  /// Appends one strain per entry of [sizes], taking that many of the
+  /// [counted] bars in turn. A strain starts on the lead-in bar before its
+  /// first counted bar when there is one; the lead-in is left out of the
+  /// strain itself, so it doesn't decide whether two strains match.
+  static void _addBlocks(
+      List<Measure> measures,
+      Set<int> leadIns,
+      List<int> counted,
+      List<int> sizes,
+      List<List<Measure>> strains,
+      List<int> starts) {
+    var k = 0;
+    for (final size in sizes) {
+      final first = counted[k];
+      final start = leadIns.contains(first - 1) ? first - 1 : first;
+      strains.add([for (final i in counted.sublist(k, k + size)) measures[i]]);
+      starts.add(measures[start].number);
+      k += size;
+    }
   }
 
   /// One strain per authored ABC music line ([Measure.lineStartNote]), for a

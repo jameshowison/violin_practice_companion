@@ -193,12 +193,21 @@ class MusicXmlParser {
       // Repeat barlines: <barline><repeat direction="forward|backward"/>.
       // A forward repeat is the start (left, `|:`); a backward repeat is the
       // end (right, `:|`). OMR scans usually omit these — the editor adds them.
+      // A right-hand double barline that isn't a repeat is a section break
+      // (see [Measure.doubleBarEnd]); the location defaults to right.
       var repeatStart = false;
       var repeatEnd = false;
+      var doubleBarEnd = false;
       for (final barlineEl in measureEl.findElements('barline')) {
         final dir = barlineEl.findElements('repeat').firstOrNull?.getAttribute('direction');
         if (dir == 'forward') repeatStart = true;
         if (dir == 'backward') repeatEnd = true;
+        final style = barlineEl.findElements('bar-style').firstOrNull?.innerText.trim();
+        if ((barlineEl.getAttribute('location') ?? 'right') == 'right' &&
+            const {'light-light', 'heavy-heavy', 'light-heavy', 'heavy-light'}
+                .contains(style)) {
+          doubleBarEnd = true;
+        }
       }
 
       // Navigation marks. `<sound>` attributes are the playback meaning; the
@@ -230,6 +239,7 @@ class MusicXmlParser {
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart,
         repeatEnd: repeatEnd,
+        doubleBarEnd: doubleBarEnd && !repeatEnd,
         daCapo: daCapo,
         dalSegno: dalSegno,
         fine: fine,
