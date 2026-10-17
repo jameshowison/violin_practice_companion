@@ -50,7 +50,7 @@ dependencies:
     git:
       url: https://github.com/jameshowison/homr_flutter.git
       path: packages/homr_flutter
-      ref: v0.1.0
+      ref: v0.1.1
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
   # Alternative scan sources (mobile/desktop only — imported solely in
