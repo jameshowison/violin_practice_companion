@@ -13,6 +13,13 @@ class Measure {
   final bool repeatStart;
   final bool repeatEnd;
 
+  /// A double barline (`||`) on this measure's right edge, not a repeat: the
+  /// light-light of a score's section break, or the heavy-heavy an OMR scan
+  /// reads a thick one as. A section boundary for [SectionDetector], and the
+  /// place a printed score may split a bar between a section's end and the
+  /// next one's pickup.
+  final bool doubleBarEnd;
+
   /// Navigation marks, parsed from MusicXML `<sound>` attributes (and the
   /// `<segno/>` symbol, and "D.C."/"D.S."/"Fine" words when a score has only
   /// the text). All act at this measure's END except [segno] and [coda],
@@ -52,6 +59,7 @@ class Measure {
     this.hiddenLeadNotes = const [],
     this.repeatStart = false,
     this.repeatEnd = false,
+    this.doubleBarEnd = false,
     this.daCapo = false,
     this.dalSegno = false,
     this.fine = false,
@@ -75,6 +83,7 @@ class Measure {
         hiddenLeadNotes: hiddenLeadNotes,
         repeatStart: repeatStart ?? this.repeatStart,
         repeatEnd: repeatEnd ?? this.repeatEnd,
+        doubleBarEnd: doubleBarEnd,
         daCapo: daCapo,
         dalSegno: dalSegno,
         fine: fine,
@@ -274,7 +283,9 @@ class ParsedPiece {
   /// The boundary requirement is what stops this masking the OMR damage the flag
   /// exists to catch: a bar accidentally split into 3 + 1 mid-phrase also sums
   /// to a full bar, but has no repeat barline between the halves, so it stays
-  /// flagged.
+  /// flagged. A double barline ([Measure.doubleBarEnd]) counts as a boundary
+  /// too: a song sheet splits a bar there between the verse's end and the
+  /// chorus's pickup.
   Set<int> _pickupPairedIndices() {
     final order = performanceOrder(measures);
     if (order.length < 2) return const {};
@@ -290,7 +301,9 @@ class ParsedPiece {
       if (!a.isShort(beatsPerMeasure, beatType)) continue;
       if (!b.isShort(beatsPerMeasure, beatType)) continue;
       if (a.actualUnits + b.actualUnits != expected) continue;
-      if (!a.repeatEnd && !b.repeatStart && !isWrap) continue;
+      if (!a.repeatEnd && !a.doubleBarEnd && !b.repeatStart && !isWrap) {
+        continue;
+      }
       paired
         ..add(ai)
         ..add(bi);

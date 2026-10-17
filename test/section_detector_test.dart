@@ -253,6 +253,114 @@ void main() {
     });
   });
 
+  group('split bars and double barlines (scanned song sheets)', () {
+    NoteEvent n(NoteValue v, int midi) => NoteEvent(
+          pitch: 'X',
+          midiNumber: midi,
+          octave: 4,
+          noteValue: v,
+          dotted: false,
+          isRest: false,
+        );
+    const q = NoteValue.quarter, h = NoteValue.half;
+    Measure bar(int number, {bool doubleBar = false}) => Measure(
+        number: number,
+        notes: [for (var i = 0; i < 4; i++) n(q, 40 + number)],
+        doubleBarEnd: doubleBar);
+    Measure short(int number, List<NoteValue> values,
+            {bool doubleBar = false}) =>
+        Measure(
+            number: number,
+            notes: [for (final v in values) n(v, 40 + number)],
+            doubleBarEnd: doubleBar);
+    String starts(List<Measure> measures) => SectionDetector.detect(measures)
+        .map((s) => '${s.startMeasure}:${s.startNote}')
+        .join(' ');
+
+    // Gundagai (lyrics) as scanned: a one-beat pickup, a 16-bar verse whose
+    // last bar is half a bar, a half-bar pickup into the chorus, and a 32-bar
+    // chorus — 50 bars, which no equal blocks tile until the split bar
+    // counts as one.
+    List<Measure> gundagai({required bool doubleBar}) => [
+          short(1, [q]),
+          for (var b = 2; b <= 16; b++) bar(b),
+          short(17, [q, q], doubleBar: doubleBar),
+          short(18, [q, q]),
+          for (var b = 19; b <= 50; b++) bar(b),
+        ];
+
+    test('a bar split across a section break counts as one bar', () {
+      expect(starts(gundagai(doubleBar: false)),
+          '1:0 9:3 18:0 26:3 34:3 42:3');
+    });
+
+    test('the double bar gives the same strains, the chorus on its pickup', () {
+      expect(starts(gundagai(doubleBar: true)),
+          '1:0 9:3 18:0 26:3 34:3 42:3');
+    });
+
+    test('a double bar splits a passage that blocks would not', () {
+      // 3 + 5 bars: equal blocks would cut it 4 + 4.
+      final measures = [
+        bar(1),
+        bar(2),
+        bar(3, doubleBar: true),
+        for (var b = 4; b <= 8; b++) bar(b),
+      ];
+      expect(starts(measures), '1:0 4:0');
+      expect(starts([for (final m in measures) bar(m.number)]), '1:0 5:0');
+    });
+
+    test('The Single Girl: the second half starts on its split pickup', () {
+      // No opening pickup; bar 4 is three beats and ends on the double bar,
+      // bar 5 the one-beat pickup into the second half.
+      final measures = [
+        bar(1),
+        bar(2),
+        bar(3),
+        short(4, [h, q], doubleBar: true),
+        short(5, [q]),
+        bar(6),
+        bar(7),
+        bar(8),
+        short(9, [h, q], doubleBar: true),
+      ];
+      expect(starts(measures), '1:0 5:0');
+    });
+
+    test('a final double bar alone is not a section break', () {
+      final measures = [
+        for (var b = 1; b <= 5; b++) bar(b),
+        bar(6, doubleBar: true),
+      ];
+      expect(starts(measures), '');
+    });
+
+    test('the parser reads a double bar, but not a repeat, as one', () {
+      String measure(int number, String barline) =>
+          '<measure number="$number"><note><pitch><step>C</step>'
+          '<octave>4</octave></pitch><duration>4</duration><type>whole</type>'
+          '</note>$barline</measure>';
+      String style(String s) =>
+          '<barline location="right"><bar-style>$s</bar-style></barline>';
+      final xml = '<score-partwise><part id="P1">'
+          '<measure number="1"><attributes><divisions>1</divisions>'
+          '<time><beats>4</beats><beat-type>4</beat-type></time></attributes>'
+          '<note><pitch><step>C</step><octave>4</octave></pitch>'
+          '<duration>4</duration><type>whole</type></note>'
+          '${style('light-light')}</measure>'
+          '${measure(2, style('heavy-heavy'))}'
+          '${measure(3, '<barline location="right"><bar-style>light-heavy'
+              '</bar-style><repeat direction="backward"/></barline>')}'
+          '${measure(4, '')}'
+          '</part></score-partwise>';
+      final measures = MusicXmlParser().parse(xml).measures;
+      expect([for (final m in measures) m.doubleBarEnd],
+          [true, true, false, false]);
+      expect(measures[2].repeatEnd, isTrue);
+    });
+  });
+
   group('authored ABC lines', () {
     Measure bar(int number, List<int> midis, {int? line}) => Measure(
           number: number,

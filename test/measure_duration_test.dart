@@ -172,6 +172,28 @@ void main() {
       expect(piece.flaggedMeasureNumbers, {2, 3});
     });
 
+    test('a bar split at a double bar is excused, like one at a repeat', () {
+      // A song sheet's verse ending in 3 beats at the `||` and the chorus's
+      // 1-beat pickup after it.
+      final piece = ParsedPiece(
+        keySignature: 'C',
+        keyFifths: 0,
+        keyMode: KeyMode.major,
+        beatsPerMeasure: 4,
+        beatType: 4,
+        measures: [
+          Measure(number: 1, notes: [_note(NoteValue.whole)]),
+          Measure(
+              number: 2,
+              notes: [_note(NoteValue.half, dotted: true)],
+              doubleBarEnd: true),
+          Measure(number: 3, notes: [_note(NoteValue.quarter)]),
+          Measure(number: 4, notes: [_note(NoteValue.whole)]),
+        ],
+      );
+      expect(piece.flaggedMeasureNumbers, isEmpty);
+    });
+
     test('two shorts that do not add up to a bar are both flagged', () {
       final piece = ParsedPiece(
         keySignature: 'C',
