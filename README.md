@@ -123,6 +123,14 @@ flutter build web
 python3 -m http.server 8686 --directory build/web
 ```
 
+To load the [dev library](#dev-library-the-same-pieces-and-media-on-every-dev-device)'s
+pieces, run `bash scripts/push_dev_library_web.sh` (before launching, or then
+reload the tab). It packs scores, titles, sections and collections into
+`web/dev_library.json` (gitignored), which the app merges at launch. This is one-way:
+edits made in the browser are kept there but never pulled back. Media are left out,
+and `flutter build web` ships the file if it's there
+(`--remove` deletes it).
+
 What differs from iOS: scanning (OMR) is not available, so add pieces with
 **Import from ABC** on the piece list. Everything needed to render notation in the browser
 (the Verovio worker and WASM toolkit, pdf.js) is already vendored in `web/`;
