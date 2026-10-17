@@ -74,3 +74,6 @@ pubspec_overrides.yaml
 
 # Dev library packed for the web build (scripts/push_dev_library_web.sh)
 web/dev_library.json
+
+# Lyrics evaluation: copyrighted pages and answer keys, never committed
+lyrics_eval/
