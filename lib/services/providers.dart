@@ -192,6 +192,10 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
 /// filter. Session-only, like the other display-preference providers.
 final activeCollectionProvider = StateProvider<String?>((_) => null);
 
+/// The piece list's search box. Narrows within the active collection, and lasts
+/// for the session like the chip does.
+final pieceSearchProvider = StateProvider<String>((_) => '');
+
 /// Every piece with its user-chosen title applied — nothing filtered, nothing
 /// reordered. What the Manage screen lists (it needs the hidden ones too).
 ///

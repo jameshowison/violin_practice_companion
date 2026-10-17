@@ -143,4 +143,15 @@ void main() {
     expect(manageRowUsesLabeledActions(600), isTrue);
     expect(manageRowUsesLabeledActions(1194), isTrue); // iPad landscape
   });
+
+  test('search matches every word, ignoring case, order and punctuation', () {
+    expect(matchesSearch("The Devil's Dream", ''), isTrue);
+    expect(matchesSearch("The Devil's Dream", '  '), isTrue);
+    expect(matchesSearch("The Devil's Dream", 'devils dream'), isTrue);
+    expect(matchesSearch("The Devil's Dream", 'DREAM devil'), isTrue);
+    expect(matchesSearch('I love the mountains', 'mount'), isTrue);
+    expect(matchesSearch('Bridal Chorus (Wagner) - "Here Comes the Bride"',
+        'wagner bride'), isTrue);
+    expect(matchesSearch("The Devil's Dream", 'devil spear'), isFalse);
+  });
 }

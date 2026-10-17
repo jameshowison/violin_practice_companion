@@ -58,6 +58,22 @@ String pieceSubtitle(
   return '$sections · ${collectionNames.join(' · ')}';
 }
 
+/// Whether [title] matches the search box's [query].
+///
+/// Every word of the query must appear somewhere in the title, in any order and
+/// ignoring case and punctuation — so "devils dream" finds "The Devil's Dream"
+/// and "mount" finds "I Love the Mountains". An empty query matches everything.
+bool matchesSearch(String title, String query) {
+  final words = _searchText(query).split(' ').where((w) => w.isNotEmpty);
+  final haystack = _searchText(title);
+  return words.every(haystack.contains);
+}
+
+String _searchText(String s) => s
+    .toLowerCase()
+    .replaceAll(RegExp(r"['’]"), '')
+    .replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+
 /// What an empty list should say, and whether it offers a way out.
 ///
 /// Genuinely different situations, so different messages: an empty filter is a
