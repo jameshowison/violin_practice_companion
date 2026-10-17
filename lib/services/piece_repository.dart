@@ -209,16 +209,18 @@ class PieceRepository {
 
   /// Everything the app fixes about a piece's MusicXML, in one place.
   ///
-  /// Both passes are gated on evidence the file needs them, so a document that
+  /// Every pass is gated on evidence the file needs it, so a document that
   /// already says what it means comes back unchanged, character for character.
   /// Applied wherever XML enters or leaves the repository — read it, save it or
   /// edit it and you get the repaired form — which is what keeps a single
   /// convention in force everywhere downstream.
-  static String _repair(String musicXml) =>
-      MusicXmlBeamer.rebeam(MusicXmlNormalizer.toSoundingPitch(musicXml));
+  static String _repair(String musicXml) => MusicXmlBeamer.rebeam(
+      MusicXmlNormalizer.drawAccidentals(
+          MusicXmlNormalizer.toSoundingPitch(musicXml)));
 
   /// A piece's MusicXML, repaired: key-signature accidentals resolved into the
-  /// sounding pitch, and beams written for any measure that states none.
+  /// sounding pitch, a sign drawn on every note that needs one, and beams
+  /// written for any measure that states none.
   ///
   /// This is the one place every piece's XML is read — bundled fixture or file
   /// — so it is where a tune imported before those passes existed gets fixed. A

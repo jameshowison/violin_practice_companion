@@ -177,4 +177,70 @@ void main() {
     expect(_sounding(withRest), [66]);
     expect(MusicXmlNormalizer.toSoundingPitch('not xml at all'), 'not xml at all');
   });
+
+  group('drawAccidentals: a sounding-led file gains its missing signs', () {
+    /// Each note as `step+alter+octave` followed by its drawn sign, if any.
+    List<String> drawn(String xml) => [
+          for (final n in MusicXmlParser()
+              .parse(MusicXmlNormalizer.drawAccidentals(xml))
+              .allNotes)
+            '${n.pitch}${n.displayAccidental == null ? '' : ' ${n.displayAccidental}'}',
+        ];
+
+    test("an OMR scan's undrawn A♯ in G major gets a sharp; F♯ does not", () {
+      // Gundagai's "Mur-rim-bid-gee's": B A♯ B A♯, the second carried.
+      final xml = _score('<measure number="1">'
+          '${_note('F', 5, alter: 1)}${_note('A', 4, alter: 1)}'
+          '${_note('B', 4)}${_note('A', 4, alter: 1)}</measure>'
+          '<measure number="2">${_note('A', 4, alter: 1)}${_note('A', 4)}'
+          '${_note('B', 4, alter: -1)}${_note('B', 4, alter: -1)}</measure>',
+          fifths: 1);
+      expect(drawn(xml), [
+        'F#5', 'A#4 sharp', 'B4', 'A#4',
+        // A new bar resets the carry; going back to A♮ needs a natural.
+        'A#4 sharp', 'A4 natural', 'Bb4 flat', 'Bb4',
+      ]);
+    });
+
+    test('a sign already drawn is kept and carries through the bar', () {
+      final xml = _score('<measure number="1">'
+          '${_note('C', 5, alter: 1, accidental: 'sharp')}'
+          '${_note('C', 5, alter: 1)}${_note('C', 5)}${_note('C', 5)}'
+          '</measure>');
+      expect(drawn(xml), ['C#5 sharp', 'C#5', 'C5 natural', 'C5']);
+    });
+
+    test('a note tied over from the bar before is not re-marked', () {
+      final xml = _score('<measure number="1">'
+          '${_note('B', 4)}${_note('B', 4)}${_note('B', 4)}'
+          '${_note('C', 5, alter: 1).replaceFirst('<type>', '<tie type="start"/><type>')}'
+          '</measure><measure number="2">'
+          '${_note('C', 5, alter: 1).replaceFirst('<type>', '<tie type="stop"/><type>')}'
+          '${_note('B', 4)}${_note('B', 4)}${_note('B', 4)}</measure>');
+      expect(drawn(xml).sublist(3, 5), ['C#5 sharp', 'C#5']);
+    });
+
+    test('a file with every sign it needs comes back character for character',
+        () {
+      final xml = _score('<measure number="1">'
+          '${_note('F', 5, alter: 1)}'
+          '${_note('A', 4, alter: 1, accidental: 'sharp')}'
+          '${_note('A', 4, alter: 1)}${_note('B', 4)}</measure>',
+          fifths: 1);
+      expect(MusicXmlNormalizer.drawAccidentals(xml), xml);
+    });
+
+    test('idempotent, and the result still sounds the same', () {
+      // In C major every alter now has its sign beside it, which makes the
+      // file look drawing-led to toSoundingPitch — it must still read the
+      // same pitches.
+      final xml = _score('<measure number="1">'
+          '${_note('A', 4, alter: 1)}${_note('A', 4, alter: 1)}'
+          '${_note('A', 4)}${_note('E', 5, alter: -1)}</measure>');
+      final once = MusicXmlNormalizer.drawAccidentals(xml);
+      expect(MusicXmlNormalizer.drawAccidentals(once), once);
+      expect(_sounding(once), _sounding(xml));
+      expect(_sounding(once), [70, 70, 69, 75]);
+    });
+  });
 }
