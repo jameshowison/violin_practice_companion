@@ -95,6 +95,98 @@ class MusicXmlNormalizer {
     return doc.toXmlString();
   }
 
+  /// Returns [musicXml] with an `<accidental>` on every note that needs a
+  /// sign drawn — the other half of the two conventions above.
+  ///
+  /// `<alter>` is pitch only; a visible sign is `<accidental>`, and Verovio
+  /// draws none without it. The OMR wrote sounding pitch and no signs at all
+  /// (fixed at the source in homr_flutter, after these scans were made), so a
+  /// scanned A♯ in G major played and fingered as A♯ but was engraved as a
+  /// plain A. A sign is needed where a note's alteration differs from what
+  /// the key signature and the earlier notes in its bar imply, on that step,
+  /// octave and staff; a note tied over from the bar before is never
+  /// re-marked, and a sign already there is kept as it is.
+  ///
+  /// Runs on sounding-led input, so after [toSoundingPitch]. Returned
+  /// unchanged, character for character, when no sign is missing.
+  static String drawAccidentals(String musicXml) {
+    final XmlDocument doc;
+    try {
+      doc = XmlDocument.parse(musicXml);
+    } on XmlException {
+      return musicXml;
+    }
+    var changed = false;
+    for (final part in doc.findAllElements('part')) {
+      var fifths = 0;
+      for (final measure in part.findElements('measure')) {
+        final inBar = <String, int>{};
+        for (final child in measure.childElements) {
+          if (child.name.local == 'attributes') {
+            final f = child
+                .findElements('key')
+                .firstOrNull
+                ?.findElements('fifths')
+                .firstOrNull
+                ?.innerText;
+            if (f != null) fifths = int.tryParse(f.trim()) ?? fifths;
+            continue;
+          }
+          if (child.name.local != 'note') continue;
+          final pitchEl = child.findElements('pitch').firstOrNull;
+          if (pitchEl == null) continue;
+          final step =
+              pitchEl.findElements('step').firstOrNull?.innerText.trim();
+          if (step == null || step.isEmpty) continue;
+          final octave =
+              pitchEl.findElements('octave').firstOrNull?.innerText.trim();
+          final staff =
+              child.findElements('staff').firstOrNull?.innerText.trim() ?? '1';
+          final key = '$staff|$step$octave';
+          final alter = _encodedAlter(pitchEl);
+          if (child.findElements('accidental').isNotEmpty) {
+            inBar[key] = alter;
+            continue;
+          }
+          final tiedOver = child.findAllElements('tie').followedBy(
+                  child.findAllElements('tied'))
+              .any((t) => t.getAttribute('type') == 'stop');
+          if (tiedOver) continue;
+          if (alter == (inBar[key] ?? KeySignature.defaultAlter(fifths, step))) {
+            continue;
+          }
+          final sign = _alterAccidental[alter];
+          if (sign == null) continue;
+          inBar[key] = alter;
+          final at = child.children.indexWhere(
+              (c) => c is XmlElement && _afterAccidental.contains(c.name.local));
+          final el = XmlElement(XmlName('accidental'), [], [XmlText(sign)]);
+          if (at < 0) {
+            child.children.add(el);
+          } else {
+            child.children.insert(at, el);
+          }
+          changed = true;
+        }
+      }
+    }
+    return changed ? doc.toXmlString() : musicXml;
+  }
+
+  static const _alterAccidental = {
+    0: 'natural',
+    1: 'sharp',
+    -1: 'flat',
+    2: 'double-sharp',
+    -2: 'flat-flat',
+  };
+
+  /// `<note>` children that follow `<accidental>` in the MusicXML schema.
+  static const _afterAccidental = {
+    'time-modification', 'stem', 'notehead', 'notehead-text', 'staff', 'beam',
+    'notations', 'lyric', 'play', 'listen',
+  };
+
   /// Whether any note alters a pitch without drawing the sign — see the class
   /// doc: one such note is enough to show the file states sounding pitch.
   static bool _isSoundingLed(XmlDocument doc) {
