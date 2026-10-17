@@ -29,6 +29,7 @@ class PieceListScreen extends ConsumerWidget {
     final hiddenCount = ref.watch(hiddenPieceCountProvider);
     final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
     final colors = CollectionPalette.colorsFor(collections);
+    final query = ref.watch(pieceSearchProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -63,8 +64,15 @@ class PieceListScreen extends ConsumerWidget {
         ],
       ),
       body: piecesAsync.when(
-        data: (pieces) => Column(
+        data: (all) {
+          final pieces = [
+            for (final p in all)
+              if (matchesSearch(p.title, query)) p,
+          ];
+          final searching = query.trim().isNotEmpty;
+          return Column(
           children: [
+            const _SearchField(),
             // Omitted entirely until a collection exists — which is the
             // day-one state, and the reason this is a body band rather than
             // AppBar.bottom (that would need a PreferredSize height fixed
@@ -83,7 +91,15 @@ class PieceListScreen extends ConsumerWidget {
             Expanded(
               child: pieces.isEmpty
                   ? _EmptyState(
-                      state: libraryEmptyState(
+                      state: searching && all.isNotEmpty
+                          ? (
+                              message: active == null
+                                  ? 'No pieces match "${query.trim()}".'
+                                  : 'No pieces in "${library.collectionById(active)?.name}" '
+                                      'match "${query.trim()}".',
+                              offerManage: false,
+                            )
+                          : libraryEmptyState(
                         hasAnyPieces:
                             (ref.watch(piecesProvider).valueOrNull ?? const [])
                                 .isNotEmpty,
@@ -94,7 +110,8 @@ class PieceListScreen extends ConsumerWidget {
                       ),
                     )
                   : ListView.builder(
-                      itemCount: pieces.length + (hiddenCount > 0 ? 1 : 0),
+                      itemCount: pieces.length +
+                          (hiddenCount > 0 && !searching ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == pieces.length) {
                           return _HiddenFooter(count: hiddenCount);
@@ -135,10 +152,11 @@ class PieceListScreen extends ConsumerWidget {
             // filtered list would otherwise be a dead end: "all 10 pieces in
             // OMR demos are hidden" with no way through to change that. So it
             // also renders below the empty state.
-            if (pieces.isEmpty && hiddenCount > 0)
+            if (pieces.isEmpty && hiddenCount > 0 && !searching)
               _HiddenFooter(count: hiddenCount),
           ],
-        ),
+        );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error loading pieces: $e')),
       ),
@@ -170,6 +188,59 @@ class PieceListScreen extends ConsumerWidget {
             label: const Text('Import from ABC'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Search by title. Stateful only to own the controller, which is seeded from
+/// [pieceSearchProvider] so the query survives a trip into a piece and back.
+class _SearchField extends ConsumerStatefulWidget {
+  const _SearchField();
+
+  @override
+  ConsumerState<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends ConsumerState<_SearchField> {
+  late final _controller =
+      TextEditingController(text: ref.read(pieceSearchProvider));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: TextField(
+        key: const ValueKey('piece_search_field'),
+        controller: _controller,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search pieces',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: ValueListenableBuilder(
+            valueListenable: _controller,
+            builder: (_, value, _) => value.text.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    key: const ValueKey('piece_search_clear'),
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear search',
+                    onPressed: () {
+                      _controller.clear();
+                      ref.read(pieceSearchProvider.notifier).state = '';
+                    },
+                  ),
+          ),
+          isDense: true,
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: (v) => ref.read(pieceSearchProvider.notifier).state = v,
       ),
     );
   }
