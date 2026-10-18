@@ -96,18 +96,23 @@ output differs from the input. That gave the list above in a second.
 
 ## Leads: possibly related, not yet fixed
 
-1. **Ties are scanned as slurs (confirmed, likely the biggest).** homr's
-   vocabulary has no tie articulation, only `slurStart`/`slurStop` (plus a
-   `tieSlur` rhythm token the assembler ignores). The Gundagai scan has 0
-   `<tie>`/`<tied>` and 17 `<slur>`. The whole-note G in bar 4 is "slurred" to
-   the G in bar 5. Verovio draws an arc that looks right, but `MidiGenerator`
-   re-attacks the note, and anything that counts notes (practice tracking,
-   audio-sync anchors, lyric alignment) sees two notes where the player plays
-   one. A slur between two adjacent notes of the same pitch is a tie, so it
-   should become `<tie>`+`<tied>`. Decide whether that belongs in the assembler
-   (at the source) or in `_repair` (fixes existing scans). It probably needs
-   both, as with accidentals. Check whether upstream Python homr converts these
-   in its own MusicXML writer.
+1. **Ties are scanned as slurs. Fixed 2026-10-17.** The model can't tell
+   them apart, by design: upstream homr's training data turns MusicXML
+   `<tied>` (`training/datasets/music_xml_parser.py`) and kern `[`/`]`
+   (`humdrum_kern_parser.py`) into `slurStart`/`slurStop`. The PrIMuS
+   `tieSlur` token is dropped from training, so the model never emits it.
+   Upstream's own writer throws every slur away. In the corpus, a slur
+   between two *adjacent* notes of the same pitch was a tie every time
+   (Gundagai: 8, which matches the 8 ties in the reference transcription),
+   **except** where the notes carry tenuto marks. Those are portato
+   (Minuets 2 and 3), and the abc reference keeps them as slurs. That rule
+   is applied in two places, as with accidentals: at the source,
+   `_slursToTies` in homr_flutter's assembler, before `_addAccidentals`;
+   and for existing scans, `MusicXmlNormalizer.slursToTies` in `_repair`,
+   which skips any file that already writes a `<tie>`. A survey of all 48
+   files changed only the two Gundagai scans. Tests: `test/ties_test.dart`,
+   "scanned slurs". Not covered: ties within chords, and an unmarked slur
+   over repeated notes inside one bar, which would be read as a tie.
 2. **Bundled `homr_*` fixtures.** They are repaired in memory, but any test or
    tool that reads them raw still sees no signs. Consider rewriting the asset
    files through `_repair` once, and the same for any other generated fixture.

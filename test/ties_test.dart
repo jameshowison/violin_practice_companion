@@ -177,6 +177,120 @@ $notes</measure></part></score-partwise>''';
     });
   });
 
+  group('scanned slurs', () {
+    // The OMR writes every tie as a slur (see MusicXmlNormalizer.slursToTies).
+    String bar(String notes, {String number = '1', bool attrs = true}) =>
+        '<measure number="$number">'
+        '${attrs ? '<attributes><divisions>1</divisions><key><fifths>1</fifths></key></attributes>' : ''}'
+        '$notes</measure>';
+    String doc(String measures) => '<score-partwise version="3.1">'
+        '<part-list><score-part id="P1"/></part-list>'
+        '<part id="P1">$measures</part></score-partwise>';
+    String note(String step,
+            {int? alter, String slur = '', String marks = '', bool rest = false}) =>
+        '<note>${rest ? '<rest/>' : '<pitch><step>$step</step>${alter == null ? '' : '<alter>$alter</alter>'}<octave>4</octave></pitch>'}'
+        '<duration>1</duration><type>quarter</type><voice>1</voice><staff>1</staff>'
+        '${slur.isEmpty && marks.isEmpty ? '' : '<notations>${slur.isEmpty ? '' : '<slur type="$slur"/>'}${marks.isEmpty ? '' : '<articulations><$marks/></articulations>'}</notations>'}'
+        '</note>';
+    List<(bool, bool)> ties(String xml) => parser
+        .parse(MusicXmlNormalizer.slursToTies(xml))
+        .allNotes
+        .where((n) => !n.isRest)
+        .map((n) => (n.tieStart, n.tieStop))
+        .toList();
+
+    test('a slur to the same pitch across a barline is a tie', () {
+      final xml = doc(bar(note('C') + note('G', slur: 'start')) +
+          bar(note('G', slur: 'stop') + note('A'), number: '2', attrs: false));
+      final out = MusicXmlNormalizer.slursToTies(xml);
+      expect(out, isNot(contains('<slur')));
+      expect(ties(xml), [(false, false), (true, false), (false, true), (false, false)]);
+      // Played as one held note.
+      final midi = gen.generate(parser.parse(out), 60);
+      expect(midi.notes.length, 3);
+    });
+
+    test('a chain of three reads stop, then start, in the middle', () {
+      final xml = doc(bar(note('G', slur: 'start') + note('G', slur: 'stop')) +
+          bar(note('G', slur: 'start'), number: '2', attrs: false) +
+          bar(note('G', slur: 'stop'), number: '3', attrs: false));
+      // The middle note's slur stop and start become one tied chain.
+      final chain = doc(bar(note('G', slur: 'start') +
+              '<note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration>'
+                  '<type>quarter</type><voice>1</voice><staff>1</staff>'
+                  '<notations><slur type="stop"/><slur type="start"/></notations></note>') +
+          bar(note('G', slur: 'stop'), number: '2', attrs: false));
+      expect(ties(chain), [(true, false), (true, true), (false, true)]);
+      final out = MusicXmlNormalizer.slursToTies(chain);
+      expect(out, contains('<tie type="stop"/><tie type="start"/>'));
+      expect(ties(xml), [(true, false), (false, true), (true, false), (false, true)]);
+    });
+
+    test('portato, a new pitch, a rest between, or a longer slur stay slurs', () {
+      for (final xml in [
+        doc(bar(note('D', slur: 'start', marks: 'tenuto') +
+            note('D', slur: 'stop', marks: 'tenuto'))),
+        doc(bar(note('D', slur: 'start') + note('E', slur: 'stop'))),
+        doc(bar(note('D', slur: 'start') + note('', rest: true) +
+            note('D', slur: 'stop'))),
+        doc(bar(note('D', slur: 'start') + note('E') + note('D', slur: 'stop'))),
+        // Same step, different pitch.
+        doc(bar(note('F', alter: 1, slur: 'start') + note('F', slur: 'stop'))),
+      ]) {
+        expect(MusicXmlNormalizer.slursToTies(xml), xml);
+      }
+    });
+
+    test('a file that already writes ties is left alone', () {
+      final xml = doc(bar(note('G', slur: 'start') + note('G', slur: 'stop') +
+          '<note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration>'
+              '<tie type="start"/><type>quarter</type></note>'));
+      expect(MusicXmlNormalizer.slursToTies(xml), xml);
+    });
+
+    test('a sharp tied over the barline is not drawn again', () {
+      // C major, A♯ tied into the next bar.
+      final xml = doc(bar(note('A', alter: 1, slur: 'start')) +
+              bar(note('A', alter: 1, slur: 'stop'), number: '2', attrs: false))
+          .replaceFirst('<fifths>1</fifths>', '<fifths>0</fifths>');
+      final out = MusicXmlNormalizer.drawAccidentals(
+          MusicXmlNormalizer.slursToTies(xml));
+      expect('<accidental>sharp</accidental>'.allMatches(out).length, 1);
+    });
+
+    test('the Gundagai scan gets its eight ties, and nothing else changes', () {
+      final raw = MusicXmlNormalizer.toSoundingPitch(
+          File('test/fixtures/gundagai_scan.musicxml').readAsStringSync());
+      final out = MusicXmlNormalizer.slursToTies(raw);
+      expect('<tie type="start"/>'.allMatches(out).length, 8);
+      expect('<tied type="start"/>'.allMatches(out).length, 8);
+      final before = parser.parse(raw);
+      final after = parser.parse(out);
+      final notes = after.allNotes.where((n) => !n.isRest).toList();
+      for (var i = 0; i < notes.length; i++) {
+        if (!notes[i].tieStart) continue;
+        expect(notes[i + 1].tieStop, isTrue, reason: 'note $i');
+        expect(notes[i + 1].midiNumber, notes[i].midiNumber, reason: 'note $i');
+      }
+      expect(after.allNotes.length, before.allNotes.length);
+      expect(gen.generate(before, 100).notes.length -
+          gen.generate(after, 100).notes.length, 8);
+      expect(MusicXmlNormalizer.slursToTies(out), out, reason: 'idempotent');
+    });
+
+    test('portato minuets and MuseScore files come back unchanged', () {
+      for (final f in [
+        'assets/fixtures/homr_14_minuet_no_2.xml',
+        'assets/fixtures/homr_15_minuet_no_3.xml',
+        'assets/fixtures/happy_farmer_musescore.xml',
+        'assets/fixtures/gossec_gavotte.xml',
+      ]) {
+        final xml = File(f).readAsStringSync();
+        expect(MusicXmlNormalizer.slursToTies(xml), xml, reason: f);
+      }
+    });
+  });
+
   group('editing', () {
     final xml = File('test/fixtures/gundagai.musicxml').readAsStringSync();
     final piece = parser.parse(xml);
