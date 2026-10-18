@@ -88,12 +88,14 @@ class SectionDetector {
   /// pickup. Starting the section there is what lets a section-aware staff
   /// open the line with it.
   ///
-  /// Only a piece that HAS an opening pickup gets lead-ins, and a lead-in is
-  /// never longer than that pickup. Within the previous bar it starts on the
-  /// first sounding note after the phrase's END — a rest, a note held over
-  /// from the bar before, or a note of half a bar or more (Gundagai's tied
-  /// G, the rest in `A2 z2 B2c2`). With no such ending, it is the tail as
-  /// long as the opening pickup, on a note boundary, skipping leading rests.
+  /// Only a piece that HAS an opening pickup gets lead-ins. Within the
+  /// previous bar a lead-in starts on the first sounding note after the
+  /// phrase's END — a rest, a note held over from the bar before, or a note
+  /// of half a bar or more (Gundagai's tied G, the rest in `A2 z2 B2c2`) —
+  /// however much of the bar that leaves: a song's lead-in is as long as its
+  /// words, and Gundagai's run to three beats against a half-beat opening
+  /// pickup. With no such ending, it is the tail as long as the opening
+  /// pickup, on a note boundary, skipping leading rests.
   /// The first section's lead-in is the opening pickup itself, so a first
   /// section starting on the bar after it moves back onto the pickup bar. Any
   /// section already off its downbeat is left alone, as is a start at a
@@ -133,18 +135,24 @@ class SectionDetector {
     final here = measures[i], prev = measures[i - 1];
     if (here.repeatStart && !prev.repeatEnd) return null;
     if (prev.actualUnits != fullBar) return null;
-    final afterEnd = _afterPhraseEnd(prev.notes, pickup, fullBar);
+    final afterEnd = _afterPhraseEnd(prev.notes, fullBar);
     if (afterEnd == _noLeadIn) return null;
-    final j = afterEnd ?? _pickupTail(prev.notes, pickup);
+    var j = afterEnd ?? _pickupTail(prev.notes, pickup);
     if (j == null) return null;
     if (prev.repeatEnd) {
       // The tail of a `:|` bar also leads back into the repeat. It is this
       // section's lead-in only when it is the same music as the lead-in into
       // that repeat, so a section layout can move the repeat to include it
-      // (`movedRepeats`).
+      // (`movedRepeats`). Failing that after the phrase's end, the
+      // pickup-length tail may be (Galopede's `A4 A2 dc :|`, whose `dc` is).
       final o = repeatTargetIndex(measures, i - 1);
-      if (o <= 0 || !sameMusic(prev.notes.sublist(j), measures[o - 1].notes)) {
-        return null;
+      if (o <= 0) return null;
+      bool leadsBack(int k) =>
+          sameMusic(prev.notes.sublist(k), measures[o - 1].notes);
+      if (!leadsBack(j)) {
+        final t = afterEnd == null ? null : _pickupTail(prev.notes, pickup);
+        if (t == null || !leadsBack(t)) return null;
+        j = t;
       }
     }
     return Section(label: s.label, startMeasure: prev.number, startNote: j);
@@ -155,12 +163,11 @@ class SectionDetector {
   /// [_afterPhraseEnd]'s answer when the bar itself ends the phrase.
   static const _noLeadIn = -1;
 
-  /// The first sounding note after the last phrase ending in [notes], if what
-  /// follows it is a lead-in no longer than [pickup]. [_noLeadIn] when nothing
-  /// sounds after the ending (the bar ends on a rest or a long note, so the
-  /// next phrase starts on the downbeat); null when there is no ending to go
-  /// by, or too much follows it.
-  static int? _afterPhraseEnd(List<NoteEvent> notes, int pickup, int fullBar) {
+  /// The first sounding note after the last phrase ending in [notes].
+  /// [_noLeadIn] when nothing sounds after the ending (the bar ends on a rest
+  /// or a long note, so the next phrase starts on the downbeat); null when
+  /// there is no ending to go by.
+  static int? _afterPhraseEnd(List<NoteEvent> notes, int fullBar) {
     var end = -1;
     for (var k = 0; k < notes.length; k++) {
       final n = notes[k];
@@ -172,12 +179,7 @@ class SectionDetector {
     while (j < notes.length && (notes[j].isChord || notes[j].isRest)) {
       j++;
     }
-    if (j >= notes.length) return _noLeadIn;
-    var tail = 0;
-    for (var k = j; k < notes.length; k++) {
-      if (!notes[k].isChord) tail += _units(notes[k]);
-    }
-    return tail <= pickup ? j : null;
+    return j >= notes.length ? _noLeadIn : j;
   }
 
   /// The tail of [notes] as long as [pickup], from its first sounding note;
