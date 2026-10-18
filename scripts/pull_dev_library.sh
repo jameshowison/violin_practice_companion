@@ -49,8 +49,9 @@ else
   PLIST="$TMP/prefs.plist"
   mkdir -p "$DOCS"
   # A copy can fail because the item doesn't exist (CoreDevice error 7000:
-  # "Failed to retrieve the file node"), which is fine: a fresh install has no
-  # media/, no prefs yet. ANY other failure (a locked iPad, a dropped tunnel)
+  # "Failed to retrieve the file node"; on newer iOS, NSCocoaErrorDomain error
+  # 260, "no such file"), which is fine: a fresh install has no media/, no
+  # prefs yet. ANY other failure (a locked iPad, a dropped tunnel)
   # must stop the sync: a folder that silently failed to copy looks exactly
   # like a folder the user emptied, and the merge would delete it all from the
   # library.
@@ -59,7 +60,9 @@ else
     if ! out=$(xcrun devicectl device copy from --device "$DEVICE" --quiet \
         --domain-type appDataContainer --domain-identifier "$BUNDLE" \
         --source "$1" --destination "$2" 2>&1); then
-      if grep -q "error 7000" <<<"$out"; then return 0; fi
+      if grep -qE "error 7000|NSCocoaErrorDomain error 260" <<<"$out"; then
+        return 0
+      fi
       echo "copy of $1 from $DEVICE failed; stopping before anything is merged:" >&2
       echo "$out" | grep -m3 -E "ERROR|error" >&2
       echo "(is the device unlocked and awake?)" >&2
