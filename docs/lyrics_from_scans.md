@@ -78,7 +78,9 @@ A standard offline hyphenation dictionary may cover that without a model.
 - **Slurs: only homr_flutter.** Upstream Python homr writes empty `<notations/>`;
   homr_flutter (what the app runs) keeps `slurStart`/`slurStop`. The spike
   restores them from the Python token log. Ties come out as slurs in both, so a
-  slur stop on the same pitch is read as a tie.
+  slur stop on the same pitch is read as a tie. The app and homr_flutter now
+  make the same conversion themselves (`MusicXmlNormalizer.slursToTies`), so
+  scans arrive with real `<tie>`s, and portato with tenuto marks stays a slur.
 - **No note x-positions.** They weren't needed.
 
 ## How the spike works

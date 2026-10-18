@@ -215,12 +215,13 @@ class PieceRepository {
   /// edit it and you get the repaired form — which is what keeps a single
   /// convention in force everywhere downstream.
   static String _repair(String musicXml) => MusicXmlBeamer.rebeam(
-      MusicXmlNormalizer.drawAccidentals(
-          MusicXmlNormalizer.toSoundingPitch(musicXml)));
+      MusicXmlNormalizer.drawAccidentals(MusicXmlNormalizer.slursToTies(
+          MusicXmlNormalizer.toSoundingPitch(musicXml))));
 
   /// A piece's MusicXML, repaired: key-signature accidentals resolved into the
-  /// sounding pitch, a sign drawn on every note that needs one, and beams
-  /// written for any measure that states none.
+  /// sounding pitch, scanned slurs that are really ties made ties, a sign
+  /// drawn on every note that needs one, and beams written for any measure
+  /// that states none.
   ///
   /// This is the one place every piece's XML is read — bundled fixture or file
   /// — so it is where a tune imported before those passes existed gets fixed. A

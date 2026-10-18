@@ -173,6 +173,107 @@ class MusicXmlNormalizer {
     return changed ? doc.toXmlString() : musicXml;
   }
 
+  /// Returns [musicXml] with every slur that is really a tie written as one:
+  /// `<tie>` (held, not struck again) plus the `<tied>` arc.
+  ///
+  /// The OMR model has one token for both. homr's training data maps MusicXML
+  /// `<tied>` and kern `[`/`]` to `slurStart`/`slurStop`, so a scan has no
+  /// ties at all: Verovio draws the arc, but [MidiGenerator] strikes the held
+  /// note again. A slur from one note to the very next in its voice, at the
+  /// same pitch, is a tie, unless either note carries an articulation. A
+  /// slur over repeated notes with tenuto or staccato marks is portato
+  /// (Minuet 2, bar 2), and stays a slur.
+  ///
+  /// A file that already has a `<tie>` or `<tied>` anywhere can tell the two
+  /// apart, so it is never second-guessed. Grace and chord notes are left
+  /// alone. Returned unchanged, character for character, when nothing
+  /// converts. Run it before [drawAccidentals], so a sharp tied over a
+  /// barline is not marked again.
+  static String slursToTies(String musicXml) {
+    final XmlDocument doc;
+    try {
+      doc = XmlDocument.parse(musicXml);
+    } on XmlException {
+      return musicXml;
+    }
+    if (doc.findAllElements('tie').isNotEmpty ||
+        doc.findAllElements('tied').isNotEmpty) {
+      return musicXml;
+    }
+    var changed = false;
+    for (final part in doc.findAllElements('part')) {
+      // Per staff and voice: the last note (or rest), and the note whose
+      // slur is still open.
+      final last = <String, XmlElement>{};
+      final open = <String, XmlElement>{};
+      for (final note in part.findAllElements('note')) {
+        if (note.findElements('grace').isNotEmpty ||
+            note.findElements('chord').isNotEmpty) {
+          continue;
+        }
+        final key = '${note.findElements('staff').firstOrNull?.innerText.trim() ?? '1'}'
+            '|${note.findElements('voice').firstOrNull?.innerText.trim() ?? '1'}';
+        final prev = last[key];
+        last[key] = note;
+        final stop = _slur(note, 'stop');
+        if (stop != null) {
+          final start = open.remove(key);
+          final startSlur = start == null ? null : _slur(start, 'start');
+          if (start != null &&
+              startSlur != null &&
+              identical(start, prev) &&
+              _samePitch(start, note) &&
+              !_hasArticulation(start) &&
+              !_hasArticulation(note)) {
+            _tie(start, startSlur, 'start');
+            _tie(note, stop, 'stop');
+            changed = true;
+          }
+        }
+        if (_slur(note, 'start') != null) open[key] = note;
+      }
+    }
+    return changed ? doc.toXmlString() : musicXml;
+  }
+
+  static XmlElement? _slur(XmlElement note, String type) => note
+      .findElements('notations')
+      .expand((n) => n.findElements('slur'))
+      .where((s) => s.getAttribute('type') == type)
+      .firstOrNull;
+
+  static bool _samePitch(XmlElement a, XmlElement b) {
+    final pa = a.findElements('pitch').firstOrNull;
+    final pb = b.findElements('pitch').firstOrNull;
+    if (pa == null || pb == null) return false;
+    String text(XmlElement p, String name) =>
+        p.findElements(name).firstOrNull?.innerText.trim() ?? '';
+    return text(pa, 'step') == text(pb, 'step') &&
+        text(pa, 'octave') == text(pb, 'octave') &&
+        _encodedAlter(pa) == _encodedAlter(pb);
+  }
+
+  static bool _hasArticulation(XmlElement note) => note
+      .findElements('notations')
+      .expand((n) => n.findElements('articulations'))
+      .any((a) => a.childElements.isNotEmpty);
+
+  /// Turns [slur] on [note] into a `<tied>` arc in place, and adds the
+  /// sounding `<tie>` after `<duration>` (after a `<tie>` already there, so a
+  /// note in the middle of a chain reads stop, then start).
+  static void _tie(XmlElement note, XmlElement slur, String type) {
+    slur.replace(XmlElement(XmlName('tied'), [XmlAttribute(XmlName('type'), type)]));
+    final children = note.children;
+    var at = children.lastIndexWhere(
+        (c) => c is XmlElement && c.name.local == 'tie');
+    if (at < 0) {
+      at = children.indexWhere(
+          (c) => c is XmlElement && c.name.local == 'duration');
+    }
+    children.insert(
+        at + 1, XmlElement(XmlName('tie'), [XmlAttribute(XmlName('type'), type)]));
+  }
+
   static const _alterAccidental = {
     0: 'natural',
     1: 'sharp',
