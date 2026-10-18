@@ -241,10 +241,14 @@ void main() {
       expect(starts(tune([n(q)], [n(q), n(q), n(q), n(q)])), '1:0 9:3');
     });
 
-    test('a lead-in is never longer than the pickup', () {
+    test('after a phrase end, a lead-in may outrun the pickup', () {
       // After the held note, three quarters follow; the pickup is one.
       expect(starts(tune([n(q)], [n(q, tieStop: true), n(q), n(q), n(q)])),
-          '1:0 9:3');
+          '1:0 9:1');
+    });
+
+    test('with no phrase end, a lead-in is as long as the pickup', () {
+      expect(starts(tune([n(q)], [n(q), n(q), n(q), n(q)])), '1:0 9:3');
     });
 
     test('no opening pickup, no lead-ins', () {
