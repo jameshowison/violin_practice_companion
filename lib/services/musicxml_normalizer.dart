@@ -160,7 +160,7 @@ class MusicXmlNormalizer {
           inBar[key] = alter;
           final at = child.children.indexWhere(
               (c) => c is XmlElement && _afterAccidental.contains(c.name.local));
-          final el = XmlElement(XmlName('accidental'), [], [XmlText(sign)]);
+          final el = XmlElement(XmlName.parts('accidental'), [], [XmlText(sign)]);
           if (at < 0) {
             child.children.add(el);
           } else {
@@ -262,7 +262,7 @@ class MusicXmlNormalizer {
   /// sounding `<tie>` after `<duration>` (after a `<tie>` already there, so a
   /// note in the middle of a chain reads stop, then start).
   static void _tie(XmlElement note, XmlElement slur, String type) {
-    slur.replace(XmlElement(XmlName('tied'), [XmlAttribute(XmlName('type'), type)]));
+    slur.replace(XmlElement(XmlName.parts('tied'), [XmlAttribute(XmlName.parts('type'), type)]));
     final children = note.children;
     var at = children.lastIndexWhere(
         (c) => c is XmlElement && c.name.local == 'tie');
@@ -271,7 +271,7 @@ class MusicXmlNormalizer {
           (c) => c is XmlElement && c.name.local == 'duration');
     }
     children.insert(
-        at + 1, XmlElement(XmlName('tie'), [XmlAttribute(XmlName('type'), type)]));
+        at + 1, XmlElement(XmlName.parts('tie'), [XmlAttribute(XmlName.parts('type'), type)]));
   }
 
   static const _alterAccidental = {
@@ -325,7 +325,7 @@ class MusicXmlNormalizer {
     final stepEl = pitchEl.findElements('step').first;
     pitchEl.children.insert(
       pitchEl.children.indexOf(stepEl) + 1,
-      XmlElement(XmlName('alter'), [], [XmlText('$alter')]),
+      XmlElement(XmlName.parts('alter'), [], [XmlText('$alter')]),
     );
   }
 

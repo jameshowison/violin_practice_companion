@@ -235,8 +235,8 @@ class TabScoreGenerator {
       Map<String, String> attrs = const {},
       List<XmlElement> children = const []}) {
     return XmlElement(
-      XmlName(name),
-      [for (final e in attrs.entries) XmlAttribute(XmlName(e.key), e.value)],
+      XmlName.parts(name),
+      [for (final e in attrs.entries) XmlAttribute(XmlName.parts(e.key), e.value)],
       [if (text != null) XmlText(text), ...children],
     );
   }

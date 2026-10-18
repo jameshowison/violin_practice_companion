@@ -214,17 +214,17 @@ String splitBarsAtSections(String musicXml, List<BarSplit> splits) {
         c.remove();
       }
       measure.children.addAll(slices.first.map(_detach));
-      measure.children.add(XmlElement(XmlName('barline'), [
-        XmlAttribute(XmlName('location'), 'right'),
+      measure.children.add(XmlElement(XmlName.parts('barline'), [
+        XmlAttribute(XmlName.parts('location'), 'right'),
       ], [
-        XmlElement(XmlName('bar-style'), [], [XmlText('none')]),
+        XmlElement(XmlName.parts('bar-style'), [], [XmlText('none')]),
       ]));
       var anchor = measure;
       for (var k = 1; k < slices.length; k++) {
-        final slice = XmlElement(XmlName('measure'), [
-          XmlAttribute(XmlName('number'),
+        final slice = XmlElement(XmlName.parts('measure'), [
+          XmlAttribute(XmlName.parts('number'),
               '$number${String.fromCharCode(0x61 + k)}'),
-          XmlAttribute(XmlName('implicit'), 'yes'),
+          XmlAttribute(XmlName.parts('implicit'), 'yes'),
         ], [
           ...slices[k].map(_detach),
           if (k == slices.length - 1) ...rightBarlines.map(_detach),
@@ -479,8 +479,8 @@ num _measureDuration(XmlElement measure) {
 /// pattern rather than assume.
 void _insertPrintBreak(XmlElement measure) {
   final printBreak = XmlElement(
-    XmlName('print'),
-    [XmlAttribute(XmlName('new-system'), 'yes')],
+    XmlName.parts('print'),
+    [XmlAttribute(XmlName.parts('new-system'), 'yes')],
   );
   final printIdx = measure.children
       .indexWhere((n) => n is XmlElement && n.name.local == 'print');
@@ -510,18 +510,18 @@ int _attrRank(XmlElement e) {
 void _hidePreamble(XmlElement measure, _AttrState state) {
   var attributes = measure.findElements('attributes').firstOrNull;
   final isNewBlock = attributes == null;
-  attributes ??= XmlElement(XmlName('attributes'));
+  attributes ??= XmlElement(XmlName.parts('attributes'));
 
   if (attributes.findElements('clef').isEmpty) {
     attributes.children.add(_hiddenElement('clef', [
-      XmlElement(XmlName('sign'), [], [XmlText(state.clefSign)]),
-      XmlElement(XmlName('line'), [], [XmlText('${state.clefLine}')]),
+      XmlElement(XmlName.parts('sign'), [], [XmlText(state.clefSign)]),
+      XmlElement(XmlName.parts('line'), [], [XmlText('${state.clefLine}')]),
     ]));
   }
   if (attributes.findElements('time').isEmpty) {
     attributes.children.add(_hiddenElement('time', [
-      XmlElement(XmlName('beats'), [], [XmlText('${state.beats}')]),
-      XmlElement(XmlName('beat-type'), [], [XmlText('${state.beatType}')]),
+      XmlElement(XmlName.parts('beats'), [], [XmlText('${state.beats}')]),
+      XmlElement(XmlName.parts('beat-type'), [], [XmlText('${state.beatType}')]),
     ]));
   }
 
@@ -539,5 +539,5 @@ void _hidePreamble(XmlElement measure, _AttrState state) {
 }
 
 XmlElement _hiddenElement(String name, List<XmlElement> children) =>
-    XmlElement(XmlName(name), [XmlAttribute(XmlName('print-object'), 'no')],
+    XmlElement(XmlName.parts(name), [XmlAttribute(XmlName.parts('print-object'), 'no')],
         children);

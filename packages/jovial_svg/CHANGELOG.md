@@ -2,6 +2,8 @@
 - Text: use the first `font-family` entry as the primary font instead of
   passing every entry as a fallback with no primary (lib/src/common.dart,
   `_doWithPainter`). Upstream, an SVG's font-family never affects Latin text.
+- Require `xml` ^7.0.1, as upstream 1.1.30 does. Upstream made no code change
+  for it: its parsers are identical to these but for formatting.
 
 ## [1.1.29] - February 2026
 - Update dependencies

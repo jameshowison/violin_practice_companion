@@ -16,7 +16,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
-  xml: ^6.5.0
+  xml: ^7.0.1
   webview_flutter: ^4.10.0
   webview_flutter_web: ^0.2.3+4
   web: ^1.1.1
@@ -50,7 +50,7 @@ dependencies:
     git:
       url: https://github.com/jameshowison/homr_flutter.git
       path: packages/homr_flutter
-      ref: v0.1.2
+      ref: v0.2.0
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
   # Alternative scan sources (mobile/desktop only — imported solely in
@@ -96,7 +96,7 @@ dependencies:
   # (pure Dart), `printing` hands them to the system print/share sheet. Both
   # declare iOS, Android, macOS and web, so no conditional-import split.
   pdf: ^3.12.0
-  printing: ^5.14.3
+  printing: ^5.15.1
 
 dev_dependencies:
   flutter_test:
@@ -104,6 +104,14 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.15
   riverpod_generator: ^2.6.5
+
+# verovio_flutter (0.3.3, the latest) still asks for xml ^6.5.0, while
+# printing 5.15 needs xml 7. It only uses xml's event API (XmlEventDecoder,
+# localName, qualifiedName, for its hit maps), which xml 7 keeps unchanged.
+# Drop this once verovio_flutter allows xml 7. A pubspec_overrides.yaml
+# replaces this whole section, so a local one must repeat it.
+dependency_overrides:
+  xml: ^7.0.1
 
 flutter:
   uses-material-design: true

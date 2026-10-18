@@ -181,8 +181,8 @@ class MusicXmlBeamer {
   /// it: after the note's own attributes, before `<notations>` and `<lyric>`.
   static void _addBeam(XmlElement noteEl, int level, String state) {
     final beam = XmlElement(
-      XmlName('beam'),
-      [XmlAttribute(XmlName('number'), '$level')],
+      XmlName.parts('beam'),
+      [XmlAttribute(XmlName.parts('number'), '$level')],
       [XmlText(state)],
     );
     final at = noteEl.children.indexWhere((n) =>

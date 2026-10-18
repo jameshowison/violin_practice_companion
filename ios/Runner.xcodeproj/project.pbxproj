@@ -504,11 +504,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-Wl,-u,_net_nfet_printing_set_document",
-					"-Wl,-u,_net_nfet_printing_set_error",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -692,11 +687,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-Wl,-u,_net_nfet_printing_set_document",
-					"-Wl,-u,_net_nfet_printing_set_error",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -719,11 +709,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-Wl,-u,_net_nfet_printing_set_document",
-					"-Wl,-u,_net_nfet_printing_set_error",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
