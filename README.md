@@ -466,7 +466,7 @@ homr_flutter:
   git:
     url: https://github.com/jameshowison/homr_flutter.git
     path: packages/homr_flutter
-    ref: v0.1.0
+    ref: v0.2.0
 ```
 
 A fresh clone needs nothing next to it: `flutter pub get` fetches the tag.
@@ -489,6 +489,7 @@ tag:
 dependency_overrides:
   homr_flutter:
     path: ../homr_flutter/packages/homr_flutter
+  xml: ^7.0.1   # repeats pubspec.yaml's override; this file replaces that section
 ```
 
 Delete it to build exactly what's pinned. **To upgrade**: in homr_flutter, bump
