@@ -35,35 +35,35 @@ String buildPreambleXml(String musicXml) {
       4;
 
   final rest = XmlElement(
-    XmlName('note'),
-    [XmlAttribute(XmlName('print-object'), 'no')],
+    XmlName.parts('note'),
+    [XmlAttribute(XmlName.parts('print-object'), 'no')],
     [
-      XmlElement(XmlName('rest')),
-      XmlElement(XmlName('duration'), [], [XmlText('${divisions * beats}')]),
+      XmlElement(XmlName.parts('rest')),
+      XmlElement(XmlName.parts('duration'), [], [XmlText('${divisions * beats}')]),
     ],
   );
 
   final measure = XmlElement(
-    XmlName('measure'),
-    [XmlAttribute(XmlName('number'), '1')],
+    XmlName.parts('measure'),
+    [XmlAttribute(XmlName.parts('number'), '1')],
     [attributes, rest],
   );
 
   final part = XmlElement(
-    XmlName('part'),
-    [XmlAttribute(XmlName('id'), 'P1')],
+    XmlName.parts('part'),
+    [XmlAttribute(XmlName.parts('id'), 'P1')],
     [measure],
   );
 
-  final partList = XmlElement(XmlName('part-list'), [], [
-    XmlElement(XmlName('score-part'), [XmlAttribute(XmlName('id'), 'P1')], [
-      XmlElement(XmlName('part-name'), [], [XmlText('Music')]),
+  final partList = XmlElement(XmlName.parts('part-list'), [], [
+    XmlElement(XmlName.parts('score-part'), [XmlAttribute(XmlName.parts('id'), 'P1')], [
+      XmlElement(XmlName.parts('part-name'), [], [XmlText('Music')]),
     ]),
   ]);
 
   final root = XmlElement(
-    XmlName('score-partwise'),
-    [XmlAttribute(XmlName('version'), '4.0')],
+    XmlName.parts('score-partwise'),
+    [XmlAttribute(XmlName.parts('version'), '4.0')],
     [partList, part],
   );
 

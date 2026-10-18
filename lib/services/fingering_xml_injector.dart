@@ -89,12 +89,12 @@ class FingeringXmlInjector {
   static void _setFingering(XmlElement noteEl, String label) {
     var notations = noteEl.findElements('notations').firstOrNull;
     if (notations == null) {
-      notations = XmlElement(XmlName('notations'));
+      notations = XmlElement(XmlName.parts('notations'));
       noteEl.children.add(notations);
     }
     var technical = notations.findElements('technical').firstOrNull;
     if (technical == null) {
-      technical = XmlElement(XmlName('technical'));
+      technical = XmlElement(XmlName.parts('technical'));
       notations.children.add(technical);
     }
     final existing = technical.findElements('fingering').firstOrNull;
@@ -104,7 +104,7 @@ class FingeringXmlInjector {
         ..add(XmlText(label));
     } else {
       technical.children.add(
-        XmlElement(XmlName('fingering'), [], [XmlText(label)]),
+        XmlElement(XmlName.parts('fingering'), [], [XmlText(label)]),
       );
     }
   }

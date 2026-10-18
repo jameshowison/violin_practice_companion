@@ -185,7 +185,7 @@ class MeasureXmlEditor {
   static void _setChildText(XmlElement element, String name, String text) {
     final child = element.findElements(name).firstOrNull;
     if (child == null) {
-      element.children.add(XmlElement(XmlName(name), [], [XmlText(text)]));
+      element.children.add(XmlElement(XmlName.parts(name), [], [XmlText(text)]));
     } else {
       child.innerText = text;
     }
@@ -310,7 +310,7 @@ class MeasureXmlEditor {
 
     var block = to.findElements('attributes').firstOrNull;
     if (block == null) {
-      block = XmlElement(XmlName('attributes'));
+      block = XmlElement(XmlName.parts('attributes'));
       // <attributes> precedes the measure's notes; a <print> stays first.
       final printIdx = to.children
           .indexWhere((n) => n is XmlElement && n.name.local == 'print');
