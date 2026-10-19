@@ -56,14 +56,22 @@ class _MediaControlsState extends ConsumerState<MediaControls> {
       // which hands the slider ~100pt back.
       child: LayoutBuilder(builder: (context, constraints) {
         final narrow = constraints.maxWidth < 440;
+        // The default inactive track all but vanishes against this bar's
+        // background, so you couldn't see how much range was left; outline
+        // is the scheme's own "visible but secondary" grey.
+        final sliders = theme.sliderTheme.copyWith(
+            inactiveTrackColor: theme.colorScheme.outline,
+            activeTickMarkColor: Colors.transparent,
+            inactiveTickMarkColor: Colors.transparent);
         return Theme(
           data: narrow
               // Density alone leaves each button padded back out to a 48pt
               // tap target; shrink-wrapping lets it come down to 40.
               ? theme.copyWith(
                   visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap)
-              : theme,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  sliderTheme: sliders)
+              : theme.copyWith(sliderTheme: sliders),
           child: Row(
             children: [
               _MediaPicker(
@@ -757,19 +765,25 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
 
         return Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.play_arrow),
-              iconSize: 26,
-              tooltip: 'Play',
-              onPressed: () => service.play(
-                  fromMeasure: startMeasure,
-                  fromNote: ref.read(playbackStartNoteProvider)),
-            ),
-            IconButton(
-              icon: const Icon(Icons.pause),
-              iconSize: 22,
-              tooltip: 'Pause',
-              onPressed: service.pause,
+            // One button that is whichever of Play and Pause makes sense now,
+            // as on the synthesized transport — two side by side cost the
+            // phone's play bar 40pt of slider.
+            StreamBuilder<PlaybackState>(
+              stream: service.state,
+              initialData: service.playbackState,
+              builder: (context, snap) {
+                final isPlaying = snap.data == PlaybackState.playing;
+                return IconButton(
+                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                  iconSize: 26,
+                  tooltip: isPlaying ? 'Pause' : 'Play',
+                  onPressed: isPlaying
+                      ? service.pause
+                      : () => service.play(
+                          fromMeasure: startMeasure,
+                          fromNote: ref.read(playbackStartNoteProvider)),
+                );
+              },
             ),
             // Speed scales the real playback rate via just_audio's setSpeed.
             // Safe to change at any time: the highlight clock reads the
