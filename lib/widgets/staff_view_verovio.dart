@@ -883,7 +883,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final viewport = _scrollController.position.viewportDimension;
     final offset = _scrollController.offset;
     final visibleTop = offset;
-    final visibleBottom = offset + viewport;
+    // Less whatever sits over the view's bottom edge (the phone's play tray),
+    // so the turn comes before the cursor slides under it, not after.
+    final visibleBottom =
+        offset + viewport - ref.read(staffViewBottomInsetProvider);
     if (bottom <= visibleBottom - 8 && top >= visibleTop + 8) return;
     // Anchor the cursor's system ~25% down the viewport.
     var target = top - viewport * 0.25;
@@ -1113,6 +1116,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _renderHeight = renderH;
         return SingleChildScrollView(
           controller: _scrollController,
+          // Room past the last system to scroll it clear of the play tray.
+          padding: EdgeInsets.only(
+              bottom: ref.watch(notationBottomClearanceProvider)),
           // The pinch preview. Transform.scale changes what is drawn without
           // changing what is laid out, so the page grows past its box and the
           // scroll view's own clip trims it — which is what "zoomed into the

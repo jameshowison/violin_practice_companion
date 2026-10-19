@@ -4,11 +4,11 @@ Do not use flutter-all:flutter-device-orchestrator to launch the app; it doesn't
 
 Treat `flutter run` as a persistent dev server for the session, not a one-shot command.
 
-Simulators are referred to by name, never by UDID: **`dev-iphone`** (iPhone 17) is the primary dev target, **`dev-ipad`** (iPad Pro 11-inch M5) is the secondary. Both `simctl` and `flutter -d` resolve these names. See the README "Simulator names" section. If a name doesn't resolve, the simulator hasn't been renamed on this machine — check `xcrun simctl list devices` rather than guessing a UDID.
+Simulators are referred to by name, never by UDID: **`dev-iphone-se`** (iPhone SE 3rd gen, 375×667, the user's own phone) is the primary compact target — check phone layouts there first; **`dev-iphone`** (iPhone 17) is the larger phone, **`dev-ipad`** (iPad Pro 11-inch M5) the tablet. Both `simctl` and `flutter -d` resolve these names. See the README "Simulator names" section. If a name doesn't resolve, the simulator hasn't been renamed on this machine — check `xcrun simctl list devices` rather than guessing a UDID.
 
 **Start once:**
 ```bash
-bash scripts/dev_run.sh dev-iphone   # kills any existing run, boots the device,
+bash scripts/dev_run.sh dev-iphone-se   # kills any existing run, boots the device,
                                      # stamps the build, opens the control pipe
 ```
 
@@ -41,7 +41,7 @@ tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 **Before a full restart, regenerate build info** — `scripts/dev_run.sh` does this for
 you, so a full relaunch is just:
 ```bash
-bash scripts/dev_run.sh dev-iphone   # stamps, kills the old run, relaunches
+bash scripts/dev_run.sh dev-iphone-se   # stamps, kills the old run, relaunches
 ```
 
 The running git hash + timestamp is shown in the AppBar (debug builds only), so you can confirm which build is live without committing.

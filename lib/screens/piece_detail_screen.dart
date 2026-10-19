@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -99,6 +101,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
   // the slider has something to render immediately, applied to the service
   // on change rather than during build.
   double _highlightLeadMs = 60;
+
+  // Outlives the compact layout, which a rotation rebuilds from scratch.
+  final _drawers = _CompactDrawerMemo();
 
   @override
   void initState() {
@@ -559,6 +564,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                 return _CompactPieceLayout(
                   notationView: notationView,
                   minimap: minimap,
+                  minimapWantsAttention: canEditSelection,
+                  drawers: _drawers,
                   layout: layout,
                   piece: piece,
                   service: activeService,
@@ -1190,11 +1197,37 @@ class _FretStylePicker extends ConsumerWidget {
   }
 }
 
-// ── Compact (phone) layout: music fills screen, controls slide up ─────────────
+// ── Compact (phone) layout: music fills screen, controls are drawers over it ──
+//
+// On a phone every point of the score's box is worth having, so neither the
+// minimap nor the play tray takes any of it. Both are overlays: the score is
+// laid out once at the full body size, and the drawers slide over it — the
+// minimap in from the right edge, the tray up from the bottom — without the
+// score ever being re-laid out (a narrower box would re-engrave it, since the
+// staff reflows on width). Put away, each leaves a small tab on its edge.
+//
+// Both peek: they're out when the piece opens and slide away a few seconds
+// later, so the first thing you see is that they exist and where they went.
+// Touching one during its peek keeps it out.
+
+/// Where the compact layout's drawers were left, held by the screen rather than
+/// the layout: a rotation rebuilds the layout from scratch, and it should come
+/// back as it was — no second peek, and the drawers out only if they were out.
+class _CompactDrawerMemo {
+  bool trayPeeked = false;
+  bool minimapPeeked = false;
+  bool trayShown = true;
+  bool minimapShown = true;
+}
 
 class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Widget notationView;
+  final _CompactDrawerMemo drawers;
   final Widget? minimap;
+
+  /// A single measure has just become selected, and Edit/Delete for it live at
+  /// the top of the minimap — so the minimap should be out to show them.
+  final bool minimapWantsAttention;
   final PieceLayout layout;
   final Piece piece;
   final PlaybackServiceBase service;
@@ -1213,6 +1246,8 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   const _CompactPieceLayout({
     required this.notationView,
     required this.minimap,
+    required this.minimapWantsAttention,
+    required this.drawers,
     required this.layout,
     required this.piece,
     required this.service,
@@ -1229,22 +1264,42 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
 
 class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   static bool _hasPeeked = false;
+  static const _slide = Duration(milliseconds: 250);
+  static const _peekFor = Duration(milliseconds: 3000);
+
   final _trayKey = GlobalKey();
   bool _sheetOpen = false;
+
+  // Both start out, for the peek — or, after a rotation, as they were left.
+  late bool _trayShown = widget.drawers.trayShown;
+  late bool _minimapShown = widget.drawers.minimapShown;
+  Timer? _trayPeek;
+  Timer? _minimapPeek;
+  double _trayHeight = 72;
+
+  // What the tray covers right now (nothing, once it's put away) → the staff's
+  // autoscroll; the most it has ever covered → every view's trailing scroll
+  // room. Neither resizes the score.
+  void _publishInset() {
+    ref.read(staffViewBottomInsetProvider.notifier).state =
+        _trayShown ? _trayHeight : 0;
+    final clearance = ref.read(notationBottomClearanceProvider.notifier);
+    if (_trayHeight > clearance.state) clearance.state = _trayHeight;
+  }
 
   void _measureTray() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final box = _trayKey.currentContext?.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {
-        ref.read(staffViewBottomInsetProvider.notifier).state = box.size.height;
+        setState(() => _trayHeight = box.size.height);
+        _publishInset();
       }
     });
   }
 
   // Closes the sheet and re-measures the tray AFTER the AnimatedSize animation
-  // (250 ms) finishes. Measuring immediately captures the pre-collapse height,
-  // leaving a grey gap between the content and the compact tray.
+  // (250 ms) finishes. Measuring immediately captures the pre-collapse height.
   void _closeSheet() {
     if (!_sheetOpen) return;
     setState(() => _sheetOpen = false);
@@ -1253,44 +1308,123 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     });
   }
 
+  // No measuring here: the tray's SizeChangedLayoutNotifier re-measures it on
+  // every frame of the drawer's growth.
+  void _openSheet() {
+    if (_sheetOpen) return;
+    setState(() => _sheetOpen = true);
+  }
+
+  void _setTray(bool shown) {
+    _trayPeek?.cancel();
+    if (_trayShown == shown) return;
+    setState(() => _trayShown = widget.drawers.trayShown = shown);
+    if (!shown) _closeSheet();
+    _publishInset();
+  }
+
+  void _setMinimap(bool shown) {
+    _minimapPeek?.cancel();
+    if (_minimapShown == shown) return;
+    setState(() => _minimapShown = widget.drawers.minimapShown = shown);
+  }
+
   @override
   void initState() {
     super.initState();
-    // Seed a conservative estimate before the first frame so the WebView
-    // doesn't render behind the tray while the real measurement is pending.
-    // Must be post-frame to avoid mutating a provider during tree build.
+    // Seed a conservative estimate before the first frame, and drop the
+    // clearance a previous piece left behind. Post-frame to avoid mutating a
+    // provider during tree build.
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(staffViewBottomInsetProvider.notifier).state = 72;
+      if (!mounted) return;
+      ref.read(notationBottomClearanceProvider.notifier).state = 0;
+      _publishInset();
     });
     _measureTray();
+    // Each peek is spent once its retreat is scheduled: a rebuilt layout
+    // doesn't peek again.
+    if (!widget.drawers.trayPeeked) {
+      widget.drawers.trayPeeked = true;
+      _trayPeek = Timer(_peekFor, () {
+        if (mounted) _setTray(false);
+      });
+    }
+    if (widget.minimap != null && !widget.drawers.minimapPeeked) {
+      _startMinimapPeek();
+    }
   }
 
-  // The one-time peek that says "there is a drawer here". Driven from build
-  // rather than initState because what's IN the drawer now depends on the
+  // The minimap can arrive after the layout does (its runs are a separate
+  // future), so its peek is timed from when it first appears.
+  void _startMinimapPeek() {
+    widget.drawers.minimapPeeked = true;
+    _minimapPeek = Timer(_peekFor, () {
+      if (mounted) _setMinimap(false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _CompactPieceLayout old) {
+    super.didUpdateWidget(old);
+    if (old.minimap == null &&
+        widget.minimap != null &&
+        _minimapPeek == null &&
+        !widget.drawers.minimapPeeked) {
+      _startMinimapPeek();
+    }
+    if (widget.minimapWantsAttention && !old.minimapWantsAttention) {
+      _setMinimap(true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _trayPeek?.cancel();
+    _minimapPeek?.cancel();
+    super.dispose();
+  }
+
+  // The one-time peek that says "there is a chord drawer here". Driven from
+  // build rather than initState because what's IN the drawer depends on the
   // parsed piece, which is still a pending future when initState runs — peeking
   // then would open an empty panel on every piece and teach the opposite of
-  // what it's for.
+  // what it's for. Closes before the tray's own peek puts the tray away.
   void _peekOnce() {
     if (_hasPeeked) return;
     _hasPeeked = true;
     Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) setState(() { _sheetOpen = true; _measureTray(); });
-      Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted && _trayShown) _openSheet();
+      Future.delayed(const Duration(milliseconds: 2000), () {
         if (mounted) _closeSheet();
       });
     });
+  }
+
+  // A flick down puts away the innermost thing that's out: the chord diagrams
+  // if they're open, else the tray itself.
+  void _onTrayDrag(DragUpdateDetails d, {required bool hasDrawer}) {
+    if (d.delta.dy < -6 && hasDrawer && !_sheetOpen) {
+      _openSheet();
+    } else if (d.delta.dy > 6) {
+      if (_sheetOpen) {
+        _closeSheet();
+      } else {
+        _setTray(false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final displayMode = widget.displayMode;
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
 
     ref.listen(playbackStateProvider, (_, next) {
       if (next.valueOrNull == PlaybackState.playing) _closeSheet();
     });
 
-    // What the drawer holds is now only the chord diagrams, and they aren't
+    // What the chord drawer holds is only the chord diagrams, and they aren't
     // always there: the wrong view, the chord toggle off, or a tune whose
     // chords aren't in the ten-shape library all leave it empty. So work out up
     // front whether there is anything to open, and when there isn't, drop the
@@ -1310,154 +1444,268 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     // Guards the case where the drawer's contents go away while it's open —
     // switching to Jianpu, or turning chords off from the settings drawer.
     final sheetOpen = _sheetOpen && hasDrawer;
+    final trayCover = _trayShown ? _trayHeight : 0.0;
 
-    return Column(
+    return Stack(
       children: [
-        // ── music + bottom sheet overlay ─────────────────────────
-        Expanded(
-          child: Stack(
-            children: [
-              // Leave bottom clearance equal to the tray height so the last
-              // staff row is never hidden behind the controls overlay.
-              Positioned.fill(
-                bottom: ref.watch(staffViewBottomInsetProvider),
-                child: widget.minimap == null
-                    ? widget.notationView
-                    : Row(
-                        children: [
-                          Expanded(child: widget.notationView),
-                          widget.minimap!,
-                        ],
-                      ),
-              ),
-              _CountInOverlay(service: widget.service, mode: displayMode),
-              if (widget.selectedMedia.video != null &&
-                  widget.mediaService != null)
-                FloatingVideoOverlay(service: widget.mediaService!),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Material(
-                  key: _trayKey,
-                  elevation: 10,
-                  color: theme.colorScheme.surface,
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16)),
-                  child: Column(
+        Positioned.fill(child: widget.notationView),
+        _CountInOverlay(service: widget.service, mode: displayMode),
+        if (widget.selectedMedia.video != null && widget.mediaService != null)
+          FloatingVideoOverlay(service: widget.mediaService!),
+
+        // ── minimap drawer, right edge ──
+        //
+        // The tab rides on the drawer's leading edge, so out or away it is
+        // always the thing to grab; away, only the tab is left on screen.
+        if (widget.minimap != null)
+          AnimatedPositioned(
+            duration: _slide,
+            curve: Curves.easeOut,
+            top: 0,
+            right: 0,
+            // Stops short of the tray rather than running under it.
+            bottom: trayCover,
+            child: Listener(
+              onPointerDown: (_) => _minimapPeek?.cancel(),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: _minimapShown ? 0 : 1),
+                duration: _slide,
+                curve: Curves.easeOut,
+                builder: (_, t, child) => Transform.translate(
+                    offset: Offset(t * SectionMinimap.width, 0), child: child),
+                child: GestureDetector(
+                  onHorizontalDragEnd: (d) {
+                    final v = d.primaryVelocity ?? 0;
+                    if (v > 150) _setMinimap(false);
+                    if (v < -150) _setMinimap(true);
+                  },
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── the handle, on the tray's own top edge ──
-                      //
-                      // Above the contents rather than between them and the
-                      // play bar. Sitting under the diagrams it stayed put at
-                      // the bottom of the screen while the panel grew up and
-                      // away from it, so the thing you reach for to close the
-                      // panel was nowhere near the panel. On the top edge it
-                      // travels with the panel, which is where a sheet's grab
-                      // handle belongs and where a downward flick means "put
-                      // this away".
-                      //
-                      // No handle when there's nothing behind it — an
-                      // affordance that opens onto an empty panel is worse than
-                      // no affordance.
-                      if (hasDrawer)
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            if (_sheetOpen) {
-                              _closeSheet();
-                            } else {
-                              setState(() => _sheetOpen = true);
-                              _measureTray();
-                            }
-                          },
-                          onVerticalDragUpdate: (d) {
-                            if (d.delta.dy < -6 && !_sheetOpen) {
-                              setState(() => _sheetOpen = true);
-                              _measureTray();
-                            } else if (d.delta.dy > 6 && _sheetOpen) {
-                              _closeSheet();
-                            }
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade400,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        const SizedBox(height: 6),
-                      // ── drawer contents (slides up above play bar) ─
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOut,
-                        // The view picker and the section pills used to live
-                        // here. Both were retired on tablet in e7d2da4 and both
-                        // had a twin on the phone the whole time: the picker is
-                        // in the settings drawer as NotationSwitcher, spelled
-                        // out rather than abbreviated to "Ann."; the pills are
-                        // the minimap already drawn down the right edge, which
-                        // selects the same practice range on a tap. What the
-                        // phone was missing is what's here now.
-                        child: sheetOpen
-                            ? ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxHeight: 280),
-                                child: const SingleChildScrollView(
-                                  // The drag handle above is already the
-                                  // boundary, so no second rule under it.
-                                  child: NewChordsBlock(topBorder: false),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
+                      _DrawerTab(
+                        icon: _minimapShown
+                            ? Icons.chevron_right
+                            : Icons.chevron_left,
+                        tooltip:
+                            _minimapShown ? 'Hide sections' : 'Show sections',
+                        vertical: true,
+                        onTap: () => _setMinimap(!_minimapShown),
                       ),
-                      // ── always-visible: full playback controls ──
-                      //
-                      // Still drag-sensitive, so a flick up from the play bar
-                      // opens the panel without having to find the handle. Only
-                      // upward: a downward flick here would close a panel the
-                      // bar isn't part of.
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onVerticalDragUpdate: !hasDrawer
-                            ? null
-                            : (d) {
-                                if (d.delta.dy < -6 && !_sheetOpen) {
-                                  setState(() => _sheetOpen = true);
-                                  _measureTray();
-                                }
-                              },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            MediaControls(
-                              piece: widget.piece,
-                              media: widget.media,
-                              selected: widget.selectedMedia,
-                            ),
-                            // Spacer so interactive content sits above the
-                            // home-indicator zone; Material background fills
-                            // the safe area gap visually.
-                            SizedBox(
-                                height: MediaQuery.of(context).padding.bottom),
-                          ],
-                        ),
+                      Material(
+                        elevation: 6,
+                        color: theme.colorScheme.surface,
+                        child: widget.minimap!,
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
+          ),
+
+        // ── play tray, bottom edge ──
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Listener(
+            onPointerDown: (_) => _trayPeek?.cancel(),
+            child: AnimatedSlide(
+              offset: Offset(0, _trayShown ? 0 : 1),
+              duration: _slide,
+              curve: Curves.easeOut,
+              // Re-measured on every change of size, so the minimap's lower
+              // edge follows the tray through the chord drawer's whole growth
+              // rather than one guess at when that growth is over.
+              child: NotificationListener<SizeChangedLayoutNotification>(
+                onNotification: (_) {
+                  _measureTray();
+                  return true;
+                },
+                child: SizeChangedLayoutNotifier(
+                  child: Material(
+                key: _trayKey,
+                elevation: 10,
+                color: theme.colorScheme.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── the top edge: chord handle + put-away chevron ──
+                    //
+                    // The chord handle sits on the tray's own top edge so it
+                    // travels with the panel as it grows. No handle when
+                    // there's nothing behind it — an affordance that opens
+                    // onto an empty panel is worse than no affordance.
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: !hasDrawer
+                          ? null
+                          : () => _sheetOpen ? _closeSheet() : _openSheet(),
+                      onVerticalDragUpdate: (d) =>
+                          _onTrayDrag(d, hasDrawer: hasDrawer),
+                      // Full width, or the Stack shrinks to the chord handle
+                      // and the chevron lands on top of it.
+                      child: SizedBox(
+                        height: 20,
+                        width: double.infinity,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (hasDrawer)
+                              Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade400,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            Positioned(
+                              right: 8,
+                              top: 0,
+                              bottom: 0,
+                              child: IconButton(
+                                tooltip: 'Hide controls',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints.tightFor(
+                                    width: 36, height: 20),
+                                iconSize: 20,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                onPressed: () => _setTray(false),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // ── chord diagrams (slide up above the play bar) ──
+                    AnimatedSize(
+                      duration: _slide,
+                      curve: Curves.easeOut,
+                      child: sheetOpen
+                          ? ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxHeight: 280),
+                              child: const SingleChildScrollView(
+                                // The drag handle above is already the
+                                // boundary, so no second rule under it.
+                                child: NewChordsBlock(topBorder: false),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    // ── the play bar ──
+                    //
+                    // Drag-sensitive too, so a flick up opens the chords and a
+                    // flick down puts the tray away, without finding the edge.
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: (d) =>
+                          _onTrayDrag(d, hasDrawer: hasDrawer),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MediaControls(
+                            piece: widget.piece,
+                            media: widget.media,
+                            selected: widget.selectedMedia,
+                          ),
+                          // Spacer so interactive content sits above the
+                          // home-indicator zone; Material background fills
+                          // the safe area gap visually.
+                          SizedBox(height: safeBottom),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // ── the tray's tab, while it's away ──
+        //
+        // Lifted clear of the home indicator, where an upward swipe belongs to
+        // the system rather than to us.
+        Positioned(
+          // A few points off the glass even where there's no home indicator
+          // (the SE), so it reads as a tab rather than part of the bezel.
+          bottom: safeBottom > 0 ? safeBottom : 6,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: IgnorePointer(
+              ignoring: _trayShown,
+              child: AnimatedOpacity(
+                opacity: _trayShown ? 0 : 1,
+                duration: _slide,
+                child: GestureDetector(
+                  onVerticalDragUpdate: (d) {
+                    if (d.delta.dy < -4) _setTray(true);
+                  },
+                  child: _DrawerTab(
+                    icon: Icons.keyboard_arrow_up,
+                    tooltip: 'Show controls',
+                    vertical: false,
+                    onTap: () => _setTray(true),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The grab tab a compact-layout drawer leaves on its screen edge: a short
+/// rounded flap with a chevron pointing the way it will move. [vertical] is the
+/// side-edge (minimap) shape; otherwise the bottom-edge (tray) shape.
+class _DrawerTab extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool vertical;
+  final VoidCallback onTap;
+
+  const _DrawerTab({
+    required this.icon,
+    required this.tooltip,
+    required this.vertical,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        elevation: 4,
+        // Tinted, not surface: a white flap on a white page was easy to miss,
+        // and finding it is the whole of its job.
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: vertical
+            ? const BorderRadius.horizontal(left: Radius.circular(10))
+            : const BorderRadius.vertical(top: Radius.circular(10)),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: vertical
+              ? const BorderRadius.horizontal(left: Radius.circular(10))
+              : const BorderRadius.vertical(top: Radius.circular(10)),
+          child: SizedBox(
+            width: vertical ? 20 : 64,
+            height: vertical ? 56 : 22,
+            child: Icon(icon,
+                size: 20, color: theme.colorScheme.onSecondaryContainer),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1661,6 +1909,7 @@ class _NotationView extends ConsumerWidget {
     final flaggedMeasures = parsed?.flaggedMeasureNumbers ?? const <int>{};
     // Minimap → custom-view navigation, and custom-view scroll → minimap.
     final navTarget = ref.watch(navTargetRunProvider);
+    final bottomClearance = ref.watch(notationBottomClearanceProvider);
     // Report the top-most visible run's first measure so the minimap can light
     // its (unfolded) section while scrolling the jianpu/fingering views.
     void onVisibleRun(int i) {
@@ -1776,6 +2025,7 @@ class _NotationView extends ConsumerWidget {
           sectionColors: sectionColors,
           navTarget: navTarget,
           onVisibleRunChanged: onVisibleRun,
+          bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           keySignature: keySignature,
           notifierForMeasure: service.notifierForMeasure,
@@ -1791,6 +2041,7 @@ class _NotationView extends ConsumerWidget {
           sectionColors: sectionColors,
           navTarget: navTarget,
           onVisibleRunChanged: onVisibleRun,
+          bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -1805,6 +2056,7 @@ class _NotationView extends ConsumerWidget {
           sectionColors: sectionColors,
           navTarget: navTarget,
           onVisibleRunChanged: onVisibleRun,
+          bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
           combined: true,
           notifierForMeasure: service.notifierForMeasure,
