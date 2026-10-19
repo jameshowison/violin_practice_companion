@@ -332,6 +332,13 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
 // Updated by _CompactPieceLayoutState; read by StaffView to inform scroll logic.
 final staffViewBottomInsetProvider = StateProvider<double>((_) => 0);
 
+// The most the bottom tray has ever covered on this screen, so every notation
+// view can end with that much empty scroll room and its last row can be pulled
+// clear of the tray. Grow-only on purpose: tracking the tray's CURRENT height
+// would shrink the scroll extent each time the tray slid away, and a reader
+// parked at the end would watch the score drop by a tray's height.
+final notationBottomClearanceProvider = StateProvider<double>((_) => 0);
+
 // ── Note vocabulary panel (the palette staff above the score) ────────────────
 // Folded by default: on a tablet it costs ~170pt of the score's height, and it's
 // reference material you consult once rather than read while playing. Lifted out

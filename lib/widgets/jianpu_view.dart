@@ -33,6 +33,10 @@ class JianpuView extends StatefulWidget {
   /// flagged measures get a small warning glyph.
   final Set<int> flaggedMeasures;
 
+  /// Empty scroll room after the last row, so it can be pulled up clear of an
+  /// overlay sitting on the view's bottom edge (the phone's play tray).
+  final double bottomClearance;
+
   const JianpuView({
     super.key,
     required this.layout,
@@ -46,6 +50,7 @@ class JianpuView extends StatefulWidget {
     this.navTarget,
     this.onVisibleRunChanged,
     this.flaggedMeasures = const {},
+    this.bottomClearance = 0,
   });
 
   @override
@@ -151,6 +156,7 @@ class _JianpuViewState extends State<JianpuView> with NotationRunScroll {
 
       return SingleChildScrollView(
         controller: _scrollController,
+        padding: EdgeInsets.only(bottom: widget.bottomClearance),
         child: Column(children: children),
       );
     });

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Relaunch the Flutter dev server on a simulator using the fifo control pattern
 # documented in CLAUDE.md. Safe to re-run: kills any existing flutter run first.
-# Defaults to dev-iphone; pass another simulator name as $1, e.g.
+# Defaults to dev-iphone-se; pass another simulator name as $1, e.g.
 #   scripts/dev_run.sh dev-ipad
 # (see README "Simulator names" for how the dev-* aliases are set up)
 set -u
@@ -13,7 +13,7 @@ ARGS=()
 for arg in "$@"; do
   [[ "$arg" == "--sync" ]] && SYNC=1 || ARGS+=("$arg")
 done
-DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone}}"
+DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone-se}}"
 FIFO="/tmp/flutter_ctl"
 LOG="flutter_run.log"
 

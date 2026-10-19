@@ -138,12 +138,18 @@ there is no extra setup step.
 
 ## Simulator names
 
-The docs and scripts refer to two simulators by name rather than by UDID:
+The docs and scripts refer to three simulators by name rather than by UDID:
 
-| Name         | Device                |
-| ------------ | --------------------- |
-| `dev-iphone` | iPhone 17             |
-| `dev-ipad`   | iPad Pro 11-inch (M5) |
+| Name            | Device                   | Role                          |
+| --------------- | ------------------------ | ----------------------------- |
+| `dev-iphone-se` | iPhone SE (3rd gen)      | primary compact (phone) target |
+| `dev-iphone`    | iPhone 17                | larger phone                  |
+| `dev-ipad`      | iPad Pro 11-inch (M5)    | tablet                        |
+
+`dev-iphone-se` matches the physical phone this is built for, and at 375×667pt
+it is the smallest screen the compact layout has to fit — 375pt tall in
+landscape, and no home indicator, so a zero bottom safe inset. Check phone
+layout work there first; `dev-iphone` shows how it scales up.
 
 These are ordinary simulators that have been *renamed*. Both `simctl` and
 `flutter -d` accept a device name wherever they accept a UDID, so the name is
@@ -162,10 +168,13 @@ iPhone/iPad you actually have and rename them:
 xcrun simctl list devices available          # find the UDIDs
 xcrun simctl rename <iphone-udid> dev-iphone
 xcrun simctl rename <ipad-udid>   dev-ipad
+xcrun simctl create dev-iphone-se "iPhone SE (3rd generation)"
 ```
 
 The rename is stored with the device, so it survives reboots and shows up in
-Xcode too. Nothing else needs to change. If you have no suitable device,
+Xcode too. Nothing else needs to change. A first `flutter run` on a newly created
+simulator is a cold Xcode build (about two and a half minutes), and the dev
+library isn't on it until you launch with `bash scripts/dev_run.sh <name> --sync`. If you have no suitable device,
 create one (`xcrun simctl create dev-ipad "iPad Pro 11-inch (M5)"`); if the iOS
 runtime is missing entirely, install it with `xcodebuild -downloadPlatform iOS`.
 
