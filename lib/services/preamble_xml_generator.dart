@@ -17,7 +17,13 @@ import 'package:xml/xml.dart';
 String buildPreambleXml(String musicXml) {
   final firstMeasure =
       XmlDocument.parse(musicXml).findAllElements('measure').first;
-  final attributes = firstMeasure.findElements('attributes').first.copy();
+  // Merged, not just the first block: a scanned (OMR) piece can open with a
+  // divisions-only `<attributes>` and put key/time/clef in a second one, and
+  // reading only the first engraved a bare five-line staff.
+  final attributes = XmlElement(XmlName.parts('attributes'), [], [
+    for (final block in firstMeasure.findElements('attributes'))
+      for (final child in block.childElements) child.copy(),
+  ]);
 
   final divisions = int.tryParse(
         attributes.findElements('divisions').firstOrNull?.innerText ?? '',
