@@ -146,6 +146,18 @@ const fingeringChipNeutral = Color(0xFFFAFAFA);
 /// dark green and blue stop being tellable apart.
 const underlineRuleFraction = 0.15;
 
+/// The rule's thickness by string, as a share of [underlineRuleFraction], when
+/// it is printed without colour: G heaviest to E lightest, like the strings
+/// themselves, so the weight says which string the stagger says which way.
+/// An unknown string takes the lightest weight (and a pale grey — see the
+/// painter): it has no place in the order to claim.
+const underlineGreyWeightByString = <String, double>{
+  'G': 1.0,
+  'D': 0.72,
+  'A': 0.5,
+  'E': 0.32,
+};
+
 /// Clear space between the digits and the rule under them.
 const underlineRuleGapFraction = 0.06;
 

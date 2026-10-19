@@ -9,7 +9,6 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/parsed_piece.dart';
 import '../models/section.dart';
-import '../models/section_palette.dart';
 import '../widgets/staff_view_verovio.dart';
 import 'print_paginator.dart';
 import 'section_engraving.dart';
@@ -22,9 +21,11 @@ enum PrintColour {
   /// As on screen: string-coloured fingerings, section-coloured washes.
   colour,
 
-  /// Nothing that needs colour to read: plain fingering labels with their
-  /// string letters back (`StringColourStyle.off`), alternating light grey
-  /// washes, and the whole page desaturated, chord bars included.
+  /// Nothing that needs colour to read: the underline style's rules in grey,
+  /// weighted by string, or else plain fingering labels with their string
+  /// letters back (`StringColourStyle.off`); sections marked by a bar in the
+  /// gutter rather than a wash; and the whole page desaturated, chord bars
+  /// included.
   greyscale,
 }
 
@@ -71,8 +72,8 @@ class PrintJob {
 const double printMinStaffHeightMm = 6.0;
 const double printMaxStaffHeightMm = 9.0;
 
-/// Page margin, all round.
-const double printMarginMm = 15.0;
+/// Page margin, all round — about as close to the edge as home printers go.
+const double printMarginMm = 10.0;
 
 /// Raster resolution of each page.
 const double printDpi = 300;
@@ -145,8 +146,8 @@ class PrintLayout {
 }
 
 /// Room on page 1 for the title, and on every page for the footer, in points.
-const double _titleHeight = 40;
-const double _footerHeight = 16;
+const double _titleHeight = 26;
+const double _footerHeight = 12;
 
 /// Engraves [job] at [format]'s printable width by the section layout's rule
 /// (`solveSectionLayout`) and splits its systems into pages
@@ -207,72 +208,121 @@ Future<PrintLayout> layoutScoreForPrint(
   );
   final systemHeightPx = probe.systemHeightViewBox +
       reserveSpacing * spacesPerSpacingSystemUnit * probe.staffSpaceViewBox;
-  final score = await engraver.engrave(
-    solved.xml,
-    widthPx: engraveW,
-    scale: solved.scale,
-    spacingSystem: spacing,
-    pageMarginTop: (verovioPageMarginTopDefault + reserveMargin)
-        .clamp(0, verovioPageMarginTopMax),
-    pageHeightUnits: pageHeightUnitsFor(
-      measureCount: probe.measures.length,
-      measuresPerLine: math.max(1, (probe.measures.length / solved.lines).ceil()),
-      systemHeightPx: systemHeightPx,
-    ),
-    breaks: 'encoded',
-  );
+  final firstPageH = printableH - _titleHeight - _footerHeight;
+  final pageH = printableH - _footerHeight;
+
+  // 4. Engrave at [engraveScale] and slice it into systems and pages.
+  Future<_Engraved> engraveAt(double engraveScale) async {
+    final score = await engraver.engrave(
+      solved.xml,
+      widthPx: engraveW,
+      scale: engraveScale,
+      spacingSystem: spacing,
+      pageMarginTop: (verovioPageMarginTopDefault + reserveMargin)
+          .clamp(0, verovioPageMarginTopMax),
+      pageHeightUnits: pageHeightUnitsFor(
+        measureCount: probe.measures.length,
+        measuresPerLine:
+            math.max(1, (probe.measures.length / solved.lines).ceil()),
+        systemHeightPx: systemHeightPx,
+      ),
+      breaks: 'encoded',
+    );
+    final scale = engraveW / score.viewBox.width;
+
+    // Each system's slice: its ink, plus the lanes drawn above it (which sit
+    // above the ink top — the chord bar hangs over the chord register), never
+    // reaching back into the system before.
+    final stack = annotationStackOf(score, scale);
+    final space = score.staffSpaceViewBox * scale;
+    final above = stack.barHeight + stack.channelHeight + stack.gap + space;
+    final lines = <({double top, double bottom})>[];
+    for (var l = 0; l < score.lineContent.length; l++) {
+      final c = score.lineContent[l];
+      final floor = l == 0 ? 0.0 : score.lineContent[l - 1].bottom * scale;
+      lines.add((
+        top: math.max(floor, c.top * scale - above),
+        bottom: c.bottom * scale + space * 0.5,
+      ));
+    }
+    final marks = _sectionMarks(score, job);
+    final pages = paginateLines(
+      lines: lines,
+      sectionStarts: {for (final m in marks) m.line},
+      firstPageHeight: firstPageH,
+      pageHeight: pageH,
+    );
+    return (
+      score: score,
+      scale: scale,
+      lines: lines,
+      marks: marks,
+      pages: pages,
+      engraveScale: engraveScale,
+    );
+  }
+
+  // 5. The width sets the largest staff; a smaller one, down to the paper's
+  //    floor, is worth it when it saves a page. Height scales with the staff
+  //    (same breaks, so the same systems), so the first guess is the ratio of
+  //    the room on one page fewer to the height there is; pagination keeps
+  //    sections whole, so step down from there until a page goes or the
+  //    floor is reached.
+  var best = await engraveAt(solved.scale);
+  final floor = _scaleForStaffMm(printMinStaffHeightMm);
+  if (best.pages.length > 1 && solved.scale > floor) {
+    final target = best.pages.length - 1;
+    final room = firstPageH + (target - 1) * pageH;
+    final height = best.lines.last.bottom - best.lines.first.top;
+    var s = math.max(floor, solved.scale * room / height);
+    for (var tries = 0; tries < 4; tries++) {
+      final next = await engraveAt(s);
+      if (next.pages.length <= target) {
+        best = next;
+        break;
+      }
+      if (s <= floor) break;
+      s = math.max(floor, s * 0.96);
+    }
+  }
   if (VerovioEngraver.debugLogging) {
     debugPrint('[print] ${format.width.round()}x${format.height.round()}pt '
         'w=${engraveW.round()} lines=${solved.lines} '
-        'scale=${solved.scale.toStringAsFixed(1)} '
-        'staff=${(staffHeightUnits * solved.scale / 100 / mm).toStringAsFixed(1)}mm');
+        'scale=${best.engraveScale.toStringAsFixed(1)} '
+        '(width allows ${solved.scale.toStringAsFixed(1)}) '
+        'staff=${(staffHeightUnits * best.engraveScale / 100 / mm).toStringAsFixed(1)}mm '
+        'pages=${best.pages.length}');
   }
 
   final image = ScalableImage.fromSvgString(
-    score.svg,
+    best.score.svg,
     currentColor: Colors.black,
     warnF: (_) {},
   );
-  final scale = engraveW / score.viewBox.width;
-
-  // 4. Each system's slice: its ink, plus the lanes drawn above it (which sit
-  //    above the ink top — the chord bar hangs over the chord register), never
-  //    reaching back into the system before.
-  final stack = annotationStackOf(score, scale);
-  final space = score.staffSpaceViewBox * scale;
-  final above = stack.barHeight + stack.channelHeight + stack.gap + space;
-  final lines = <({double top, double bottom})>[];
-  for (var l = 0; l < score.lineContent.length; l++) {
-    final c = score.lineContent[l];
-    final floor = l == 0 ? 0.0 : score.lineContent[l - 1].bottom * scale;
-    lines.add((
-      top: math.max(floor, c.top * scale - above),
-      bottom: c.bottom * scale + space * 0.5,
-    ));
-  }
-
-  final marks = _sectionMarks(score, job);
-  final pages = paginateLines(
-    lines: lines,
-    sectionStarts: {for (final m in marks) m.line},
-    firstPageHeight: printableH - _titleHeight - _footerHeight,
-    pageHeight: printableH - _footerHeight,
-  );
   return PrintLayout._(
     job: job,
-    score: score,
+    score: best.score,
     image: image,
-    scale: scale,
+    scale: best.scale,
     marginPt: margin,
     gutter: gutter,
     engraveWidth: engraveW,
     printableWidth: printableW,
     printableHeight: printableH,
-    lines: lines,
-    sectionMarks: marks,
-    pages: pages,
+    lines: best.lines,
+    sectionMarks: best.marks,
+    pages: best.pages,
   );
 }
+
+typedef _Engraved = ({
+  EngravedScore score,
+  double scale,
+  List<({double top, double bottom})> lines,
+  List<({int line, String label})> marks,
+  List<({int first, int last})> pages,
+  double engraveScale,
+});
 
 /// Verovio `scale` for a staff [mm] tall on paper: the engrave is laid out in
 /// points (one viewBox px per point), and a staff is [staffHeightUnits] per
@@ -327,7 +377,7 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
   if (index == 0) {
     _paintText(canvas, job.title,
         rect: Rect.fromLTWH(0, 0, w, _titleHeight),
-        size: 18,
+        size: 14,
         weight: FontWeight.w600,
         align: TextAlign.center);
     y = _titleHeight;
@@ -344,9 +394,29 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
   canvas.scale(fit);
   canvas.clipRect(Rect.fromLTWH(0, 0, w / fit, bottom - top));
   canvas.translate(0, -top);
-  for (final m in layout.sectionMarks) {
-    if (m.line < page.first || m.line > page.last) continue;
-    _paintSectionMark(canvas, m.label, layout.lines[m.line].top, layout);
+  final marks = layout.sectionMarks;
+  for (var i = 0; i < marks.length; i++) {
+    final m = marks[i];
+    final last =
+        i + 1 < marks.length ? marks[i + 1].line - 1 : layout.lines.length - 1;
+    if (last < page.first || m.line > page.last) continue;
+    var barTop = layout.lines[math.max(m.line, page.first)].top;
+    var barX = 7.0;
+    if (m.line >= page.first) {
+      final box = _paintSectionMark(canvas, m.label, barTop, layout);
+      barTop = box.bottom + 2;
+      barX = box.center.dx;
+    }
+    // Washes don't survive greyscale, so the section's extent is marked in
+    // the gutter instead: a bar under its letter, light and dark in turn.
+    if (grey) {
+      canvas.drawRect(
+        Rect.fromLTRB(barX - 1.5, barTop, barX + 1.5,
+            layout.lines[math.min(last, page.last)].bottom - 2),
+        Paint()
+          ..color = i.isEven ? const Color(0xFFBBBBBB) : const Color(0xFF555555),
+      );
+    }
   }
   canvas.translate(layout.gutter, 0);
   final score = layout.score;
@@ -356,13 +426,12 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
     score: score,
     image: layout.image,
     scale: layout.scale,
-    sectionTints: grey
-        ? _alternatingGreys(job.overlays.sectionTints)
-        : job.overlays.sectionTints,
+    sectionTints: grey ? const [] : job.overlays.sectionTints,
     chordRuns: job.overlays.chordRuns,
     fingeringAnnotations: job.overlays.annotations,
     stringRuns: job.overlays.stringRuns,
     stringColourStyle: job.overlays.colourStyle,
+    monochromeRules: grey,
   );
   canvas.restore();
 
@@ -372,7 +441,7 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
         ? '${job.title} — page ${index + 1} of ${layout.pageCount}'
         : job.title,
     rect: Rect.fromLTWH(0, h - _footerHeight, w, _footerHeight),
-    size: 8,
+    size: 7,
     color: const Color(0xFF666666),
     align: TextAlign.right,
   );
@@ -386,22 +455,9 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
   return bytes!.buffer.asUint8List();
 }
 
-/// A section's wash in greyscale: every other section a light grey, so
-/// neighbours stay distinguishable without a hue.
-List<SectionTintRegion> _alternatingGreys(List<SectionTintRegion> tints) => [
-      for (var i = 0; i < tints.length; i += 2)
-        (
-          startMeasureIndex: tints[i].startMeasureIndex,
-          startNote: tints[i].startNote,
-          endMeasureIndex: tints[i].endMeasureIndex,
-          endNote: tints[i].endNote,
-          color: '#555555',
-        ),
-    ];
-
 /// A rehearsal-mark-style boxed letter in the gutter, level with the top of
-/// the section's first system.
-void _paintSectionMark(
+/// the section's first system. Returns the box.
+Rect _paintSectionMark(
     Canvas canvas, String label, double lineTop, PrintLayout layout) {
   final tp = TextPainter(
     text: TextSpan(
@@ -428,6 +484,7 @@ void _paintSectionMark(
   );
   tp.paint(canvas,
       Offset(box.center.dx - tp.width / 2, box.center.dy - tp.height / 2));
+  return box;
 }
 
 void _paintText(
