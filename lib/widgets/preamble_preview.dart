@@ -41,6 +41,7 @@ class _PreamblePreviewState extends ConsumerState<PreamblePreview> {
       scale: 100,
       pageMarginTop: 0,
       breaks: 'none',
+      tight: true,
     );
     if (!mounted || _engravedFor != xml) return;
     setState(() {
