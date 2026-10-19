@@ -166,6 +166,18 @@ void main() {
       final measures = [for (var i = 1; i <= 5; i++) distinct(i)];
       expect(SectionDetector.detect(measures), isEmpty);
     });
+
+    test('a strain restated with a new ending over its last 3 bars matches',
+        () {
+      // A B A' in 8-bar blocks, A' changing A from bar [from] of 8 on.
+      String labels(int from) => SectionDetector.detect([
+            for (var i = 1; i <= 16; i++) distinct(i),
+            for (var i = 1; i <= 8; i++)
+              _measure(16 + i, [60 + i + (i >= from ? 30 : 0)]),
+          ]).map((s) => s.label).join();
+      expect(labels(6), 'ABA');
+      expect(labels(5), 'ABC');
+    });
   });
 
   group('regression: two independent |: :| pairs (e.g. AABB) is unchanged',
@@ -475,6 +487,12 @@ void main() {
     test("Devil's Dream: B starts on the `e2` that also leads back into A",
         () {
       expect(detect('devils_dream'), 'A@1:0 B@9:5');
+    });
+
+    test('Gundagai: the last chorus strain is the first with a new ending',
+        () {
+      expect(detect('gundagai_scan'),
+          'A@1:0 B@9:3 C@18:0 D@26:1 E@34:2 C@42:1');
     });
 
     test("Devil's Dream: A starts on its pickup and still plays twice", () {
