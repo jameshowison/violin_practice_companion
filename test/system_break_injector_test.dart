@@ -52,7 +52,31 @@ List<String> _brokenMeasures(String xml) {
   ];
 }
 
+/// Measure 1 as an OMR scan writes it: divisions alone in one `<attributes>`,
+/// key/time/clef in a second. In 3/4, so a reader that only sees the first
+/// block (and falls back to 4/4) gets every full bar wrong as a pickup.
+String _splitAttributesMeasure3_4() =>
+    '<measure number="1">'
+    '<attributes><divisions>1</divisions></attributes>'
+    '<attributes><key><fifths>2</fifths></key>'
+    '<time><beats>3</beats><beat-type>4</beat-type></time>'
+    '<clef><sign>G</sign><line>2</line></clef></attributes>'
+    '<note><pitch><step>C</step><octave>4</octave></pitch>'
+    '<duration>3</duration><type>half</type><dot/></note>'
+    '</measure>';
+
 void main() {
+  test('split opening attributes: a 3/4 scan\'s full bars are not pickups',
+      () {
+    final xml = _score([
+      _splitAttributesMeasure3_4(),
+      for (var n = 2; n <= 10; n++) _measure('$n', 3),
+    ]);
+    final out = insertSystemBreaks(xml, measuresPerLine: 4, sections: const []);
+
+    expect(_brokenMeasures(out), ['5', '9']);
+  });
+
   test('no sections: breaks land every N measures, not on measure 1', () {
     final xml = _score([
       _measure('1', 4, attributes: true),
@@ -350,6 +374,21 @@ void main() {
       final key = attributes.findElements('key').single;
       expect(key.getAttribute('print-object'), isNull);
       expect(key.findElements('fifths').single.innerText, '2');
+    });
+
+    test('finds clef/time in a second <attributes> block (scanned pieces)',
+        () {
+      final xml = _score([_splitAttributesMeasure3_4(), _measure('2', 3)]);
+      final out = hideFirstSystemPreamble(xml);
+
+      final blocks = XmlDocument.parse(out)
+          .findAllElements('measure')
+          .first
+          .findElements('attributes')
+          .toList();
+      final second = blocks[1];
+      expect(second.findElements('clef').single.getAttribute('print-object'), 'no');
+      expect(second.findElements('time').single.getAttribute('print-object'), 'no');
     });
   });
 }

@@ -411,14 +411,15 @@ String freezeSystemBreaks(String musicXml, Set<int> breakMeasureNumbers) {
 String hideFirstSystemPreamble(String musicXml) {
   final doc = XmlDocument.parse(musicXml);
   for (final part in doc.findAllElements('part')) {
-    final attributes = part
-        .findElements('measure')
-        .firstOrNull
-        ?.findElements('attributes')
-        .firstOrNull;
-    if (attributes == null) continue;
-    for (final name in ['clef', 'time']) {
-      attributes.findElements(name).firstOrNull?.setAttribute('print-object', 'no');
+    // Every block, not the first: a scanned piece can split measure 1's
+    // attributes, divisions in one and clef/key/time in the next.
+    final blocks =
+        part.findElements('measure').firstOrNull?.findElements('attributes') ??
+            const <XmlElement>[];
+    for (final attributes in blocks) {
+      for (final name in ['clef', 'time']) {
+        attributes.findElements(name).firstOrNull?.setAttribute('print-object', 'no');
+      }
     }
   }
   return doc.toXmlString();
@@ -438,8 +439,14 @@ class _AttrState {
   var clefLine = 2;
 
   void update(XmlElement measure) {
-    final attributes = measure.findElements('attributes').firstOrNull;
-    if (attributes == null) return;
+    // A measure may carry more than one `<attributes>` (scanned pieces split
+    // divisions from clef/key/time), and each block can change the state.
+    for (final attributes in measure.findElements('attributes')) {
+      _apply(attributes);
+    }
+  }
+
+  void _apply(XmlElement attributes) {
     final d = attributes.findElements('divisions').firstOrNull;
     if (d != null) divisions = int.tryParse(d.innerText) ?? divisions;
     final time = attributes.findElements('time').firstOrNull;
@@ -508,17 +515,25 @@ int _attrRank(XmlElement e) {
 /// [hideFirstSystemPreamble] for why — so Verovio just auto-repeats it
 /// normally at every system, same as standard engraving.
 void _hidePreamble(XmlElement measure, _AttrState state) {
+  // Whether the measure already states a clef/time is a question about ALL
+  // its blocks — a scanned piece can carry them in a second one.
+  bool states(String name) => measure
+      .findElements('attributes')
+      .any((a) => a.findElements(name).isNotEmpty);
+  final hasClef = states('clef');
+  final hasTime = states('time');
+
   var attributes = measure.findElements('attributes').firstOrNull;
   final isNewBlock = attributes == null;
   attributes ??= XmlElement(XmlName.parts('attributes'));
 
-  if (attributes.findElements('clef').isEmpty) {
+  if (!hasClef) {
     attributes.children.add(_hiddenElement('clef', [
       XmlElement(XmlName.parts('sign'), [], [XmlText(state.clefSign)]),
       XmlElement(XmlName.parts('line'), [], [XmlText('${state.clefLine}')]),
     ]));
   }
-  if (attributes.findElements('time').isEmpty) {
+  if (!hasTime) {
     attributes.children.add(_hiddenElement('time', [
       XmlElement(XmlName.parts('beats'), [], [XmlText('${state.beats}')]),
       XmlElement(XmlName.parts('beat-type'), [], [XmlText('${state.beatType}')]),
