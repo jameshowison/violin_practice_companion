@@ -49,10 +49,18 @@ String buildPreambleXml(String musicXml) {
     ],
   );
 
+  // No closing barline: it would only add a stroke, and space before it, past
+  // the time signature that is the preview's last glyph.
+  final barline = XmlElement(
+    XmlName.parts('barline'),
+    [XmlAttribute(XmlName.parts('location'), 'right')],
+    [XmlElement(XmlName.parts('bar-style'), [], [XmlText('none')])],
+  );
+
   final measure = XmlElement(
     XmlName.parts('measure'),
     [XmlAttribute(XmlName.parts('number'), '1')],
-    [attributes, rest],
+    [attributes, rest, barline],
   );
 
   final part = XmlElement(

@@ -255,10 +255,14 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               const SizedBox(width: 12),
               const _KeyMeterButton(),
             ],
-            const SizedBox(width: 8),
             // Mirrors the leading preview, same reasoning as the key block's
-            // own mirror above.
-            const PreamblePreview(mirror: true, height: kDebugMode ? 64 : 56),
+            // own mirror above. Not on a phone: there the title can't afford
+            // to give up the preview's width twice, and centring the group
+            // rather than the title alone is a fair price for reading it.
+            if (!useCompact) ...[
+              const SizedBox(width: 8),
+              const PreamblePreview(mirror: true, height: kDebugMode ? 64 : 56),
+            ],
           ],
         ),
         actions: [

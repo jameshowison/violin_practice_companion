@@ -143,6 +143,7 @@ class VerovioEngraver {
     bool tabMode = false,
     bool stripRepeatClefs = true,
     String breaks = 'auto',
+    bool tight = false,
   }) {
     // Both lane flags go in the key, not just their count: a chords-only and a
     // fingering-only score engrave identically, but the bands are read back off
@@ -150,7 +151,7 @@ class VerovioEngraver {
     final variant =
         '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
         '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
-        '|'
+        '|${tight ? 1 : 0}|'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
@@ -176,6 +177,7 @@ class VerovioEngraver {
         tabMode: tabMode,
         stripRepeatClefs: stripRepeatClefs,
         breaks: breaks,
+        tight: tight,
       );
       _cache[key] = score;
       if (_cache.length > _maxCache) {
@@ -200,6 +202,7 @@ class VerovioEngraver {
     bool tabMode = false,
     bool stripRepeatClefs = true,
     String breaks = 'auto',
+    bool tight = false,
   }) async {
     final svc = await _ensureService();
     final sw = Stopwatch()..start();
@@ -238,6 +241,15 @@ class VerovioEngraver {
       // move the layout (verified: identical viewBox and system count with it
       // on and off).
       'svgBoundingBoxes': true,
+      // For an engrave that is nothing but its glyphs (the title bar's
+      // clef/key/time): no side margins, and a measure only as wide as what's
+      // in it. Measured headlessly, with the barline the preview also drops,
+      // this takes the preview from 415 to 187 units wide.
+      if (tight) ...{
+        'pageMarginLeft': 0,
+        'pageMarginRight': 0,
+        'measureMinWidth': 1,
+      },
     };
     await svc.setOptionsJson(jsonEncode(options));
     await svc.loadData(stripPartLabels(musicXml));
