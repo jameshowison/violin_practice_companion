@@ -34,7 +34,9 @@ if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   mkdir -p "$DATA/Documents/dev_library"
   rsync -a --delete "$STAGE/" "$DATA/Documents/dev_library/"
 else
-  xcrun devicectl device copy to --device "$DEVICE" --quiet \
+  # --timeout: a wedged CoreDevice tunnel otherwise hangs here forever (see
+  # device_install.sh). Generous, since this copies the whole library.
+  xcrun devicectl device copy to --timeout 300 --device "$DEVICE" --quiet \
     --domain-type appDataContainer --domain-identifier "$BUNDLE" \
     --source "$STAGE" --destination Documents/dev_library \
     --remove-existing-content true >/dev/null

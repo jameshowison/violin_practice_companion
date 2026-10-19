@@ -54,7 +54,10 @@ flutter build ios --release
 # phone with a clean exit 0.
 echo "installing artifact built at: $(stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$APP/Frameworks/App.framework/App")"
 
-xcrun devicectl device install app --device "$DEVICE" "$APP"
+# --timeout: when CoreDevice's tunnel to the phone wedges (seen after a USB
+# drop: the device sits at "connecting" and every request queues behind a stuck
+# Xcode one), devicectl otherwise hangs forever. Fail loudly instead.
+xcrun devicectl device install app --timeout 300 --device "$DEVICE" "$APP"
 
 # The profile is the thing with a shelf life on a free Apple ID team: 7 days,
 # after which the app stops launching until it is rebuilt and reinstalled.
