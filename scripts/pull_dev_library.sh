@@ -57,7 +57,9 @@ else
   # library.
   copy_from() {
     local out
-    if ! out=$(xcrun devicectl device copy from --device "$DEVICE" --quiet \
+    # --timeout: a wedged CoreDevice tunnel otherwise hangs here forever (see
+    # device_install.sh); a timeout is "any other failure" and stops the sync.
+    if ! out=$(xcrun devicectl device copy from --timeout 60 --device "$DEVICE" --quiet \
         --domain-type appDataContainer --domain-identifier "$BUNDLE" \
         --source "$1" --destination "$2" 2>&1); then
       if grep -qE "error 7000|NSCocoaErrorDomain error 260" <<<"$out"; then

@@ -362,6 +362,34 @@ then run `scripts/device_install.sh "<name>"` as usual. Check what a profile
 covers with
 `security cms -D -i build/ios/iphoneos/Runner.app/embedded.mobileprovision | plutil -extract ProvisionedDevices json -o - -`.
 
+### Xcode and `devicectl` hang: the device is stuck at "connecting"
+
+`xcrun devicectl list devices` shows the phone as `connecting` rather than
+`available`, Xcode spins, and every `devicectl` command hangs. That isn't caused
+by anything this project does. Diagnosed 2026-10-19 from the CoreDevice log: the
+phone's USB connection dropped, CoreDevice failed to clean it up (`Can't handle
+disconnect with invalid ecid`), and Xcode's reconnect request then never
+completed. The tunnel stayed up but dead (`packets in/out=4/0`, flat), and every
+later request, Xcode's or `devicectl`'s, queued behind the stuck one.
+
+Unplug the phone, restart the two daemons (they relaunch themselves), replug,
+unlock:
+
+```bash
+sudo pkill -9 remotepairingd CoreDeviceService
+xcrun devicectl list devices      # want: available
+```
+
+If it still says `connecting`, reboot the phone. A flaky cable or hub, or a
+phone that keeps resetting USB when it locks, will bring it back. The scripts
+pass `--timeout` to every `devicectl` call, so they fail with an error instead
+of hanging along with Xcode. To see it yourself, capture the log while it's
+stuck (it needs sudo):
+
+```bash
+sudo log show --last 30m --predicate 'process == "remotepairingd" OR process == "CoreDeviceService"'
+```
+
 ## Dev library (the same pieces and media on every dev device)
 
 A fresh install starts empty. Rather than re-adding tunes and media by hand, every

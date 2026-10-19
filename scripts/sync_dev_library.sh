@@ -36,10 +36,18 @@ if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
 else
   SIM=""
-  PID=$(xcrun devicectl device info processes --device "$DEVICE" 2>/dev/null \
-    | awk '/Runner\.app\/Runner$/ {print $1; exit}')
+  # --timeout on every devicectl call: a wedged CoreDevice tunnel otherwise
+  # hangs forever (see device_install.sh). This first call doubles as the
+  # check that the device is reachable at all.
+  if ! PROCS=$(xcrun devicectl device info processes --timeout 60 --device "$DEVICE" 2>&1); then
+    echo "can't reach $DEVICE:" >&2
+    echo "$PROCS" | grep -m3 -E "ERROR|error" >&2
+    echo "(unlocked? if \`xcrun devicectl list devices\` says \"connecting\", see README \"Installing on a physical device\")" >&2
+    exit 1
+  fi
+  PID=$(awk '/Runner\.app\/Runner$/ {print $1; exit}' <<<"$PROCS")
   if [[ -n "$PID" ]]; then
-    xcrun devicectl device process terminate --device "$DEVICE" --pid "$PID" >/dev/null 2>&1 || true
+    xcrun devicectl device process terminate --timeout 60 --device "$DEVICE" --pid "$PID" >/dev/null 2>&1 || true
   fi
 fi
 sleep 1 # let the prefs plist land on disk
@@ -60,7 +68,7 @@ bash scripts/push_dev_library.sh "$DEVICE" "$LIB"
 if [[ -n "$SIM" ]]; then
   bash scripts/dev_run.sh "$DEVICE"
 else
-  xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
+  xcrun devicectl device process launch --timeout 60 --device "$DEVICE" "$BUNDLE" >/dev/null
   echo "launched on $DEVICE"
 fi
 echo "to confirm it converged: bash scripts/pull_dev_library.sh \"$DEVICE\" --dry-run   (want 0 taken)"
