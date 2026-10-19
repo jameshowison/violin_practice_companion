@@ -45,31 +45,50 @@ class MediaControls extends ConsumerStatefulWidget {
 class _MediaControlsState extends ConsumerState<MediaControls> {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Row(
-        children: [
-          _MediaPicker(
-            piece: widget.piece,
-            media: widget.media,
-            selected: widget.selected,
+      // A phone held upright can't fit the picker's name, four 48pt buttons
+      // and a usable slider: on the iPhone SE (375pt) the slider was left
+      // 15pt and couldn't move. Narrow, the picker drops to its kind icon (the
+      // name is in its tooltip and its menu) and the buttons go compact,
+      // which hands the slider ~100pt back.
+      child: LayoutBuilder(builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 440;
+        return Theme(
+          data: narrow
+              // Density alone leaves each button padded back out to a 48pt
+              // tap target; shrink-wrapping lets it come down to 40.
+              ? theme.copyWith(
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap)
+              : theme,
+          child: Row(
+            children: [
+              _MediaPicker(
+                piece: widget.piece,
+                media: widget.media,
+                selected: widget.selected,
+                iconOnly: narrow,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: widget.selected.isSynthesized
+                    ? const _SynthesizedTransport()
+                    // Deliberately NOT keyed by media id: a fresh State per
+                    // medium would reset the playback speed every time the user
+                    // switched track, and slowing a passage down is a setting you
+                    // hold across takes. `didUpdateWidget` reloads instead.
+                    : _MediaTransport(
+                        piece: widget.piece,
+                        media: widget.selected,
+                      ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: widget.selected.isSynthesized
-                ? const _SynthesizedTransport()
-                // Deliberately NOT keyed by media id: a fresh State per
-                // medium would reset the playback speed every time the user
-                // switched track, and slowing a passage down is a setting you
-                // hold across takes. `didUpdateWidget` reloads instead.
-                : _MediaTransport(
-                    piece: widget.piece,
-                    media: widget.selected,
-                  ),
-          ),
-        ],
-      ),
+        );
+      }),
     );
   }
 }
@@ -87,10 +106,14 @@ class _MediaPicker extends ConsumerWidget {
   final List<PieceMedia> media;
   final PieceMedia selected;
 
+  /// Show only the kind icon, not the name — for a bar too narrow for both.
+  final bool iconOnly;
+
   const _MediaPicker({
     required this.piece,
     required this.media,
     required this.selected,
+    this.iconOnly = false,
   });
 
   @override
@@ -100,7 +123,9 @@ class _MediaPicker extends ConsumerWidget {
     final canRecord = TeacherRecordingCapture().isSupported;
 
     return PopupMenuButton<_PickerAction>(
-      tooltip: 'Choose what plays this piece',
+      tooltip: iconOnly
+          ? 'Playing: ${selected.label}'
+          : 'Choose what plays this piece',
       position: PopupMenuPosition.over,
       onSelected: (action) => _handle(context, ref, action),
       // `menuContext` is deliberately not named `context`: it belongs to the
@@ -164,15 +189,17 @@ class _MediaPicker extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(_iconFor(selected.kind), size: 16),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                selected.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
+            if (!iconOnly) ...[
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  selected.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
-            ),
+            ],
             const Icon(Icons.arrow_drop_down, size: 18),
           ],
         ),
@@ -618,9 +645,14 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
         ),
         const Icon(Icons.music_note, size: 16),
         const SizedBox(width: 2),
-        Text('${_tempo.round()}',
-            style:
-                const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        // Fixed width, so the slider doesn't shift as "40" becomes "125".
+        SizedBox(
+          width: 24,
+          child: Text('${_tempo.round()}',
+              textAlign: TextAlign.center,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
         Expanded(
           child: Slider(
             value: _tempo,
