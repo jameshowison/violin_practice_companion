@@ -551,15 +551,19 @@ class SectionDetector {
     return labels;
   }
 
-  /// Exact match, or "near" match: equal except the last ≤2 measures (with a
-  /// length difference of at most 1) — catches a strain restated with a different
-  /// ending/variation (the ABAA case).
+  /// Exact match, or "near" match: equal except an ENDING (with a length
+  /// difference of at most 1) — a strain restated with a different ending, as
+  /// with first and second endings (the ABAA case). The ending is the last 2
+  /// bars, or 3/8 of a longer strain: Gundagai's last chorus strain is its
+  /// first one's opening five bars, then `c B.` for `c B G` and a final rest
+  /// for the lead-in into the next strain.
   static bool _matches(List<String> a, List<String> b) {
     if (_listEq(a, b)) return true;
     if ((a.length - b.length).abs() > 1) return false;
     final n = math.min(a.length, b.length);
     if (n < 3) return false; // too short to fuzzy-match
-    for (var i = 0; i < n - 2; i++) {
+    final ending = math.max(2, n * 3 ~/ 8);
+    for (var i = 0; i < n - ending; i++) {
       if (a[i] != b[i]) return false;
     }
     return true;
