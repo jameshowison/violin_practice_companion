@@ -1289,6 +1289,7 @@ void paintStaffScore(
   List<FingeringAnnotation> fingeringAnnotations = const [],
   List<StringRunRegion> stringRuns = const [],
   StringColourStyle stringColourStyle = StringColourStyle.chips,
+  bool monochromeRules = false,
 }) {
   _UnderlayPainter(score: score, scale: scale, sectionTints: sectionTints)
       .paint(canvas, size);
@@ -1304,6 +1305,7 @@ void paintStaffScore(
     annotations: fingeringAnnotations,
     stringRuns: stringRuns,
     style: stringColourStyle,
+    monochromeRules: monochromeRules,
   ).paint(canvas, size);
   _ChordLanePainter(score: score, scale: scale, runs: chordRuns)
       .paint(canvas, size);
@@ -1601,6 +1603,7 @@ class _FingeringLanePainter extends CustomPainter {
     required this.annotations,
     required this.stringRuns,
     required this.style,
+    this.monochromeRules = false,
   });
 
   final EngravedScore score;
@@ -1612,6 +1615,11 @@ class _FingeringLanePainter extends CustomPainter {
   final List<StringRunRegion> stringRuns;
 
   final StringColourStyle style;
+
+  /// Underline rules in grey, weighted by string
+  /// ([underlineGreyWeightByString]) instead of coloured — for a greyscale
+  /// print, where the string colours would come out as near-identical greys.
+  final bool monochromeRules;
 
   /// Chip height as a fraction of the CHANNEL, capping how much of the lane a
   /// chip may claim; the remainder is the air that stops the row reading as one
@@ -1709,7 +1717,14 @@ class _FingeringLanePainter extends CustomPainter {
   /// I on?" continuously, which is most of its value at the lower densities.
   void _paintStringRuns(Canvas canvas, double width) {
     for (final run in stringRuns) {
-      final colour = ViolinStringPalette.rule(run.string);
+      final weight = monochromeRules
+          ? underlineGreyWeightByString[run.string]
+          : 1.0;
+      final colour = !monochromeRules
+          ? ViolinStringPalette.rule(run.string)
+          : weight == null
+              ? const Color(0xFFBBBBBB)
+              : const Color(0xFF444444);
       for (final e in runRowExtents(
         score,
         startMeasureIndex: run.startMeasureIndex,
@@ -1723,7 +1738,9 @@ class _FingeringLanePainter extends CustomPainter {
         final channel = _channelFor(e.line, width);
         if (channel == null) continue;
         final channelH = channel.height;
-        final h = channelH * underlineRuleFraction;
+        final h = channelH *
+            underlineRuleFraction *
+            (weight ?? underlineGreyWeightByString['E']!);
         if (h <= 0) continue;
         final bottom = channel.bottom - _lift(run.string, channelH);
         // A hairline off each end, so two runs that meet at a string change read

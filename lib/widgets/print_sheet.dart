@@ -69,7 +69,12 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
       sections: piece.sections,
       sectionColors: SectionPalette.colorsForSections(piece.sections),
       bySection: ref.read(sectionLayoutAvailableProvider),
-      colourStyle: greyscale ? StringColourStyle.off : null,
+      // The underline's stagger and line weight carry the string without
+      // colour; chips are nothing but colour, so they lose it for letters.
+      colourStyle: greyscale &&
+              ref.read(stringColourStyleProvider) != StringColourStyle.underline
+          ? StringColourStyle.off
+          : null,
     );
     return PrintJob(
       title: piece.title,
