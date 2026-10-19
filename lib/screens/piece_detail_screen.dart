@@ -1581,6 +1581,14 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                       ),
                     ),
                     // ── chord diagrams (slide up above the play bar) ──
+                    //
+                    // Tall on purpose, and that's fine: on a phone the
+                    // diagrams are reference — read before playing, not
+                    // while — and the drawer closes itself the moment Play is
+                    // pressed (the playbackStateProvider listener above). So
+                    // the score it covers (about half the screen in portrait,
+                    // all but one line in landscape on the SE) is not score
+                    // anyone is trying to read. Don't shrink it to make room.
                     AnimatedSize(
                       duration: _slide,
                       curve: Curves.easeOut,
