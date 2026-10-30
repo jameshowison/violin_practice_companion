@@ -324,7 +324,8 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   final xml = await repo.loadMusicXml(piece);
   final parsed = parser.parse(xml);
   final withJianpu = jianpu.convert(parsed);
-  final withFingering = fingering.map(withJianpu);
+  final withFingering = fingering.map(withJianpu,
+      preference: ref.watch(violinStringPreferenceProvider));
   return withFingering;
 });
 
@@ -1045,6 +1046,15 @@ final fretStyleProvider = pieceDisplayEnumPref<FretStyle>(
   'fretStyle',
   FretStyle.openStrings,
   FretStyle.values,
+);
+
+/// On the violin: open string or 4th finger, where a note could be either.
+/// Remembered per piece — see [ViolinStringPreference].
+final violinStringPreferenceProvider =
+    pieceDisplayEnumPref<ViolinStringPreference>(
+  'violinStrings',
+  ViolinStringPreference.openStrings,
+  ViolinStringPreference.values,
 );
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels

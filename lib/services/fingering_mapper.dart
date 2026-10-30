@@ -1,29 +1,25 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 
 class FingeringMapper {
   Map<String, dynamic>? _fingeringTable;
-  String _preference = 'fingered';
 
   Future<void> init() async {
     final rawFingering = await rootBundle
         .loadString('assets/lookup_tables/fingering_first_position.json');
     _fingeringTable = json.decode(rawFingering) as Map<String, dynamic>;
-
-    final rawPref = await rootBundle
-        .loadString('assets/lookup_tables/open_string_preferences.json');
-    final prefMap = json.decode(rawPref) as Map<String, dynamic>;
-    _preference = prefMap['default'] as String? ?? 'fingered';
   }
 
-  void updatePreference(String preference) {
-    _preference = preference;
-  }
-
-  String get preference => _preference;
-
-  ParsedPiece map(ParsedPiece piece) {
+  /// [preference] chooses between an open string and the 4th finger below it
+  /// wherever the table offers both — see [ViolinStringPreference]. It is the
+  /// piece's setting (`violinStringPreferenceProvider`); this used to come from
+  /// `open_string_preferences.json`, which no setting could override.
+  ParsedPiece map(ParsedPiece piece,
+      {ViolinStringPreference preference =
+          ViolinStringPreference.openStrings}) {
+    final preferOpen = preference == ViolinStringPreference.openStrings;
     assert(_fingeringTable != null, 'Call init() before map()');
     final notes = _fingeringTable!['notes'] as Map<String, dynamic>;
 
@@ -43,10 +39,10 @@ class FingeringMapper {
         if (alt != null) {
           final altFinger = alt['finger'] as String;
           final altString = alt['string'] as String;
-          if (_preference == 'open' && altFinger == '0') {
+          if (preferOpen && altFinger == '0') {
             chosenString = altString;
             chosenFinger = altFinger;
-          } else if (_preference == 'fingered' && primaryFinger == '0') {
+          } else if (!preferOpen && primaryFinger == '0') {
             chosenString = altString;
             chosenFinger = altFinger;
           }

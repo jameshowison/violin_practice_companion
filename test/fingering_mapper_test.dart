@@ -1,4 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_number_mode.dart';
+import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/services/fingering_mapper.dart';
 
 // Test fingering logic inline without asset loading.
 // Mirrors the algorithm in fingering_mapper.dart.
@@ -22,6 +26,7 @@ typedef FingeringEntry = ({String string, String finger, Map<String, String>? al
 }
 
 void main() {
+  _realMapperTests();
   // G4 = MIDI 62: G-string finger 4, alt D-string open (finger "0")
   final g4Entry = (
     string: 'G',
@@ -91,5 +96,49 @@ void main() {
     final r2 = resolveFingeringEntry(e4Entry, 'fingered');
     expect(r2.string, 'D');
     expect(r2.finger, '1');
+  });
+}
+
+// The real mapper, against the bundled table, under each piece setting.
+void _realMapperTests() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  NoteEvent note(int midi) => NoteEvent(
+        pitch: 'A4',
+        midiNumber: midi,
+        octave: 4,
+        noteValue: NoteValue.quarter,
+        dotted: false,
+        isRest: false,
+      );
+  ParsedPiece piece(List<int> midis) => ParsedPiece(
+        keySignature: 'D',
+        keyFifths: 2,
+        keyMode: KeyMode.major,
+        measures: [Measure(number: 1, notes: [for (final m in midis) note(m)])],
+      );
+  List<String> labels(ParsedPiece p) => [
+        for (final n in p.measures.single.notes)
+          '${n.fingerString}${n.fingerNumber}'
+      ];
+
+  group('FingeringMapper.map', () {
+    // D4, A4, E5: each an open string or a 4th finger below. B4 has no choice.
+    const midis = [62, 69, 76, 71];
+
+    test('open strings by default', () async {
+      final mapper = FingeringMapper();
+      await mapper.init();
+      expect(labels(mapper.map(piece(midis))), ['D0', 'A0', 'E0', 'A1']);
+    });
+
+    test('4th finger when the piece prefers it', () async {
+      final mapper = FingeringMapper();
+      await mapper.init();
+      expect(
+          labels(mapper.map(piece(midis),
+              preference: ViolinStringPreference.fourthFinger)),
+          ['G4', 'D4', 'A4', 'A1']);
+    });
   });
 }
