@@ -337,11 +337,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // [NoteNumberMode].
                   const SizedBox(height: 12),
                   const _NoteNumberPicker(),
+                  const SizedBox(height: 12),
                   if (ref.watch(noteNumberModeProvider) ==
-                      NoteNumberMode.mandolinFret) ...[
-                    const SizedBox(height: 12),
-                    const _FretStylePicker(),
-                  ],
+                      NoteNumberMode.mandolinFret)
+                    const _FretStylePicker()
+                  else
+                    const _ViolinStringPicker(),
                   const Divider(),
                   // Never hidden behind a display mode: it's the one setting
                   // here that's about playing along rather than about how the
@@ -1163,6 +1164,42 @@ class _NoteNumberPicker extends ConsumerWidget {
           selected: {mode},
           onSelectionChanged: (s) =>
               ref.read(noteNumberModeProvider.notifier).state = s.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Open string or 4th finger, for the notes that could be either. Only shown
+/// for the violin; the mandolin's counterpart is [_FretStylePicker].
+class _ViolinStringPicker extends ConsumerWidget {
+  const _ViolinStringPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pref = ref.watch(violinStringPreferenceProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Prefer'),
+        const SizedBox(height: 8),
+        SegmentedButton<ViolinStringPreference>(
+          key: const ValueKey('violin_string_picker'),
+          segments: const [
+            ButtonSegment(
+                value: ViolinStringPreference.openStrings,
+                label: Text('Open strings')),
+            ButtonSegment(
+                value: ViolinStringPreference.fourthFinger,
+                label: Text('4th finger')),
+          ],
+          selected: {pref},
+          onSelectionChanged: (s) =>
+              ref.read(violinStringPreferenceProvider.notifier).state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,

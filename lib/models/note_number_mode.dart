@@ -30,3 +30,19 @@ enum FretStyle {
   /// mode, since the colour follows the string — only the digits change.
   matchFingering,
 }
+
+/// On the violin, which way to play a note that is both an open string and a
+/// 4th finger on the string below (D4, A4, E5). Remembered per piece, because
+/// it is a fact about the tune's place in a method, not about the player: early
+/// tunes are taught on the open string, and later ones vary.
+///
+/// Sets the fingering itself ([FingeringMapper]), so it reaches every view that
+/// shows one — and, through the string a note is on, fret positions under
+/// [FretStyle.matchFingering].
+enum ViolinStringPreference {
+  /// The open string — what a beginner's tune expects. Default.
+  openStrings,
+
+  /// The 4th finger on the lower string: richer tone, no change of string.
+  fourthFinger,
+}
