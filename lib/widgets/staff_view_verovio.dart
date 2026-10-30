@@ -1836,6 +1836,7 @@ class _FingeringLanePainter extends CustomPainter {
             fontWeight: FontWeight.w700,
             color: fingeringInk,
           ),
+          children: _implied(item.a, fingeringInk),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
@@ -1848,6 +1849,17 @@ class _FingeringLanePainter extends CustomPainter {
       tp.paint(canvas, Offset(left, baseline - tp.height));
     }
   }
+
+  /// The unsaid suffix ([FingeringAnnotation.implied]) as a faded tail on the
+  /// label, in the label's own ink so it reads on any chip fill.
+  static List<InlineSpan>? _implied(FingeringAnnotation a, Color ink) =>
+      a.implied == null
+          ? null
+          : [
+              TextSpan(
+                  text: a.implied,
+                  style: TextStyle(color: ink.withValues(alpha: 0.4))),
+            ];
 
   /// The type size for chips in [channel] (the WHOLE fingering channel, not
   /// what the staff asks for, capped by what the channel can host.
@@ -1909,6 +1921,7 @@ class _FingeringLanePainter extends CustomPainter {
             fontWeight: FontWeight.w700,
             color: ViolinStringPalette.inkOn(fill),
           ),
+          children: _implied(item.a, ViolinStringPalette.inkOn(fill)),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,

@@ -36,6 +36,7 @@ List<FingeringAnnotation> _build(
   StringLabelStyle stringLabelStyle = StringLabelStyle.always,
   NoteNumberMode numberMode = NoteNumberMode.violinFingering,
   FretStyle fretStyle = FretStyle.openStrings,
+  bool showImpliedHigh = false,
 }) =>
     fingeringAnnotations(
       EngravedMeasureMap.identity([for (final m in measures) m.number]),
@@ -46,6 +47,7 @@ List<FingeringAnnotation> _build(
       stringLabelStyle: stringLabelStyle,
       numberMode: numberMode,
       fretStyle: fretStyle,
+      showImpliedHigh: showImpliedHigh,
     );
 
 void main() {
@@ -377,5 +379,29 @@ void main() {
 
   test('an empty piece yields nothing', () {
     expect(_build(const []), isEmpty);
+  });
+  group('implied high 2', () {
+    final measures = [
+      Measure(number: 1, notes: [_n('A', '1'), _n('A', '2'), _n('A', '2L')]),
+    ];
+
+    test('a plain violin 2 gets a greyed H; the label is untouched', () {
+      final out = _build(measures, showImpliedHigh: true);
+      expect([for (final a in out) a.label], ['1', '2', '2L']);
+      expect([for (final a in out) a.implied], [null, 'H', null]);
+    });
+
+    test('off by default, and never on the mandolin', () {
+      expect([for (final a in _build(measures)) a.implied],
+          [null, null, null]);
+      expect(
+          [
+            for (final a in _build(measures,
+                showImpliedHigh: true,
+                numberMode: NoteNumberMode.mandolinFret))
+              a.implied
+          ],
+          [null, null, null]);
+    });
   });
 }

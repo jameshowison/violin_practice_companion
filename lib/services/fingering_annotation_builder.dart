@@ -18,6 +18,7 @@ typedef FingeringAnnotation = ({
   int noteIndex,
   String label, // '2L' with colours on, 'A2L' with them off — never rewritten
   String? string, // 'G'|'D'|'A'|'E', picks the chip fill; null = unknown
+  String? implied, // drawn greyed after [label]: the 'H' a plain 2 leaves unsaid
 });
 
 /// One unbroken span of playing on a single string, for the underline style.
@@ -61,6 +62,10 @@ const int maxFirstPositionFret = 7;
 /// hand (a string crossing, a stretch to the 4th finger, a low 2nd), and those
 /// facts don't change because the label is now expressed as a fret. It also means
 /// switching the number mode never makes labels appear or disappear.
+///
+/// [showImpliedHigh] marks a violin `2` with no suffix as [FingeringAnnotation.implied]
+/// `H`: the vocabulary's reminder that the home pattern's 2 is a high 2, which
+/// the title spells `1 2H 3`. The label itself is untouched.
 List<FingeringAnnotation> fingeringAnnotations(
   EngravedMeasureMap measureMap,
   ParsedPiece parsed, {
@@ -70,6 +75,7 @@ List<FingeringAnnotation> fingeringAnnotations(
   required StringLabelStyle stringLabelStyle,
   NoteNumberMode numberMode = NoteNumberMode.violinFingering,
   FretStyle fretStyle = FretStyle.openStrings,
+  bool showImpliedHigh = false,
 }) {
   final out = <FingeringAnnotation>[];
 
@@ -128,6 +134,11 @@ List<FingeringAnnotation> fingeringAnnotations(
             label: _label(
                 shown, colourByString, stringLabelStyle, prevString),
             string: shown.string,
+            implied: showImpliedHigh &&
+                    numberMode == NoteNumberMode.violinFingering &&
+                    note.fingerNumber == '2'
+                ? 'H'
+                : null,
           ));
         }
       }
