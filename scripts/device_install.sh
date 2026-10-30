@@ -4,6 +4,7 @@
 # Defaults to the phone named Jamz; pass another device name or UDID as $1:
 #   scripts/device_install.sh JamzJamzJamzz
 #   scripts/device_install.sh 00008110-001C2D160AA0401E
+#   scripts/device_install.sh --no-build   # retry the install of the last build
 #
 # Two things this exists to get right — see README "Installing on a physical
 # device" for the full reasoning:
@@ -11,6 +12,8 @@
 #   1. It ALWAYS builds first. `flutter install` on its own silently reuses
 #      whatever is already in build/ios/iphoneos/Runner.app and does NOT rebuild,
 #      so it will happily exit 0 having installed a binary from hours ago.
+#      `flutter build` itself is incremental, so re-running on an unchanged
+#      tree is cheaper than the first build.
 #
 #   2. It installs with `devicectl`, not `flutter install`. flutter uninstalls
 #      the old copy first, and iOS drops the developer-trust record as soon as
@@ -21,21 +24,35 @@ set -euo pipefail
 
 # --sync: afterwards, sync the dev library with the device (see
 # scripts/sync_dev_library.sh) — it relaunches the app, which merges it.
+# --no-build: skip the build and install what is already in $APP — for when the
+# build succeeded but devicectl lost the phone. The "built at" line below still
+# prints, so you can see how old the reused binary is.
 SYNC=""
+NO_BUILD=""
 ARGS=()
 for arg in "$@"; do
-  [[ "$arg" == "--sync" ]] && SYNC=1 || ARGS+=("$arg")
+  case "$arg" in
+    --sync) SYNC=1 ;;
+    --no-build) NO_BUILD=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
 done
 DEVICE="${ARGS[0]:-${DEVICE:-JamzJamzJamzz}}"
 APP="build/ios/iphoneos/Runner.app"
 
 cd "$(dirname "$0")/.."
 
-# Stamp first, same as dev_run.sh — though note a RELEASE build does not show
-# kBuildRef in the AppBar (it is debug-only), so confirm the build by the feature
-# you came to test, not by reading the stamp off the screen.
-STAMP=$(bash scripts/gen_build_info.sh)
-echo "$STAMP"
+if [[ -n "$NO_BUILD" ]]; then
+  if [[ ! -d "$APP" ]]; then
+    echo "--no-build: no $APP to install — run without --no-build first" >&2
+    exit 1
+  fi
+else
+
+# No gen_build_info.sh here, unlike dev_run.sh. A RELEASE build does not show
+# kBuildRef (it is debug-only), and the stamp's timestamp changes a Dart file on
+# every run, which forces flutter's otherwise-incremental build to recompile the
+# whole program. Confirm the build by the feature you came to test instead.
 
 # Scanning loads homr's models from the app's own assets; a build without them
 # installs fine and then fails at the first scan. Refuse rather than ship that.
@@ -48,6 +65,8 @@ fi
 pkill -f flutter_tools.snapshot 2>/dev/null || true
 
 flutter build ios --release
+
+fi
 
 # Prove the artifact is from this run rather than trusting the exit code. Cheap,
 # and it is exactly the check that caught a two-hour-old binary going onto the
