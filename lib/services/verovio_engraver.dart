@@ -604,11 +604,14 @@ class VerovioEngraver {
   /// Prefix Verovio puts on the id of every box it emits for `svgBoundingBoxes`.
   static const _bboxIdPrefix = 'bbox-';
 
+  // Attributes may follow the class: a coloured note's box carries the note's
+  // `color`/`fill` too, and a box that escaped here was painted in that colour
+  // over its notehead (jovial ignores the rect's `fill="transparent"`).
   static final _bboxGroupWithRect = RegExp(
-    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*">\s*<rect[^>]*/>\s*</g>',
+    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*"[^>]*>\s*<rect[^>]*/>\s*</g>',
   );
   static final _bboxGroupEmpty = RegExp(
-    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*"\s*/>',
+    r'<g id="bbox-[^"]*" class="[^"]*bounding-box[^"]*"[^>/]*/>',
   );
 
   /// Per-system ink extent in viewBox px, read from **Verovio's own** bounding
