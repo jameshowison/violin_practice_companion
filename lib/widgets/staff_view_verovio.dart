@@ -108,6 +108,11 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// size.
   final bool zoomable;
 
+  /// Told the height the engraved page draws at, whenever it changes — for a
+  /// preview that sizes its box to its content (the note palette) rather than
+  /// scrolling inside a fixed one.
+  final ValueChanged<double>? onContentHeight;
+
   const StaffViewVerovio({
     super.key,
     required this.musicXml,
@@ -129,6 +134,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.tabMode = false,
     this.tabFingerLabels,
     this.zoomable = true,
+    this.onContentHeight,
   });
 
   @override
@@ -1113,12 +1119,20 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         final scale = _scale;
         final renderH = score.viewBox.height * scale;
         final theme = Theme.of(context);
+        if (renderH != _renderHeight && widget.onContentHeight != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.onContentHeight?.call(renderH);
+          });
+        }
         _renderHeight = renderH;
         return SingleChildScrollView(
           controller: _scrollController,
           // Room past the last system to scroll it clear of the play tray.
+          // Not for the previews, which sit nowhere near the tray.
           padding: EdgeInsets.only(
-              bottom: ref.watch(notationBottomClearanceProvider)),
+              bottom: widget.zoomable
+                  ? ref.watch(notationBottomClearanceProvider)
+                  : 0),
           // The pinch preview. Transform.scale changes what is drawn without
           // changing what is laid out, so the page grows past its box and the
           // scroll view's own clip trims it — which is what "zoomed into the

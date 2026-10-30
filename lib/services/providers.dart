@@ -340,10 +340,10 @@ final staffViewBottomInsetProvider = StateProvider<double>((_) => 0);
 final notationBottomClearanceProvider = StateProvider<double>((_) => 0);
 
 // ── Note vocabulary panel (the palette staff above the score) ────────────────
-// Folded by default: on a tablet it costs ~170pt of the score's height, and it's
-// reference material you consult once rather than read while playing. Lifted out
-// of the panel's own State because the toggle now lives in the app bar, beside
-// the title, rather than on the panel itself.
+// Folded by default: it costs a good slice of the score's height (all the more
+// on a phone), and it's reference material you consult once rather than read
+// while playing. Lifted out of the panel's own State because the toggle lives
+// in the app bar, beside the title, rather than on the panel itself.
 final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 
 // ── Staff spacing (MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10) ──
@@ -1085,8 +1085,23 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
 final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
-  final xml = PaletteXmlGenerator.generate(parsed);
-  return xml.isEmpty ? null : xml;
+  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) {
+    final xml = PaletteXmlGenerator.generate(parsed);
+    return xml.isEmpty ? null : xml;
+  }
+  // The native staff draws the labels itself, as the score's chips, from
+  // [palettePieceProvider] — but only into a row Verovio has reserved, so it
+  // gets placeholders, exactly as the annotation view's xml does.
+  final palette = PaletteXmlGenerator.piece(parsed);
+  if (palette == null) return null;
+  return FingeringXmlInjector.injectPlaceholders(
+      PaletteXmlGenerator.generate(parsed, fingerings: false), palette);
+});
+
+/// The note vocabulary as a piece of its own — see [PaletteXmlGenerator.piece].
+final palettePieceProvider = FutureProvider<ParsedPiece?>((ref) async {
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  return parsed == null ? null : PaletteXmlGenerator.piece(parsed);
 });
 
 // ── Measure selection ─────────────────────────────────────────────────────────
