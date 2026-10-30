@@ -2010,6 +2010,7 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
         stringLabelStyle: ref.watch(stringLabelStyleProvider),
         numberMode: numberMode,
         fretStyle: fretStyle,
+        showImpliedHigh: true,
       ),
       stringColourStyle: style,
       stringRuns: style == StringColourStyle.underline
