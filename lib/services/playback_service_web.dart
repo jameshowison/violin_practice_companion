@@ -69,12 +69,16 @@ extension _GainNodeExt on _GainNode {
 
 class PlaybackService extends PlaybackServiceBase {
   late final _AudioContext _ctx;
+  // Every voice goes through this, so muting can silence notes already
+  // scheduled ahead on the context.
+  late final _GainNode _master;
   // Each live voice with the context time it ends, so finished ones can be
   // dropped while a long play-through runs.
   final _voices = <(_OscillatorNode, double)>[];
 
   PlaybackService(super.generator) {
     _ctx = _AudioContext();
+    _master = _ctx.createGain()..connect(_ctx.destination);
   }
 
   double get _outputLatency =>
@@ -122,7 +126,7 @@ class PlaybackService extends PlaybackServiceBase {
     gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
     osc.connect(gain);
-    gain.connect(_ctx.destination);
+    gain.connect(_master);
 
     osc.start(startTime);
     osc.stop(startTime + duration + 0.02);
@@ -138,6 +142,11 @@ class PlaybackService extends PlaybackServiceBase {
       } catch (_) {}
     }
     _voices.clear();
+  }
+
+  @override
+  void onMuteChanged(bool muted) {
+    _master.gain.value = muted ? 0.0 : 1.0;
   }
 
   @override

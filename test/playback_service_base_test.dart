@@ -33,6 +33,11 @@ class _FakeClockPlaybackService extends PlaybackServiceBase {
 
   @override
   void onTick(double playbackTime, MidiData data) {}
+
+  final muteChanges = <bool>[];
+
+  @override
+  void onMuteChanged(bool muted) => muteChanges.add(muted);
 }
 
 /// A player that schedules ahead on its own clock, as the web one does: only
@@ -179,6 +184,24 @@ void main() {
       expect(service.notifierForMeasure(1).value, 0,
           reason: 'at t=$t within measure 1');
     }
+  });
+
+  group('muted', () {
+    test('tells the player once per real change', () {
+      expect(service.muted, isFalse);
+      service.muted = true;
+      service.muted = true;
+      service.muted = false;
+      expect(service.muteChanges, [true, false]);
+    });
+
+    test('silences the sound without stopping playback', () {
+      service.play(fromMeasure: 1);
+      service.muted = true;
+      expect(service.playbackState, PlaybackState.playing);
+      service.stop();
+      expect(service.muted, isTrue, reason: 'mute outlives a stop, like loop');
+    });
   });
 
   group('a section that starts or ends mid-bar', () {

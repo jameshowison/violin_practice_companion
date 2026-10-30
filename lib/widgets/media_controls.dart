@@ -611,15 +611,6 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.skip_previous),
-          iconSize: 22,
-          tooltip: 'Rewind',
-          onPressed: () {
-            service.stop();
-            start();
-          },
-        ),
-        IconButton(
           icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
           iconSize: 26,
           tooltip: isPlaying ? 'Pause' : 'Play',
@@ -650,6 +641,15 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           tooltip: service.loopEnabled ? 'Loop on' : 'Loop off',
           onPressed: () =>
               setState(() => service.loopEnabled = !service.loopEnabled),
+        ),
+        IconButton(
+          icon: Icon(
+            service.muted ? Icons.volume_off : Icons.volume_up,
+            color: service.muted ? Theme.of(context).colorScheme.primary : null,
+          ),
+          iconSize: 22,
+          tooltip: service.muted ? 'Unmute' : 'Mute',
+          onPressed: () => setState(() => service.muted = !service.muted),
         ),
         const Icon(Icons.music_note, size: 16),
         const SizedBox(width: 2),

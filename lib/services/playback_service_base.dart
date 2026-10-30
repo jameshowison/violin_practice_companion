@@ -17,6 +17,17 @@ abstract class PlaybackServiceBase {
 
   bool loopEnabled = false;
 
+  bool _muted = false;
+
+  /// Silences the sound only: the clock, cursor, count-off and loop run on,
+  /// so the score can be played along with a silent cursor.
+  bool get muted => _muted;
+  set muted(bool v) {
+    if (v == _muted) return;
+    _muted = v;
+    onMuteChanged(v);
+  }
+
   bool _highlightDownbeatOnly = true;
 
   /// When true, only the first note of each measure (the beat the audio
@@ -498,6 +509,9 @@ abstract class PlaybackServiceBase {
 
   /// Called every 40ms while playing; subclass triggers note on/off as needed.
   void onTick(double playbackTime, MidiData data);
+
+  /// Called when [muted] changes; subclass silences or restores its output.
+  void onMuteChanged(bool muted) {}
 
   void dispose() {
     _timer?.cancel();
