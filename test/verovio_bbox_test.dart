@@ -186,6 +186,22 @@ void main() {
       );
     });
 
+    // A coloured note's box carries the note's colour after its class. Missed,
+    // it was painted as a coloured square over the notehead.
+    test('removes the box of a coloured note too', () {
+      const svg = '<g id="n1" class="note" color="#FF9000" fill="#FF9000">'
+          '<g id="bbox-n1" class="note bounding-box" color="#FF9000" fill="#FF9000">'
+          '<rect x="1604" y="1344" height="191" width="226" fill="transparent" stroke-width="0" />'
+          '</g>'
+          '<g id="bbox-n2" class="accid bounding-box" color="#FF9000"/>'
+          '<g class="notehead"><use xlink:href="#E0A4" /></g>'
+          '</g>';
+      expect(VerovioEngraver.stripBoundingBoxes(svg),
+          '<g id="n1" class="note" color="#FF9000" fill="#FF9000">'
+          '<g class="notehead"><use xlink:href="#E0A4" /></g>'
+          '</g>');
+    });
+
     test('a no-op on an SVG that never had any', () {
       final plain = File('test/fixtures/verovio_fing.svg').readAsStringSync();
       expect(VerovioEngraver.stripBoundingBoxes(plain), plain);
