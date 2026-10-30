@@ -1865,8 +1865,8 @@ class _KeyMeterButton extends ConsumerWidget {
 /// opening the vocabulary. On every screen size: it is the warning a phone
 /// needs most. On the violin the labels are shown exactly as stored (`A2L`,
 /// never `A2♭`); on the mandolin the same notes by string and fret. With none,
-/// the home pattern in grey (`1 2H 3`, frets `2 4 5`), so "nothing unusual" is
-/// said rather than left blank.
+/// the home pattern on every string, in grey (`All: 1 2H 3`, frets
+/// `All: 2 4 5`), so "nothing unusual" is said rather than left blank.
 class _KeySummary extends ConsumerWidget {
   const _KeySummary({this.mirror = false});
 
@@ -1900,8 +1900,8 @@ class _KeySummary extends ConsumerWidget {
         else
           Text(
               numberMode == NoteNumberMode.violinFingering
-                  ? '1 2H 3'
-                  : '2 4 5',
+                  ? 'All: 1 2H 3'
+                  : 'All: 2 4 5',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
