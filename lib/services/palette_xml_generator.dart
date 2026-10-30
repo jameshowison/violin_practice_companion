@@ -29,10 +29,11 @@ class PaletteXmlGenerator {
     return (step: m.group(1)!, alter: alter, octave: int.parse(m.group(3)!));
   }
 
-  static String _noteXml(NoteEvent ne, String colorAttr) {
+  static String _noteXml(NoteEvent ne, String colorAttr, bool fingerings) {
     final p = _parsePitch(ne.pitch);
     final alterEl = p.alter != 0 ? '<alter>${p.alter}</alter>' : '';
-    final hasLabel = ne.fingerString != null && ne.fingerNumber != null;
+    final hasLabel =
+        fingerings && ne.fingerString != null && ne.fingerNumber != null;
     final fingEl = hasLabel
         ? '<notations><technical>'
             '<fingering placement="above">'
@@ -64,16 +65,44 @@ class PaletteXmlGenerator {
         '</note>';
   }
 
-  static String generate(ParsedPiece parsed) {
+  /// The palette as a piece of its own: every distinct pitch once, lowest
+  /// first, four to a bar. The native staff needs it in this form, not just
+  /// as xml, to place its fingering chips — they are built from a
+  /// [ParsedPiece] exactly as the score's are, so the palette follows the same
+  /// annotation settings. Bar `n` here is engraved bar `n` of [generate].
+  /// Null when the piece has no notes.
+  static ParsedPiece? piece(ParsedPiece parsed) {
     // Include all non-rest notes, even those missing fingering data.
     final noteByMidi = <int, NoteEvent>{};
     for (final n in parsed.allNotes) {
       if (n.isRest) continue;
       noteByMidi.putIfAbsent(n.midiNumber, () => n);
     }
-    if (noteByMidi.isEmpty) return '';
+    if (noteByMidi.isEmpty) return null;
 
-    final sortedMidis = noteByMidi.keys.toList()..sort();
+    final sorted = [
+      for (final midi in noteByMidi.keys.toList()..sort()) noteByMidi[midi]!,
+    ];
+    return ParsedPiece(
+      keySignature: parsed.keySignature,
+      keyFifths: parsed.keyFifths,
+      keyMode: parsed.keyMode,
+      measures: [
+        for (var i = 0; i < sorted.length; i += 4)
+          Measure(
+            number: i ~/ 4 + 1,
+            notes: sorted.sublist(i, (i + 4).clamp(0, sorted.length)),
+          ),
+      ],
+    );
+  }
+
+  /// [fingerings] engraves each note's label as a MusicXML `<fingering>`, for
+  /// the OSMD bridge. The native staff draws its own chips instead, from
+  /// [piece], and wants none in the xml.
+  static String generate(ParsedPiece parsed, {bool fingerings = true}) {
+    final palette = piece(parsed);
+    if (palette == null) return '';
     final keyPcs = _keyPitchClasses(parsed.keyFifths, parsed.keyMode);
 
     final buf = StringBuffer()
@@ -84,12 +113,9 @@ class PaletteXmlGenerator {
           '</part-list>')
       ..writeln('<part id="P1">');
 
-    int idx = 0;
-    int measureNum = 0;
-    while (idx < sortedMidis.length) {
-      measureNum++;
-      buf.writeln('<measure number="$measureNum">');
-      if (measureNum == 1) {
+    for (final m in palette.measures) {
+      buf.writeln('<measure number="${m.number}">');
+      if (m.number == 1) {
         buf.writeln('<attributes>'
             '<divisions>1</divisions>'
             '<key><fifths>${parsed.keyFifths}</fifths></key>'
@@ -97,9 +123,7 @@ class PaletteXmlGenerator {
             '<clef><sign>G</sign><line>2</line></clef>'
             '</attributes>');
       }
-      int inMeasure = 0;
-      while (idx < sortedMidis.length && inMeasure < 4) {
-        final ne = noteByMidi[sortedMidis[idx]]!;
+      for (final ne in m.notes) {
         final fn = ne.fingerNumber;
         final isLH = fn != null && (fn.endsWith('L') || fn.endsWith('H'));
         final isChrom = !keyPcs.contains(ne.midiNumber % 12);
@@ -108,11 +132,9 @@ class PaletteXmlGenerator {
             : isChrom
                 ? ' color="$_chromColor"'
                 : '';
-        buf.writeln(_noteXml(ne, colorAttr));
-        idx++;
-        inMeasure++;
+        buf.writeln(_noteXml(ne, colorAttr, fingerings));
       }
-      final remaining = 4 - inMeasure;
+      final remaining = 4 - m.notes.length;
       if (remaining > 0) buf.writeln(_padRest(remaining));
       buf.writeln('</measure>');
     }

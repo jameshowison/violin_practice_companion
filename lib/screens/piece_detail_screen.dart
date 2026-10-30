@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/count_in.dart';
+import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
@@ -18,10 +19,12 @@ import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
 import '../models/piece_media.dart';
 import '../services/abc_converter.dart';
+import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
+import '../services/nonstandard_fingerings.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/media_catalog.dart';
@@ -224,6 +227,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             // from the main render so its width goes to notes instead. Sized
             // to fill the toolbar height, since it's the whole point of this
             // widget and there's no other content competing for that space.
+            // The key's name, and the fingerings off the hand's basic shape,
+            // ride just ahead of it — see [_KeySummary].
+            const _KeySummary(),
+            const SizedBox(width: 6),
             const PreamblePreview(height: kDebugMode ? 64 : 56),
             const SizedBox(width: 8),
             // An invisible copy of the key block on the left, so the title
@@ -262,11 +269,13 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             if (!useCompact) ...[
               const SizedBox(width: 8),
               const PreamblePreview(mirror: true, height: kDebugMode ? 64 : 56),
+              const SizedBox(width: 6),
+              const _KeySummary(mirror: true),
             ],
           ],
         ),
         actions: [
-          if (!useCompact) const _NotePaletteToggle(),
+          _NotePaletteToggle(compact: useCompact),
           // A phone's bar has no room to spare (the title gives it up first);
           // there Print lives in the drawer only.
           if (!useCompact && printAvailableFor(ref, displayMode))
@@ -565,7 +574,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     );
 
               if (useCompact) {
-                return _CompactPieceLayout(
+                return Column(children: [
+                  const _PalettePanel(),
+                  Expanded(child: _CompactPieceLayout(
                   notationView: notationView,
                   minimap: minimap,
                   minimapWantsAttention: canEditSelection,
@@ -577,7 +588,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   media: mediaList,
                   selectedMedia: selectedMedia,
                   mediaService: mediaService,
-                );
+                  )),
+                ]);
               }
 
               return Column(
@@ -1724,12 +1736,13 @@ class _DrawerTab extends StatelessWidget {
 
 // ── Piece identity + note vocabulary (app bar controls, palette staff below) ──
 
-/// Key and meter, on the title line. Tapping opens the meter editor; the pencil
+/// The meter, on the title line. Tapping opens the meter editor; the pencil
 /// says so, since italic grey text otherwise reads as a label, not a control.
 ///
-/// The meter travels with the key because together they're the piece's identity,
-/// and because a wrong meter is something you notice while looking at the staff —
-/// which is where this now is, instead of on a strip of its own.
+/// It used to carry the key's name too; that now leads the title line, in
+/// [_KeySummary], beside the fingerings it implies. A wrong meter is something
+/// you notice while looking at the staff, which is why it's up here at all
+/// instead of on a strip of its own.
 class _KeyMeterButton extends ConsumerWidget {
   const _KeyMeterButton({this.mirror = false});
 
@@ -1781,15 +1794,13 @@ class _KeyMeterButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
-    final keyTitle = PieceDetailScreen._formatKey(parsed.keySignature);
-
     final body = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '$keyTitle · ${parsed.beatsPerMeasure}/${parsed.beatType}',
+            '${parsed.beatsPerMeasure}/${parsed.beatType}',
             style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
           ),
           const SizedBox(width: 5),
@@ -1814,16 +1825,72 @@ class _KeyMeterButton extends ConsumerWidget {
   }
 }
 
+/// The key by name and, under it, every low/high fingering the piece uses
+/// ([nonStandardFingerings]) — what to have ready before playing a note, without
+/// opening the vocabulary. On every screen size: it is the warning a phone
+/// needs most. The labels are shown exactly as stored (`A2L`, never `A2♭`).
+class _KeySummary extends ConsumerWidget {
+  const _KeySummary({this.mirror = false});
+
+  /// Lay out and take up space but draw nothing — the counterweight that
+  /// centres the title on a tablet. See the app bar's `title`.
+  final bool mirror;
+
+  /// The colour the palette gives an L/H note, darkened to read as text.
+  static const _lhText = Color(0xFFC86A00);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+    if (parsed == null) return const SizedBox.shrink();
+    final odd = nonStandardFingerings(parsed);
+
+    final body = Column(
+      key: mirror ? null : const ValueKey('key_summary'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(PieceDetailScreen._formatKey(parsed.keySignature),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        if (odd.isNotEmpty)
+          Text(odd.join(' '),
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: _lhText)),
+      ],
+    );
+    if (!mirror) return body;
+    return ExcludeSemantics(
+      child: IgnorePointer(child: Opacity(opacity: 0, child: body)),
+    );
+  }
+}
+
 /// Folds the note vocabulary in and out. Labelled rather than icon-only because
 /// the panel is folded by default now, so this is the only thing on screen that
 /// says the vocabulary exists.
 class _NotePaletteToggle extends ConsumerWidget {
-  const _NotePaletteToggle();
+  const _NotePaletteToggle({this.compact = false});
+
+  /// A phone's bar has no room for the label, so there it's an icon alone —
+  /// but still there: the vocabulary is as much use on the phone.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expanded = ref.watch(notePaletteExpandedProvider);
+    if (compact) {
+      return IconButton(
+        key: const ValueKey('vocabulary_toggle'),
+        tooltip: expanded ? 'Hide vocabulary' : 'Show vocabulary',
+        isSelected: expanded,
+        icon: const Icon(Icons.queue_music_outlined),
+        selectedIcon: const Icon(Icons.queue_music),
+        onPressed: () =>
+            ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
+      );
+    }
     return TextButton.icon(
+      key: const ValueKey('vocabulary_toggle'),
       onPressed: () =>
           ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
       icon: Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18),
@@ -1840,6 +1907,12 @@ class _NotePaletteToggle extends ConsumerWidget {
 /// The palette staff itself — every distinct note in the piece, engraved once.
 /// Occupies no height at all while folded, which is its default state; the
 /// header it used to carry now lives in the app bar.
+///
+/// Always labelled, whatever the view: the label is what a vocabulary is for.
+/// The labels follow the annotation view's settings (string colour style,
+/// string letters, number mode), so the two never disagree about how a note is
+/// written — only the density doesn't apply, since every note here is shown
+/// exactly once.
 class _PalettePanel extends ConsumerStatefulWidget {
   const _PalettePanel();
 
@@ -1850,10 +1923,47 @@ class _PalettePanel extends ConsumerStatefulWidget {
 class _PalettePanelState extends ConsumerState<_PalettePanel> {
   final _noHighlight = ValueNotifier<HighlightEvent?>(null);
 
+  /// What the native engrave actually drew at; the panel is sized to it. Null
+  /// until the first engrave, which is laid out against [_firstGuess].
+  double? _contentHeight;
+  static const _firstGuess = 140.0;
+
   @override
   void dispose() {
     _noHighlight.dispose();
     super.dispose();
+  }
+
+  Widget _nativeStaff(String xml, ParsedPiece palette) {
+    final style = ref.watch(stringColourStyleProvider);
+    final numberMode = ref.watch(noteNumberModeProvider);
+    final fretStyle = ref.watch(fretStyleProvider);
+    final measureMap =
+        EngravedMeasureMap.identity(palette.measures.map((m) => m.number));
+    return StaffViewVerovio(
+      musicXml: xml,
+      highlightNotifier: _noHighlight,
+      zoomable: false,
+      onContentHeight: (h) {
+        if (h != _contentHeight) setState(() => _contentHeight = h);
+      },
+      measureMap: measureMap,
+      fingeringAnnotations: fingeringAnnotations(
+        measureMap,
+        palette,
+        density: FingeringDensity.all,
+        policy: ref.watch(fingeringDensityPolicyProvider),
+        colourByString: style != StringColourStyle.off,
+        stringLabelStyle: ref.watch(stringLabelStyleProvider),
+        numberMode: numberMode,
+        fretStyle: fretStyle,
+      ),
+      stringColourStyle: style,
+      stringRuns: style == StringColourStyle.underline
+          ? stringRunRegions(measureMap, palette,
+              numberMode: numberMode, fretStyle: fretStyle)
+          : const [],
+    );
   }
 
   @override
@@ -1865,20 +1975,32 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
       return const SizedBox.shrink();
     }
     final paletteXml = ref.watch(paletteMusicXmlProvider).valueOrNull;
+    final palette = ref.watch(palettePieceProvider).valueOrNull;
+    final native = ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+
+    // Fit to the engraving, but never take more than a share of the screen —
+    // a long vocabulary on a phone in landscape scrolls instead. OSMD reports
+    // no height, so it keeps the fixed box.
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.4;
+    final height = native
+        ? (_contentHeight ?? _firstGuess).clamp(40.0, maxHeight)
+        : _firstGuess;
 
     return Container(
-      height: 140,
+      height: height,
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
-      child: paletteXml == null
+      child: paletteXml == null || (native && palette == null)
           ? const Center(child: CircularProgressIndicator())
-          : StaffView(
-              musicXml: paletteXml,
-              highlightNotifier: _noHighlight,
-              bridgeAsset: 'assets/osmd/palette_bridge.html',
-            ),
+          : native
+              ? _nativeStaff(paletteXml, palette!)
+              : StaffView(
+                  musicXml: paletteXml,
+                  highlightNotifier: _noHighlight,
+                  bridgeAsset: 'assets/osmd/palette_bridge.html',
+                ),
     );
   }
 }
