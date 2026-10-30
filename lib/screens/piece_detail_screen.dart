@@ -1864,7 +1864,9 @@ class _KeyMeterButton extends ConsumerWidget {
 /// ([nonStandardFingerings]) — what to have ready before playing a note, without
 /// opening the vocabulary. On every screen size: it is the warning a phone
 /// needs most. On the violin the labels are shown exactly as stored (`A2L`,
-/// never `A2♭`); on the mandolin the same notes by string and fret.
+/// never `A2♭`); on the mandolin the same notes by string and fret. With none,
+/// the home pattern in grey (`1 2H 3`, frets `2 4 5`), so "nothing unusual" is
+/// said rather than left blank.
 class _KeySummary extends ConsumerWidget {
   const _KeySummary({this.mirror = false});
 
@@ -1879,8 +1881,9 @@ class _KeySummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
+    final numberMode = ref.watch(noteNumberModeProvider);
     final odd = nonStandardFingerings(parsed,
-        numberMode: ref.watch(noteNumberModeProvider),
+        numberMode: numberMode,
         fretStyle: ref.watch(fretStyleProvider));
 
     final body = Column(
@@ -1893,7 +1896,19 @@ class _KeySummary extends ConsumerWidget {
         if (odd.isNotEmpty)
           Text(odd.join(' '),
               style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: _lhText)),
+                  fontSize: 12, fontWeight: FontWeight.w700, color: _lhText))
+        else
+          Text(
+              numberMode == NoteNumberMode.violinFingering
+                  ? '1 2H 3'
+                  : '2 4 5',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.6))),
       ],
     );
     if (!mirror) return body;
