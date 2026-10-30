@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 import UIKit
 
@@ -7,6 +8,10 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Without a category iOS applies the default one, which the ringer/silent
+    // switch mutes: the score went silent on the phone while the simulator
+    // (which ignores the switch) kept playing. Muting is the app's own button.
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

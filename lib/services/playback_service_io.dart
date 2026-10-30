@@ -55,7 +55,15 @@ class PlaybackService extends PlaybackServiceBase {
   }
 
   @override
-  void onStopped() {
+  void onStopped() => _allNotesOff();
+
+  @override
+  void onMuteChanged(bool muted) {
+    // Unmuting needs nothing: the next note sounds at its onset.
+    if (muted) _allNotesOff();
+  }
+
+  void _allNotesOff() {
     if (!_midiReady || _sfId == null) return;
     // Stop all notes on channel
     for (int key = 0; key < 128; key++) {
@@ -81,8 +89,11 @@ class PlaybackService extends PlaybackServiceBase {
     while (_nextOnIdx < _byOnset.length &&
         _byOnset[_nextOnIdx].onsetSeconds <= playbackTime) {
       final n = _byOnset[_nextOnIdx];
-      _midi.playNote(
-          sfId: _sfId!, channel: _channel, key: n.midiNote, velocity: _velocity);
+      // Muted, the pointer still advances so unmuting resumes in place.
+      if (!muted) {
+        _midi.playNote(
+            sfId: _sfId!, channel: _channel, key: n.midiNote, velocity: _velocity);
+      }
       _nextOnIdx++;
     }
   }
