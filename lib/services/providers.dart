@@ -1022,9 +1022,10 @@ final staffFingeringXmlProvider = FutureProvider<String?>(
   (ref) => _staffXml(ref, fingering: true),
 );
 
-/// Violin fingering (default) vs true mandolin fret numbers, wherever a number
-/// labels a note: the tab staff's string lines AND the annotation view's
-/// fingering channel. ONE preference for both — see [NoteNumberMode].
+/// Violin fingering vs true mandolin fret numbers — the drawer's "Instrument" —
+/// wherever a number labels a note: the tab staff's string lines, the
+/// annotation view's fingering channel, the vocabulary palette and the title
+/// line's low/high fingerings. ONE preference for all — see [NoteNumberMode].
 ///
 /// Remembered per piece — see [pieceDisplayPref].
 ///

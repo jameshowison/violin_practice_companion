@@ -1,11 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/nonstandard_fingerings.dart';
 
-NoteEvent _n(String? string, String? finger, {bool rest = false}) => NoteEvent(
+NoteEvent _n(String? string, String? finger,
+        {bool rest = false, int midi = 69}) =>
+    NoteEvent(
       pitch: 'A4',
-      midiNumber: 69,
+      midiNumber: midi,
       octave: 4,
       noteValue: NoteValue.quarter,
       dotted: false,
@@ -44,5 +47,20 @@ void main() {
         nonStandardFingerings(
             _piece([_n('A', '1'), _n(null, null), _n(null, null, rest: true)])),
         isEmpty);
+  });
+
+  test('on the mandolin, the same notes by string and fret', () {
+    // Gavotte's three: C♯4 (G3H), C5 (A2L), G5 (E2L).
+    final piece = _piece([
+      _n('E', '2L', midi: 79),
+      _n('A', '2L', midi: 72),
+      _n('G', '3H', midi: 61),
+      _n('A', '1', midi: 71),
+    ]);
+    expect(
+        nonStandardFingerings(piece,
+            numberMode: NoteNumberMode.mandolinFret,
+            fretStyle: FretStyle.matchFingering),
+        ['G6', 'A3', 'E3']);
   });
 }
