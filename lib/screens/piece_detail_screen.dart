@@ -330,6 +330,18 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     onChanged: (mode) =>
                         ref.read(displayModeProvider.notifier).state = mode,
                   ),
+                  // Second because it is the other question that decides what
+                  // everything else says: which instrument the numbers are
+                  // for. Shown in every view — the title line and the
+                  // vocabulary follow it whatever the view. See
+                  // [NoteNumberMode].
+                  const SizedBox(height: 12),
+                  const _NoteNumberPicker(),
+                  if (ref.watch(noteNumberModeProvider) ==
+                      NoteNumberMode.mandolinFret) ...[
+                    const SizedBox(height: 12),
+                    const _FretStylePicker(),
+                  ],
                   const Divider(),
                   // Never hidden behind a display mode: it's the one setting
                   // here that's about playing along rather than about how the
@@ -446,20 +458,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     if (displayMode != DisplayMode.tab &&
                         ref.watch(pieceVerseCountProvider) > 0)
                       const _LyricVersePicker(),
-                  ],
-                  // Shared by the two views that put a number on a note: the tab
-                  // staff's string lines and the annotation view's fingering
-                  // channel. One preference, shown in whichever of them is open —
-                  // see [NoteNumberMode].
-                  if (displayMode == DisplayMode.staffFingering ||
-                      displayMode == DisplayMode.tab) ...[
-                    const Divider(),
-                    const _NoteNumberPicker(),
-                    if (ref.watch(noteNumberModeProvider) ==
-                        NoteNumberMode.mandolinFret) ...[
-                      const SizedBox(height: 12),
-                      const _FretStylePicker(),
-                    ],
                   ],
                   if (displayMode == DisplayMode.staffFingering) ...[
                     const Divider(),
@@ -1152,15 +1150,15 @@ class _NoteNumberPicker extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Numbers'),
-        const SizedBox(height: 8),
+        const _DrawerLabel('Instrument'),
         SegmentedButton<NoteNumberMode>(
+          key: const ValueKey('instrument_picker'),
           segments: const [
             ButtonSegment(
                 value: NoteNumberMode.violinFingering,
-                label: Text('Fingering')),
+                label: Text('Violin')),
             ButtonSegment(
-                value: NoteNumberMode.mandolinFret, label: Text('Fret')),
+                value: NoteNumberMode.mandolinFret, label: Text('Mandolin')),
           ],
           selected: {mode},
           onSelectionChanged: (s) =>
@@ -1828,7 +1826,8 @@ class _KeyMeterButton extends ConsumerWidget {
 /// The key by name and, under it, every low/high fingering the piece uses
 /// ([nonStandardFingerings]) — what to have ready before playing a note, without
 /// opening the vocabulary. On every screen size: it is the warning a phone
-/// needs most. The labels are shown exactly as stored (`A2L`, never `A2♭`).
+/// needs most. On the violin the labels are shown exactly as stored (`A2L`,
+/// never `A2♭`); on the mandolin the same notes by string and fret.
 class _KeySummary extends ConsumerWidget {
   const _KeySummary({this.mirror = false});
 
@@ -1843,7 +1842,9 @@ class _KeySummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
-    final odd = nonStandardFingerings(parsed);
+    final odd = nonStandardFingerings(parsed,
+        numberMode: ref.watch(noteNumberModeProvider),
+        fretStyle: ref.watch(fretStyleProvider));
 
     final body = Column(
       key: mirror ? null : const ValueKey('key_summary'),
