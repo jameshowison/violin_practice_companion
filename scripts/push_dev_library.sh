@@ -8,8 +8,9 @@
 # This ONLY copies files. The app merges the staged library into its own
 # Documents and prefs on its next launch (lib/services/dev_library_io.dart), so
 # unlike sim_add_media.sh there is no prefs plist to edit and none of its traps
-# apply. The staging copy is a mirror: files gone from the library go from the
-# staging folder too, and the app then works out what that means per item.
+# apply. On a physical device the staging folder is NOT a mirror (see the copy
+# below): manifest.json lists what this push sent, and the app ignores the
+# rest, then works out per item what the library's changes mean.
 #
 # The app must already be installed (there is no data container before that),
 # and it only looks at launch — relaunch it after pushing.
@@ -26,6 +27,19 @@ BUNDLE="name.howison.violinPracticeCompanion"
 STAGE=$(mktemp -d)/dev_library
 trap 'rm -rf "$(dirname "$STAGE")"' EXIT
 rsync -a --exclude .git --exclude .gitattributes --exclude .gitignore --exclude .DS_Store "$LIB/" "$STAGE/"
+# What this push sent. The device copy below can't clear old staging first (see
+# there), so a file deleted from the library lingers on the device; the app
+# reads only the files listed here (DevLibraryIngester._readManifest).
+python3 - "$STAGE" <<'PY'
+import json, os, sys
+root = sys.argv[1]
+files = sorted(
+    os.path.relpath(os.path.join(d, f), root)
+    for d, _, fs in os.walk(root) for f in fs
+    if not f.startswith('.') and f not in ('state.json', 'manifest.json')
+    and os.path.dirname(os.path.join(d, f)) != root)
+json.dump({'files': files}, open(os.path.join(root, 'manifest.json'), 'w'), indent=0)
+PY
 echo "library: $(find "$STAGE" -type f | wc -l | tr -d ' ') files, $(du -sh "$STAGE" | cut -f1)"
 
 if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
@@ -36,9 +50,14 @@ if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
 else
   # --timeout: a wedged CoreDevice tunnel otherwise hangs here forever (see
   # device_install.sh). Generous, since this copies the whole library.
+  #
+  # NEVER --remove-existing-content. Its help says it clears the destination
+  # directory; on iOS 27.0.1 (2026-11-03, JamzJamzJamzz) it emptied the whole
+  # app data container instead — every piece, recording and the prefs plist —
+  # leaving only this staging folder. The copy merges over the old staging, and
+  # manifest.json (above) tells the app which staged files are current.
   xcrun devicectl device copy to --timeout 300 --device "$DEVICE" --quiet \
     --domain-type appDataContainer --domain-identifier "$BUNDLE" \
-    --source "$STAGE" --destination Documents/dev_library \
-    --remove-existing-content true >/dev/null
+    --source "$STAGE" --destination Documents/dev_library >/dev/null
 fi
 echo "push: staged on $DEVICE"

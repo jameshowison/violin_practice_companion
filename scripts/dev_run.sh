@@ -6,12 +6,18 @@
 # (see README "Simulator names" for how the dev-* aliases are set up)
 set -u
 
-# --sync: before launching, sync the dev library with this simulator (see
-# scripts/sync_dev_library.sh); the app merges it as it starts.
-SYNC=""
+# Before every launch the dev library is synced with this simulator (see
+# scripts/sync_dev_library.sh); the app merges it as it starts. --no-sync skips
+# it (--sync is still accepted, and is the default). Skipped with a note when
+# ../violin_dev_library isn't checked out.
+SYNC=1
 ARGS=()
 for arg in "$@"; do
-  [[ "$arg" == "--sync" ]] && SYNC=1 || ARGS+=("$arg")
+  case "$arg" in
+    --sync) SYNC=1 ;;
+    --no-sync) SYNC="" ;;
+    *) ARGS+=("$arg") ;;
+  esac
 done
 DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone-se}}"
 FIFO="/tmp/flutter_ctl"
@@ -36,7 +42,12 @@ for _ in $(seq 1 20); do
 done
 
 if [[ -n "$SYNC" ]]; then
-  bash "$(dirname "$0")/sync_dev_library.sh" "$DEVICE" --no-launch
+  LIBDIR="${DEV_LIBRARY:-$(dirname "$0")/../../violin_dev_library}"
+  if [[ ! -f "$LIBDIR/state.json" ]]; then
+    echo "no dev library at $LIBDIR; launching without it"
+  elif ! bash "$(dirname "$0")/sync_dev_library.sh" "$DEVICE" --no-launch; then
+    echo "WARNING: dev library sync failed (see above); launching without it." >&2
+  fi
 fi
 
 rm -f "$FIFO"

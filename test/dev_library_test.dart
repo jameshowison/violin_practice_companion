@@ -141,6 +141,26 @@ void main() {
     expect(report.deleted, 2);
   });
 
+  test('a file left behind in staging but absent from the manifest counts as '
+      'deleted', () async {
+    // A device push can't clear old staging (devicectl's
+    // --remove-existing-content wiped a whole container), so a file the
+    // library dropped is still physically staged; the manifest says it's gone.
+    await stageLibrary(files: {score: xml('Tune')}, titles: {'tune_1': 'Tune'});
+    await ingest();
+    await write(stage(), 'manifest.json', jsonEncode({'files': <String>[]}));
+    final report = await ingest();
+    expect(read(score), isNull);
+    expect(report.deleted, 1);
+  });
+
+  test('a manifest that lists the staged files changes nothing', () async {
+    await stageLibrary(files: {score: xml('Tune')}, titles: {'tune_1': 'Tune'});
+    await write(stage(), 'manifest.json', jsonEncode({'files': [score]}));
+    await ingest();
+    expect(read(score), xml('Tune'));
+  });
+
   test('device changed, library untouched: the device edit is kept for the '
       'next pull', () async {
     await stageLibrary(files: {score: xml('Tune')});

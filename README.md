@@ -174,7 +174,8 @@ xcrun simctl create dev-iphone-se "iPhone SE (3rd generation)"
 The rename is stored with the device, so it survives reboots and shows up in
 Xcode too. Nothing else needs to change. A first `flutter run` on a newly created
 simulator is a cold Xcode build (about two and a half minutes), and the dev
-library isn't on it until you launch with `bash scripts/dev_run.sh <name> --sync`. If you have no suitable device,
+library is synced onto it by `bash scripts/dev_run.sh <name>` (every launch does
+that; `--no-sync` skips it). If you have no suitable device,
 create one (`xcrun simctl create dev-ipad "iPad Pro 11-inch (M5)"`); if the iOS
 runtime is missing entirely, install it with `xcodebuild -downloadPlatform iOS`.
 
@@ -409,8 +410,8 @@ dependency, and a release build contains none of it:
 ```bash
 bash scripts/sync_dev_library.sh dev-iphone      # simulator
 bash scripts/sync_dev_library.sh "Hazel iPad"    # physical device
-bash scripts/device_install.sh "Hazel iPad" --sync   # install, then sync
-bash scripts/dev_run.sh dev-ipad --sync              # sync, then start the dev server
+bash scripts/device_install.sh "Hazel iPad"   # install, then sync (always; --no-sync skips)
+bash scripts/dev_run.sh dev-ipad              # sync, then start the dev server (same)
 ```
 
 A sync takes the device's changes into the library (new pieces, edited scores,
