@@ -11,6 +11,70 @@ import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
 
+/// Which unfolded run is "where we are": the playing pass (by performance
+/// index), else the top-most scrolled run in the custom views, else the
+/// selection. Shared by [SectionMinimap] and the phone's section chip row so
+/// both light the same run.
+int? resolveCurrentRun(List<SectionRun> runs, bool isCustom,
+    int? scrollMeasure, HighlightEvent? play, MeasureSelection? sel) {
+  if (play != null) {
+    // Pass-accurate: match the run whose performance-order slice is playing.
+    final i = runs.indexWhere((r) =>
+        r.containsPerf(play.performanceIndex, noteIndex: play.noteIndex));
+    if (i >= 0) return i;
+    // Fallback (e.g. a run with no perf slice): match by measure number.
+    final byMeasure = runs.indexWhere((r) =>
+        play.measureNumber >= r.firstMeasure &&
+        play.measureNumber <= r.lastMeasure);
+    if (byMeasure >= 0) return byMeasure;
+  }
+  if (isCustom && scrollMeasure != null) {
+    final i = runs.indexWhere((r) =>
+        scrollMeasure >= r.firstMeasure && scrollMeasure <= r.lastMeasure);
+    if (i >= 0) return i;
+  }
+  if (sel != null) {
+    final exact = runs.indexWhere((r) => MeasureSelection.ofRun(r) == sel);
+    if (exact >= 0) return exact;
+    final inside = runs.indexWhere((r) =>
+        sel.startMeasure >= r.firstMeasure &&
+        sel.startMeasure <= r.lastMeasure);
+    if (inside >= 0) return inside;
+  }
+  return null;
+}
+
+/// The run a double-tap on [measure] selects, as an index into [runs], or null
+/// when no run holds that bar (a piece without sections).
+///
+/// Every pass of a repeated section holds the same written bars, so several
+/// runs can match. If [before] — the selection as it was before the double-tap
+/// began — was one of them, step to the next (A¹ → A² → A¹), so double-tapping
+/// again walks the passes; otherwise take the first.
+int? sectionRunForDoubleTap(
+    List<SectionRun> runs, int measure, MeasureSelection? before) {
+  final matches = [
+    for (var i = 0; i < runs.length; i++)
+      if (measure >= runs[i].firstMeasure && measure <= runs[i].lastMeasure) i,
+  ];
+  if (matches.isEmpty) return null;
+  final at = before == null
+      ? -1
+      : matches.indexWhere((i) => MeasureSelection.ofRun(runs[i]) == before);
+  return matches[(at + 1) % matches.length];
+}
+
+/// A run's display label, with a superscript pass number for a repeated
+/// section (e.g. `A¹` / `A²`).
+String sectionRunLabel(SectionRun run) {
+  if (run.passCount <= 1) return run.label;
+  final n = run.passIndex + 1;
+  return n < _sup.length ? '${run.label}${_sup[n]}' : '${run.label}$n';
+}
+
+// Unicode superscripts for numbered passes (e.g. C¹ / C²).
+const _sup = ['', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+
 /// Right-hand navigation strip: one emblem per **unfolded** [SectionRun] (so a
 /// `|: A :|` repeat shows two A emblems — `A A B B`). This is the single place
 /// that conveys the whole-piece structure; the notation itself stays folded.
@@ -54,35 +118,6 @@ class SectionMinimap extends ConsumerWidget {
     required this.onTapRun,
   });
 
-  int? _resolveCurrent(bool isCustom, int? scrollMeasure, HighlightEvent? play,
-      MeasureSelection? sel) {
-    if (play != null) {
-      // Pass-accurate: match the run whose performance-order slice is playing.
-      final i = runs.indexWhere((r) =>
-          r.containsPerf(play.performanceIndex, noteIndex: play.noteIndex));
-      if (i >= 0) return i;
-      // Fallback (e.g. a run with no perf slice): match by measure number.
-      final byMeasure = runs.indexWhere((r) =>
-          play.measureNumber >= r.firstMeasure &&
-          play.measureNumber <= r.lastMeasure);
-      if (byMeasure >= 0) return byMeasure;
-    }
-    if (isCustom && scrollMeasure != null) {
-      final i = runs.indexWhere((r) =>
-          scrollMeasure >= r.firstMeasure && scrollMeasure <= r.lastMeasure);
-      if (i >= 0) return i;
-    }
-    if (sel != null) {
-      final exact = runs.indexWhere((r) => MeasureSelection.ofRun(r) == sel);
-      if (exact >= 0) return exact;
-      final inside = runs.indexWhere((r) =>
-          sel.startMeasure >= r.firstMeasure &&
-          sel.startMeasure <= r.lastMeasure);
-      if (inside >= 0) return inside;
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(displayModeProvider);
@@ -111,7 +146,7 @@ class SectionMinimap extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _MeasureActionsHeader(),
+          const MeasureActions(direction: Axis.vertical),
           Expanded(
             // A plain SingleChildScrollView always top-aligns short content
             // within its viewport (the viewport fills the Expanded height
@@ -126,7 +161,7 @@ class SectionMinimap extends ConsumerWidget {
                   ValueListenableBuilder<HighlightEvent?>(
                 valueListenable: service.currentHighlightNotifier,
                 builder: (_, play, _) {
-                  final current = _resolveCurrent(
+                  final current = resolveCurrentRun(runs,
                       isCustom, scrollMeasure, play, selection);
                   return SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
@@ -140,6 +175,16 @@ class SectionMinimap extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Back to the whole piece. Only offered while
+                            // something is selected — with nothing selected
+                            // it would be a no-op taking a row.
+                            if (selection != null && runs.isNotEmpty)
+                              _AllEmblem(
+                                scale: scale,
+                                onTap: () => ref
+                                    .read(measureSelectionProvider.notifier)
+                                    .state = null,
+                              ),
                             for (var i = 0; i < runs.length; i++)
                               _Emblem(
                                 run: runs[i],
@@ -180,12 +225,16 @@ class SectionMinimap extends ConsumerWidget {
 // title bar, which crowded the piece title. This rail is already the
 // narrowest fixed-width column in the layout and reads as "controls for the
 // selected measure" on its own, so it's their home now.
-/// Edit + Delete, stacked to fit the rail's fixed width. Renders nothing when
-/// no single editable measure is selected — the caller still reserves this
-/// column so the actions have somewhere to appear the moment one is (see
+/// Edit + Delete for the single selected measure. [Axis.vertical] stacks them
+/// to fit the rail's fixed width (with a rule under them); [Axis.horizontal]
+/// lays them side by side for the phone's section chip row. Renders nothing
+/// when no single editable measure is selected — the caller still reserves
+/// room so the actions have somewhere to appear the moment one is (see
 /// piece_detail_screen.dart's `canEditSelection`).
-class _MeasureActionsHeader extends ConsumerWidget {
-  const _MeasureActionsHeader();
+class MeasureActions extends ConsumerWidget {
+  final Axis direction;
+
+  const MeasureActions({super.key, required this.direction});
 
   static const _buttonConstraints =
       BoxConstraints.tightFor(width: 36, height: 32);
@@ -201,11 +250,7 @@ class _MeasureActionsHeader extends ConsumerWidget {
     final measureCount =
         ref.watch(parsedPieceProvider).valueOrNull?.measures.length ?? 0;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    final buttons = [
           IconButton(
             icon: const Icon(Icons.edit, size: 16),
             tooltip: 'Edit measure ${sel.startMeasure}',
@@ -230,6 +275,16 @@ class _MeasureActionsHeader extends ConsumerWidget {
                 ? () => _confirmAndDelete(context, ref, sel.startMeasure)
                 : null,
           ),
+    ];
+    if (direction == Axis.horizontal) {
+      return Row(mainAxisSize: MainAxisSize.min, children: buttons);
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...buttons,
           const Divider(height: 8, thickness: 1),
         ],
       ),
@@ -299,6 +354,48 @@ class _MeasureActionsHeader extends ConsumerWidget {
   }
 }
 
+/// The rail's "whole piece" entry: clears the selection so everything plays.
+class _AllEmblem extends StatelessWidget {
+  final double scale;
+  final VoidCallback onTap;
+
+  const _AllEmblem({required this.scale, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: 'Play the whole piece',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 26 * scale,
+          margin: const EdgeInsets.only(bottom: 4),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'All',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11 * scale,
+                height: 1.0,
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurface.withAlpha(170),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Emblem extends StatelessWidget {
   final SectionRun run;
   final Color color;
@@ -317,16 +414,6 @@ class _Emblem extends StatelessWidget {
     required this.scale,
     required this.onTap,
   });
-
-  // Unicode superscripts for numbered passes (e.g. C¹ / C²).
-  static const _sup = ['', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-
-  String get _railLabel {
-    if (run.passCount <= 1) return run.label;
-    final n = run.passIndex + 1;
-    final suffix = n < _sup.length ? _sup[n] : '$n';
-    return '${run.label}$suffix';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +453,7 @@ class _Emblem extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  _railLabel,
+                  sectionRunLabel(run),
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 11 * scale,
