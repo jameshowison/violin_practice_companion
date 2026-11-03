@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
 import '../models/count_in.dart';
+import '../models/tempo_presets.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
@@ -28,6 +29,7 @@ import 'chord_shape_library.dart';
 import 'chord_xml_injector.dart';
 import 'lyric_xml_injector.dart';
 import 'count_in_store.dart';
+import 'tempo_store.dart';
 import 'piece_display_prefs.dart';
 import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
@@ -736,6 +738,19 @@ final showChordsProvider = pieceDisplayPref<bool>(
   decode: bool.parse,
 );
 
+// ── Highlight granularity ─────────────────────────────────────────────────────
+/// Off (the default): playback highlights each measure's first note and holds it
+/// through the bar — the only beat a recording's alignment actually verifies
+/// (see `PlaybackServiceBase.highlightDownbeatOnly`). On: it steps through every
+/// note. Applies to synthesized playback and recordings alike. Remembered per
+/// piece — see [pieceDisplayPref].
+final highlightEveryNoteProvider = pieceDisplayPref<bool>(
+  'highlightEveryNote',
+  false,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
 // ── Lyric display preference ──────────────────────────────────────────────────
 /// Which lyric verse the staff and annotated views engrave: 1 by default, null
 /// for none. Remembered per piece ([pieceDisplayPref]), so a verse picked on a
@@ -1250,6 +1265,41 @@ class CountInNotifier extends StateNotifier<int> {
     preview(beats);
     _store.save(beats);
   }
+}
+
+// ── Tempo ─────────────────────────────────────────────────────────────────────
+final tempoStoreProvider = Provider<TempoStore>((_) => TempoStore());
+
+/// The synthesized playback's tempo presets and which is selected. App-wide and
+/// restored once per launch, on the same terms as [countInProvider].
+final tempoSettingsProvider =
+    StateNotifierProvider<TempoSettingsNotifier, TempoSettings>(
+  (ref) => TempoSettingsNotifier(ref.watch(tempoStoreProvider)),
+);
+
+class TempoSettingsNotifier extends StateNotifier<TempoSettings> {
+  TempoSettingsNotifier(this._store) : super(const TempoSettings()) {
+    _restore();
+  }
+
+  final TempoStore _store;
+  bool _touched = false;
+
+  Future<void> _restore() async {
+    final saved = await _store.load();
+    if (!mounted || _touched || saved == null) return; // a user change wins
+    state = saved;
+  }
+
+  void _set(TempoSettings s) {
+    _touched = true;
+    state = s;
+    _store.save(s);
+  }
+
+  void select(TempoPreset p) => _set(state.withPreset(p));
+
+  void setBpm(TempoPreset p, int bpm) => _set(state.withBpm(p, bpm));
 }
 
 /// The measure Play starts from: the practice selection's first bar, or — with

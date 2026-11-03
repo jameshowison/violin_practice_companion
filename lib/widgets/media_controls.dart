@@ -10,6 +10,7 @@ import '../services/media_playback_service.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/teacher_recording_capture.dart';
+import 'tempo_controls.dart';
 
 /// The piece screen's bottom tray: one picker naming what is playing the
 /// piece, and the transport for whatever that is.
@@ -580,8 +581,6 @@ class _SynthesizedTransport extends ConsumerStatefulWidget {
 }
 
 class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
-  double _tempo = 115.0;
-
   @override
   Widget build(BuildContext context) {
     final service = ref.watch(playbackServiceProvider);
@@ -651,28 +650,14 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           tooltip: service.muted ? 'Unmute' : 'Mute',
           onPressed: () => setState(() => service.muted = !service.muted),
         ),
-        const Icon(Icons.music_note, size: 16),
-        const SizedBox(width: 2),
-        // Fixed width, so the slider doesn't shift as "40" becomes "125".
-        SizedBox(
-          width: 24,
-          child: Text('${_tempo.round()}',
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-        ),
-        Expanded(
-          child: Slider(
-            value: _tempo,
-            min: 40,
-            max: 200,
-            divisions: 160,
-            label: '${_tempo.round()} BPM',
-            onChanged: (v) => setState(() => _tempo = v),
-            onChangeEnd: (v) {
-              _tempo = v;
-              service.setTempo(v.round());
-            },
+        // Named practice speeds rather than a slider: a slider's exact value
+        // is hard to hit again tomorrow, and "slow / medium / performance" is
+        // how the tempo is actually thought about. The bpm behind each name is
+        // a drawer setting; the service is told in PieceDetailScreen.
+        const Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TempoPresetPicker(),
           ),
         ),
       ],
