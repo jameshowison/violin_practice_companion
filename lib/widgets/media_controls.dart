@@ -682,7 +682,12 @@ class _MediaTransport extends ConsumerStatefulWidget {
 class _MediaTransportState extends ConsumerState<_MediaTransport> {
   MediaLoadResult? _result;
   bool _loading = true;
-  double _speed = 1.0;
+
+  /// The rate that plays this recording at the tray's selected tempo — the
+  /// same Slow / Medium / Performance bpm as the synthesized score, so a preset
+  /// means one tempo whichever source is playing.
+  double get _speed => MediaPlaybackService.speedFor(
+      ref.read(tempoSettingsProvider).bpm, _service.recordingBpm);
 
   @override
   void initState() {
@@ -722,6 +727,11 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
   Widget build(BuildContext context) {
     final startMeasure = ref.watch(playbackStartMeasureProvider);
     final service = ref.watch(mediaPlaybackServiceProvider);
+    // A new preset (or new bpm behind one) re-rates the recording at once.
+    // Safe mid-play: the highlight reads the player's file-time position.
+    ref.listen(tempoSettingsProvider.select((s) => s.bpm), (_, _) {
+      if (_result?.isPlayable ?? false) service.setPlaybackSpeed(_speed);
+    });
 
     return ValueListenableBuilder<bool>(
       valueListenable: service.isAligning,
@@ -770,28 +780,27 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 );
               },
             ),
-            // Speed scales the real playback rate via just_audio's setSpeed.
-            // Safe to change at any time: the highlight clock reads the
-            // player's file-time position, which stays correct regardless of
-            // rate — only how fast real time advances through it changes,
-            // which is exactly what slowing down a hard passage should do.
-            const Icon(Icons.speed, size: 16),
-            const SizedBox(width: 2),
-            Text('${_speed.toStringAsFixed(2)}x',
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold)),
+            // The same tempo picker as the synthesized transport. A recording
+            // can't be re-generated at a bpm, so the chosen bpm becomes a
+            // playback rate against the recording's own measured tempo (see
+            // MediaPlaybackService.speedFor); the rate is shown beside it.
             Expanded(
-              child: Slider(
-                value: _speed,
-                min: 0.5,
-                max: 1.5,
-                divisions: 20,
-                label: '${_speed.toStringAsFixed(2)}x',
-                onChanged: (v) => setState(() => _speed = v),
-                onChangeEnd: (v) {
-                  _speed = v;
-                  service.setPlaybackSpeed(v);
-                },
+              child: Row(
+                children: [
+                  const Flexible(child: TempoPresetPicker()),
+                  Consumer(builder: (context, ref, _) {
+                    ref.watch(tempoSettingsProvider);
+                    final recBpm = service.recordingBpm;
+                    return Tooltip(
+                      message: recBpm == null
+                          ? "This recording isn't matched to the score, so it "
+                              'plays at its own speed.'
+                          : 'This recording ≈ ${recBpm.round()} bpm',
+                      child: Text('${_speed.toStringAsFixed(2)}×',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    );
+                  }),
+                ],
               ),
             ),
             // Only offered where it can do something: a medium with no
