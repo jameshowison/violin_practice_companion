@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
@@ -40,6 +41,7 @@ import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
 import '../widgets/print_sheet.dart';
+import '../widgets/section_chip_row.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/tempo_controls.dart';
 import '../widgets/staff_view.dart';
@@ -571,42 +573,44 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               final canEditSelection = selection != null &&
                   selection.isSingle &&
                   ref.watch(pieceRepositoryProvider).supportsEditing;
-              final minimap = (unfoldedRuns.isEmpty && !canEditSelection)
-                  ? null
-                  : SectionMinimap(
-                      runs: unfoldedRuns,
-                      sectionColors: sectionColors,
-                      service: activeService,
-                      onTapRun: (i) {
-                        final run = unfoldedRuns[i];
-                        final picked = MeasureSelection.ofRun(run);
-                        final selection =
-                            ref.read(measureSelectionProvider.notifier);
-                        // Tapping the selected section again clears it, back
-                        // to how the piece opens.
-                        if (selection.state == picked) {
-                          selection.state = null;
-                          return;
-                        }
-                        selection.state = picked;
-                        final foldedIdx = layout.runs.indexWhere((r) =>
-                            run.firstMeasure >= r.firstMeasure &&
-                            run.firstMeasure <= r.lastMeasure);
-                        if (foldedIdx >= 0) {
-                          final cur = ref.read(navTargetRunProvider);
-                          ref.read(navTargetRunProvider.notifier).state =
-                              (run: foldedIdx, seq: (cur?.seq ?? 0) + 1);
-                        }
-                      },
-                    );
+              void onTapRun(int i) {
+                final run = unfoldedRuns[i];
+                final picked = MeasureSelection.ofRun(run);
+                final selection = ref.read(measureSelectionProvider.notifier);
+                // Tapping the selected section again clears it, back to how
+                // the piece opens.
+                if (selection.state == picked) {
+                  selection.state = null;
+                  return;
+                }
+                selection.state = picked;
+                final foldedIdx = layout.runs.indexWhere((r) =>
+                    run.firstMeasure >= r.firstMeasure &&
+                    run.firstMeasure <= r.lastMeasure);
+                if (foldedIdx >= 0) {
+                  final cur = ref.read(navTargetRunProvider);
+                  ref.read(navTargetRunProvider.notifier).state =
+                      (run: foldedIdx, seq: (cur?.seq ?? 0) + 1);
+                }
+              }
+
+              final hasSectionUi = unfoldedRuns.isNotEmpty || canEditSelection;
 
               if (useCompact) {
+                // On a phone the sections are a chip row in the play tray, not
+                // a rail over the music (see SectionChipRow).
                 return Column(children: [
                   const _PalettePanel(),
                   Expanded(child: _CompactPieceLayout(
                   notationView: notationView,
-                  minimap: minimap,
-                  minimapWantsAttention: canEditSelection,
+                  sectionRow: !hasSectionUi
+                      ? null
+                      : SectionChipRow(
+                          runs: unfoldedRuns,
+                          sectionColors: sectionColors,
+                          service: activeService,
+                          onTapRun: onTapRun,
+                        ),
                   drawers: _drawers,
                   layout: layout,
                   piece: piece,
@@ -618,6 +622,15 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   )),
                 ]);
               }
+
+              final minimap = !hasSectionUi
+                  ? null
+                  : SectionMinimap(
+                      runs: unfoldedRuns,
+                      sectionColors: sectionColors,
+                      service: activeService,
+                      onTapRun: onTapRun,
+                    );
 
               return Column(
                 children: [
@@ -1276,35 +1289,36 @@ class _FretStylePicker extends ConsumerWidget {
 
 // ── Compact (phone) layout: music fills screen, controls are drawers over it ──
 //
-// On a phone every point of the score's box is worth having, so neither the
-// minimap nor the play tray takes any of it. Both are overlays: the score is
-// laid out once at the full body size, and the drawers slide over it — the
-// minimap in from the right edge, the tray up from the bottom — without the
-// score ever being re-laid out (a narrower box would re-engrave it, since the
-// staff reflows on width). Put away, each leaves a small tab on its edge.
+// On a phone every point of the score's box is worth having, so the play tray
+// takes none of it: it is an overlay, sliding up over the score from the
+// bottom, and the score is laid out once at the full body size (a shorter box
+// is fine, but a narrower one would re-engrave it, since the staff reflows on
+// width). Put away, it leaves a small tab on the bottom edge.
 //
-// Both peek: they're out when the piece opens and slide away a few seconds
-// later, so the first thing you see is that they exist and where they went.
-// Touching one during its peek keeps it out.
+// The sections ride in the tray too, as a chip row above the play bar
+// ([SectionChipRow]). They used to be a rail drawer down the right edge, but
+// even put away its tab sat over the music, and choosing a section is done
+// with the play controls anyway.
+//
+// The tray peeks: it's out when the piece opens and slides away a few seconds
+// later, so the first thing you see is that it exists and where it went.
+// Touching it during its peek keeps it out.
 
 /// Where the compact layout's drawers were left, held by the screen rather than
 /// the layout: a rotation rebuilds the layout from scratch, and it should come
 /// back as it was — no second peek, and the drawers out only if they were out.
 class _CompactDrawerMemo {
   bool trayPeeked = false;
-  bool minimapPeeked = false;
   bool trayShown = true;
-  bool minimapShown = true;
 }
 
 class _CompactPieceLayout extends ConsumerStatefulWidget {
   final Widget notationView;
   final _CompactDrawerMemo drawers;
-  final Widget? minimap;
+  /// The section chips, on top of the play bar; null when the piece has no
+  /// sections and nothing to edit.
+  final Widget? sectionRow;
 
-  /// A single measure has just become selected, and Edit/Delete for it live at
-  /// the top of the minimap — so the minimap should be out to show them.
-  final bool minimapWantsAttention;
   final PieceLayout layout;
   final Piece piece;
   final PlaybackServiceBase service;
@@ -1322,8 +1336,7 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
 
   const _CompactPieceLayout({
     required this.notationView,
-    required this.minimap,
-    required this.minimapWantsAttention,
+    required this.sectionRow,
     required this.drawers,
     required this.layout,
     required this.piece,
@@ -1347,24 +1360,10 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   final _trayKey = GlobalKey();
   bool _sheetOpen = false;
 
-  // Both start out, for the peek — or, after a rotation, as they were left.
+  // Out, for the peek — or, after a rotation, as it was left.
   late bool _trayShown = widget.drawers.trayShown;
-  late bool _minimapShown = widget.drawers.minimapShown;
   Timer? _trayPeek;
-  Timer? _minimapPeek;
-  StreamSubscription<PlaybackState>? _playing;
   double _trayHeight = 72;
-
-  // Out of the way the moment playback starts — i.e. before the count-in, so
-  // the player sees the opening bars while counting. Over the score, the
-  // section list covers the notes being played, and nobody can reach for it
-  // with a bow in their hand. The tab stays, so it is one tap to bring back.
-  void _listenForPlay() {
-    _playing?.cancel();
-    _playing = widget.service.state.listen((s) {
-      if (s == PlaybackState.playing && mounted) _setMinimap(false);
-    });
-  }
 
   // What the tray covers right now (nothing, once it's put away) → the staff's
   // autoscroll; the most it has ever covered → every view's trailing scroll
@@ -1412,12 +1411,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     _publishInset();
   }
 
-  void _setMinimap(bool shown) {
-    _minimapPeek?.cancel();
-    if (_minimapShown == shown) return;
-    setState(() => _minimapShown = widget.drawers.minimapShown = shown);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -1438,41 +1431,11 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
         if (mounted) _setTray(false);
       });
     }
-    if (widget.minimap != null && !widget.drawers.minimapPeeked) {
-      _startMinimapPeek();
-    }
-    _listenForPlay();
-  }
-
-  // The minimap can arrive after the layout does (its runs are a separate
-  // future), so its peek is timed from when it first appears.
-  void _startMinimapPeek() {
-    widget.drawers.minimapPeeked = true;
-    _minimapPeek = Timer(_peekFor, () {
-      if (mounted) _setMinimap(false);
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant _CompactPieceLayout old) {
-    super.didUpdateWidget(old);
-    if (old.minimap == null &&
-        widget.minimap != null &&
-        _minimapPeek == null &&
-        !widget.drawers.minimapPeeked) {
-      _startMinimapPeek();
-    }
-    if (widget.minimapWantsAttention && !old.minimapWantsAttention) {
-      _setMinimap(true);
-    }
-    if (!identical(widget.service, old.service)) _listenForPlay();
   }
 
   @override
   void dispose() {
     _trayPeek?.cancel();
-    _minimapPeek?.cancel();
-    _playing?.cancel();
     super.dispose();
   }
 
@@ -1515,6 +1478,17 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     ref.listen(playbackStateProvider, (_, next) {
       if (next.valueOrNull == PlaybackState.playing) _closeSheet();
     });
+    // Anything newly selected — a bar (its Edit/Delete are in the section
+    // row), a section double-tapped on the score — brings the tray out, so
+    // Play is one tap away. Clearing the selection leaves it where it is.
+    // After the frame: _setTray publishes the tray inset to providers, and a
+    // selection can change mid-build, where Riverpod forbids that write.
+    ref.listen(measureSelectionProvider, (prev, next) {
+      if (next == null || next == prev) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _setTray(true);
+      });
+    });
 
     // What the chord drawer holds is only the chord diagrams, and they aren't
     // always there: the wrong view, the chord toggle off, or a tune whose
@@ -1536,63 +1510,12 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     // Guards the case where the drawer's contents go away while it's open —
     // switching to Jianpu, or turning chords off from the settings drawer.
     final sheetOpen = _sheetOpen && hasDrawer;
-    final trayCover = _trayShown ? _trayHeight : 0.0;
 
     return Stack(
       children: [
         Positioned.fill(child: widget.notationView),
         if (widget.selectedMedia.video != null && widget.mediaService != null)
           FloatingVideoOverlay(service: widget.mediaService!),
-
-        // ── minimap drawer, right edge ──
-        //
-        // The tab rides on the drawer's leading edge, so out or away it is
-        // always the thing to grab; away, only the tab is left on screen.
-        if (widget.minimap != null)
-          AnimatedPositioned(
-            duration: _slide,
-            curve: Curves.easeOut,
-            top: 0,
-            right: 0,
-            // Stops short of the tray rather than running under it.
-            bottom: trayCover,
-            child: Listener(
-              onPointerDown: (_) => _minimapPeek?.cancel(),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(end: _minimapShown ? 0 : 1),
-                duration: _slide,
-                curve: Curves.easeOut,
-                builder: (_, t, child) => Transform.translate(
-                    offset: Offset(t * SectionMinimap.width, 0), child: child),
-                child: GestureDetector(
-                  onHorizontalDragEnd: (d) {
-                    final v = d.primaryVelocity ?? 0;
-                    if (v > 150) _setMinimap(false);
-                    if (v < -150) _setMinimap(true);
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _DrawerTab(
-                        icon: _minimapShown
-                            ? Icons.chevron_right
-                            : Icons.chevron_left,
-                        tooltip:
-                            _minimapShown ? 'Hide sections' : 'Show sections',
-                        vertical: true,
-                        onTap: () => _setMinimap(!_minimapShown),
-                      ),
-                      Material(
-                        elevation: 6,
-                        color: theme.colorScheme.surface,
-                        child: widget.minimap!,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
 
         // ── play tray, bottom edge ──
         Positioned(
@@ -1605,8 +1528,8 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
               offset: Offset(0, _trayShown ? 0 : 1),
               duration: _slide,
               curve: Curves.easeOut,
-              // Re-measured on every change of size, so the minimap's lower
-              // edge follows the tray through the chord drawer's whole growth
+              // Re-measured on every change of size, so the autoscroll inset
+              // follows the tray through the chord drawer's whole growth
               // rather than one guess at when that growth is over.
               child: NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (_) {
@@ -1706,6 +1629,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          ?widget.sectionRow,
                           MediaControls(
                             piece: widget.piece,
                             media: widget.media,
@@ -1750,7 +1674,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                   child: _DrawerTab(
                     icon: Icons.keyboard_arrow_up,
                     tooltip: 'Show controls',
-                    vertical: false,
                     onTap: () => _setTray(true),
                   ),
                 ),
@@ -1763,19 +1686,16 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   }
 }
 
-/// The grab tab a compact-layout drawer leaves on its screen edge: a short
-/// rounded flap with a chevron pointing the way it will move. [vertical] is the
-/// side-edge (minimap) shape; otherwise the bottom-edge (tray) shape.
+/// The grab tab the compact layout's play tray leaves on the bottom edge while
+/// it's away: a short rounded flap with a chevron pointing the way it will move.
 class _DrawerTab extends StatelessWidget {
   final IconData icon;
   final String tooltip;
-  final bool vertical;
   final VoidCallback onTap;
 
   const _DrawerTab({
     required this.icon,
     required this.tooltip,
-    required this.vertical,
     required this.onTap,
   });
 
@@ -1789,17 +1709,13 @@ class _DrawerTab extends StatelessWidget {
         // Tinted, not surface: a white flap on a white page was easy to miss,
         // and finding it is the whole of its job.
         color: theme.colorScheme.secondaryContainer,
-        borderRadius: vertical
-            ? const BorderRadius.horizontal(left: Radius.circular(10))
-            : const BorderRadius.vertical(top: Radius.circular(10)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
         child: InkWell(
           onTap: onTap,
-          borderRadius: vertical
-              ? const BorderRadius.horizontal(left: Radius.circular(10))
-              : const BorderRadius.vertical(top: Radius.circular(10)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
           child: SizedBox(
-            width: vertical ? 20 : 64,
-            height: vertical ? 56 : 22,
+            width: 64,
+            height: 22,
             child: Icon(icon,
                 size: 20, color: theme.colorScheme.onSecondaryContainer),
           ),
@@ -2122,12 +2038,36 @@ class _NotationView extends ConsumerWidget {
     this.keySignature,
   });
 
+  // The previous tap, for spotting a double-tap. Static: there is only ever
+  // one notation view on screen, and the widget itself is rebuilt constantly.
+  static ({int measure, DateTime at, MeasureSelection? before})? _lastTap;
+
   // Shared "tap anchor, tap to extend" selection logic, used by every notation
   // view (staff, jianpu, fingering). See MeasureSelection.afterTap.
+  //
+  // A second tap on the same bar within the double-tap window selects the
+  // whole section run it's in (see sectionRunForDoubleTap). That's detected
+  // here rather than with a GestureDetector's onDoubleTap, which would hold
+  // back EVERY single tap by kDoubleTapTimeout while it waited for a second.
+  // So the first tap still acts at once; the second replaces its result.
   void _selectMeasure(WidgetRef ref, int measure) {
-    final current = ref.read(measureSelectionProvider);
-    ref.read(measureSelectionProvider.notifier).state =
-        MeasureSelection.afterTap(current, measure);
+    final selection = ref.read(measureSelectionProvider.notifier);
+    final now = DateTime.now();
+    final prev = _lastTap;
+    if (prev != null &&
+        prev.measure == measure &&
+        now.difference(prev.at) < kDoubleTapTimeout) {
+      final runs = ref.read(sectionRunsProvider).valueOrNull ?? const [];
+      final i = sectionRunForDoubleTap(runs, measure, prev.before);
+      if (i != null) {
+        _lastTap = null;
+        selection.state = MeasureSelection.ofRun(runs[i]);
+        return;
+      }
+    }
+    final current = selection.state;
+    _lastTap = (measure: measure, at: now, before: current);
+    selection.state = MeasureSelection.afterTap(current, measure);
   }
 
   @override
