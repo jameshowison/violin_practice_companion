@@ -41,6 +41,7 @@ import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
 import '../widgets/print_sheet.dart';
 import '../widgets/section_minimap.dart';
+import '../widgets/tempo_controls.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../widgets/time_signature_dialog.dart';
@@ -91,16 +92,8 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
 /// the app is frontmost and Android scopes `FLAG_KEEP_SCREEN_ON` to the window,
 /// so backgrounding already suspends this without help.
 class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
-  // Play Along only ever verifies the first beat of each measure (see
-  // docs/audio-sync-dtw-anchor-compression.md) — intra-measure note timing is
-  // interpolated, not aligned. On by default, matching PlaybackServiceBase's
-  // own default; applied to audioSyncService straight from the drawer's
-  // onChanged, never during build (its setter can synchronously update
-  // highlight notifiers, which must not happen mid-build).
-  bool _highlightDownbeatOnly = true;
-
   // Perception experiment: how far ahead of the real (aligned) onset the
-  // downbeat highlight fires. Mirrors _highlightDownbeatOnly — local state so
+  // downbeat highlight fires. Local state so
   // the slider has something to render immediately, applied to the service
   // on change rather than during build.
   double _highlightLeadMs = 60;
@@ -173,7 +166,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // the first build after a service is created with a non-default setting.
     if (mediaService != null) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        mediaService.highlightDownbeatOnly = _highlightDownbeatOnly;
         mediaService.highlightLeadSeconds = _highlightLeadMs / 1000;
       });
     }
@@ -189,6 +181,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // instead means every view follows whatever is actually playing, and the
     // override is gone.
     final PlaybackServiceBase activeService = mediaService ?? service;
+
+    // Highlight granularity applies to whichever service is playing, the
+    // synthesized one included. Post-frame for the same reason as above.
+    final highlightEveryNote = ref.watch(highlightEveryNoteProvider);
+    // The synthesized tempo, from the tray's preset picker. Checked against the
+    // service so an unchanged rebuild doesn't regenerate (setTempo does).
+    final bpm = ref.watch(tempoSettingsProvider.select((s) => s.bpm));
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      activeService.highlightDownbeatOnly = !highlightEveryNote;
+      if (service.currentBpm != bpm) service.setTempo(bpm);
+    });
 
     // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
     // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
@@ -243,18 +246,34 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               const SizedBox(width: 12),
             ],
             Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              // The count-off sits on top of the title while it runs. It used to
+              // be drawn into the score above the first system, where it hid the
+              // annotations the player is reading as they lift the bow; the
+              // title is the one thing on screen nobody needs for those seconds.
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
-                  Text(piece.title,
-                      style: const TextStyle(fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  if (kDebugMode)
-                    Text(kBuildRef,
-                        style: TextStyle(
-                            fontSize: 9,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(piece.title,
+                          style: const TextStyle(fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      if (kDebugMode)
+                        Text(kBuildRef,
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+                    ],
+                  ),
+                  Positioned.fill(
+                    child: _TitleCountIn(
+                      service: activeService,
+                      maxWidth: screen.width * (useCompact ? 0.38 : 0.4),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -349,8 +368,27 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // notation looks.
                   const _CountInSlider(),
                   const Divider(),
-                  // Both settings are about following a real recording, so they
-                  // appear precisely when one is selected.
+                  if (selectedMedia.isSynthesized) ...[
+                    const TempoSettingsPanel(),
+                    const Divider(),
+                  ],
+                  // Every note, or each bar's first. Shown for synthesized
+                  // playback too: there the timing is exact, so per-note
+                  // highlighting is the natural choice — it used to be
+                  // reachable only with a recording selected, leaving MIDI
+                  // stuck on downbeats.
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('Highlight every note'),
+                    subtitle: const Text('Off: first note of each bar'),
+                    value: ref.watch(highlightEveryNoteProvider),
+                    onChanged: (v) {
+                      ref.read(highlightEveryNoteProvider.notifier).state = v;
+                    },
+                  ),
+                  // The lead setting is about following a real recording, so it
+                  // appears precisely when one is selected.
                   //
                   // The gate used to be `audioSyncFolder != null` — the
                   // presence of a BUNDLED asset folder. A piece whose only
@@ -361,16 +399,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // push to and one condition that describes what the settings
                   // actually do.
                   if (!selectedMedia.isSynthesized) ...[
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: const Text('Highlight downbeats only'),
-                      value: _highlightDownbeatOnly,
-                      onChanged: (v) {
-                        setState(() => _highlightDownbeatOnly = v);
-                        mediaService?.highlightDownbeatOnly = v;
-                      },
-                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -601,8 +629,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                           child: Stack(
                             children: [
                               Positioned.fill(child: notationView),
-                              _CountInOverlay(
-                                  service: activeService, mode: displayMode),
                               // Any medium with a video gets the window: a
                               // recorded demo, or an imported mp4.
                               if (selectedMedia.video != null &&
@@ -1326,7 +1352,19 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   late bool _minimapShown = widget.drawers.minimapShown;
   Timer? _trayPeek;
   Timer? _minimapPeek;
+  StreamSubscription<PlaybackState>? _playing;
   double _trayHeight = 72;
+
+  // Out of the way the moment playback starts — i.e. before the count-in, so
+  // the player sees the opening bars while counting. Over the score, the
+  // section list covers the notes being played, and nobody can reach for it
+  // with a bow in their hand. The tab stays, so it is one tap to bring back.
+  void _listenForPlay() {
+    _playing?.cancel();
+    _playing = widget.service.state.listen((s) {
+      if (s == PlaybackState.playing && mounted) _setMinimap(false);
+    });
+  }
 
   // What the tray covers right now (nothing, once it's put away) → the staff's
   // autoscroll; the most it has ever covered → every view's trailing scroll
@@ -1403,6 +1441,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     if (widget.minimap != null && !widget.drawers.minimapPeeked) {
       _startMinimapPeek();
     }
+    _listenForPlay();
   }
 
   // The minimap can arrive after the layout does (its runs are a separate
@@ -1426,12 +1465,14 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     if (widget.minimapWantsAttention && !old.minimapWantsAttention) {
       _setMinimap(true);
     }
+    if (!identical(widget.service, old.service)) _listenForPlay();
   }
 
   @override
   void dispose() {
     _trayPeek?.cancel();
     _minimapPeek?.cancel();
+    _playing?.cancel();
     super.dispose();
   }
 
@@ -1500,7 +1541,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     return Stack(
       children: [
         Positioned.fill(child: widget.notationView),
-        _CountInOverlay(service: widget.service, mode: displayMode),
         if (widget.selectedMedia.video != null && widget.mediaService != null)
           FloatingVideoOverlay(service: widget.mediaService!),
 
@@ -2157,7 +2197,6 @@ class _NotationView extends ConsumerWidget {
         return StaffViewVerovio(
           musicXml: xml,
           highlightNotifier: service.currentHighlightNotifier,
-          countInNotifier: service.countInNotifier,
           selection: selection,
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
@@ -2268,7 +2307,6 @@ class _NotationView extends ConsumerWidget {
               ? StaffViewVerovio(
                   musicXml: tab.musicXml,
                   highlightNotifier: service.currentHighlightNotifier,
-                  countInNotifier: service.countInNotifier,
                   selection: selection,
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
                   flaggedMeasures: flaggedMeasures,
@@ -2290,45 +2328,50 @@ class _NotationView extends ConsumerWidget {
   }
 }
 
-/// The count-off for the views with no engraved time signature to sit above
-/// (jianpu, fingering, combined). The staff-based views draw their own, anchored
-/// to the meter — see [StaffViewVerovio]; without this the other three would
-/// answer a tap on Play with a couple of seconds of silence and nothing on screen
-/// to explain it.
+/// The count-off, laid over the piece's title in the app bar, in every view.
 ///
-/// Always returns a [Positioned], with an empty child when there is nothing to
-/// count — same requirement as [_FloatingMeasureActions], for the same reason.
-class _CountInOverlay extends StatelessWidget {
-  const _CountInOverlay({required this.service, required this.mode});
+/// Centred on the title but allowed past its edges (up to [maxWidth]): a short
+/// title would otherwise squeeze the numbers to nothing. Capped below the
+/// space the app bar's actions leave, so a two-bar count scales down rather
+/// than running under the icons on a 375pt phone. The pill is opaque, so
+/// whatever it overhangs for its couple of seconds is simply covered.
+class _TitleCountIn extends StatelessWidget {
+  const _TitleCountIn({required this.service, required this.maxWidth});
 
   final PlaybackServiceBase service;
-  final DisplayMode mode;
-
-  static const _ownsItsCountIn = {
-    DisplayMode.staff,
-    DisplayMode.staffFingering,
-    DisplayMode.tab,
-  };
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 8,
-      left: 0,
-      right: 0,
-      child: _ownsItsCountIn.contains(mode)
-          ? const SizedBox.shrink()
-          : Align(
-              alignment: Alignment.topCenter,
-              child: IgnorePointer(
-                child: ValueListenableBuilder<CountInTick?>(
-                  valueListenable: service.countInNotifier,
-                  builder: (context, tick, _) => tick == null
-                      ? const SizedBox.shrink()
-                      : CountInLabel(tick: tick, height: 34),
+    return IgnorePointer(
+      child: OverflowBox(
+        minWidth: 0,
+        maxWidth: maxWidth,
+        // Without this the backing is clamped to the title text's own height,
+        // and the key glyph's sharps show above it.
+        maxHeight: kDebugMode ? 64 : 56,
+        child: ValueListenableBuilder<CountInTick?>(
+          valueListenable: service.countInNotifier,
+          builder: (context, tick, _) => tick == null
+              ? const SizedBox.shrink()
+              // Scale-down rather than clip: a count that loses its last
+              // numbers stops answering "how long have I got?".
+              //
+              // Full bar height on an opaque backing: the key-signature glyph
+              // beside the title is taller than the pill, and its clef and
+              // sharps otherwise peek out above and below the numbers.
+              : ColoredBox(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: SizedBox(
+                    height: kDebugMode ? 64 : 56,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: CountInLabel(tick: tick, height: 34),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+        ),
+      ),
     );
   }
 }
