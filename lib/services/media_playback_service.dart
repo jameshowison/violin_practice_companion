@@ -111,6 +111,38 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// plays but could not be aligned.
   bool get isAligned => _anchors.length >= 2;
 
+  /// The loaded recording's own tempo in quarter-note bpm, measured from its
+  /// alignment; null when it isn't aligned. See [recordingBpmFrom].
+  double? get recordingBpm => recordingBpmFrom(_anchors, _generationBpm);
+  int _generationBpm = 0;
+
+  /// A recording's tempo, from its anchors: the score time they span (at
+  /// [generationBpm], which every `scoreMs` was generated at) over the audio
+  /// time they span. First to last anchor only, so a lead-in or a trailing
+  /// piano outro doesn't count — which is what makes this better than
+  /// [generationBpm] itself, an estimate from the file's whole duration.
+  static double? recordingBpmFrom(
+      List<ScoreAudioAnchor> anchors, int generationBpm) {
+    if (anchors.length < 2 || generationBpm <= 0) return null;
+    final scoreSec = (anchors.last.scoreMs - anchors.first.scoreMs) / 1000;
+    final audioSec = anchors.last.audioSec - anchors.first.audioSec;
+    if (scoreSec <= 0 || audioSec <= 0) return null;
+    return generationBpm * scoreSec / audioSec;
+  }
+
+  /// Slowest and fastest a recording is played: past these the time-stretch
+  /// is audibly smeared, and a preset that far from the recording is better
+  /// served by the synthesized score.
+  static const minSpeed = 0.5, maxSpeed = 2.0;
+
+  /// The playback rate that plays a recording at [recordingBpm] at
+  /// [targetBpm] — how the tray's shared Slow / Medium / Performance presets
+  /// apply to a recording. 1.0 when the recording's tempo is unknown.
+  static double speedFor(int targetBpm, double? recordingBpm) {
+    if (recordingBpm == null || recordingBpm <= 0) return 1.0;
+    return (targetBpm / recordingBpm).clamp(minSpeed, maxSpeed);
+  }
+
   /// Sorts anchors by [ScoreAudioAnchor.audioSec], breaking ties on
   /// [ScoreAudioAnchor.scoreMs]. Salt Creek's B section is chroma-identical to
   /// A (chroma is octave-invariant), so the DTW cost matrix has little to
@@ -189,6 +221,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
         ? const []
         : dropDegenerateSegments(sortAnchors(alignment.anchors));
     alignmentLooksUncertain.value = alignment?.hasCompressedAnchors ?? false;
+    _generationBpm = alignment?.generationBpm ?? 0;
 
     // The generation BPM matters only when there are anchors to be consistent
     // with; unaligned, the timeline is never consulted, and the current tempo
