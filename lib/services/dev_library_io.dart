@@ -67,7 +67,8 @@ class DevLibraryIngester {
     final prefs = await SharedPreferences.getInstance();
     final state =
         jsonDecode(await stateFile.readAsString()) as Map<String, dynamic>;
-    final lib = await _snapshot(stage, _stateValues(state));
+    final lib = await _snapshot(stage, _stateValues(state),
+        only: await _readManifest(stage));
     final dev = await _snapshot(docs, await _deviceValues(docs, prefs));
     final base = _decodeBase(prefs.getString(_baseKey));
 
@@ -172,8 +173,11 @@ class DevLibraryIngester {
 
   /// Fingerprints of every synced file under [root], plus the prefs-held
   /// [values] (already keyed `title:` / `media:` / `pieceLibrary`).
+  ///
+  /// [only], when given, limits the files to those paths: the staged library's
+  /// manifest (see [_readManifest]).
   Future<_Snapshot> _snapshot(
-      Directory root, Map<String, Object?> values) async {
+      Directory root, Map<String, Object?> values, {Set<String>? only}) async {
     final fps = <String, String>{};
     for (final folder in devLibrarySyncedFolders) {
       final dir = Directory('${root.path}/$folder');
@@ -182,6 +186,7 @@ class DevLibraryIngester {
         if (entity is! File) continue;
         final rel = entity.path.substring(root.path.length + 1);
         if (_ignored(rel)) continue;
+        if (only != null && !only.contains(rel)) continue;
         fps['file:$rel'] = await fileFingerprint(rel, entity);
       }
     }
@@ -189,6 +194,26 @@ class DevLibraryIngester {
       fps[key] = 'j${fnv1a(utf8.encode(canonicalJson(value)))}';
     }
     return _Snapshot(fps, values);
+  }
+
+  /// The files the last push actually sent, from the staging folder's
+  /// `manifest.json` (`{"files": [relative paths]}`), or null when there is no
+  /// manifest (a push from before it existed): then every staged file counts.
+  ///
+  /// Needed because the push can no longer clear the staging folder first.
+  /// `devicectl copy to --remove-existing-content` did that, and on iOS 27 it
+  /// emptied the WHOLE app container — Documents and the prefs plist — not just
+  /// the destination folder. Without it, a file deleted from the library stays
+  /// behind in staging; the manifest is what says it is gone.
+  static Future<Set<String>?> _readManifest(Directory stage) async {
+    final file = File('${stage.path}/manifest.json');
+    if (!await file.exists()) return null;
+    try {
+      final files = (jsonDecode(await file.readAsString()) as Map)['files'];
+      return {for (final f in files as List) f as String};
+    } catch (_) {
+      return null;
+    }
   }
 
   static bool _ignored(String rel) =>

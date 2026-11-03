@@ -75,6 +75,22 @@ else
     copy_from "Documents/$f" "$DOCS/$f"
   done
   copy_from "Library/Preferences/$BUNDLE.plist" "$PLIST"
+  copy_from "Documents/dev_library/state.json" "$TMP/staged_state.json"
+  STAGED_STATE="$TMP/staged_state.json"
+fi
+STAGED_STATE="${STAGED_STATE:-$DOCS/dev_library/state.json}"
+
+# A device that has been synced before but has no prefs plist has had its app
+# data wiped, not freshly installed — on 2026-11-03 `devicectl copy to
+# --remove-existing-content` emptied a whole container. Its titles, media rows
+# and sync base are gone, so a pull would read every piece as deleted on the
+# device. Stop; relaunching the app restores it from the staged library (with
+# no base the merge takes everything), then pull again.
+if [[ -f "$STAGED_STATE" && ! -f "$PLIST" && -z "${DEV_LIBRARY_ALLOW_MISSING_PREFS:-}" ]]; then
+  echo "$DEVICE has a staged library but no prefs plist: its app data looks wiped." >&2
+  echo "Nothing pulled. Launch the app once (it restores from the staged library)," >&2
+  echo "then sync again. Override: DEV_LIBRARY_ALLOW_MISSING_PREFS=1" >&2
+  exit 1
 fi
 
 mkdir -p "$LIB"

@@ -22,17 +22,20 @@
 #      install. devicectl installs over the top and the trust survives.
 set -euo pipefail
 
-# --sync: afterwards, sync the dev library with the device (see
-# scripts/sync_dev_library.sh) — it relaunches the app, which merges it.
+# The dev library (../violin_dev_library) is synced onto the device after every
+# install — see scripts/sync_dev_library.sh; it relaunches the app, which merges
+# it. --no-sync skips that (--sync is still accepted, and is the default). With
+# no library checked out next to this repo the sync is skipped with a note.
 # --no-build: skip the build and install what is already in $APP — for when the
 # build succeeded but devicectl lost the phone. The "built at" line below still
 # prints, so you can see how old the reused binary is.
-SYNC=""
+SYNC=1
 NO_BUILD=""
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --sync) SYNC=1 ;;
+    --no-sync) SYNC="" ;;
     --no-build) NO_BUILD=1 ;;
     *) ARGS+=("$arg") ;;
   esac
@@ -85,8 +88,13 @@ if EXPIRY=$(security cms -D -i "$APP/embedded.mobileprovision" 2>/dev/null \
   echo "provisioning profile expires: $EXPIRY"
 fi
 
+SYNC_FAILED=""
 if [[ -n "$SYNC" ]]; then
-  bash scripts/sync_dev_library.sh "$DEVICE"
+  if [[ ! -f "${DEV_LIBRARY:-../violin_dev_library}/state.json" ]]; then
+    echo "no dev library at ${DEV_LIBRARY:-../violin_dev_library}; installed without it"
+  elif ! bash scripts/sync_dev_library.sh "$DEVICE"; then
+    SYNC_FAILED=1
+  fi
 fi
 
 cat <<'EOF'
@@ -95,3 +103,13 @@ If the app refuses to launch ("invalid code signature ... or its profile has not
 been explicitly trusted"), trust the developer once on the device:
   Settings → General → VPN & Device Management → Developer App → Trust
 EOF
+
+# Installed, but the library didn't make it: say so loudly and fail, so nobody
+# walks away thinking the device has the shared pieces. The install itself
+# stands; re-run just the sync once the device is unlocked.
+if [[ -n "$SYNC_FAILED" ]]; then
+  echo >&2
+  echo "INSTALLED, BUT THE DEV LIBRARY SYNC FAILED (see above)." >&2
+  echo "Unlock the device and run: bash scripts/sync_dev_library.sh \"$DEVICE\"" >&2
+  exit 1
+fi
