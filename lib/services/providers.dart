@@ -551,7 +551,8 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
 // [pieceDisplayPref].
 final displayModeProvider = pieceDisplayEnumPref<DisplayMode>(
   'view',
-  DisplayMode.staff,
+  // Annotated (staff plus fingering) is where a new piece opens.
+  DisplayMode.staffFingering,
   DisplayMode.values,
 );
 
@@ -1299,8 +1300,113 @@ class TempoSettingsNotifier extends StateNotifier<TempoSettings> {
 
   void select(TempoPreset p) => _set(state.withPreset(p));
 
-  void setBpm(TempoPreset p, int bpm) => _set(state.withBpm(p, bpm));
+  void setPercent(TempoPreset p, int pct) => _set(state.withPercent(p, pct));
+
+  void setDefaultPerformance(int bpm) =>
+      _set(state.withDefaultPerformance(bpm));
+
+  void setCustom(int bpm) => _set(state.withCustom(bpm));
 }
+
+/// A performance tempo set by hand for one piece, or null to follow its
+/// recordings. Persisted per piece.
+final piecePerformanceOverrideProvider = StateNotifierProvider.family<
+    PiecePerformanceOverrideNotifier, int?, String>(
+  (ref, pieceId) =>
+      PiecePerformanceOverrideNotifier(ref.watch(tempoStoreProvider), pieceId),
+);
+
+class PiecePerformanceOverrideNotifier extends StateNotifier<int?> {
+  PiecePerformanceOverrideNotifier(this._store, this._pieceId) : super(null) {
+    _restore();
+  }
+
+  final TempoStore _store;
+  final String _pieceId;
+  bool _touched = false;
+
+  Future<void> _restore() async {
+    final saved = await _store.loadPiecePerformance(_pieceId);
+    if (!mounted || _touched) return;
+    state = saved;
+  }
+
+  /// Null goes back to following the recordings.
+  void set(int? bpm) {
+    _touched = true;
+    state = bpm == null ? null : clampBpm(bpm);
+    _store.savePiecePerformance(_pieceId, state);
+  }
+}
+
+/// The tempo of the recording loaded in the tray right now, measured from its
+/// alignment; null with the synthesized score selected or an unaligned
+/// recording. Set by the media transport.
+final loadedRecordingBpmProvider = StateProvider<double?>((_) => null);
+
+/// [pieceId]'s recorded tempo, from the first of its media (in picker order)
+/// with a cached alignment — so the synthesized score's Performance matches
+/// the teacher's tracks without one having to be played first in this visit.
+/// Null when nothing has been aligned on this device yet. Invalidated by the
+/// media transport after a load or realign changes the cache.
+final pieceRecordingBpmProvider =
+    FutureProvider.family<double?, String>((ref, pieceId) async {
+  final media = await ref.watch(pieceMediaProvider(pieceId).future);
+  final store = ref.watch(mediaAlignmentStoreProvider);
+  for (final m in media) {
+    if (m.isSynthesized || !m.canAlign) continue;
+    final a = await store.load(m.alignmentKey);
+    if (a == null) continue;
+    final bpm = MediaPlaybackService.recordingBpmFrom(
+        MediaPlaybackService.dropDegenerateSegments(
+            MediaPlaybackService.sortAnchors(a.anchors)),
+        a.generationBpm);
+    if (bpm != null) return bpm;
+  }
+  return null;
+});
+
+/// Where the selected piece's performance tempo came from.
+enum PerformanceSource { piece, recording, defaultTempo }
+
+/// The selected piece's performance tempo, which Slow and Medium are shares
+/// of: set for the piece by hand; else the loaded recording's own tempo (so
+/// Performance plays it at exactly 1.0x); else its recordings' tempo from the
+/// alignment cache (so the synthesized score matches them); else the app-wide
+/// default.
+final performanceTempoProvider =
+    Provider<({double bpm, PerformanceSource source})>((ref) {
+  final piece = ref.watch(selectedPieceProvider);
+  final fallback = ref.watch(tempoSettingsProvider.select((s) => s.performance));
+  if (piece == null) {
+    return (bpm: fallback.toDouble(), source: PerformanceSource.defaultTempo);
+  }
+  final override = ref.watch(piecePerformanceOverrideProvider(piece.id));
+  if (override != null) {
+    return (bpm: override.toDouble(), source: PerformanceSource.piece);
+  }
+  final recorded = ref.watch(loadedRecordingBpmProvider) ??
+      ref.watch(pieceRecordingBpmProvider(piece.id)).valueOrNull;
+  if (recorded != null) {
+    return (
+      bpm: recorded.clamp(minBpm.toDouble(), maxBpm.toDouble()),
+      source: PerformanceSource.recording,
+    );
+  }
+  return (bpm: fallback.toDouble(), source: PerformanceSource.defaultTempo);
+});
+
+/// The selected preset's tempo for the selected piece, unrounded — a
+/// recording's playback rate is this over its own tempo.
+final exactTempoBpmProvider = Provider<double>((ref) {
+  final settings = ref.watch(tempoSettingsProvider);
+  return settings.exactBpmFor(
+      settings.preset, ref.watch(performanceTempoProvider).bpm);
+});
+
+/// What the synthesized score plays at.
+final tempoBpmProvider =
+    Provider<int>((ref) => ref.watch(exactTempoBpmProvider).round());
 
 /// The measure Play starts from: the practice selection's first bar, or — with
 /// nothing selected — the score's own first measure.

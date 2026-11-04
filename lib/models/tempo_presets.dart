@@ -30,65 +30,103 @@ const maxBpm = 208;
 
 int clampBpm(int bpm) => bpm.clamp(minBpm, maxBpm);
 
-/// The bpm for each preset and which one is selected.
+/// Lowest and highest share of the performance tempo Slow and Medium can be.
+const minPercent = 20;
+const maxPercent = 100;
+
+int clampPercent(int pct) => pct.clamp(minPercent, maxPercent);
+
+/// The app-wide half of the tempo presets, and which preset is selected.
 ///
-/// Defaults are beginner-to-intermediate violin practice speeds (quarter-note
-/// beats): 60 is the classic slow-practice metronome mark, 80 a comfortable
-/// working tempo, 100 a typical performance tempo for the early Suzuki-book
-/// repertoire this app is mostly used with.
+/// Performance is a fact about the PIECE (its teacher recording's tempo, or a
+/// value set for it), so it is passed in; Slow and Medium are shares of it, so
+/// they scale with the piece — 60% of a 63 bpm Long, Long Ago is as slow,
+/// relatively, as 60% of a 100 bpm Allegro. [performance] here is only the
+/// default for a piece with neither a recording nor a value of its own.
+/// Custom is an absolute bpm.
+///
+/// Defaults: 60% and 80% are the usual slow- and working-practice fractions;
+/// 100 bpm a typical performance tempo for early Suzuki-book repertoire.
 class TempoSettings {
   const TempoSettings({
-    this.slow = 60,
-    this.medium = 80,
+    this.slowPercent = 60,
+    this.mediumPercent = 80,
     this.performance = 100,
     this.custom = 90,
     this.preset = TempoPreset.medium,
   });
 
-  final int slow;
-  final int medium;
+  final int slowPercent;
+  final int mediumPercent;
   final int performance;
   final int custom;
   final TempoPreset preset;
 
-  int bpmFor(TempoPreset p) => switch (p) {
-        TempoPreset.slow => slow,
-        TempoPreset.medium => medium,
-        TempoPreset.performance => performance,
-        TempoPreset.custom => custom,
-      };
-
-  /// The tempo playback should run at.
-  int get bpm => bpmFor(preset);
-
-  TempoSettings withBpm(TempoPreset p, int bpm) {
-    final v = clampBpm(bpm);
-    return TempoSettings(
-      slow: p == TempoPreset.slow ? v : slow,
-      medium: p == TempoPreset.medium ? v : medium,
-      performance: p == TempoPreset.performance ? v : performance,
-      custom: p == TempoPreset.custom ? v : custom,
-      preset: preset,
-    );
+  /// [p]'s tempo for a piece whose performance tempo is [performanceBpm],
+  /// unrounded so a recording's Performance can come out at exactly 1.0x.
+  double exactBpmFor(TempoPreset p, double performanceBpm) {
+    final v = switch (p) {
+      TempoPreset.slow => performanceBpm * slowPercent / 100,
+      TempoPreset.medium => performanceBpm * mediumPercent / 100,
+      TempoPreset.performance => performanceBpm,
+      TempoPreset.custom => custom.toDouble(),
+    };
+    return v.clamp(minBpm.toDouble(), maxBpm.toDouble());
   }
 
-  TempoSettings withPreset(TempoPreset p) => TempoSettings(
-        slow: slow,
-        medium: medium,
-        performance: performance,
-        custom: custom,
-        preset: p,
+  /// [p]'s tempo, rounded — what the synthesized score plays and the tray shows.
+  int bpmFor(TempoPreset p, double performanceBpm) =>
+      exactBpmFor(p, performanceBpm).round();
+
+  /// The selected preset's tempo at [performanceBpm].
+  int bpmAt(double performanceBpm) => bpmFor(preset, performanceBpm);
+
+  /// Slow's or Medium's share of the performance tempo.
+  int percentFor(TempoPreset p) => switch (p) {
+        TempoPreset.slow => slowPercent,
+        TempoPreset.medium => mediumPercent,
+        _ => 100,
+      };
+
+  TempoSettings _copy({
+    int? slowPercent,
+    int? mediumPercent,
+    int? performance,
+    int? custom,
+    TempoPreset? preset,
+  }) =>
+      TempoSettings(
+        slowPercent: slowPercent ?? this.slowPercent,
+        mediumPercent: mediumPercent ?? this.mediumPercent,
+        performance: performance ?? this.performance,
+        custom: custom ?? this.custom,
+        preset: preset ?? this.preset,
       );
+
+  /// Sets Slow's or Medium's share; ignored for the other presets.
+  TempoSettings withPercent(TempoPreset p, int pct) => switch (p) {
+        TempoPreset.slow => _copy(slowPercent: clampPercent(pct)),
+        TempoPreset.medium => _copy(mediumPercent: clampPercent(pct)),
+        _ => this,
+      };
+
+  TempoSettings withDefaultPerformance(int bpm) =>
+      _copy(performance: clampBpm(bpm));
+
+  TempoSettings withCustom(int bpm) => _copy(custom: clampBpm(bpm));
+
+  TempoSettings withPreset(TempoPreset p) => _copy(preset: p);
 
   @override
   bool operator ==(Object other) =>
       other is TempoSettings &&
-      other.slow == slow &&
-      other.medium == medium &&
+      other.slowPercent == slowPercent &&
+      other.mediumPercent == mediumPercent &&
       other.performance == performance &&
       other.custom == custom &&
       other.preset == preset;
 
   @override
-  int get hashCode => Object.hash(slow, medium, performance, custom, preset);
+  int get hashCode =>
+      Object.hash(slowPercent, mediumPercent, performance, custom, preset);
 }

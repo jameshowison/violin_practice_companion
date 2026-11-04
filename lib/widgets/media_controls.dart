@@ -685,14 +685,28 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
 
   /// The rate that plays this recording at the tray's selected tempo — the
   /// same Slow / Medium / Performance bpm as the synthesized score, so a preset
-  /// means one tempo whichever source is playing.
+  /// means one tempo whichever source is playing. With no tempo set for the
+  /// piece, Performance is this recording's own tempo, i.e. exactly 1.0x.
   double get _speed => MediaPlaybackService.speedFor(
-      ref.read(tempoSettingsProvider).bpm, _service.recordingBpm);
+      ref.read(exactTempoBpmProvider), _service.recordingBpm);
+
+  late final StateController<double?> _loadedBpm =
+      ref.read(loadedRecordingBpmProvider.notifier);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    // Back to the synthesized score (or off the screen): no recording's tempo
+    // stands in for the piece's any more. A microtask, since a provider can't
+    // be changed while the tree is being torn down.
+    final loaded = _loadedBpm;
+    Future.microtask(() => loaded.state = null);
+    super.dispose();
   }
 
   @override
@@ -713,6 +727,10 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     final result = realign
         ? await _service.realign(piece: parsed, media: widget.media)
         : await _service.load(piece: parsed, media: widget.media);
+    if (!mounted) return;
+    _loadedBpm.state = result.isPlayable ? _service.recordingBpm : null;
+    // The alignment cache may have just been written (first load) or redone.
+    ref.invalidate(pieceRecordingBpmProvider(widget.piece.id));
     // just_audio's playback rate is a player-level setting and is not reliably
     // preserved across loading a new source, so it is always reapplied.
     if (result.isPlayable) await _service.setPlaybackSpeed(_speed);
@@ -723,13 +741,40 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     });
   }
 
+  /// Realigning throws away a working alignment and makes the player wait for
+  /// a new one, and the button sits right beside the tempo control — so it
+  /// asks first.
+  Future<void> _confirmRealign() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Realign to the score?'),
+        content: const Text(
+            'This re-runs the sync between this recording and the score, '
+            'replacing the current one. Worth doing if the score has been '
+            'edited or the highlight drifts from the music.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Realign'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) await _load(realign: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final startMeasure = ref.watch(playbackStartMeasureProvider);
     final service = ref.watch(mediaPlaybackServiceProvider);
     // A new preset (or new bpm behind one) re-rates the recording at once.
     // Safe mid-play: the highlight reads the player's file-time position.
-    ref.listen(tempoSettingsProvider.select((s) => s.bpm), (_, _) {
+    ref.listen(exactTempoBpmProvider, (_, _) {
       if (_result?.isPlayable ?? false) service.setPlaybackSpeed(_speed);
     });
 
@@ -789,7 +834,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 children: [
                   const Flexible(child: TempoPresetPicker()),
                   Consumer(builder: (context, ref, _) {
-                    ref.watch(tempoSettingsProvider);
+                    ref.watch(exactTempoBpmProvider);
                     final recBpm = service.recordingBpm;
                     return Tooltip(
                       message: recBpm == null
@@ -810,7 +855,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 icon: const Icon(Icons.tune),
                 iconSize: 20,
                 tooltip: 'Realign to the score',
-                onPressed: () => _load(realign: true),
+                onPressed: _confirmRealign,
               ),
             if (result?.outcome == MediaLoadOutcome.playsWithoutHighlight)
               IconButton(

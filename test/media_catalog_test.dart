@@ -115,8 +115,28 @@ void main() {
       expect(MediaCatalog.resolve(media, 'bundled_chords').label, 'Chords');
     });
 
-    test('null means the synthesized score', () {
-      expect(MediaCatalog.resolve(media, null), PieceMedia.synthesized);
+    test('nothing chosen opens on a recording when there is one', () {
+      // Bundled tracks only: the first of them.
+      expect(MediaCatalog.resolve(media, null), media[1]);
+      // Only the score: the score.
+      expect(MediaCatalog.resolve(const [PieceMedia.synthesized], null),
+          PieceMedia.synthesized);
+    });
+
+    test("the piece's own recordings come before bundled tracks", () {
+      const teacher = PieceMedia(
+        id: 'teacher_vp',
+        label: 'Violin + Piano',
+        kind: MediaKind.imported,
+        alignmentKey: 'media:p:teacher_vp',
+        audio: MediaRef.appFile('media/p/teacher_vp/source.mp3'),
+      );
+      expect(MediaCatalog.resolve([...media, teacher], null), teacher);
+    });
+
+    test('choosing Simulated sticks', () {
+      expect(MediaCatalog.resolve(media, PieceMedia.synthesized.id),
+          PieceMedia.synthesized);
     });
 
     test('a selection that outlived its medium falls back to something playable',
