@@ -74,15 +74,27 @@ class MediaCatalog {
     ];
   }
 
-  /// The medium [id] names, or the synthesized score when it names nothing —
-  /// so a selection that outlives its medium (deleted, or a piece that no
-  /// longer has bundled tracks) falls back to something playable instead of
-  /// leaving the tray empty.
+  /// The medium [id] names. With nothing chosen yet (null), a real recording
+  /// if the piece has one — [defaultFor] — since that is what a player with a
+  /// teacher's track wants to hear; choosing "Simulated" in the picker stores
+  /// its own id, so it sticks. A selection that outlives its medium (deleted,
+  /// or a piece that no longer has bundled tracks) falls back to the
+  /// synthesized score, something playable, instead of leaving the tray empty.
   static PieceMedia resolve(List<PieceMedia> media, String? id) {
-    if (id == null) return PieceMedia.synthesized;
+    if (id == null) return defaultFor(media);
     for (final m in media) {
       if (m.id == id) return m;
     }
     return PieceMedia.synthesized;
   }
+
+  /// What a piece opens on: its own recordings (imported or recorded, e.g. a
+  /// teacher's track) first, in picker order, then a bundled backing track,
+  /// then the synthesized score.
+  static PieceMedia defaultFor(List<PieceMedia> media) =>
+      media.where((m) => m.isRemovable && m.audio != null).firstOrNull ??
+      media
+          .where((m) => !m.isSynthesized && m.audio != null)
+          .firstOrNull ??
+      PieceMedia.synthesized;
 }

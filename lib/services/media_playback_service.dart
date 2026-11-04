@@ -138,7 +138,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// The playback rate that plays a recording at [recordingBpm] at
   /// [targetBpm] — how the tray's shared Slow / Medium / Performance presets
   /// apply to a recording. 1.0 when the recording's tempo is unknown.
-  static double speedFor(int targetBpm, double? recordingBpm) {
+  static double speedFor(double targetBpm, double? recordingBpm) {
     if (recordingBpm == null || recordingBpm <= 0) return 1.0;
     return (targetBpm / recordingBpm).clamp(minSpeed, maxSpeed);
   }

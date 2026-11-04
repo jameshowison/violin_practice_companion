@@ -187,9 +187,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // Highlight granularity applies to whichever service is playing, the
     // synthesized one included. Post-frame for the same reason as above.
     final highlightEveryNote = ref.watch(highlightEveryNoteProvider);
-    // The synthesized tempo, from the tray's preset picker. Checked against the
-    // service so an unchanged rebuild doesn't regenerate (setTempo does).
-    final bpm = ref.watch(tempoSettingsProvider.select((s) => s.bpm));
+    // The synthesized tempo, from the tray's preset picker at this piece's
+    // performance tempo. Checked against the service so an unchanged rebuild
+    // doesn't regenerate (setTempo does).
+    final bpm = ref.watch(tempoBpmProvider);
     SchedulerBinding.instance.addPostFrameCallback((_) {
       activeService.highlightDownbeatOnly = !highlightEveryNote;
       if (service.currentBpm != bpm) service.setTempo(bpm);
