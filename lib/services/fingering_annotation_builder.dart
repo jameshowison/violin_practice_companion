@@ -1,11 +1,13 @@
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/gdae_tuning.dart';
+import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 import '../models/section.dart';
 import '../models/string_label_style.dart';
+import 'musicxml_parser.dart';
 
 /// One fingering label to draw in the channel above a system.
 ///
@@ -20,6 +22,92 @@ typedef FingeringAnnotation = ({
   String? string, // 'G'|'D'|'A'|'E', picks the chip fill; null = unknown
   String? implied, // drawn greyed after [label]: the 'H' a plain 2 leaves unsaid
 });
+
+/// One sounding note's name and string, for the note-name row and for
+/// colouring noteheads by string. Addressed like [FingeringAnnotation].
+typedef NoteNameLabel = ({
+  int measureIndex,
+  int noteIndex,
+  String name, // 'B♭', 'F♯', 'C' — spelled as written, no octave
+  String? string, // 'G'|'D'|'A'|'E' as played; null = unknown
+  bool held, // a tie continuation: same pitch still sounding, so no new name
+});
+
+/// "Bb4" → "B♭", "F#5" → "F♯", "C4" → "C". Spelled from the score's own
+/// step + alter (via [NoteEvent.pitch]), never from MIDI, so B♭ stays B♭.
+String noteNameOf(String pitch) {
+  final letters = pitch.replaceAll(RegExp(r'-?\d+$'), '');
+  if (letters.isEmpty) return letters;
+  // Only the accidental after the step is rewritten — the step itself may be a
+  // capital B, which must not become ♭.
+  return letters[0] +
+      letters.substring(1).replaceAll('#', '♯').replaceAll('b', '♭');
+}
+
+/// What the vocabulary writes over its key signature: the letter of each
+/// sharp or flat, in engraved order, and the key they make — `F C G` over
+/// `A maj` — so "the last sharp, up a half step" can be read straight off it.
+/// [tonic] is the key name's leading note name, which the arrow points at.
+typedef KeySignatureLabel = ({
+  List<String> letters,
+  String keyName,
+  String tonic,
+});
+
+/// The [KeySignatureLabel] for [parsed]'s key. Major and minor are named as
+/// such; a church mode is named by its relative major, which is what the
+/// signature itself spells.
+KeySignatureLabel keySignatureLabel(ParsedPiece parsed) {
+  final mode = parsed.keyMode == KeyMode.minor ? KeyMode.minor : KeyMode.major;
+  var tonic = MusicXmlParser.keyName(parsed.keyFifths, mode);
+  if (mode == KeyMode.minor && tonic.endsWith('m')) {
+    tonic = tonic.substring(0, tonic.length - 1);
+  }
+  // Abbreviated: the room before the first note is only the width of the
+  // key signature and the time signature.
+  final name = noteNameOf(tonic);
+  return (
+    letters: KeySignature.accidentalSteps(parsed.keyFifths),
+    keyName: '$name ${mode == KeyMode.minor ? 'min' : 'maj'}',
+    tonic: name,
+  );
+}
+
+/// Every sounding, engraved, non-chord-member note in score order, with its
+/// name and the string it is played on — NOT thinned by [FingeringDensity]: the
+/// point of the row is that every note is named.
+///
+/// The string goes through [shownNumber], like the chips and the underline, so
+/// the open-vs-4th preference and mandolin mode can never disagree with them.
+List<NoteNameLabel> noteNameLabels(
+  EngravedMeasureMap measureMap,
+  ParsedPiece parsed, {
+  NoteNumberMode numberMode = NoteNumberMode.violinFingering,
+  FretStyle fretStyle = FretStyle.openStrings,
+}) {
+  final out = <NoteNameLabel>[];
+  for (final m in parsed.measures) {
+    if (measureMap.firstIndexOf(m.number) < 0) continue;
+    for (var j = 0; j < m.notes.length; j++) {
+      final note = m.notes[j];
+      if (note.isRest || note.isChord) continue;
+      final at = measureMap.locate(m.number, j);
+      if (at == null) continue;
+      final hasFingering =
+          note.fingerString != null && note.fingerNumber != null;
+      out.add((
+        measureIndex: at.index,
+        noteIndex: at.note,
+        name: noteNameOf(note.pitch),
+        string: hasFingering
+            ? shownNumber(note, numberMode, fretStyle).string
+            : null,
+        held: note.tieStop,
+      ));
+    }
+  }
+  return out;
+}
 
 /// One unbroken span of playing on a single string, for the underline style.
 ///

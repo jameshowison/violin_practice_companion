@@ -177,7 +177,11 @@ Future<PrintLayout> layoutScoreForPrint(
     final reserve = annotationReserveFor(
       interSystemRoomSpaces: room.inter,
       firstSystemRoomSpaces: room.first,
-      wantSpaces: annotationWantSpaces(probe, staffScaleProbe),
+      wantSpaces: annotationWantSpaces(
+        probe,
+        staffScaleProbe,
+        withNameRow: job.overlays.showNoteNames,
+      ),
     );
     reserveSpacing = reserve.spacingUnits;
     reserveMargin = reserve.pageMarginTopUnits;
@@ -233,7 +237,11 @@ Future<PrintLayout> layoutScoreForPrint(
     // Each system's slice: its ink, plus the lanes drawn above it (which sit
     // above the ink top — the chord bar hangs over the chord register), never
     // reaching back into the system before.
-    final stack = annotationStackOf(score, scale);
+    final stack = annotationStackOf(
+      score,
+      scale,
+      withNameRow: job.overlays.showNoteNames,
+    );
     final space = score.staffSpaceViewBox * scale;
     final above = stack.barHeight + stack.channelHeight + stack.gap + space;
     final lines = <({double top, double bottom})>[];
@@ -295,7 +303,12 @@ Future<PrintLayout> layoutScoreForPrint(
   }
 
   final image = ScalableImage.fromSvgString(
-    best.score.svg,
+    job.overlays.colourNoteheads
+        ? VerovioEngraver.colourNoteheads(
+            best.score.svg,
+            noteheadFillsFor(best.score, job.overlays.noteNames),
+          )
+        : best.score.svg,
     currentColor: Colors.black,
     warnF: (_) {},
   );
@@ -432,6 +445,8 @@ Future<Uint8List> _renderPage(PrintLayout layout, int index) async {
     stringRuns: job.overlays.stringRuns,
     stringColourStyle: job.overlays.colourStyle,
     monochromeRules: grey,
+    noteNames: job.overlays.noteNames,
+    showNoteNames: job.overlays.showNoteNames,
   );
   canvas.restore();
 

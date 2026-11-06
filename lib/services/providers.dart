@@ -355,6 +355,11 @@ final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 const staffSpacingMin = 0.1;
 const staffSpacingMax = 1.5;
 const staffSpacingDefault = 0.5;
+
+/// The staff spacing the note-name row wants: turning names on raises the
+/// spacing to at least this, since the row is a third line of type between
+/// systems. Never lowers it, and turning names off leaves it where it is.
+const staffSpacingWithNoteNames = 0.8;
 final staffSpacingProvider = pieceDisplayPref<double>(
   'staffSpacing',
   staffSpacingDefault,
@@ -735,6 +740,28 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 final showChordsProvider = pieceDisplayPref<bool>(
   'chords',
   true,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
+// ── Note names & string-coloured noteheads ───────────────────────────────────
+/// Annotated view: name every note (B♭, F♯…) in the row above the fingering,
+/// sharing it with the chord bars — chords win where a score has them. Off by
+/// default; turning it on reserves that row, so it reflows the page.
+/// Remembered per piece — see [pieceDisplayPref].
+final showNoteNamesProvider = pieceDisplayPref<bool>(
+  'noteNames',
+  false,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
+/// Staff & annotated views: tint each notehead with the colour of the string
+/// it is played on (follows the open-vs-4th preference). A repaint, not a
+/// re-engrave. Remembered per piece — see [pieceDisplayPref].
+final colourNoteheadsByStringProvider = pieceDisplayPref<bool>(
+  'noteheadStringColour',
+  false,
   encode: (v) => '$v',
   decode: bool.parse,
 );

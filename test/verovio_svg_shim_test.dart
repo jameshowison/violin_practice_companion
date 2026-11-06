@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/verovio_engraver.dart';
 
@@ -5,6 +7,7 @@ import 'package:violin_practice_companion/services/verovio_engraver.dart';
 /// stylesheet un-scoping, which is what makes staff lines, stems and barlines
 /// visible — see the method docs for why.
 void main() {
+  _noteheadColourTests();
   group('stylesheet un-scoping', () {
     // Verovio's real output, trimmed. Note the staff line carries no stroke of
     // its own: the stylesheet is the only thing that draws it.
@@ -218,6 +221,57 @@ void main() {
       expect(out, contains('<g transform="scale('));
       // 988/24700 = 0.04
       expect(out, contains('scale(0.040000, 0.040027)'));
+    });
+  });
+}
+
+void _noteheadColourTests() {
+  group('noteheads coloured by string', () {
+    const svg = '''
+<g id="n1" class="note">
+  <g class="notehead"><use xlink:href="#E0A4" /></g>
+  <g id="s1" class="stem"><path d="M0 0 L0 9" /></g>
+</g>
+<g id="n2" class="note">
+  <g class="notehead"><use xlink:href="#E0A4" /></g>
+</g>
+''';
+
+    test('only the notehead group gains the fill, not the stem', () {
+      final out = VerovioEngraver.colourNoteheads(svg, {'n1': '#2e7d32'});
+      expect(out,
+          contains('<g class="notehead" fill="#2e7d32" color="#2e7d32">'));
+      expect(out, contains('<g id="s1" class="stem">'));
+      // n2 wasn't asked for, so it is untouched.
+      expect('fill="#2e7d32"'.allMatches(out), hasLength(1));
+    });
+
+    test('unknown ids and an empty map leave the svg as it was', () {
+      expect(VerovioEngraver.colourNoteheads(svg, {}), svg);
+      expect(VerovioEngraver.colourNoteheads(svg, {'zz': '#000000'}), svg);
+    });
+
+    test('a note with no notehead group of its own borrows none', () {
+      const rest = '''
+<g id="r1" class="note"><g id="s2" class="stem" /></g>
+<g id="n3" class="note"><g class="notehead"><use /></g></g>
+''';
+      final out = VerovioEngraver.colourNoteheads(rest, {'r1': '#ff0000'});
+      expect(out, rest);
+    });
+
+    test('the real Verovio fixture: every requested notehead is tinted', () {
+      final real = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final ids = RegExp(r'<g id="([^"]+)" class="note"')
+          .allMatches(real)
+          .map((m) => m.group(1)!)
+          .toList();
+      expect(ids, isNotEmpty);
+      final out = VerovioEngraver.colourNoteheads(
+          real, {for (final id in ids) id: '#1565c0'});
+      expect('<g class="notehead" fill="#1565c0"'.allMatches(out).length,
+          ids.length);
+      expect(out, isNot(contains('class="stem" fill=')));
     });
   });
 }

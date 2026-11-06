@@ -47,8 +47,19 @@ class VerovioEngraver {
   /// Plus `fing` and `harm` — Verovio's own engraved fingerings and chord
   /// symbols. Those are captured for their ANCHOR only; see [AnnotationAnchor]
   /// for why their reported extent is useless and why that doesn't matter.
+  ///
+  /// Plus `keyAccid` — each sharp/flat of a key signature, so the vocabulary can
+  /// name them in place (see [EngravedScore.keyAccids]).
   static const _hitMapConfig = ParseConfig(
-    captureClasses: {'note', 'rest', 'measure', 'meterSig', 'fing', 'harm'},
+    captureClasses: {
+      'note',
+      'rest',
+      'measure',
+      'meterSig',
+      'fing',
+      'harm',
+      'keyAccid',
+    },
   );
 
   // Small LRU-ish cache keyed by (xmlHash, widthBucket, scale). Reflow on
@@ -444,6 +455,10 @@ class VerovioEngraver {
     ];
 
     final measureRects = [for (final m in measures) m.rect];
+    final keyAccidRects = [
+      for (final h in hits)
+        if (h.type == 'keyAccid') h.bbox,
+    ];
     final (measureLine, lineBands) = systemLinesOf(measureRects);
     // Verovio's own per-system extent where the SVG carries it, the hit map's
     // measure union as the fallback. The two disagree by ~2 staff spaces and
@@ -502,6 +517,12 @@ class VerovioEngraver {
       measures: measures,
       notes: notes,
       meterSigs: meterSigs,
+      keyAccids: [
+        // First system only: the repeats are cut from the SVG (see
+        // [clefKeySigFirstSystemOnly]), and nothing labels them.
+        for (final r in keyAccidRects)
+          if (lineForY(r.top) == 0) r,
+      ],
       measureLine: measureLine,
       lineBands: lineBands,
       lineContent: lineContent,
@@ -948,6 +969,46 @@ class VerovioEngraver {
     });
   }
 
+  /// Tints the NOTEHEAD of each note in [fillById] (SVG note id → `#rrggbb`),
+  /// leaving its stem, flag, accidental and beam black — the string colour as a
+  /// cue on the note itself, without turning the page into a colouring book.
+  ///
+  /// Verovio writes `<g id="…" class="note"><g class="notehead"><use …/></g>…`;
+  /// the notehead group has no id, so it is found inside its note's balanced
+  /// range. `fill` colours the glyph and `color` its `currentColor` stroke.
+  /// A pure SVG rewrite on the cached engrave: applying or changing it is a
+  /// re-parse, never a re-layout.
+  static String colourNoteheads(String svg, Map<String, String> fillById) {
+    if (fillById.isEmpty) return svg;
+    final inserts = <(int, String)>[];
+    for (final m in _noteOpenRe.allMatches(svg)) {
+      final fill = fillById[m.group(1)!];
+      if (fill == null) continue;
+      final close = _matchCloseG(svg, m.start);
+      if (close < 0) continue;
+      final head = svg.indexOf(_noteheadOpen, m.end);
+      if (head < 0 || head >= close) continue;
+      inserts.add((
+        head + _noteheadOpen.length,
+        ' fill="$fill" color="$fill"',
+      ));
+    }
+    if (inserts.isEmpty) return svg;
+    final out = StringBuffer();
+    var at = 0;
+    for (final (i, text) in inserts) {
+      out
+        ..write(svg.substring(at, i))
+        ..write(text);
+      at = i;
+    }
+    out.write(svg.substring(at));
+    return out.toString();
+  }
+
+  static final _noteOpenRe = RegExp(r'<g id="([^"]+)" class="note"');
+  static const _noteheadOpen = '<g class="notehead"';
+
   /// Ids of every note/rest element on a tab (second) staff. The SVG nests
   /// `measure > staff > layer`; each measure emits its staves in order, so the
   /// odd-indexed `<g class="staff">` groups (0-based) are the tab staff. Returns
@@ -1114,6 +1175,10 @@ class EngravedScore {
   /// [meterSigOnLine].
   final List<Rect> meterSigs;
 
+  /// The first system's key-signature accidentals (viewBox coords), in
+  /// engraved order — F C G… for sharps, B E A… for flats. Empty in C.
+  final List<Rect> keyAccids;
+
   /// Per measure index → its system-line index.
   final List<int> measureLine;
 
@@ -1154,6 +1219,7 @@ class EngravedScore {
     this.harmAnchors = const [],
     required this.renderMs,
     this.meterSigs = const [],
+    this.keyAccids = const [],
   });
 
   /// Number of system lines engraved.
