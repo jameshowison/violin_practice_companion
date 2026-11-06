@@ -8,7 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// The bundle is `{"version": 1, "prefs": {<key>: <string>}}`, its keys already
 /// in `piece_storage_web.dart`'s scheme (`piece.<id>.xml`, `piece.<id>.title`,
-/// `fixture.<id>.xml`, `sections.<id>`) plus `pieceLibrary`. Media rows are
+/// `fixture.<id>.xml`, `sections.<id>`) plus `pieceLibrary` and the synced
+/// `display.<name>.<id>` settings. Media rows are
 /// left out: the web build has no file-backed media to point them at.
 ///
 /// Same three-way table as `DevLibraryIngester` on io, per key, against the

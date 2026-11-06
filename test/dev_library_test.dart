@@ -28,6 +28,7 @@ void main() {
     Map<String, String> files = const {},
     Map<String, String> titles = const {},
     Map<String, List<Map<String, Object?>>> media = const {},
+    Map<String, String> display = const {},
     Object? library,
   }) async {
     if (await stage().exists()) await stage().delete(recursive: true);
@@ -39,6 +40,7 @@ void main() {
       'version': 2,
       'titles': titles,
       'pieceMedia': media,
+      'display': display,
       'pieceLibrary': library,
     }));
   }
@@ -229,6 +231,38 @@ void main() {
     final report = await ingest();
     expect(await mediaIds('p'), ['mine', 'm1']);
     expect(report.kept, 1);
+  });
+
+  test('a piece\'s number display travels; layout settings do not', () async {
+    await stageLibrary(display: {
+      'numbers.lightly_row': 'violinFingering',
+      'fretStyle.lightly_row': 'openStrings',
+      'spacing.lightly_row': '0.8', // not a synced setting: ignored
+    });
+    final report = await ingest();
+    expect(report.conflicts, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('display.numbers.lightly_row'), 'violinFingering');
+    expect(prefs.getString('display.fretStyle.lightly_row'), 'openStrings');
+    expect(prefs.getString('display.spacing.lightly_row'), isNull);
+
+    // Changed here afterwards: kept for the pull, not overwritten.
+    await prefs.setString('display.numbers.lightly_row', 'mandolinFret');
+    await prefs.setString('display.view.lightly_row', 'tab');
+    final again = await ingest();
+    expect(again.kept, 1);
+    expect(prefs.getString('display.numbers.lightly_row'), 'mandolinFret');
+  });
+
+  test('the first time they meet, the library\'s number setting wins over one '
+      'the device chose before settings travelled', () async {
+    SharedPreferences.setMockInitialValues(
+        {'display.numbers.p': 'mandolinFret'});
+    await stageLibrary(display: {'numbers.p': 'violinFingering'});
+    final report = await ingest();
+    expect(report.conflicts, isEmpty);
+    expect((await SharedPreferences.getInstance())
+        .getString('display.numbers.p'), 'violinFingering');
   });
 
   test('scan sources travel with the library', () async {

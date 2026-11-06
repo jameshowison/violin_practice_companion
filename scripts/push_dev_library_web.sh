@@ -37,6 +37,8 @@ for f in files("editable_fixtures", ".musicxml"):
     prefs[f"fixture.{f.name[:-len('.musicxml')]}.xml"] = f.read_text()
 for f in files("section_overrides", ".sections.json"):
     prefs[f"sections.{f.name[:-len('.sections.json')]}"] = f.read_text()
+for k, v in (state.get("display") or {}).items():
+    prefs[f"display.{k}"] = v
 if state.get("pieceLibrary") is not None:
     prefs["pieceLibrary"] = json.dumps(state["pieceLibrary"], ensure_ascii=False)
 out.write_text(json.dumps({"version": 1, "prefs": prefs}, ensure_ascii=False))
