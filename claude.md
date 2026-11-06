@@ -346,7 +346,7 @@ build is the thing that would confirm them.
 
 ### Installing on a physical device
 
-Use `scripts/device_install.sh` (defaults to the phone named `Jamz`). Two traps it
+Use `scripts/device_install.sh` (defaults to the phone, `JamzJamzJamzz`; `Jamz` is accepted as shorthand). Two traps it
 exists to avoid — full reasoning in the README, "Installing on a physical device":
 
 1. **`flutter install` does not rebuild.** It reuses `build/ios/iphoneos/Runner.app`
