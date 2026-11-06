@@ -291,7 +291,7 @@ To screenshot the running iPad, including the notation WebView, see
 ## Installing on a physical device
 
 ```bash
-scripts/device_install.sh                 # defaults to the phone named Jamz
+scripts/device_install.sh                 # defaults to the phone, JamzJamzJamzz ("Jamz" for short)
 scripts/device_install.sh JamzJamzJamzz   # or a device name / UDID
 ```
 

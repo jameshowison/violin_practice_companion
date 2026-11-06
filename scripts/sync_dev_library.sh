@@ -22,6 +22,7 @@
 set -euo pipefail
 
 DEVICE="${1:?usage: sync_dev_library.sh <device> [--no-launch]}"
+[[ "$DEVICE" == "Jamz" ]] && DEVICE="JamzJamzJamzz" # shorthand for the phone
 LAUNCH=1
 [[ "${2:-}" == "--no-launch" ]] && LAUNCH=""
 cd "$(dirname "$0")/.."

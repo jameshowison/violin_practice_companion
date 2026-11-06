@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build and install a release build on a physical iPhone/iPad.
 #
-# Defaults to the phone named Jamz; pass another device name or UDID as $1:
+# Defaults to the phone, JamzJamzJamzz ("Jamz" works as shorthand); pass
+# another device name or UDID as $1:
 #   scripts/device_install.sh JamzJamzJamzz
 #   scripts/device_install.sh 00008110-001C2D160AA0401E
 #   scripts/device_install.sh --no-build   # retry the install of the last build
@@ -41,6 +42,8 @@ for arg in "$@"; do
   esac
 done
 DEVICE="${ARGS[0]:-${DEVICE:-JamzJamzJamzz}}"
+# "Jamz" is shorthand for the phone, whose device name is JamzJamzJamzz.
+[[ "$DEVICE" == "Jamz" ]] && DEVICE="JamzJamzJamzz"
 APP="build/ios/iphoneos/Runner.app"
 
 cd "$(dirname "$0")/.."
