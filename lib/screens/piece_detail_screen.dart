@@ -487,12 +487,35 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       onChanged: (v) =>
                           ref.read(showChordsProvider.notifier).state = v,
                     ),
+                    if (displayMode != DisplayMode.tab)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Colour notes by string'),
+                        value: ref.watch(colourNoteheadsByStringProvider),
+                        onChanged: (v) => ref
+                            .read(colourNoteheadsByStringProvider.notifier)
+                            .state = v,
+                      ),
                     if (displayMode != DisplayMode.tab &&
                         ref.watch(pieceVerseCountProvider) > 0)
                       const _LyricVersePicker(),
                   ],
                   if (displayMode == DisplayMode.staffFingering) ...[
                     const Divider(),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Note names'),
+                      value: ref.watch(showNoteNamesProvider),
+                      onChanged: (v) {
+                        ref.read(showNoteNamesProvider.notifier).state = v;
+                        final spacing = ref.read(staffSpacingProvider.notifier);
+                        if (v && spacing.state < staffSpacingWithNoteNames) {
+                          spacing.state = staffSpacingWithNoteNames;
+                        }
+                      },
+                    ),
                     const _StringColourPicker(),
                     // Only meaningful while the letter is actually drawn — while
                     // a colour is carrying the string, the label doesn't repeat
@@ -1974,6 +1997,13 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
           ? stringRunRegions(measureMap, palette,
               numberMode: numberMode, fretStyle: fretStyle)
           : const [],
+      // Always named here, whatever the staff's own setting: learning what
+      // each note is called is what a vocabulary is for.
+      noteNames: noteNameLabels(measureMap, palette,
+          numberMode: numberMode, fretStyle: fretStyle),
+      showNoteNames: true,
+      colourNoteheads: ref.watch(colourNoteheadsByStringProvider),
+      keySignatureLabel: keySignatureLabel(palette),
     );
   }
 
@@ -2148,6 +2178,9 @@ class _NotationView extends ConsumerWidget {
           fingeringAnnotations: annotations,
           stringColourStyle: colourStyle,
           stringRuns: stringRuns,
+          noteNames: overlays.noteNames,
+          showNoteNames: overlays.showNoteNames,
+          colourNoteheads: overlays.colourNoteheads,
           scrollNav: staffNav,
         );
       }

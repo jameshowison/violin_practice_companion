@@ -75,6 +75,8 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
               ref.read(stringColourStyleProvider) != StringColourStyle.underline
           ? StringColourStyle.off
           : null,
+      // String colours on noteheads would print as near-identical greys.
+      colourNoteheads: greyscale ? false : null,
     );
     return PrintJob(
       title: piece.title,

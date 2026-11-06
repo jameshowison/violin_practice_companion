@@ -122,6 +122,11 @@ class PaletteXmlGenerator {
             '<time><beats>4</beats><beat-type>4</beat-type></time>'
             '<clef><sign>G</sign><line>2</line></clef>'
             '</attributes>');
+        // Room after the time signature for the key-signature letters and
+        // the key name the native staff paints there. Verovio engraves no
+        // element for an invisible rest, so the bar's note indices — which
+        // the chips are anchored by — are unchanged; it only spaces for it.
+        buf.writeln(_padRest(1));
       }
       for (final ne in m.notes) {
         final fn = ne.fingerNumber;

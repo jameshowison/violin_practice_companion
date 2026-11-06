@@ -8,6 +8,12 @@ class KeySignature {
   static const _sharpOrder = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
   static const _flatOrder = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 
+  /// The letters a key signature of [fifths] carries, in the order they are
+  /// written: `3` → F C G, `-2` → B E. Empty for C.
+  static List<String> accidentalSteps(int fifths) => fifths >= 0
+      ? _sharpOrder.take(fifths.clamp(0, 7)).toList()
+      : _flatOrder.take((-fifths).clamp(0, 7)).toList();
+
   /// Default alter for [step] under a key of [fifths] sharps (+) / flats (−).
   static int defaultAlter(int fifths, String step) {
     if (fifths > 0) {

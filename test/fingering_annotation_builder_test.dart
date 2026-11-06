@@ -404,4 +404,109 @@ void main() {
           [null, null, null]);
     });
   });
+
+  group('note names', () {
+    NoteEvent p(String pitch, int midi, String? string, String? finger,
+            {bool chord = false, bool tieStop = false, bool rest = false}) =>
+        NoteEvent(
+          pitch: rest ? 'R' : pitch,
+          midiNumber: midi,
+          octave: 4,
+          noteValue: NoteValue.quarter,
+          dotted: false,
+          isRest: rest,
+          fingerString: string,
+          fingerNumber: finger,
+          isChord: chord,
+          tieStop: tieStop,
+        );
+
+    List<NoteNameLabel> names(List<Measure> ms,
+            {NoteNumberMode numberMode = NoteNumberMode.violinFingering,
+            FretStyle fretStyle = FretStyle.openStrings}) =>
+        noteNameLabels(
+          EngravedMeasureMap.identity([for (final m in ms) m.number]),
+          _piece(ms),
+          numberMode: numberMode,
+          fretStyle: fretStyle,
+        );
+
+    test('spelled as written: B♭ stays B♭, never A♯; no octave', () {
+      expect(noteNameOf('Bb4'), 'B♭');
+      expect(noteNameOf('F#5'), 'F♯');
+      expect(noteNameOf('B3'), 'B');
+      expect(noteNameOf('C4'), 'C');
+    });
+
+    test('every sounding note is named, rests and chord members skipped', () {
+      final out = names([
+        Measure(number: 1, notes: [
+          p('A4', 69, 'A', '0'),
+          p('R', 0, null, null, rest: true),
+          p('C#5', 73, 'A', '2'),
+          p('E5', 76, 'E', '0', chord: true),
+          p('C#5', 73, 'A', '2', tieStop: true),
+        ]),
+      ]);
+      expect([for (final n in out) n.name], ['A', 'C♯', 'C♯']);
+      // Indices count the rest and the chord member, like the engraved anchors.
+      expect([for (final n in out) n.noteIndex], [0, 2, 4]);
+      expect([for (final n in out) n.held], [false, false, true]);
+    });
+
+    test('the string follows the fingering — open D vs 4th on G', () {
+      final open = names([
+        Measure(number: 1, notes: [p('D4', 62, 'D', '0')]),
+      ]);
+      final fourth = names([
+        Measure(number: 1, notes: [p('D4', 62, 'G', '4')]),
+      ]);
+      expect(open.single.string, 'D');
+      expect(fourth.single.string, 'G');
+      expect(open.single.name, fourth.single.name);
+    });
+
+    test('mandolin "open strings" moves the string, as the chips do', () {
+      final out = names([
+        Measure(number: 1, notes: [p('D4', 62, 'G', '4')]),
+      ], numberMode: NoteNumberMode.mandolinFret);
+      expect(out.single.string, 'D');
+    });
+
+    test('an unfingered note is named but has no string to colour', () {
+      final out = names([
+        Measure(number: 1, notes: [p('F3', 53, null, null)]),
+      ]);
+      expect(out.single.name, 'F');
+      expect(out.single.string, isNull);
+    });
+  });
+
+  group('key signature label', () {
+    ParsedPiece key(int fifths, KeyMode mode) => ParsedPiece(
+          keySignature: '',
+          keyFifths: fifths,
+          keyMode: mode,
+          measures: const [],
+        );
+
+    test('sharps in written order, and the major key they make', () {
+      final l = keySignatureLabel(key(3, KeyMode.major));
+      expect(l.letters, ['F', 'C', 'G']);
+      expect(l.keyName, 'A maj');
+      expect(l.tonic, 'A');
+    });
+
+    test('flats, spelled with ♭', () {
+      final l = keySignatureLabel(key(-2, KeyMode.major));
+      expect(l.letters, ['B', 'E']);
+      expect(l.keyName, 'B♭ maj');
+    });
+
+    test('C has no letters; minor is named as minor', () {
+      expect(keySignatureLabel(key(0, KeyMode.major)).letters, isEmpty);
+      expect(keySignatureLabel(key(0, KeyMode.minor)).keyName, 'A min');
+      expect(keySignatureLabel(key(3, KeyMode.minor)).keyName, 'F♯ min');
+    });
+  });
 }

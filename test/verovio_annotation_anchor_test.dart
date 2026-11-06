@@ -310,6 +310,36 @@ void main() {
       }
     });
 
+    test('note names claim the chord row on a score with no chords', () {
+      final noChords = EngravedScore(
+        viewBox: score.viewBox,
+        svg: '',
+        bboxById: const {},
+        measures: const [],
+        notes: const [],
+        measureLine: score.measureLine,
+        lineBands: score.lineBands,
+        lineContent: score.lineContent,
+        pageWidthUnits: score.pageWidthUnits,
+        fingAnchors: score.fingAnchors,
+        harmAnchors: const [],
+        renderMs: 0,
+      );
+      // Without the names: one row, and an appetite for one row only.
+      expect(annotationStackOf(noChords, 1).barHeight, 0);
+      final bare = annotationWantSpaces(noChords, 1);
+      // With them: the bar comes back, and so does the room asked for it.
+      final named = annotationStackOf(noChords, 1, withNameRow: true);
+      expect(named.barHeight, greaterThan(0));
+      expect(named.gap, greaterThan(0));
+      expect(annotationWantSpaces(noChords, 1, withNameRow: true),
+          greaterThan(bare));
+      // A score that has chords already reserves the row: names change nothing.
+      final withChords = annotationStackOf(score, 1, withNameRow: true);
+      expect(withChords.barHeight,
+          closeTo(annotationStackOf(score, 1).barHeight, 1e-9));
+    });
+
     test('every system has room for the full stack — nothing shrinks', () {
       final want = unconstrained();
       final got = annotationStackOf(score, 1);

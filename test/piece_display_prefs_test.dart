@@ -31,6 +31,20 @@ void main() {
     expect(c.read(stringColourStyleProvider), StringColourStyle.underline);
   });
 
+  test('note names and notehead colours are off until asked for', () async {
+    final c = await containerWith({});
+    c.read(selectedPieceProvider.notifier).state = _piece('a');
+    expect(c.read(showNoteNamesProvider), isFalse);
+    expect(c.read(colourNoteheadsByStringProvider), isFalse);
+    c.read(showNoteNamesProvider.notifier).state = true;
+    c.read(colourNoteheadsByStringProvider.notifier).state = true;
+    c.read(selectedPieceProvider.notifier).state = _piece('b');
+    expect(c.read(showNoteNamesProvider), isFalse);
+    c.read(selectedPieceProvider.notifier).state = _piece('a');
+    expect(c.read(showNoteNamesProvider), isTrue);
+    expect(c.read(colourNoteheadsByStringProvider), isTrue);
+  });
+
   test('a change is saved for that piece and restored for it alone', () async {
     final c = await containerWith({});
     c.read(selectedPieceProvider.notifier).state = _piece('a');

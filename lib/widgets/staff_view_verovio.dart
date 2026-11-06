@@ -82,6 +82,23 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// note, not just the labelled ones — see [stringRunRegions].
   final List<StringRunRegion> stringRuns;
 
+  /// Every note's name and string (see [noteNameLabels]) — read for the name
+  /// row when [showNoteNames], and for the notehead tint when [colourNoteheads].
+  final List<NoteNameLabel> noteNames;
+
+  /// Draw [noteNames] in the row above the fingering. Claims that row even on a
+  /// chord-less score, so changing it re-engraves (the reserve moves).
+  final bool showNoteNames;
+
+  /// Tint each notehead with its string's colour. A re-parse of the cached
+  /// engrave, never a re-layout.
+  final bool colourNoteheads;
+
+  /// The vocabulary's key-signature labels: each accidental's letter above it,
+  /// and the key's name above those. Null draws nothing. Needs [showNoteNames]
+  /// for the row the key name sits in.
+  final KeySignatureLabel? keySignatureLabel;
+
   /// Minimap scroll-to-measure request (measure index + a sequence so identical
   /// requests still fire).
   final ({int index, int seq})? scrollNav;
@@ -122,6 +139,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.fingeringAnnotations = const [],
     this.stringColourStyle = StringColourStyle.chips,
     this.stringRuns = const [],
+    this.noteNames = const [],
+    this.showNoteNames = false,
+    this.colourNoteheads = false,
+    this.keySignatureLabel,
     this.scrollNav,
     this.tabMode = false,
     this.tabFingerLabels,
@@ -361,10 +382,20 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
         old.sectionLayout != widget.sectionLayout ||
+        old.showNoteNames != widget.showNoteNames ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
       _calibratedFor = null;
+    }
+    // The tint is a re-parse of the engrave already on screen. (A re-engrave
+    // kicked above re-tints on its own, through [_publish].)
+    final score = _score;
+    if (score != null &&
+        (old.colourNoteheads != widget.colourNoteheads ||
+            (widget.colourNoteheads &&
+                !listEquals(old.noteNames, widget.noteNames)))) {
+      _image = _imageFor(score);
     }
     if (widget.scrollNav != null && widget.scrollNav != old.scrollNav) {
       _scrollToMeasureIndex(widget.scrollNav!.index);
@@ -400,7 +431,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// Lock was switched on. Splitting the key forces a fresh probe on each
   /// side of the toggle instead.
   String _calibrationKeyFor(int spacingUnits, bool locked) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits|$locked';
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits|$locked'
+      '|${widget.showNoteNames}';
 
   /// Natural (unjustified) width of every engraved measure in MEI units, for
   /// the section layout — measured once per calibration from a one-line
@@ -466,7 +498,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           final reserve = annotationReserveFor(
             interSystemRoomSpaces: room.inter,
             firstSystemRoomSpaces: room.first,
-            wantSpaces: annotationWantSpaces(probe, staffScaleProbe),
+            wantSpaces: annotationWantSpaces(
+              probe,
+              staffScaleProbe,
+              withNameRow: widget.showNoteNames,
+            ),
           );
           _reserveSpacingUnits = reserve.spacingUnits;
           _reservePageMarginUnits = reserve.pageMarginTopUnits;
@@ -630,15 +666,22 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     }
   }
 
+  /// [score]'s SVG as a drawable, with the notehead tint applied if it's on.
+  ///
+  /// jovial parse is synchronous and fast (a few ms); currentColor resolves
+  /// Verovio's CSS stroke:currentColor on staff lines/stems/beams.
+  ScalableImage _imageFor(EngravedScore score) => ScalableImage.fromSvgString(
+        widget.colourNoteheads
+            ? VerovioEngraver.colourNoteheads(
+                score.svg, noteheadFillsFor(score, widget.noteNames))
+            : score.svg,
+        currentColor: Colors.black,
+        warnF: (_) {},
+      );
+
   /// Puts a finished engrave on screen and reports what it achieved.
   void _publish(EngravedScore score, _EngraveRequest req) {
-    // jovial parse is synchronous and fast (a few ms); currentColor resolves
-    // Verovio's CSS stroke:currentColor on staff lines/stems/beams.
-    final image = ScalableImage.fromSvgString(
-      score.svg,
-      currentColor: Colors.black,
-      warnF: (_) {},
-    );
+    final image = _imageFor(score);
     setState(() {
       _score = score;
       _image = image;
@@ -1100,6 +1143,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               annotations: widget.fingeringAnnotations,
                               stringRuns: widget.stringRuns,
                               style: widget.stringColourStyle,
+                              withNameRow: widget.showNoteNames,
                             ),
                           ),
                         ),
@@ -1111,6 +1155,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               score: score,
                               scale: scale,
                               runs: widget.chordRuns,
+                              noteNames: widget.showNoteNames
+                                  ? widget.noteNames
+                                  : const [],
+                              withNameRow: widget.showNoteNames,
+                              keySignature: widget.keySignatureLabel,
                             ),
                           ),
                         ),
@@ -1173,6 +1222,8 @@ void paintStaffScore(
   List<StringRunRegion> stringRuns = const [],
   StringColourStyle stringColourStyle = StringColourStyle.chips,
   bool monochromeRules = false,
+  List<NoteNameLabel> noteNames = const [],
+  bool showNoteNames = false,
 }) {
   _UnderlayPainter(score: score, scale: scale, sectionTints: sectionTints)
       .paint(canvas, size);
@@ -1189,9 +1240,39 @@ void paintStaffScore(
     stringRuns: stringRuns,
     style: stringColourStyle,
     monochromeRules: monochromeRules,
+    withNameRow: showNoteNames,
   ).paint(canvas, size);
-  _ChordLanePainter(score: score, scale: scale, runs: chordRuns)
-      .paint(canvas, size);
+  _ChordLanePainter(
+    score: score,
+    scale: scale,
+    runs: chordRuns,
+    noteNames: showNoteNames ? noteNames : const [],
+    withNameRow: showNoteNames,
+  ).paint(canvas, size);
+}
+
+/// SVG note id → notehead fill (`#rrggbb`) for every entry in [noteNames] with a
+/// known string — the map [VerovioEngraver.colourNoteheads] takes. The colour is
+/// [ViolinStringPalette.rule], the variant dark enough to read on white (the
+/// chip yellow for E would vanish on a notehead).
+Map<String, String> noteheadFillsFor(
+  EngravedScore score,
+  List<NoteNameLabel> noteNames,
+) {
+  if (noteNames.isEmpty) return const {};
+  final ids = <(int, int), String>{
+    for (final n in score.notes) (n.measureIndex, n.noteIndex): n.id,
+  };
+  final out = <String, String>{};
+  for (final n in noteNames) {
+    final string = n.string;
+    if (string == null) continue;
+    final id = ids[(n.measureIndex, n.noteIndex)];
+    if (id == null) continue;
+    final rgb = ViolinStringPalette.rule(string).toARGB32() & 0xFFFFFF;
+    out[id] = '#${rgb.toRadixString(16).padLeft(6, '0')}';
+  }
+  return out;
 }
 
 /// A [ScaleGestureRecognizer] that cannot win on a single pointer.
@@ -1394,7 +1475,11 @@ class _UnderlayPainter extends CustomPainter {
 /// Scale-invariant, so it can be read off the probe: every term in
 /// [annotationStackFor] is a fraction of `staffSpacePx`, so dividing back out by
 /// it cancels the scale.
-double annotationWantSpaces(EngravedScore score, double scale) {
+double annotationWantSpaces(
+  EngravedScore score,
+  double scale, {
+  bool withNameRow = false,
+}) {
   final space = score.staffSpaceViewBox * scale;
   if (space <= 0) return 0;
   final full = annotationStackFor(
@@ -1402,7 +1487,7 @@ double annotationWantSpaces(EngravedScore score, double scale) {
     staffSpacePx: space,
     labelShare: chordLabelSizeFraction,
     typeShare: underlineTextFraction,
-    withChordBar: score.harmAnchors.isNotEmpty,
+    withChordBar: score.harmAnchors.isNotEmpty || withNameRow,
     withFingeringRow: score.fingAnchors.isNotEmpty,
   );
   return (full.barHeight + full.channelHeight + full.gap) / space;
@@ -1422,10 +1507,14 @@ double _annotationBudget(EngravedScore score, double scale) {
 
 /// The annotation stack for [score] — one chord-bar height and one fingering
 /// channel height, used on every system. See [annotationStackFor].
+///
+/// [withNameRow]: the note names share the chord bar's row, so turning them on
+/// claims that row even on a score with no chords.
 ({double barHeight, double channelHeight, double gap}) annotationStackOf(
   EngravedScore score,
-  double scale,
-) => annotationStackFor(
+  double scale, {
+  bool withNameRow = false,
+}) => annotationStackFor(
   budgetPx: _annotationBudget(score, scale),
   staffSpacePx: score.staffSpaceViewBox * scale,
   labelShare: chordLabelSizeFraction,
@@ -1433,7 +1522,7 @@ double _annotationBudget(EngravedScore score, double scale) {
   // Only the rows this score will actually draw get to claim room. Verovio
   // engraved no `<harm>` ⇒ `harmRegister` is null on every system ⇒ no bar is
   // ever painted, and the same for the channel in the tab view.
-  withChordBar: score.harmAnchors.isNotEmpty,
+  withChordBar: score.harmAnchors.isNotEmpty || withNameRow,
   withFingeringRow: score.fingAnchors.isNotEmpty,
 );
 
@@ -1452,11 +1541,13 @@ Rect? fingeringChannelOn(
   EngravedScore score,
   int line,
   double scale,
-  double width,
-) {
+  double width, {
+  bool withNameRow = false,
+}) {
   final register = score.fingRegister(line);
   if (register == null) return null;
-  final h = annotationStackOf(score, scale).channelHeight;
+  final h =
+      annotationStackOf(score, scale, withNameRow: withNameRow).channelHeight;
   if (h <= 0) return null;
   final bottom = register * scale;
   return Rect.fromLTRB(0, bottom - h, width, bottom);
@@ -1487,11 +1578,15 @@ class _FingeringLanePainter extends CustomPainter {
     required this.stringRuns,
     required this.style,
     this.monochromeRules = false,
+    this.withNameRow = false,
   });
 
   final EngravedScore score;
   final double scale;
   final List<FingeringAnnotation> annotations;
+
+  /// The note-name row is claiming the upper row — see [annotationStackOf].
+  final bool withNameRow;
 
   /// Unbroken spans on one string, for [StringColourStyle.underline]. Empty for
   /// the other styles, which say nothing about notes that carry no label.
@@ -1567,7 +1662,7 @@ class _FingeringLanePainter extends CustomPainter {
   }
 
   Rect? _channelFor(int line, double width) =>
-      fingeringChannelOn(score, line, scale, width);
+      fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
 
   /// The chips' own band (see [_chipBand]), spanning the full render width.
   ///
@@ -1850,11 +1945,31 @@ class _ChordLanePainter extends CustomPainter {
     required this.score,
     required this.scale,
     required this.runs,
+    this.noteNames = const [],
+    this.withNameRow = false,
+    this.keySignature,
   });
 
   final EngravedScore score;
   final double scale;
   final List<ChordRunRegion> runs;
+
+  /// See [StaffViewVerovio.keySignatureLabel].
+  final KeySignatureLabel? keySignature;
+
+  /// Note names, drawn in this same row wherever no chord bar covers the note —
+  /// a score with names and chords on both is rare, so the chord wins the space.
+  final List<NoteNameLabel> noteNames;
+
+  /// The row exists for the names even without chords — see [annotationStackOf].
+  final bool withNameRow;
+
+  /// Smallest the names may shrink to (of the full size) to clear their
+  /// neighbours before repeats start being dropped instead.
+  static const _nameMinShrink = 0.7;
+
+  /// Clear space between two names, as a fraction of the font size.
+  static const _nameGapFraction = 0.25;
 
   /// Hairline pulled off each end so two adjacent runs read as separate blocks
   /// rather than one continuous ribbon (their measure edges touch exactly).
@@ -1863,10 +1978,203 @@ class _ChordLanePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (runs.isEmpty) return;
+    // Per system, the x-extents the chord bars took, so the names can stay out.
+    final taken = <int, List<({double left, double right})>>{};
     for (final run in runs) {
       for (final seg in _runRowRects(run, size.width)) {
         _paintSegment(canvas, seg, run);
+        (taken[seg.line] ??= []).add((left: seg.rect.left, right: seg.rect.right));
+      }
+    }
+    if (noteNames.isNotEmpty) _paintNoteNames(canvas, size.width, taken);
+    final key = keySignature;
+    if (key != null) _paintKeySignature(canvas, size.width, key);
+  }
+
+  static TextPainter _nameText(String text, double size,
+          {FontWeight weight = FontWeight.w600}) =>
+      TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: size,
+            height: 1.0,
+            fontWeight: weight,
+            color: fingeringInk,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+
+  /// The key signature, named where it is written (first system only).
+  ///
+  /// Each accidental's letter sits over it in the fingering row — empty there,
+  /// since no note is — staggered by the same steps the accidentals take on the
+  /// staff, squeezed only as far as the row needs. The key's name sits above
+  /// them in the name row, starting over the first accidental, so `F C G` reads
+  /// straight up into `A major`: the last sharp, a half step up. It gives way
+  /// (shrinks, then goes) rather than run into the first note's name.
+  void _paintKeySignature(
+    Canvas canvas,
+    double width,
+    KeySignatureLabel key,
+  ) {
+    final bar = _barFor(0, width);
+    if (bar == null) return;
+    final size = (bar.bottom - bar.top) * chordLabelSizeFraction;
+    if (size <= 0) return;
+    final accids = score.keyAccids;
+    final n = math.min(accids.length, key.letters.length);
+
+    // Letters. Their band is the fingering row where there is one.
+    final channel =
+        fingeringChannelOn(score, 0, scale, width, withNameRow: withNameRow);
+    Rect? lastLetter; // where the arrow to the key name starts
+    if (n > 0) {
+      final band = channel ?? Rect.fromLTRB(0, bar.top, width, bar.bottom);
+      final ys = [for (var i = 0; i < n; i++) accids[i].center.dy * scale];
+      final lo = ys.reduce(math.min);
+      final span = ys.reduce(math.max) - lo;
+      for (var i = 0; i < n; i++) {
+        final tp = _nameText(key.letters[i], size,
+            weight: i == n - 1 ? FontWeight.w800 : FontWeight.w600);
+        final room = band.height - tp.height;
+        final k = span <= 0 || room <= 0 ? 0.0 : math.min(1.0, room / span);
+        final top = band.top + math.max(0.0, room - span * k) / 2 +
+            (ys[i] - lo) * k;
+        final at = Offset(accids[i].center.dx * scale - tp.width / 2, top);
+        tp.paint(canvas, at);
+        if (i == n - 1) lastLetter = at & tp.size;
+      }
+    }
+
+    // An up arrow just past the last accidental's letter, and the key's name
+    // on the row above with its tonic right over the arrow: "the last sharp,
+    // then up one" (G ↑ A). Drawn rather than typed, so it reaches up to the
+    // tonic from however low the last letter sits in the stagger (D major's
+    // C is well below its F). In C, with no accidentals, the name sits over the
+    // meter. The vocabulary staff leaves a beat of space after the meter for
+    // it (PaletteXmlGenerator).
+    double tonicCx; // where the tonic's centre goes, if anywhere in particular
+    if (lastLetter != null) {
+      tonicCx = lastLetter.right + size * 0.4;
+    } else if (score.meterSigs.isNotEmpty) {
+      tonicCx = double.nan;
+    } else {
+      return;
+    }
+    double leftFor(double fontSize) => tonicCx.isNaN
+        ? score.meterSigs.first.left * scale
+        : tonicCx - _nameText(key.tonic, fontSize).width / 2;
+
+    var right = width;
+    for (final nn in noteNames) {
+      if (score.lineOfMeasure(nn.measureIndex) != 0) continue;
+      final note = score.noteAt(nn.measureIndex, nn.noteIndex);
+      if (note == null) continue;
+      final half = _nameText(nn.name, size).width / 2;
+      right = math.min(right, note.rect.center.dx * scale - half);
+    }
+    // A wider berth than between two names, so the key doesn't read as the
+    // first note's name.
+    right -= size * 0.8;
+    var tp = _nameText(key.keyName, size);
+    var left = leftFor(size);
+    if (left + tp.width > right) {
+      final fit = size * (right - left) / tp.width;
+      if (fit < size * 0.6) return;
+      tp = _nameText(key.keyName, fit);
+      left = leftFor(fit);
+    }
+    final nameTop = (bar.top + bar.bottom) / 2 - tp.height / 2;
+    tp.paint(canvas, Offset(left, nameTop));
+    final g = lastLetter;
+    if (g != null) {
+      _paintUpArrow(canvas, tonicCx, g.bottom - g.height * 0.15,
+          nameTop + tp.height * 1.1, size);
+    }
+  }
+
+  /// A vertical arrow at [x] from [fromY] up to [toY], head at the top.
+  static void _paintUpArrow(
+      Canvas canvas, double x, double fromY, double toY, double size) {
+    if (fromY - toY < size * 0.4) return;
+    final paint = Paint()
+      ..color = fingeringInk
+      ..strokeWidth = math.max(1.2, size * 0.11)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final head = size * 0.28;
+    canvas.drawLine(Offset(x, fromY), Offset(x, toY), paint);
+    canvas.drawPath(
+      Path()
+        ..moveTo(x - head * 0.8, toY + head)
+        ..lineTo(x, toY)
+        ..lineTo(x + head * 0.8, toY + head),
+      paint,
+    );
+  }
+
+  /// One name per note, centred over its notehead in the bar's row.
+  ///
+  /// Every note is named (that's the learning aim), so crowding is dealt with by
+  /// shrinking the type on that system — down to [_nameMinShrink] — and only
+  /// past that by dropping a name that merely repeats the one before it. A tie
+  /// continuation is never named: it is the same note still sounding.
+  void _paintNoteNames(
+    Canvas canvas,
+    double width,
+    Map<int, List<({double left, double right})>> taken,
+  ) {
+    final byLine = <int, List<({double cx, String name})>>{};
+    for (final n in noteNames) {
+      if (n.held) continue;
+      final line = score.lineOfMeasure(n.measureIndex);
+      if (line < 0) continue;
+      final note = score.noteAt(n.measureIndex, n.noteIndex);
+      if (note == null) continue;
+      final cx = note.rect.center.dx * scale;
+      final blocked = taken[line]?.any((r) => cx >= r.left && cx <= r.right);
+      if (blocked ?? false) continue;
+      (byLine[line] ??= []).add((cx: cx, name: n.name));
+    }
+
+    for (final entry in byLine.entries) {
+      final bar = _barFor(entry.key, width);
+      if (bar == null) continue;
+      final items = entry.value..sort((p, q) => p.cx.compareTo(q.cx));
+      final full = (bar.bottom - bar.top) * chordLabelSizeFraction;
+      if (full <= 0) continue;
+
+      TextPainter layout(String text, double size) => _nameText(text, size);
+
+      // The tightest neighbour pair decides this system's size.
+      var shrink = 1.0;
+      for (var i = 1; i < items.length; i++) {
+        final pitch = items[i].cx - items[i - 1].cx;
+        final need = (layout(items[i - 1].name, full).width +
+                    layout(items[i].name, full).width) /
+                2 +
+            full * _nameGapFraction;
+        if (need > 0 && pitch < need * shrink) shrink = pitch / need;
+      }
+      shrink = shrink.clamp(_nameMinShrink, 1.0);
+      final fontSize = full * shrink;
+      final gap = fontSize * _nameGapFraction;
+
+      var lastRight = double.negativeInfinity;
+      String? lastName;
+      for (final it in items) {
+        final tp = layout(it.name, fontSize);
+        final left = it.cx - tp.width / 2;
+        // Still colliding at the floor size: a repeat can go, a new name can't.
+        if (left < lastRight + gap && it.name == lastName) continue;
+        final top = (bar.top + bar.bottom) / 2 - tp.height / 2;
+        tp.paint(canvas, Offset(left, top));
+        lastRight = left + tp.width;
+        lastName = it.name;
       }
     }
   }
@@ -1917,12 +2225,13 @@ class _ChordLanePainter extends CustomPainter {
   /// A foot clearance is kept, still shortening from the BOTTOM only, so the
   /// fingering row below has somewhere to come up to.
   ({double top, double bottom})? _barFor(int line, double width) {
-    final stack = annotationStackOf(score, scale);
+    final stack = annotationStackOf(score, scale, withNameRow: withNameRow);
     if (stack.barHeight <= 0) return null;
     // The bar sits directly on the fingering row where there is one, so the two
     // read as a stack rather than as two independently placed things; otherwise
     // it hangs off its own register.
-    final channel = fingeringChannelOn(score, line, scale, width);
+    final channel =
+        fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
     final double bottom;
     if (channel != null) {
       bottom = channel.top - stack.gap;
@@ -1959,6 +2268,7 @@ class _ChordLanePainter extends CustomPainter {
           ),
           isFirst: e.isFirst,
           isLast: e.isLast,
+          line: e.line,
         ),
       );
     }
@@ -1967,7 +2277,12 @@ class _ChordLanePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ChordLanePainter old) =>
-      old.score != score || old.scale != scale || old.runs != runs;
+      old.score != score ||
+      old.scale != scale ||
+      old.runs != runs ||
+      old.noteNames != noteNames ||
+      old.withNameRow != withNameRow ||
+      old.keySignature != keySignature;
 }
 
 /// The horizontal extent of a note-level run, split per system line.
@@ -2054,10 +2369,12 @@ class _LaneSegment {
   final Rect rect;
   final bool isFirst;
   final bool isLast;
+  final int line; // the system it is drawn on
   const _LaneSegment({
     required this.rect,
     required this.isFirst,
     required this.isLast,
+    this.line = -1,
   });
 }
 

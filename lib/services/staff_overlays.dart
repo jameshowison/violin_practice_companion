@@ -22,6 +22,9 @@ typedef StaffOverlays = ({
   List<FingeringAnnotation> annotations,
   List<StringRunRegion> stringRuns,
   StringColourStyle colourStyle,
+  List<NoteNameLabel> noteNames, // drawn in the upper row when [showNoteNames]
+  bool showNoteNames,
+  bool colourNoteheads,
 });
 
 /// Reads a provider — `ref.watch` on screen, `ref.read` for a one-off print.
@@ -44,6 +47,7 @@ StaffOverlays staffOverlaysFor(
   required Map<String, Color> sectionColors,
   required bool bySection,
   StringColourStyle? colourStyle,
+  bool? colourNoteheads,
 }) {
   final measureMap = parsed == null
       ? EngravedMeasureMap.empty
@@ -92,6 +96,21 @@ StaffOverlays staffOverlaysFor(
           numberMode: read(noteNumberModeProvider),
           fretStyle: read(fretStyleProvider),
         );
+  // Every note's name and string: the note-name row (annotated view only) and
+  // the notehead tint (either staff view) both read this one list.
+  final showNoteNames =
+      mode == DisplayMode.staffFingering && read(showNoteNamesProvider);
+  final tintNoteheads = (mode == DisplayMode.staff ||
+          mode == DisplayMode.staffFingering) &&
+      (colourNoteheads ?? read(colourNoteheadsByStringProvider));
+  final noteNames = (parsed == null || !(showNoteNames || tintNoteheads))
+      ? const <NoteNameLabel>[]
+      : noteNameLabels(
+          measureMap,
+          parsed,
+          numberMode: read(noteNumberModeProvider),
+          fretStyle: read(fretStyleProvider),
+        );
   return (
     measureMap: measureMap,
     sectionTints: sectionTints,
@@ -99,5 +118,8 @@ StaffOverlays staffOverlaysFor(
     annotations: annotations,
     stringRuns: stringRuns,
     colourStyle: style,
+    noteNames: noteNames,
+    showNoteNames: showNoteNames,
+    colourNoteheads: tintNoteheads,
   );
 }
