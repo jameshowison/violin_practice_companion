@@ -21,6 +21,13 @@ const List<String> devLibrarySyncedFolders = [
   'abc_sources',
 ];
 
+/// The per-piece display settings a dev library carries
+/// (`display.<name>.<pieceId>`, see `pieceDisplayPref`): how a piece's numbers
+/// are shown, which is a property of the piece's repertoire (violin fingering
+/// for the Suzuki book). Layout settings — spacing, view, annotations — stay
+/// per device, since a phone and an iPad want them different.
+const Set<String> devLibrarySyncedDisplay = {'numbers', 'fretStyle'};
+
 /// The push half of the dev-library sync: merges a library staged in
 /// `Documents/dev_library/` into this device's own Documents and prefs.
 ///
@@ -50,6 +57,7 @@ class DevLibraryIngester {
   static const _baseKey = 'devLibrary.base';
   static const _libraryKey = 'pieceLibrary'; // PieceLibraryStore's key
   static const _mediaPrefix = 'pieceMedia.'; // PieceMediaStore's key prefix
+  static const _displayPrefix = 'display.'; // pieceDisplayPref's key prefix
 
   /// Null when no library has been staged — the normal case, and the only one
   /// a released app will ever see.
@@ -83,6 +91,9 @@ class DevLibraryIngester {
       // library HAS one, take it rather than calling it a conflict. Only then —
       // with no library blob, the device's is the only copy there is.
       if (key == _libraryKey && b == null && l != null) b = d;
+      // Likewise a number setting this device chose before display settings
+      // travelled: the library's wins the first time the two meet.
+      if (key.startsWith('display:') && b == null && l != null) b = d;
       if (l == d) {
         if (l != null) nextBase[key] = l;
       } else if (d == b) {
@@ -137,6 +148,11 @@ class DevLibraryIngester {
       } else if (key.startsWith('media:')) {
         final [pieceId, mediaId] = key.substring(6).split('/');
         (rows[pieceId] ??= {})[mediaId] = present ? value : null;
+      } else if (key.startsWith('display:')) {
+        final prefKey = '$_displayPrefix${key.substring(8)}';
+        present
+            ? await prefs.setString(prefKey, value as String)
+            : await prefs.remove(prefKey);
       } else if (key == _libraryKey) {
         present
             ? await prefs.setString(_libraryKey, jsonEncode(value))
@@ -172,7 +188,8 @@ class DevLibraryIngester {
   // ── Snapshots ─────────────────────────────────────────────────────────────
 
   /// Fingerprints of every synced file under [root], plus the prefs-held
-  /// [values] (already keyed `title:` / `media:` / `pieceLibrary`).
+  /// [values] (already keyed `title:` / `media:` / `display:` /
+  /// `pieceLibrary`).
   ///
   /// [only], when given, limits the files to those paths: the staged library's
   /// manifest (see [_readManifest]).
@@ -220,7 +237,8 @@ class DevLibraryIngester {
       rel == 'scanned_pieces/index.json' ||
       rel.split('/').last.startsWith('.');
 
-  /// Library side: `state.json` is `{titles, pieceMedia, pieceLibrary}`.
+  /// Library side: `state.json` is `{titles, pieceMedia, display,
+  /// pieceLibrary}`, `display` keyed `<name>.<pieceId>`.
   static Map<String, Object?> _stateValues(Map<String, dynamic> state) => {
         for (final MapEntry(:key, :value)
             in ((state['titles'] as Map?) ?? {}).entries)
@@ -228,10 +246,14 @@ class DevLibraryIngester {
         for (final MapEntry(key: pieceId, value: list)
             in ((state['pieceMedia'] as Map?) ?? {}).entries)
           for (final row in list as List) 'media:$pieceId/${_idOf(row)}': row,
+        for (final MapEntry(:key, :value)
+            in ((state['display'] as Map?) ?? {}).entries)
+          if (_syncedDisplay(key as String) && value is String)
+            'display:$key': value,
         if (state['pieceLibrary'] != null) _libraryKey: state['pieceLibrary'],
       };
 
-  /// Device side: the same three things, read from where the app keeps them.
+  /// Device side: the same things, read from where the app keeps them.
   static Future<Map<String, Object?>> _deviceValues(
       Directory docs, SharedPreferences prefs) async {
     final values = <String, Object?>{};
@@ -244,6 +266,12 @@ class DevLibraryIngester {
       for (final row in _decodeList(prefs.getString(key))) {
         values['media:$pieceId/${_idOf(row)}'] = row;
       }
+    }
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(_displayPrefix)) continue;
+      final rest = key.substring(_displayPrefix.length);
+      final value = prefs.get(key);
+      if (_syncedDisplay(rest) && value is String) values['display:$rest'] = value;
     }
     final library = prefs.getString(_libraryKey);
     if (library != null) {
@@ -293,6 +321,13 @@ class DevLibraryIngester {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /// `<name>.<pieceId>` for a [devLibrarySyncedDisplay] name.
+  static bool _syncedDisplay(String rest) {
+    final dot = rest.indexOf('.');
+    return dot > 0 &&
+        devLibrarySyncedDisplay.contains(rest.substring(0, dot));
+  }
 
   static String _idOf(Object? row) => (row as Map)['id'] as String;
 

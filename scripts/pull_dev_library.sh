@@ -6,7 +6,8 @@
 #   bash scripts/pull_dev_library.sh "Hazel iPad"                # physical device
 #   bash scripts/pull_dev_library.sh dev-iphone ../lib --dry-run # print the plan only
 #
-# Three-way merge per item (a file, a media row, a title, the library blob)
+# Three-way merge per item (a file, a media row, a title, a piece's number
+# display setting, the library blob)
 # between the library (L), the device (D) and the device's base (B, what it
 # held at its last sync — `devLibrary.base` in its prefs):
 #
@@ -137,13 +138,24 @@ state = json.load(open(state_path)) if os.path.exists(state_path) else {}
 state.setdefault("version", 2)
 state.setdefault("titles", {})
 state.setdefault("pieceMedia", {})
+state.setdefault("display", {})
 state.setdefault("pieceLibrary", None)
+
+# Per-piece display settings that travel with the library — mirror of
+# devLibrarySyncedDisplay in lib/services/dev_library_io.dart.
+SYNCED_DISPLAY = {"numbers", "fretStyle"}
+def synced_display(rest):
+    name, dot, pid = rest.partition(".")
+    return bool(dot) and bool(name) and name in SYNCED_DISPLAY
 
 def state_values(st):
     v = {f"title:{k}": t for k, t in st["titles"].items()}
     for pid, rows in st["pieceMedia"].items():
         for r in rows:
             v[f"media:{pid}/{r['id']}"] = r
+    for k, val in st["display"].items():
+        if synced_display(k) and isinstance(val, str):
+            v[f"display:{k}"] = val
     if st["pieceLibrary"] is not None:
         v["pieceLibrary"] = st["pieceLibrary"]
     return v
@@ -165,6 +177,10 @@ for k, raw in prefs.items():
         for r in json.loads(raw):
             if isinstance(r, dict) and isinstance(r.get("id"), str):
                 dev_values[f"media:{pid}/{r['id']}"] = r
+    elif k.startswith("flutter.display.") and isinstance(raw, str):
+        rest = k[len("flutter.display."):]
+        if synced_display(rest):
+            dev_values[f"display:{rest}"] = raw
 if "flutter.pieceLibrary" in prefs:
     try:
         dev_values["pieceLibrary"] = json.loads(prefs["flutter.pieceLibrary"])
@@ -181,6 +197,8 @@ for key in sorted(set(L) | set(D) | set(base)):
     l, d, b = L.get(key), D.get(key), base.get(key)
     if key == "pieceLibrary" and b is None and l is not None:
         b = d  # a never-synced device's blob is only its first-launch seed
+    if key.startswith("display:") and b is None and l is not None:
+        b = d  # set before display settings travelled: the library's wins
     if l == d or d == b:
         continue
     taken.append(key)
@@ -223,11 +241,17 @@ for key in taken:
             rows.pop(i)
         if not rows:
             del state["pieceMedia"][pid]
+    elif key.startswith("display:"):
+        if present:
+            state["display"][key[8:]] = dev_values[key]
+        else:
+            state["display"].pop(key[8:], None)
     elif key == "pieceLibrary":
         state["pieceLibrary"] = dev_values.get(key)
 
 if not dry:
     state["titles"] = dict(sorted(state["titles"].items()))
+    state["display"] = dict(sorted(state["display"].items()))
     json.dump(state, open(state_path, "w"), indent=2, ensure_ascii=False)
     open(state_path, "a").write("\n")
 print(f"pull: {len(taken)} taken from the device, {len(conflicts)} conflicts"
