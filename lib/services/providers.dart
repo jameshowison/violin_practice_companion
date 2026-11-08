@@ -1,3 +1,5 @@
+import 'dart:async' show scheduleMicrotask;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
 import '../models/count_in.dart';
@@ -618,6 +620,9 @@ final mediaPlaybackServiceProvider =
     ref.watch(midiGeneratorProvider),
     store: ref.watch(mediaAlignmentStoreProvider),
   );
+  _followHighlightSettings(ref, service);
+  _follow<double>(ref, highlightLeadMsProvider,
+      (ms) => service.highlightLeadSeconds = ms / 1000);
   ref.onDispose(service.dispose);
   return service;
 });
@@ -778,6 +783,14 @@ final highlightEveryNoteProvider = pieceDisplayPref<bool>(
   encode: (v) => '$v',
   decode: bool.parse,
 );
+
+/// How far ahead of a recording's aligned onset the highlight fires, in ms
+/// (see `PlaybackServiceBase.highlightLeadSeconds`). A perception experiment,
+/// so not remembered: autoDispose, held for the whole visit by the piece
+/// screen (which listens even while the score is selected), so it survives
+/// score ↔ recording switches and starts at 60 on each visit.
+/// Recordings only — the synthesized score keeps the base class's default.
+final highlightLeadMsProvider = StateProvider.autoDispose<double>((_) => 60);
 
 // ── Lyric display preference ──────────────────────────────────────────────────
 /// Which lyric verse the staff and annotated views engrave: 1 by default, null
@@ -1239,9 +1252,38 @@ final midiGeneratorProvider = Provider<MidiGenerator>((_) => MidiGenerator());
 
 final playbackServiceProvider = Provider<PlaybackService>((ref) {
   final service = PlaybackService(ref.watch(midiGeneratorProvider));
+  _followHighlightSettings(ref, service);
   ref.onDispose(service.dispose);
   return service;
 });
+
+/// Settings every playback service takes, whichever one is playing. Applied
+/// here rather than pushed in by the screen, so a service is right from the
+/// moment it exists — the recording service is autoDispose and would otherwise
+/// start every visit on the base class's defaults.
+void _followHighlightSettings(Ref ref, PlaybackServiceBase service) {
+  _follow<bool>(ref, highlightEveryNoteProvider,
+      (everyNote) => service.highlightDownbeatOnly = !everyNote);
+}
+
+/// Applies [provider]'s value to a service now, and again whenever it changes.
+///
+/// The first application is synchronous: the service was just constructed, has
+/// no piece loaded, and so its setters touch no notifier. Later ones are
+/// deferred to a microtask, because the setters resync the highlight — writing
+/// `currentHighlightNotifier` — and a per-piece pref can be recomputed while a
+/// widget is building (opening another piece), where a notifier write would
+/// rebuild its listeners mid-build.
+void _follow<T>(Ref ref, ProviderListenable<T> provider, void Function(T) apply) {
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
+  apply(ref.read(provider));
+  ref.listen<T>(provider, (_, next) {
+    scheduleMicrotask(() {
+      if (!disposed) apply(next);
+    });
+  });
+}
 
 final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
   return ref.watch(playbackServiceProvider).state;

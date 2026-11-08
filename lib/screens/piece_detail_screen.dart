@@ -94,12 +94,6 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
 /// the app is frontmost and Android scopes `FLAG_KEEP_SCREEN_ON` to the window,
 /// so backgrounding already suspends this without help.
 class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
-  // Perception experiment: how far ahead of the real (aligned) onset the
-  // downbeat highlight fires. Local state so
-  // the slider has something to render immediately, applied to the service
-  // on change rather than during build.
-  double _highlightLeadMs = 60;
-
   // Outlives the compact layout, which a rotation rebuilds from scratch.
   final _drawers = _CompactDrawerMemo();
 
@@ -157,20 +151,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final mediaService =
         selectedMedia.isSynthesized ? null : ref.watch(mediaPlaybackServiceProvider);
 
-    // The two highlight settings live as local fields (see `_highlightLeadMs`)
-    // because this panel outlives the autoDispose-scoped service, so a fresh
-    // service starts on the base class's defaults and has to be told.
-    //
-    // Post-frame rather than inline: both setters call `_resyncHighlightPointer`
-    // when the value actually changes, which writes to `currentHighlightNotifier`
-    // — and a notifier written during build rebuilds its listeners mid-build.
-    // The setters early-return when unchanged, so this does nothing on all but
-    // the first build after a service is created with a non-default setting.
-    if (mediaService != null) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        mediaService.highlightLeadSeconds = _highlightLeadMs / 1000;
-      });
-    }
+    // The highlight settings (lead, every-note) are applied by the service
+    // providers themselves — see `_followHighlightSettings` in providers.dart.
+    // The lead is autoDispose, and with the score selected nothing else
+    // listens to it (no recording service, no slider), so hold it here for the
+    // whole visit — otherwise score → recording would reset it to 60.
+    ref.listen(highlightLeadMsProvider, (_, _) {});
 
     // The one service every view reads its highlight from.
     //
@@ -184,15 +170,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // override is gone.
     final PlaybackServiceBase activeService = mediaService ?? service;
 
-    // Highlight granularity applies to whichever service is playing, the
-    // synthesized one included. Post-frame for the same reason as above.
-    final highlightEveryNote = ref.watch(highlightEveryNoteProvider);
     // The synthesized tempo, from the tray's preset picker at this piece's
     // performance tempo. Checked against the service so an unchanged rebuild
     // doesn't regenerate (setTempo does).
     final bpm = ref.watch(tempoBpmProvider);
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      activeService.highlightDownbeatOnly = !highlightEveryNote;
       if (service.currentBpm != bpm) service.setTempo(bpm);
     });
 
@@ -406,19 +388,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Highlight lead'),
-                        Text('${_highlightLeadMs.round()} ms',
+                        Text('${ref.watch(highlightLeadMsProvider).round()} ms',
                             style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                     Slider(
-                      value: _highlightLeadMs,
+                      value: ref.watch(highlightLeadMsProvider),
                       min: 0,
                       max: 300,
                       divisions: 15,
-                      onChanged: (v) {
-                        setState(() => _highlightLeadMs = v);
-                        mediaService?.highlightLeadSeconds = v / 1000;
-                      },
+                      onChanged: (v) =>
+                          ref.read(highlightLeadMsProvider.notifier).state = v,
                     ),
                     const Divider(),
                   ],
