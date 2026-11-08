@@ -64,6 +64,34 @@ class _OwnClockPlaybackService extends PlaybackServiceBase {
   void onTick(double playbackTime, MidiData data) {}
 }
 
+/// A player that strikes notes from [onTick] but is heard [latency] later —
+/// the iOS soundfont player on a Bluetooth or AirPlay output.
+class _StrikeAheadPlaybackService extends PlaybackServiceBase {
+  _StrikeAheadPlaybackService(super.generator);
+
+  static const latency = 0.5;
+  double clock = 100.0;
+  final ticks = <double>[];
+
+  @override
+  double clockNow() => clock;
+
+  @override
+  double get startLookaheadSeconds => latency;
+
+  @override
+  double get strikeAheadSeconds => latency;
+
+  @override
+  void onPlayStarted(MidiData data, double startOffsetSeconds) {}
+
+  @override
+  void onStopped() {}
+
+  @override
+  void onTick(double playbackTime, MidiData data) => ticks.add(playbackTime);
+}
+
 NoteEvent _quarter(int midi) => NoteEvent(
       pitch: 'X',
       midiNumber: midi,
@@ -336,6 +364,52 @@ void main() {
       own.play(fromMeasure: 1, toMeasure: 2);
       expect(own.scheduledNotes.length, 6);
       expect(own.scheduledNotes.last.offsetSeconds, lessThanOrEqualTo(6.0));
+    });
+  });
+
+  group('striking ahead of the output latency', () {
+    late _StrikeAheadPlaybackService ahead;
+    const l = _StrikeAheadPlaybackService.latency;
+
+    setUp(() async {
+      ahead = _StrikeAheadPlaybackService(MidiGenerator.forTest());
+      await ahead.loadPieceAtBpm(piece, 60);
+    });
+
+    tearDown(() => ahead.dispose());
+
+    test('the first notes are struck during the count, a latency early', () {
+      ahead.play(fromMeasure: 2, countIn: (labels: [1, 2, 3], totalUnits: 24, unit: 8));
+      final start = ahead.playStartClock!;
+      ahead.clock = start - l - 0.1;
+      ahead.debugTick();
+      expect(ahead.ticks, isEmpty, reason: 'too early to strike anything');
+      ahead.clock = start - l;
+      ahead.debugTick();
+      expect(ahead.ticks.single,
+          closeTo(ahead.startOffsetSeconds - l, 1e-9));
+    });
+
+    test('a loop re-enters a latency early, so the seam has no gap', () {
+      ahead.loopEnabled = true;
+      ahead.play(fromMeasure: 1, toMeasure: 1); // one 3s bar
+      final firstPass = ahead.playStartClock!;
+      ahead.clock = firstPass + 3.0 - l; // heard: 0.5s before the bar ends
+      ahead.debugTick();
+      expect(ahead.playbackState, PlaybackState.playing);
+      expect(ahead.playStartClock, closeTo(firstPass + 3.0, 1e-9),
+          reason: 'next pass heard exactly as this one ends');
+    });
+
+    test('without looping, it stops when the end is heard, not struck', () {
+      ahead.play(fromMeasure: 1, toMeasure: 1);
+      final t0 = ahead.playStartClock!;
+      ahead.clock = t0 + 3.0 - l;
+      ahead.debugTick();
+      expect(ahead.playbackState, PlaybackState.playing);
+      ahead.clock = t0 + 3.0;
+      ahead.debugTick();
+      expect(ahead.playbackState, PlaybackState.stopped);
     });
   });
 }

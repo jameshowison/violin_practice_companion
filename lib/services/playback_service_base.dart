@@ -276,6 +276,12 @@ abstract class PlaybackServiceBase {
   /// player that needs time to schedule its first notes. 0 by default.
   double get startLookaheadSeconds => 0;
 
+  /// How far ahead of the heard moment ([clockNow]) a player that strikes
+  /// notes from [onTick] must strike them — its output latency. The base
+  /// calls [onTick] that early in a count-in, and re-enters a loop that early,
+  /// so those first notes aren't late. 0 by default.
+  double get strikeAheadSeconds => 0;
+
   /// The [clockNow] reading at which [startOffsetSeconds] sounds — after the
   /// lookahead and any count-in — or null when not playing. A player that
   /// schedules ahead places note `n` at
@@ -332,7 +338,11 @@ abstract class PlaybackServiceBase {
   /// the first note.
   double? initialHighlightSeconds() => _startOffset + _highlightLeadSeconds;
 
-  void _tick(Timer _) {
+  /// One tick of the play loop, without waiting on the 40ms timer.
+  @visibleForTesting
+  void debugTick() => _tick();
+
+  void _tick([Timer? _]) {
     final d = _data;
     final pt = currentPlaybackSeconds();
     if (d == null || pt == null) return;
@@ -350,6 +360,9 @@ abstract class PlaybackServiceBase {
         countInNotifier.value =
             (labels: plan.labels, index: index, startMeasure: _fromMeasure);
       }
+      // A player striking ahead of the heard moment has to strike the first
+      // notes while the count is still being heard.
+      if (pt + strikeAheadSeconds >= _startOffset) onTick(pt, d);
       return;
     }
     if (countInNotifier.value != null) countInNotifier.value = null;
@@ -378,7 +391,12 @@ abstract class PlaybackServiceBase {
       }
     }
 
-    if (pt >= _endSeconds(d)) {
+    // Looping, re-enter [strikeAheadSeconds] early: [play] waits that long
+    // (its lookahead) before the new pass is heard, so the seam stays tight
+    // instead of gaining a gap the length of the output latency. The cost is
+    // the highlight leaving the last note that much early.
+    final end = _endSeconds(d);
+    if (loopEnabled ? pt + strikeAheadSeconds >= end : pt >= end) {
       if (loopEnabled) {
         play(
             fromMeasure: _fromMeasure,

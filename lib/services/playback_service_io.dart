@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
+import 'audio_output.dart';
 import 'playback_service_base.dart';
 import 'midi_generator.dart';
 
@@ -19,9 +20,28 @@ class PlaybackService extends PlaybackServiceBase {
   List<ScheduledNote> _byOnset = const [];
   List<ScheduledNote> _byOffset = const [];
 
-  PlaybackService(super.generator) {
+  /// Seconds between striking a note and hearing it — read live, so a route
+  /// change mid-play (connecting a Bluetooth speaker) re-syncs at once.
+  final double Function() _outputLatency;
+
+  PlaybackService(super.generator, {double Function()? outputLatency})
+      : _outputLatency = outputLatency ?? (() => AudioOutput.latencySeconds) {
+    if (outputLatency == null) AudioOutput.ensureStarted();
     _initMidi();
   }
+
+  // Notes are struck from [onTick] on wall time, but heard [_outputLatency]
+  // later — 10ms on the built-in speaker, ~200ms over Bluetooth, ~2s over
+  // AirPlay. So the clock everything runs on is the HEARD moment (as on the
+  // web), and notes are struck that far ahead of it.
+  @override
+  double clockNow() => super.clockNow() - _outputLatency();
+
+  @override
+  double get startLookaheadSeconds => _outputLatency();
+
+  @override
+  double get strikeAheadSeconds => _outputLatency();
 
   Future<void> _initMidi() async {
     try {
@@ -76,18 +96,19 @@ class PlaybackService extends PlaybackServiceBase {
   @override
   void onTick(double playbackTime, MidiData data) {
     if (!_midiReady || _sfId == null) return;
+    final strikeTime = playbackTime + _outputLatency();
 
     // Note-offs before note-ons: prevents outgoing same-pitch note from
     // immediately silencing the newly started note in the same tick.
     while (_nextOffIdx < _byOffset.length &&
-        _byOffset[_nextOffIdx].offsetSeconds <= playbackTime) {
+        _byOffset[_nextOffIdx].offsetSeconds <= strikeTime) {
       final n = _byOffset[_nextOffIdx];
       _midi.stopNote(sfId: _sfId!, channel: _channel, key: n.midiNote);
       _nextOffIdx++;
     }
 
     while (_nextOnIdx < _byOnset.length &&
-        _byOnset[_nextOnIdx].onsetSeconds <= playbackTime) {
+        _byOnset[_nextOnIdx].onsetSeconds <= strikeTime) {
       final n = _byOnset[_nextOnIdx];
       // Muted, the pointer still advances so unmuting resumes in place.
       if (!muted) {
