@@ -37,13 +37,16 @@ const countInMaxBeats = 8;
 /// sub-beat pickup cuts the last one short — which is where the bouncing dot
 /// lands. [introProgress] is non-null while a recording's own intro is still
 /// playing, BEFORE the count proper: 0→1 across the intro up to the count's
-/// first beat, with [index] meaningless until it goes null.
+/// first beat, with [index] meaningless until it goes null. [perBar] is the
+/// counted beats in a whole bar (see [barCounting]), which is how the display
+/// knows whether the count closes on a barline; 0 when unknown.
 typedef CountInTick = ({
   List<int> labels,
   int index,
   int startMeasure,
   double totalBeats,
   double? introProgress,
+  int perBar,
 });
 
 /// A resolved count-off: what to show and exactly how long it lasts.

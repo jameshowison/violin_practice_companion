@@ -199,6 +199,7 @@ abstract class PlaybackServiceBase {
             startMeasure: fromMeasure,
             totalBeats: _countInTotalBeats,
             introProgress: introStartSeconds == null ? null : 0.0,
+            perBar: _countInPerBar,
           );
 
     final events = _activeHighlightEvents;
@@ -377,6 +378,13 @@ abstract class PlaybackServiceBase {
       : (_countInSeconds + _countInLandingSeconds - _startOffset) /
           _countInBeatSeconds;
 
+  /// Counted beats in a whole bar of this piece, so the display can tell a
+  /// count that ends on a barline from one a pickup cuts short.
+  int get _countInPerBar {
+    final p = _piece;
+    return p == null ? 0 : barCounting(p.beatsPerMeasure, p.beatType).perBar;
+  }
+
   /// Whether this player can give a count-in at all. A recording that isn't
   /// aligned to the score has no first note to count back from.
   bool get supportsCountIn => true;
@@ -455,6 +463,7 @@ abstract class PlaybackServiceBase {
             startMeasure: _fromMeasure,
             totalBeats: totalBeats,
             introProgress: q,
+            perBar: _countInPerBar,
           );
         }
         return;
@@ -469,6 +478,7 @@ abstract class PlaybackServiceBase {
           startMeasure: _fromMeasure,
           totalBeats: totalBeats,
           introProgress: null,
+          perBar: _countInPerBar,
         );
       }
       // A player striking ahead of the heard moment has to strike the first

@@ -199,7 +199,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(
+      // The count-off takes over the whole bar while it runs — back arrow,
+      // title and icons alike — as one extra line of music above the score.
+      appBar: _CountInOverBar(
+        service: activeService,
+        bar: AppBar(
         toolbarHeight: kDebugMode ? 64 : 56,
         titleSpacing: 8,
         centerTitle: true,
@@ -231,34 +235,18 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               const SizedBox(width: 12),
             ],
             Flexible(
-              // The count-off sits on top of the title while it runs. It used to
-              // be drawn into the score above the first system, where it hid the
-              // annotations the player is reading as they lift the bow; the
-              // title is the one thing on screen nobody needs for those seconds.
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(piece.title,
-                          style: const TextStyle(fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      if (kDebugMode)
-                        Text(kBuildRef,
-                            style: TextStyle(
-                                fontSize: 9,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
-                    ],
-                  ),
-                  Positioned.fill(
-                    child: _TitleCountIn(
-                      service: activeService,
-                      maxWidth: screen.width * (useCompact ? 0.38 : 0.4),
-                    ),
-                  ),
+                  Text(piece.title,
+                      style: const TextStyle(fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  if (kDebugMode)
+                    Text(kBuildRef,
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
                 ],
               ),
             ),
@@ -302,6 +290,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             ),
           ),
         ],
+      ),
       ),
       endDrawer: Drawer(
         child: SafeArea(
@@ -2306,54 +2295,53 @@ class _NotationView extends ConsumerWidget {
   }
 }
 
-/// The count-off, laid over the piece's title in the app bar, in every view.
+/// [bar], with the count-off laid over the whole of it while it runs.
 ///
-/// Centred on the title but allowed past its edges (up to [maxWidth]): a short
-/// title would otherwise squeeze the numbers to nothing. Capped below the
-/// space the app bar's actions leave, so a two-bar count scales down rather
-/// than running under the icons on a 375pt phone. The pill is opaque, so
-/// whatever it overhangs for its couple of seconds is simply covered.
-class _TitleCountIn extends StatelessWidget {
-  const _TitleCountIn({required this.service, required this.maxWidth});
+/// It used to sit on the title alone, squeezed between the key block and the
+/// icons; a two-bar count then shrank to fit. Across the full bar it reads as a
+/// line of music of its own, with room for its barlines. The backing is
+/// opaque and swallows taps: the back arrow and gear it covers are out of
+/// sight for those seconds, and must not be hit blind.
+class _CountInOverBar extends StatelessWidget implements PreferredSizeWidget {
+  const _CountInOverBar({required this.service, required this.bar});
 
   final PlaybackServiceBase service;
-  final double maxWidth;
+  final AppBar bar;
+
+  @override
+  Size get preferredSize => bar.preferredSize;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: OverflowBox(
-        minWidth: 0,
-        maxWidth: maxWidth,
-        // Without this the backing is clamped to the title text's own height,
-        // and the key glyph's sharps show above it.
-        maxHeight: kDebugMode ? 64 : 56,
-        child: ValueListenableBuilder<CountInTick?>(
-          valueListenable: service.countInNotifier,
-          builder: (context, tick, _) => tick == null
-              ? const SizedBox.shrink()
-              // Scale-down rather than clip: a count that loses its last
-              // numbers stops answering "how long have I got?".
-              //
-              // Full bar height on an opaque backing: the key-signature glyph
-              // beside the title is taller than the pill, and its clef and
-              // sharps otherwise peek out above and below the numbers.
-              : ColoredBox(
-                  color: Theme.of(context).colorScheme.surface,
-                  child: SizedBox(
-                    height: kDebugMode ? 64 : 56,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: CountInLabel(
-                        tick: tick,
-                        height: 34,
-                        beatPosition: service.countInBeatPosition,
+    final theme = Theme.of(context);
+    return Stack(
+      children: [
+        bar,
+        Positioned.fill(
+          child: SafeArea(
+            bottom: false,
+            child: ValueListenableBuilder<CountInTick?>(
+              valueListenable: service.countInNotifier,
+              builder: (context, tick, _) => tick == null
+                  ? const SizedBox.shrink()
+                  : AbsorbPointer(
+                      child: ColoredBox(
+                        color: theme.appBarTheme.backgroundColor ??
+                            theme.colorScheme.surface,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: CountInLabel(
+                            tick: tick,
+                            height: 34,
+                            beatPosition: service.countInBeatPosition,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
