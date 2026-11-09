@@ -40,6 +40,23 @@ class _FakeClockPlaybackService extends PlaybackServiceBase {
   void onMuteChanged(bool muted) => muteChanges.add(muted);
 }
 
+/// A recording-like player whose playback begins before the count — an intro.
+class _IntroPlaybackService extends _FakeClockPlaybackService {
+  _IntroPlaybackService(super.generator);
+
+  double? introStart;
+
+  @override
+  double? get introStartSeconds => introStart;
+}
+
+class _NoCountPlaybackService extends _FakeClockPlaybackService {
+  _NoCountPlaybackService(super.generator);
+
+  @override
+  bool get supportsCountIn => false;
+}
+
 /// A player that schedules ahead on its own clock, as the web one does: only
 /// [clockNow] and [startLookaheadSeconds] are faked, so [currentPlaybackSeconds]
 /// and the schedule both come from the base.
@@ -331,6 +348,105 @@ void main() {
 
     test('an empty range schedules nothing', () {
       expect(sched(2, 2), isEmpty);
+    });
+  });
+
+  group('count-in ticks', () {
+    late _IntroPlaybackService svc;
+    const plan = (labels: [1, 2, 3], totalUnits: 24, unit: 8); // 3 beats
+
+    setUp(() async {
+      svc = _IntroPlaybackService(MidiGenerator.forTest());
+      await svc.loadPieceAtBpm(piece, 60); // a beat is 1s
+    });
+
+    tearDown(() => svc.dispose());
+
+    test('counts beats and reports fractional beat position', () {
+      svc.play(fromMeasure: 2, countIn: plan);
+      final start = svc.startOffsetSeconds;
+      expect(svc.countInNotifier.value!.totalBeats, 3);
+      svc.fakeSeconds = start - 1.5;
+      svc.debugTick();
+      expect(svc.countInNotifier.value!.index, 1);
+      expect(svc.countInNotifier.value!.introProgress, isNull);
+      expect(svc.countInBeatPosition(),
+          closeTo(1.5 + (svc.highlightLeadSeconds + PlaybackServiceBase.countInDotExtraLeadSeconds), 1e-9),
+          reason: 'the dot leads by the highlight lead, as the notes do');
+      svc.fakeSeconds = start;
+      expect(svc.countInBeatPosition(), isNull);
+      svc.debugTick();
+      expect(svc.countInNotifier.value, isNull);
+    });
+
+    test('a sub-beat pickup leaves a fractional total', () {
+      svc.play(
+          fromMeasure: 2, countIn: (labels: [1, 2, 3], totalUnits: 20, unit: 8));
+      expect(svc.countInNotifier.value!.totalBeats, 2.5);
+    });
+
+    test('an intro before the count reports progress, then the count', () {
+      svc.fakeSeconds = 0;
+      svc.play(fromMeasure: 2, countIn: plan);
+      final start = svc.startOffsetSeconds; // 3s
+      // Intro from 4s before the count starts.
+      svc.introStart = start - 3 - 4;
+      svc.play(fromMeasure: 2, countIn: plan);
+      expect(svc.countInNotifier.value!.introProgress, 0.0);
+      svc.fakeSeconds = start - 3 - 2; // halfway through the intro
+      svc.debugTick();
+      expect(svc.countInNotifier.value!.introProgress, closeTo(0.5, 0.01));
+      expect(svc.countInBeatPosition(),
+          closeTo(-2 + (svc.highlightLeadSeconds + PlaybackServiceBase.countInDotExtraLeadSeconds), 1e-9));
+      svc.fakeSeconds = start - 2.5; // half a beat into the count
+      svc.debugTick();
+      expect(svc.countInNotifier.value!.introProgress, isNull);
+      expect(svc.countInNotifier.value!.index, 0);
+    });
+
+    test('a bar opening on a rest lands the count on its first note', () async {
+      // Like Happy Farmer's pickup: the bar starts with a rest, so the count's
+      // numbers end on the barline but the first note is heard a beat later.
+      final rest = NoteEvent(
+          pitch: 'R',
+          midiNumber: 0,
+          octave: 4,
+          noteValue: NoteValue.quarter,
+          dotted: false,
+          isRest: true);
+      final rested = _IntroPlaybackService(MidiGenerator.forTest());
+      await rested.loadPieceAtBpm(
+          ParsedPiece(
+            keySignature: 'C',
+            keyFifths: 0,
+            keyMode: KeyMode.major,
+            measures: [
+              Measure(number: 1, notes: [rest, _quarter(62), _quarter(64)]),
+            ],
+          ),
+          60);
+      rested.play(fromMeasure: 1, countIn: plan);
+      expect(rested.countInLandingSeconds, closeTo(1, 1e-9));
+      expect(rested.countInNotifier.value!.totalBeats, closeTo(4, 1e-9));
+      rested.fakeSeconds = 0.5; // past the barline, during the rest
+      rested.debugTick();
+      expect(rested.countInNotifier.value, isNotNull,
+          reason: 'still counting into the first heard note');
+      expect(rested.countInBeatPosition(),
+          closeTo(3.5 + (rested.highlightLeadSeconds + PlaybackServiceBase.countInDotExtraLeadSeconds), 1e-9));
+      rested.fakeSeconds = 1.0;
+      rested.debugTick();
+      expect(rested.countInNotifier.value, isNull);
+      rested.dispose();
+    });
+
+    test('a player that cannot count in starts without one', () async {
+      final unaligned = _NoCountPlaybackService(MidiGenerator.forTest());
+      await unaligned.loadPieceAtBpm(piece, 60);
+      unaligned.play(fromMeasure: 2, countIn: plan);
+      expect(unaligned.countInNotifier.value, isNull);
+      expect(unaligned.activeCountIn, isNull);
+      unaligned.dispose();
     });
   });
 

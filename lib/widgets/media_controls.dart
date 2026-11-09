@@ -817,11 +817,20 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                   icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
                   iconSize: 26,
                   tooltip: isPlaying ? 'Pause' : 'Play',
+                  // Counted in like the synthesized score: back from the
+                  // entry at the recording's own tempo (see
+                  // MediaPlaybackService.recordingLeadIn). An unaligned
+                  // recording ignores the count — it has no entry to land on.
                   onPressed: isPlaying
                       ? service.pause
-                      : () => service.play(
-                          fromMeasure: startMeasure,
-                          fromNote: ref.read(playbackStartNoteProvider)),
+                      : () {
+                          service.leadInMode =
+                              ref.read(recordingLeadInProvider);
+                          service.play(
+                              fromMeasure: startMeasure,
+                              fromNote: ref.read(playbackStartNoteProvider),
+                              countIn: ref.read(resolvedCountInProvider));
+                        },
                 );
               },
             ),

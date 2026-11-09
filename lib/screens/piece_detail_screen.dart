@@ -757,6 +757,30 @@ class _CountInSlider extends ConsumerWidget {
           onChangeEnd: (v) =>
               ref.read(countInProvider.notifier).commit(_stops[v.round()]),
         ),
+        // A recording counts in over its own intro when it has one; this is
+        // what fills the count when it doesn't, or when starting mid-piece.
+        if (plan != null) ...[
+          Text('With a recording',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          SegmentedButton<RecordingLeadInMode>(
+            key: const ValueKey('recording_lead_in_picker'),
+            segments: const [
+              ButtonSegment(
+                  value: RecordingLeadInMode.silent, label: Text('Silent')),
+              ButtonSegment(
+                  value: RecordingLeadInMode.preroll,
+                  label: Text('Play bars before')),
+            ],
+            selected: {ref.watch(recordingLeadInProvider)},
+            onSelectionChanged: (s) =>
+                ref.read(recordingLeadInProvider.notifier).set(s.first),
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2320,7 +2344,11 @@ class _TitleCountIn extends StatelessWidget {
                     height: kDebugMode ? 64 : 56,
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: CountInLabel(tick: tick, height: 34),
+                      child: CountInLabel(
+                        tick: tick,
+                        height: 34,
+                        beatPosition: service.countInBeatPosition,
+                      ),
                     ),
                   ),
                 ),

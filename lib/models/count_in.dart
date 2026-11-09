@@ -32,7 +32,19 @@ const countInMaxBeats = 8;
 /// which is what anchors the display to a system (see `StaffViewVerovio`) — a
 /// count-in for a practice range starting at bar 30 must not appear over bar 1,
 /// eight systems away.
-typedef CountInTick = ({List<int> labels, int index, int startMeasure});
+///
+/// [totalBeats] is the count's length in counted beats — fractional when a
+/// sub-beat pickup cuts the last one short — which is where the bouncing dot
+/// lands. [introProgress] is non-null while a recording's own intro is still
+/// playing, BEFORE the count proper: 0→1 across the intro up to the count's
+/// first beat, with [index] meaningless until it goes null.
+typedef CountInTick = ({
+  List<int> labels,
+  int index,
+  int startMeasure,
+  double totalBeats,
+  double? introProgress,
+});
 
 /// A resolved count-off: what to show and exactly how long it lasts.
 ///

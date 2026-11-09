@@ -1340,6 +1340,37 @@ class CountInNotifier extends StateNotifier<int> {
   }
 }
 
+/// Where a recording's count-in comes from when the recording itself has no
+/// (or too short an) intro before the start: silence, or the bars before.
+/// App-wide, restored once per launch on the same terms as [countInProvider].
+final recordingLeadInProvider =
+    StateNotifierProvider<RecordingLeadInNotifier, RecordingLeadInMode>(
+  (ref) => RecordingLeadInNotifier(ref.watch(countInStoreProvider)),
+);
+
+class RecordingLeadInNotifier extends StateNotifier<RecordingLeadInMode> {
+  RecordingLeadInNotifier(this._store) : super(RecordingLeadInMode.silent) {
+    _restore();
+  }
+
+  final CountInStore _store;
+  bool _touched = false;
+
+  Future<void> _restore() async {
+    final saved = await _store.loadLeadIn();
+    if (!mounted || _touched || saved == null) return;
+    for (final m in RecordingLeadInMode.values) {
+      if (m.name == saved) state = m;
+    }
+  }
+
+  void set(RecordingLeadInMode mode) {
+    _touched = true;
+    state = mode;
+    _store.saveLeadIn(mode.name);
+  }
+}
+
 // ── Tempo ─────────────────────────────────────────────────────────────────────
 final tempoStoreProvider = Provider<TempoStore>((_) => TempoStore());
 

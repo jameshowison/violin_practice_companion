@@ -28,6 +28,27 @@ class CountInStore {
     }
   }
 
+  static const _leadInKey = 'countInRecordingLeadIn';
+
+  /// The stored recording lead-in mode name (`silent` / `preroll`), or null
+  /// when never set. Never throws.
+  Future<String?> loadLeadIn() async {
+    try {
+      return (await _open()).getString(_leadInKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Persists the recording lead-in mode name. Best-effort, as [save].
+  Future<void> saveLeadIn(String mode) async {
+    try {
+      await (await _open()).setString(_leadInKey, mode);
+    } catch (_) {
+      // Ignore: the session-level provider still holds the value.
+    }
+  }
+
   /// Persists [beats]; null clears the setting (back to auto). Best-effort — a
   /// write failure must never break the UI, the session still holds the value.
   Future<void> save(int? beats) async {

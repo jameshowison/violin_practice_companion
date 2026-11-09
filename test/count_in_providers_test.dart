@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/services/media_playback_service.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 
 /// Where Play starts, and what it counts, for the two ways a pickup gets
@@ -131,6 +132,29 @@ void main() {
       final c = await containerFor(withPickup(1));
       c.read(countInProvider.notifier).preview(0);
       expect(c.read(resolvedCountInProvider), isNull);
+    });
+  });
+
+  group('recording lead-in preference', () {
+    test('absent means silent, and a choice is persisted', () async {
+      SharedPreferences.setMockInitialValues({});
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      expect(c.read(recordingLeadInProvider), RecordingLeadInMode.silent);
+      c.read(recordingLeadInProvider.notifier).set(RecordingLeadInMode.preroll);
+      await Future<void>.delayed(Duration.zero);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('countInRecordingLeadIn'), 'preroll');
+    });
+
+    test('a saved choice is restored', () async {
+      SharedPreferences.setMockInitialValues(
+          {'countInRecordingLeadIn': 'preroll'});
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      c.read(recordingLeadInProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(c.read(recordingLeadInProvider), RecordingLeadInMode.preroll);
     });
   });
 }

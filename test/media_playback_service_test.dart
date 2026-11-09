@@ -80,4 +80,107 @@ void main() {
       expect(kept, hasLength(2));
     });
   });
+
+  group('recordingLeadIn', () {
+    // A steady recording: score runs at 2 score-s per audio-s, first note at
+    // 4s in the file (a 4s intro), anchors every bar.
+    const anchors = [
+      ScoreAudioAnchor(0, 4.0),
+      ScoreAudioAnchor(2000, 5.0),
+      ScoreAudioAnchor(4000, 6.0),
+      ScoreAudioAnchor(6000, 7.0),
+      ScoreAudioAnchor(8000, 8.0),
+    ];
+
+    LeadInPlan plan(
+            {double start = 0,
+            double count = 3,
+            bool top = true,
+            bool preroll = false,
+            double speed = 1,
+            List<ScoreAudioAnchor> a = anchors}) =>
+        MediaPlaybackService.recordingLeadIn(
+            anchors: a,
+            startScoreSec: start,
+            countScoreSec: count,
+            fromBeginning: top,
+            preroll: preroll,
+            speed: speed)!;
+
+    test('a long intro carries the count: no wait', () {
+      final p = plan(); // 3 score-s = 1.5 audio-s of count
+      expect(p.seekAudioSec, 0);
+      expect(p.waitRealSec, 0);
+      expect(p.entryAudioSec, closeTo(4, 1e-9));
+      expect(p.countStartAudioSec, closeTo(2.5, 1e-9));
+      expect(p.scorePerAudio, closeTo(2, 1e-9));
+    });
+
+    test('a short intro is topped up with silence', () {
+      final p = plan(count: 10); // 5 audio-s of count, 4s of intro
+      expect(p.seekAudioSec, 0);
+      expect(p.waitRealSec, closeTo(1, 1e-9));
+    });
+
+    test('no intro: the whole count is silent', () {
+      final shifted = [
+        for (final a in anchors) ScoreAudioAnchor(a.scoreMs, a.audioSec - 4)
+      ];
+      final p = plan(a: shifted);
+      expect(p.waitRealSec, closeTo(1.5, 1e-9));
+    });
+
+    test('mid-piece, silent: wait at the entry', () {
+      final p = plan(start: 4, top: false);
+      expect(p.seekAudioSec, closeTo(6, 1e-9));
+      expect(p.waitRealSec, closeTo(1.5, 1e-9));
+    });
+
+    test('mid-piece, pre-roll: start a count early', () {
+      final p = plan(start: 4, top: false, preroll: true);
+      expect(p.seekAudioSec, closeTo(4.5, 1e-9));
+      expect(p.waitRealSec, 0);
+    });
+
+    test('pre-roll past the file start is clamped and topped up', () {
+      final p = plan(start: 4, top: false, preroll: true, count: 16);
+      expect(p.seekAudioSec, 0);
+      expect(p.waitRealSec, closeTo(2, 1e-9)); // count starts at -2
+    });
+
+    test('half speed doubles the silent wait', () {
+      final p = plan(start: 4, top: false, speed: 0.5);
+      expect(p.waitRealSec, closeTo(3, 1e-9));
+    });
+
+    test('tempo is local to the entry, not the whole recording', () {
+      // Slow first two bars (1 score-s per audio-s), then fast.
+      const varied = [
+        ScoreAudioAnchor(0, 0.0),
+        ScoreAudioAnchor(2000, 2.0),
+        ScoreAudioAnchor(4000, 4.0),
+        ScoreAudioAnchor(8000, 5.0),
+        ScoreAudioAnchor(12000, 6.0),
+      ];
+      expect(
+          MediaPlaybackService.localScorePerAudio(varied, 0,
+              windowScoreSec: 4),
+          closeTo(1, 1e-9));
+      expect(
+          MediaPlaybackService.localScorePerAudio(varied, 4,
+              windowScoreSec: 8),
+          closeTo(4, 1e-9));
+    });
+
+    test('nothing to place with fewer than two anchors', () {
+      expect(
+          MediaPlaybackService.recordingLeadIn(
+              anchors: const [ScoreAudioAnchor(0, 1)],
+              startScoreSec: 0,
+              countScoreSec: 3,
+              fromBeginning: true,
+              preroll: false),
+          isNull);
+    });
+  });
 }

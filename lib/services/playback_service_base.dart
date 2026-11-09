@@ -89,6 +89,11 @@ abstract class PlaybackServiceBase {
   CountInPlan? _countInPlan;
   double _countInSeconds = 0;
   double _countInBeatSeconds = 0;
+  // The first note actually heard, which can be after [_startOffset]: a
+  // pickup bar padded with hidden lead rests starts on its barline, a rest
+  // before its note. The count's NUMBERS end on the barline (they are the
+  // bar's beats); the dot and the display end here.
+  double _countInLandingSeconds = 0;
 
   final Map<int, ValueNotifier<int?>> _measureNotifiers = {};
   final ValueNotifier<int?> currentMeasureNotifier = ValueNotifier(null);
@@ -166,6 +171,10 @@ abstract class PlaybackServiceBase {
         fromNote < d.measureNoteTimings[fromIdx].length) {
       _startOffset = d.measureNoteTimings[fromIdx][fromNote].$1;
     }
+    // A player that can't place a count (an unaligned recording has no entry
+    // to count back from) starts as if none were asked for — rather than
+    // showing a "1" that never advances.
+    if (!supportsCountIn) countIn = null;
     _countInPlan = countIn;
     final unitSeconds = countInUnitSeconds(_bpm);
     _countInBeatSeconds = countIn == null ? 0 : countIn.unit * unitSeconds;
@@ -177,9 +186,20 @@ abstract class PlaybackServiceBase {
     // separate clock, no separate timer and no state machine.
     _t0 = clockNow() + startLookaheadSeconds + _countInSeconds;
     _schedule = scheduleFrom(d, _startOffset, _endSeconds(d));
+    _countInLandingSeconds = _schedule.isEmpty ||
+            _schedule.first.onsetSeconds < _startOffset
+        ? _startOffset
+        : _schedule.first.onsetSeconds;
+    prepareStart(_startOffset);
     countInNotifier.value = countIn == null
         ? null
-        : (labels: countIn.labels, index: 0, startMeasure: fromMeasure);
+        : (
+            labels: countIn.labels,
+            index: 0,
+            startMeasure: fromMeasure,
+            totalBeats: _countInTotalBeats,
+            introProgress: introStartSeconds == null ? null : 0.0,
+          );
 
     final events = _activeHighlightEvents;
     final initialSeconds = initialHighlightSeconds();
@@ -338,6 +358,69 @@ abstract class PlaybackServiceBase {
   /// the first note.
   double? initialHighlightSeconds() => _startOffset + _highlightLeadSeconds;
 
+  /// The count-in being given by the current play-through, or null — for a
+  /// subclass that has to place the count on a clock of its own.
+  CountInPlan? get activeCountIn => _countInPlan;
+
+  /// The current count-in's length in score-seconds (0 when there is none).
+  double get countInSeconds => _countInSeconds;
+
+  /// Score-seconds of the first note heard in this play-through — where the
+  /// count-in lands. At or after [startOffsetSeconds]; later when the start
+  /// bar opens with (hidden) rests.
+  double get countInLandingSeconds => _countInLandingSeconds;
+
+  /// The count's length to its landing, in counted beats: fractional for a
+  /// sub-beat pickup, and past the last number when lead rests follow it.
+  double get _countInTotalBeats => _countInBeatSeconds <= 0
+      ? 0
+      : (_countInSeconds + _countInLandingSeconds - _startOffset) /
+          _countInBeatSeconds;
+
+  /// Whether this player can give a count-in at all. A recording that isn't
+  /// aligned to the score has no first note to count back from.
+  bool get supportsCountIn => true;
+
+  /// Called by [play] once the start offset and count-in are settled, BEFORE
+  /// [initialHighlightSeconds] is read and [onPlayStarted] runs — for a
+  /// subclass whose start depends on both (a recording's lead-in).
+  void prepareStart(double startOffsetSeconds) {}
+
+  /// Score-seconds at which playback actually begins sounding when that is
+  /// EARLIER than the count-in — a recording's intro — or null when there is
+  /// no such intro. While the cursor is between this and the count's first
+  /// beat the count-in notifier reports intro progress instead of a beat.
+  double? get introStartSeconds => null;
+
+  /// How far into the count-in playback is, in counted beats (fractional), or
+  /// null when not counting in. Read per frame by the count-in display, which
+  /// animates between the 40ms ticks. Negative during a recording's intro, and
+  /// [CountInTick.totalBeats] at the first note heard.
+  double? countInBeatPosition() {
+    final plan = _countInPlan;
+    if (plan == null || _countInBeatSeconds <= 0) return null;
+    final pt = currentPlaybackSeconds();
+    if (pt == null || pt >= _countInLandingSeconds) return null;
+    // Led by the same [highlightLeadSeconds] as the note highlight, and for
+    // the same reason: a frame reaches the eye a little after it is computed,
+    // so a dot drawn at the heard moment lands visibly after the note.
+    // Plus [countInDotExtraLeadSeconds]: by ear on the simulator the dot still
+    // landed a touch after the note with the highlight's lead alone.
+    final ahead = pt +
+        (highlightLeadSeconds + countInDotExtraLeadSeconds) *
+            scoreSecondsPerRealSecond;
+    return (_countInSeconds - (_startOffset - ahead)) / _countInBeatSeconds;
+  }
+
+  /// How much further than [highlightLeadSeconds] the count-in dot leads.
+  static const countInDotExtraLeadSeconds = 0.04;
+
+  /// Score-seconds that pass per wall-clock second during the count-in — 1 for
+  /// a player whose clock IS score time; a recording's local tempo times its
+  /// playback speed otherwise. Converts the real-time [highlightLeadSeconds]
+  /// into the score time [countInBeatPosition] works in.
+  double get scoreSecondsPerRealSecond => 1.0;
+
   /// One tick of the play loop, without waiting on the 40ms timer.
   @visibleForTesting
   void debugTick() => _tick();
@@ -354,18 +437,51 @@ abstract class PlaybackServiceBase {
     final plan = _countInPlan;
     if (plan != null && _countInBeatSeconds > 0 && pt < _startOffset) {
       final elapsedInCount = _countInSeconds - (_startOffset - pt);
+      final totalBeats = _countInTotalBeats;
+      // Before the count proper: a recording's own intro is still playing
+      // (see [introStartSeconds]). Say so, rather than parking on beat one
+      // for however many bars the intro runs.
+      final introStart = introStartSeconds;
+      final countStart = _startOffset - _countInSeconds;
+      if (elapsedInCount < 0 && introStart != null && introStart < countStart) {
+        final progress =
+            ((pt - introStart) / (countStart - introStart)).clamp(0.0, 1.0);
+        // Quantised to 1% so the notifier doesn't rebuild on every tick.
+        final q = (progress * 100).round() / 100;
+        if (countInNotifier.value?.introProgress != q) {
+          countInNotifier.value = (
+            labels: plan.labels,
+            index: 0,
+            startMeasure: _fromMeasure,
+            totalBeats: totalBeats,
+            introProgress: q,
+          );
+        }
+        return;
+      }
       final index = (elapsedInCount ~/ _countInBeatSeconds)
           .clamp(0, plan.labels.length - 1);
-      if (countInNotifier.value?.index != index) {
-        countInNotifier.value =
-            (labels: plan.labels, index: index, startMeasure: _fromMeasure);
+      final current = countInNotifier.value;
+      if (current?.index != index || current?.introProgress != null) {
+        countInNotifier.value = (
+          labels: plan.labels,
+          index: index,
+          startMeasure: _fromMeasure,
+          totalBeats: totalBeats,
+          introProgress: null,
+        );
       }
       // A player striking ahead of the heard moment has to strike the first
       // notes while the count is still being heard.
       if (pt + strikeAheadSeconds >= _startOffset) onTick(pt, d);
       return;
     }
-    if (countInNotifier.value != null) countInNotifier.value = null;
+    // Past the barline but not yet at the first heard note (hidden lead
+    // rests): the count stays up on its last number while the dot lands.
+    if (countInNotifier.value != null &&
+        (plan == null || pt >= _countInLandingSeconds)) {
+      countInNotifier.value = null;
+    }
 
     // Advance highlight pointer forward. _hlPointer starts at -1 whenever
     // [play] found nothing to highlight yet (see [initialHighlightSeconds])
