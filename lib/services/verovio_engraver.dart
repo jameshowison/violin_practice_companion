@@ -249,6 +249,13 @@ class VerovioEngraver {
     }
   }
 
+  /// Bump whenever what is derived from an engrave (the anchors, not just the
+  /// SVG) changes meaning: cached engraves outlive the code that made them, so
+  /// without this a fix to the anchors is invisible on every score opened
+  /// before it. 2: notes under spilling ink go to the bar they start in.
+  /// 3: measure rects end where the next bar on the system begins.
+  static const _diskFormat = 3;
+
   /// [_keyFor], made stable across launches (`String.hashCode` is not
   /// guaranteed to be) and safe as a file name.
   static String _diskKeyFor(
@@ -257,7 +264,7 @@ class VerovioEngraver {
     double scale,
     String variant,
   ) =>
-      _stableHash('${_stableHash(xml)}|${_bucketOf(widthPx)}|'
+      _stableHash('$_diskFormat|${_stableHash(xml)}|${_bucketOf(widthPx)}|'
           '${scale.toStringAsFixed(1)}|$variant');
 
   /// Two independent 32-bit hashes (FNV-1a and djb2) plus the length, as hex.
@@ -486,7 +493,10 @@ class VerovioEngraver {
         MeasureAnchor(
           index: i,
           id: measureHits[i].id,
-          rect: measureHits[i].bbox,
+          rect: clipToNextMeasure(
+            measureHits[i].bbox,
+            i + 1 < measureHits.length ? measureHits[i + 1].bbox : null,
+          ),
         ),
     ];
 
@@ -622,11 +632,47 @@ class VerovioEngraver {
 
   /// Index of the measure whose bbox contains [box]'s center, else the nearest
   /// by horizontal center (notes can sit a hair outside the staff bbox).
-  static int _measureIndexFor(Rect box, List<MeasureAnchor> measures) {
-    final c = box.center;
-    for (final m in measures) {
-      if (m.rect.contains(c)) return m.index;
+  /// A measure's ink box [rect], cut off where the [next] measure starts when
+  /// that one is on the same system.
+  ///
+  /// Verovio's measure bbox is its INK, and ink spills rightward over the
+  /// barline — Happy Farmer's "Allegro giocoso" carries the pickup's box over
+  /// bar 1's first note. Selection shading, tap targets and the note-to-bar
+  /// assignment all want the bar itself, which ends where the next one begins.
+  @visibleForTesting
+  static Rect clipToNextMeasure(Rect rect, Rect? next) {
+    if (next == null) return rect;
+    final sameSystem = next.top < rect.bottom && next.bottom > rect.top;
+    if (!sameSystem || next.left <= rect.left || next.left >= rect.right) {
+      return rect;
     }
+    return Rect.fromLTRB(rect.left, rect.top, next.left, rect.bottom);
+  }
+
+  static int _measureIndexFor(Rect box, List<MeasureAnchor> measures) =>
+      measureIndexFor(box, measures);
+
+  /// The measure a note/rest with bounding [box] belongs to.
+  ///
+  /// A measure's bbox is its INK, not its barlines, and ink spills rightward
+  /// out of the bar that owns it: a tempo mark, a dynamic or a slur drawn
+  /// from the first bar can reach well over the next bar's first notes. Happy
+  /// Farmer's "Allegro giocoso" did exactly that, claiming bar 1's opening G
+  /// for the pickup — which slid every fingering, string line and highlight in
+  /// bar 1 one note over. So of the measures whose ink covers the note, the
+  /// owner is the one that STARTED last at or before it.
+  @visibleForTesting
+  static int measureIndexFor(Rect box, List<MeasureAnchor> measures) {
+    final c = box.center;
+    MeasureAnchor? owner;
+    for (final m in measures) {
+      // Containing the centre already puts m's left edge at or before it.
+      if (m.rect.contains(c) &&
+          (owner == null || m.rect.left > owner.rect.left)) {
+        owner = m;
+      }
+    }
+    if (owner != null) return owner.index;
     var best = -1;
     var bestDist = double.infinity;
     for (final m in measures) {
