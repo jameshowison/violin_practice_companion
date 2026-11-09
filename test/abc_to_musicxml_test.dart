@@ -187,8 +187,7 @@ void main() {
 
     test('rehearsal marks and line starts are stripped from the engraved copy',
         () {
-      const layout = PieceLayout([]);
-      final stripped = layout.stripLayoutHints(goldenParts);
+      final stripped = PieceLayout.stripLayoutHints(goldenParts);
       expect(stripped, isNot(contains('<rehearsal>')));
       expect(goldenParts, contains('abc-line'));
       expect(stripped, isNot(contains('abc-line')));

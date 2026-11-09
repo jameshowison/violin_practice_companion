@@ -4,6 +4,7 @@ import 'dart:ui' show Rect, Size, Offset;
 import 'package:flutter/foundation.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
 
+import 'engrave_disk_cache.dart';
 import 'staff_zoom.dart'
     show
         lineContentOf,
@@ -34,6 +35,15 @@ class VerovioEngraver {
 
   /// Verbose correlation/diagnostics logging (debug only).
   static bool debugLogging = false;
+
+  /// Per-stage timing lines (`[timing] …`) for the piece-open path. Debug only.
+  static bool timingLogging = false;
+
+  /// Engraves actually run (cache misses) — read by the `[open]` timing line.
+  static int engraveCount = 0;
+
+  /// Started by the piece list on tap, so `[open]` can report tap → first paint.
+  static final openClock = Stopwatch();
 
   VerovioAsyncService? _svc;
   Future<VerovioAsyncService>? _spawning;
@@ -67,7 +77,9 @@ class VerovioEngraver {
   // the inputs are unchanged. Sized to hold a handful of zoom levels alongside
   // the width buckets and the tab/non-tab variants.
   final _cache = <String, EngravedScore>{};
-  static const _maxCache = 16;
+  // One piece open fills 3–5 entries (probe, real, frozen, preamble…) of a few
+  // hundred KB each, so this keeps roughly the last dozen pieces instant.
+  static const _maxCache = 48;
 
   // Serializes full engrave round-trips (the worker serializes individual
   // calls, but a score swap spans several calls that must stay atomic).
@@ -85,6 +97,11 @@ class VerovioEngraver {
       return svc;
     }();
   }
+
+  /// Starts the worker isolate ahead of the first engrave, so the first piece
+  /// opened doesn't wait on it. Idempotent; a failure resurfaces on the real
+  /// engrave, which awaits the same future.
+  void warmUp() => _ensureService().ignore();
 
   /// Width bucket so sub-pixel resize jitter doesn't re-engrave. ~48px steps.
   static int _bucketOf(double widthPx) => (widthPx / 48).round();
@@ -172,33 +189,86 @@ class VerovioEngraver {
       _cache[key] = cached;
       return Future.value(cached);
     }
+    return _fromDiskOrEngrave(key, () => _engraveNow(
+          musicXml,
+          widthPx: widthPx,
+          scale: scale,
+          pageHeightUnits: pageHeightUnits,
+          mnumInterval: mnumInterval,
+          spacingSystem: spacingSystem,
+          pageMarginTop: pageMarginTop,
+          tabFingerLabels: tabFingerLabels,
+          tabMode: tabMode,
+          stripRepeatClefs: stripRepeatClefs,
+          breaks: breaks,
+          tight: tight,
+        ), diskKey: () => _diskKeyFor(musicXml, widthPx, scale, variant));
+  }
+
+  /// A memory miss: the disk copy from an earlier launch if there is one,
+  /// otherwise a real engrave (which is then kept on disk too). Same key, so a
+  /// disk hit is exactly what the engrave would have produced.
+  Future<EngravedScore> _fromDiskOrEngrave(
+    String key,
+    Future<EngravedScore> Function() engraveNow, {
+    required String Function() diskKey,
+  }) async {
+    final dk = diskKey();
+    try {
+      final json = await readEngrave(dk);
+      if (timingLogging) {
+        debugPrint('[timing] disk ${json == null ? 'miss' : 'hit'} $dk');
+      }
+      if (json != null) {
+        final score = EngravedScore.fromJson(
+            jsonDecode(json) as Map<String, dynamic>);
+        _remember(key, score);
+        return score;
+      }
+    } catch (e) {
+      if (debugLogging) debugPrint('[engraver] disk entry unreadable: $e');
+    }
     // Chain onto the serialization tail.
     final result = _tail.then((_) async {
       final again = _cache[key];
       if (again != null) return again;
-      final score = await _engraveNow(
-        musicXml,
-        widthPx: widthPx,
-        scale: scale,
-        pageHeightUnits: pageHeightUnits,
-        mnumInterval: mnumInterval,
-        spacingSystem: spacingSystem,
-        pageMarginTop: pageMarginTop,
-        tabFingerLabels: tabFingerLabels,
-        tabMode: tabMode,
-        stripRepeatClefs: stripRepeatClefs,
-        breaks: breaks,
-        tight: tight,
-      );
-      _cache[key] = score;
-      if (_cache.length > _maxCache) {
-        _cache.remove(_cache.keys.first);
-      }
+      final score = await engraveNow();
+      _remember(key, score);
+      writeEngrave(dk, jsonEncode(score.toJson())).ignore();
       return score;
     });
     // Keep the tail alive even if this engrave throws.
     _tail = result.then((_) {}, onError: (_) {});
     return result;
+  }
+
+  void _remember(String key, EngravedScore score) {
+    _cache[key] = score;
+    if (_cache.length > _maxCache) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  /// [_keyFor], made stable across launches (`String.hashCode` is not
+  /// guaranteed to be) and safe as a file name.
+  static String _diskKeyFor(
+    String xml,
+    double widthPx,
+    double scale,
+    String variant,
+  ) =>
+      _stableHash('${_stableHash(xml)}|${_bucketOf(widthPx)}|'
+          '${scale.toStringAsFixed(1)}|$variant');
+
+  /// Two independent 32-bit hashes (FNV-1a and djb2) plus the length, as hex.
+  /// 32-bit so the constants also compile for the web, where this is unused.
+  static String _stableHash(String s) {
+    var a = 0x811c9dc5, b = 5381;
+    for (final c in s.codeUnits) {
+      a = ((a ^ c) * 0x01000193) & 0xffffffff;
+      b = ((b * 33) + c) & 0xffffffff;
+    }
+    return '${a.toRadixString(16)}${b.toRadixString(16)}${s.length.toRadixString(16)}';
   }
 
   Future<EngravedScore> _engraveNow(
@@ -215,7 +285,10 @@ class VerovioEngraver {
     String breaks = 'auto',
     bool tight = false,
   }) async {
+    final spawnSw = Stopwatch()..start();
     final svc = await _ensureService();
+    final spawnMs = spawnSw.elapsedMilliseconds;
+    engraveCount++;
     final sw = Stopwatch()..start();
 
     // pageWidth is in MEI units; rendered viewBox px ≈ pageWidth * scale / 100.
@@ -263,9 +336,12 @@ class VerovioEngraver {
       },
     };
     await svc.setOptionsJson(jsonEncode(options));
+    final tOpts = sw.elapsedMilliseconds;
     await svc.loadData(stripPartLabels(musicXml));
+    final tLoad = sw.elapsedMilliseconds;
 
     final res = await svc.renderPageWithHitMap(1, config: _hitMapConfig);
+    final tRender = sw.elapsedMilliseconds;
     var hitMap = res.hitMap;
     // Verovio draws a note's lyric INSIDE the note's group, so with lyrics the
     // hit map's note (and measure) boxes take in the syllable and, for a held
@@ -302,6 +378,12 @@ class VerovioEngraver {
       if (debugLogging) debugPrint('[engraver] timemap skipped: $e');
     }
 
+    final vrvMs = sw.elapsedMilliseconds;
+    if (timingLogging) {
+      debugPrint('[timing]   opts=${tOpts}ms load=${tLoad - tOpts}ms '
+          'render+hit=${tRender - tLoad}ms rest=${vrvMs - tRender}ms');
+    }
+    final buildSw = Stopwatch()..start();
     final score = _buildScore(
       svg: res.svg,
       hitMap: hitMap,
@@ -312,6 +394,11 @@ class VerovioEngraver {
       tabMode: tabMode,
       stripRepeatClefs: stripRepeatClefs,
     );
+    if (timingLogging) {
+      debugPrint('[timing] engrave spawn=${spawnMs}ms vrv=${vrvMs}ms '
+          'build=${buildSw.elapsedMilliseconds}ms svgKB=${res.svg.length >> 10} '
+          'breaks=$breaks tight=$tight');
+    }
     if (debugLogging) {
       debugPrint(
         '[engraver] engraved viewBox=${score.viewBox.width.toInt()}'
@@ -1221,6 +1308,75 @@ class EngravedScore {
     this.meterSigs = const [],
     this.keyAccids = const [],
   });
+
+  /// For the on-disk engrave cache (`engrave_disk_cache.dart`). Everything the
+  /// constructor takes; the getters below are all derived from it.
+  Map<String, dynamic> toJson() => {
+        'vb': [viewBox.width, viewBox.height],
+        'svg': svg,
+        'bbox': {for (final e in bboxById.entries) e.key: _rectOut(e.value)},
+        'm': [for (final m in measures) [m.index, m.id, ..._rectOut(m.rect)]],
+        'n': [
+          for (final n in notes)
+            [n.id, n.measureIndex, n.noteIndex, n.isRest ? 1 : 0,
+              ..._rectOut(n.rect), n.beatPosition],
+        ],
+        'meter': [for (final r in meterSigs) _rectOut(r)],
+        'keyAcc': [for (final r in keyAccids) _rectOut(r)],
+        'line': measureLine,
+        'bands': [for (final b in lineBands) [b.top, b.bottom]],
+        'content': [for (final b in lineContent) [b.top, b.bottom]],
+        'fing': [for (final a in fingAnchors) [a.line, a.x, a.y]],
+        'harm': [for (final a in harmAnchors) [a.line, a.x, a.y]],
+        'pw': pageWidthUnits,
+        'ms': renderMs,
+      };
+
+  factory EngravedScore.fromJson(Map<String, dynamic> j) {
+    List<dynamic> l(String k) => j[k] as List<dynamic>;
+    ({double top, double bottom}) band(dynamic b) =>
+        (top: _d(b[0]), bottom: _d(b[1]));
+    AnnotationAnchor anchor(dynamic a) =>
+        (line: a[0] as int, x: _d(a[1]), y: _d(a[2]));
+    return EngravedScore(
+      viewBox: Size(_d(l('vb')[0]), _d(l('vb')[1])),
+      svg: j['svg'] as String,
+      bboxById: {
+        for (final e in (j['bbox'] as Map<String, dynamic>).entries)
+          e.key: _rectIn(e.value as List<dynamic>),
+      },
+      measures: [
+        for (final m in l('m'))
+          MeasureAnchor(
+              index: m[0] as int, id: m[1] as String, rect: _rectIn(m, 2)),
+      ],
+      notes: [
+        for (final n in l('n'))
+          NoteAnchor(
+            id: n[0] as String,
+            measureIndex: n[1] as int,
+            noteIndex: n[2] as int,
+            isRest: n[3] == 1,
+            rect: _rectIn(n, 4),
+            beatPosition: n[8] == null ? null : _d(n[8]),
+          ),
+      ],
+      meterSigs: [for (final r in l('meter')) _rectIn(r as List<dynamic>)],
+      keyAccids: [for (final r in l('keyAcc')) _rectIn(r as List<dynamic>)],
+      measureLine: [for (final i in l('line')) i as int],
+      lineBands: [for (final b in l('bands')) band(b)],
+      lineContent: [for (final b in l('content')) band(b)],
+      fingAnchors: [for (final a in l('fing')) anchor(a)],
+      harmAnchors: [for (final a in l('harm')) anchor(a)],
+      pageWidthUnits: j['pw'] as int,
+      renderMs: j['ms'] as int,
+    );
+  }
+
+  static double _d(dynamic v) => (v as num).toDouble();
+  static List<double> _rectOut(Rect r) => [r.left, r.top, r.right, r.bottom];
+  static Rect _rectIn(List<dynamic> v, [int at = 0]) =>
+      Rect.fromLTRB(_d(v[at]), _d(v[at + 1]), _d(v[at + 2]), _d(v[at + 3]));
 
   /// Number of system lines engraved.
   int get lineCount => lineBands.length;

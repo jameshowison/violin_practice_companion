@@ -1025,13 +1025,15 @@ final staffXmlProvider = FutureProvider<String?>(
 Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
-  final layout = await ref.watch(pieceLayoutProvider.future);
-  if (layout == null) return null;
+  // Not [pieceLayoutProvider]: its rows follow the screen width, which the
+  // detail screen pushes after its first frame, and waiting on it here made
+  // that push redo this whole pipeline. stripLayoutHints never reads them.
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (parsed == null) return null;
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
-  xml = layout.stripLayoutHints(xml);
+  xml = PieceLayout.stripLayoutHints(xml);
   if (!print) xml = _hidePreambleFor(ref, xml);
-  final parsed = await ref.watch(parsedPieceProvider.future);
   if (!fingering) {
     xml = FingeringXmlInjector.stripFingerings(xml);
   } else if (_injectFingeringFor(ref)) {
@@ -1042,8 +1044,8 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
     // Watched inside the branch on purpose: only here is the style an engraving
     // input, because only here is the engraved label the display.
     final style = ref.watch(stringLabelStyleProvider);
-    if (parsed != null) xml = FingeringXmlInjector.inject(xml, parsed, style);
-  } else if (parsed != null) {
+    xml = FingeringXmlInjector.inject(xml, parsed, style);
+  } else {
     xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
   }
   // Keep `<harmony>` for the native renderer so the chord row is reserved too.
@@ -1119,15 +1121,13 @@ final violinStringPreferenceProvider =
 final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
-  final layout = await ref.watch(pieceLayoutProvider.future);
-  if (layout == null) return null;
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
   final numberMode = ref.watch(noteNumberModeProvider);
   final fretStyle = ref.watch(fretStyleProvider);
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
-  xml = layout.stripLayoutHints(xml);
+  xml = PieceLayout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).

@@ -255,6 +255,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   int _reservePageMarginUnits = 0;
 
   int _engraveSeq = 0; // discards out-of-order async results
+
+  // `[open]` timing: widget start → first paint, and engraves spent on it.
+  final _openSw = Stopwatch()..start();
+  final _openEngraves = VerovioEngraver.engraveCount;
+  bool _openLogged = false;
   bool _engraving = false;
   _EngraveRequest? _pending; // latest-wins queue
 
@@ -681,7 +686,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   /// Puts a finished engrave on screen and reports what it achieved.
   void _publish(EngravedScore score, _EngraveRequest req) {
+    final imageSw = Stopwatch()..start();
     final image = _imageFor(score);
+    if (VerovioEngraver.timingLogging && widget.zoomable && !_openLogged) {
+      _openLogged = true;
+      debugPrint('[open] tap→paint=${VerovioEngraver.openClock.elapsedMilliseconds}ms '
+          'widget→paint=${_openSw.elapsedMilliseconds}ms '
+          'engraves=${VerovioEngraver.engraveCount - _openEngraves} '
+          'jovial=${imageSw.elapsedMilliseconds}ms');
+    }
     setState(() {
       _score = score;
       _image = image;

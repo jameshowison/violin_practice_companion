@@ -129,7 +129,7 @@ class PieceLayout {
 
   /// Returns [xml] with all print/spacing elements stripped so the engraver can
   /// determine its own system breaks.
-  String stripLayoutHints(String xml) {
+  static String stripLayoutHints(String xml) {
     final doc = XmlDocument.parse(xml);
 
     for (final el in doc.findAllElements('print').toList()) {

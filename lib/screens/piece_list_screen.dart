@@ -5,7 +5,9 @@ import '../build_info.dart';
 import '../models/collection_palette.dart';
 import '../models/piece_library.dart';
 import '../models/piece_library_view.dart';
+import '../models/piece_layout.dart';
 import '../services/providers.dart';
+import '../services/verovio_engraver.dart';
 import '../widgets/collection_filter_bar.dart';
 import 'abc_import_screen.dart';
 import 'manage_pieces_screen.dart';
@@ -134,6 +136,16 @@ class PieceListScreen extends ConsumerWidget {
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () {
+                            VerovioEngraver.openClock..reset()..start();
+                            // Seed the rows the detail screen would otherwise
+                            // push after its first frame: that push reloads the
+                            // layout, and the reload blanks the body and throws
+                            // away the staff's first engrave.
+                            ref.read(measuresPerRowProvider.notifier).state =
+                                measuresPerRowForWidth(
+                                    MediaQuery.sizeOf(context).width -
+                                        MediaQuery.paddingOf(context)
+                                            .horizontal);
                             ref.read(selectedPieceProvider.notifier).state =
                                 piece;
                             ref.read(measureSelectionProvider.notifier).state =

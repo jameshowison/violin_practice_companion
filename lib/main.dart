@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'services/piece_display_prefs.dart';
 import 'spike/verovio_harness.dart';
+import 'services/verovio_engraver.dart';
 
 // THROWAWAY: branch spike/verovio-rendering boots the Verovio harness instead
 // of the real app. Flip to false (or revert) to get the normal app back.
@@ -32,4 +33,7 @@ Future<void> main() async {
     overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
     child: const ViolinPracticeApp(),
   ));
+  // Spawn the engraver's worker once the list is up, off the first tap's path.
+  WidgetsBinding.instance
+      .addPostFrameCallback((_) => VerovioEngraver.instance.warmUp());
 }
