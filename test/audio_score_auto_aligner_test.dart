@@ -359,6 +359,32 @@ void main() {
     });
   });
 
+  group('refineFirstAnchor', () {
+    List<ScoreAudioAnchor> at(List<double> secs) => [
+          for (var i = 0; i < secs.length; i++)
+            ScoreAudioAnchor(i * 2000.0, secs[i]),
+        ];
+
+    test('pulls a first bar started inside the intro onto the tempo after it',
+        () {
+      // Bars of 2s score at 1.5s each, but DTW started bar 0 a bar early.
+      final out =
+          AudioScoreAutoAligner.refineFirstAnchor(at([3.0, 6.0, 7.5, 9.0]));
+      expect(out[0].audioSec, closeTo(4.5, 1e-9));
+      expect(out.skip(1).map((a) => a.audioSec), [6.0, 7.5, 9.0]);
+    });
+
+    test('leaves a first bar paced like the rest alone', () {
+      final anchors = at([4.4, 6.0, 7.5, 9.0]); // 1.6s against 1.5s
+      expect(AudioScoreAutoAligner.refineFirstAnchor(anchors), anchors);
+    });
+
+    test('needs two bars after it to read a tempo from', () {
+      final anchors = at([1.0, 6.0, 7.5]);
+      expect(AudioScoreAutoAligner.refineFirstAnchor(anchors), anchors);
+    });
+  });
+
   group('refineAtNoteChanges', () {
     // Pitch classes: D=2, G=7, B=11. Hop 0.05 s, so the 0.75 s window is 15
     // frames. Score: D for 20 frames, G for 40, B for 40; barlines at

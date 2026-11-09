@@ -194,7 +194,7 @@ class AudioScoreAutoAligner {
 
     final held = heldBarlines(
         _midiGenerator.generate(piece, estimatedBpm), anchors);
-    final placed = refineAtNoteChanges(
+    final refined = refineAtNoteChanges(
       interpolateHeld(anchors, held),
       held,
       referenceFrames,
@@ -203,6 +203,11 @@ class AudioScoreAutoAligner {
       window.startFrame,
       realChroma.hopSeconds,
     );
+    // After the note-change pass, so the tempo it extrapolates from is the
+    // refined bars' — not DTW's raw bar 1, which on Happy Farmer is 0.6s late.
+    // Told where the tune starts, the first anchor is the user's, not DTW's.
+    final placed =
+        contentStartSeconds != null ? refined : refineFirstAnchor(refined);
 
     return AutoAlignmentResult(
       placed,
@@ -304,7 +309,8 @@ class AudioScoreAutoAligner {
   /// Left where DTW put them: [held] anchors (no change to see), anchors whose
   /// outgoing or incoming reference frame is silent (a lead rest, the end),
   /// anchors whose two notes look alike in chroma (a repeated pitch), and the
-  /// first and last anchors (no tempo on one side to judge by). Each anchor
+  /// first and last anchors (no tempo on one side to judge by — the first has
+  /// [refineFirstAnchor] instead). Each anchor
   /// stays strictly between its neighbours, the previous one as already
   /// refined.
   static List<ScoreAudioAnchor> refineAtNoteChanges(
@@ -371,6 +377,44 @@ class AudioScoreAutoAligner {
           anchors[i].scoreMs, (targetStartFrame + best) * hopSeconds);
     }
     return out;
+  }
+
+  /// How unevenly (|log| of the pace ratio) the first bar may run against
+  /// the two after it before [refineFirstAnchor] re-places its start.
+  static const double firstBarUnevenness = 0.12;
+
+  /// [anchors] with the first one — the tune's opening barline — moved back
+  /// onto the tempo of the bars after it, when DTW's placement makes the
+  /// first bar pace unlike them.
+  ///
+  /// [refineAtNoteChanges] can't judge the first anchor: there is no bar
+  /// before it to compare tempos with. And it is the one DTW gets wrong most:
+  /// its open beginning will start the tune inside an intro whose piano
+  /// shares the tune's harmony. On the Suzuki violin + piano tracks it came
+  /// in 0.4s early on Song of the Wind and May Song, and 3.6s early on Long
+  /// Long Ago, whose first bar then lasted twice as long as any other. The
+  /// count-in aims its last beat at this anchor, so that error is heard.
+  ///
+  /// The bars after it supply the tempo instead: one bar's worth, at their
+  /// pace, before the second anchor. That came within 0.1s of the attack on
+  /// all three (7.13 for 7.1, 5.57 for 5.6, 8.29 for 8.4). Looking near it
+  /// for where the chroma turns into the first note did worse — a beat late on
+  /// Song of the Wind, whose intro ends on the tune's own notes — so this
+  /// doesn't. Lead rests need no special case: the barline is what is placed.
+  static List<ScoreAudioAnchor> refineFirstAnchor(
+      List<ScoreAudioAnchor> anchors) {
+    if (anchors.length < 4) return anchors;
+    final a0 = anchors[0], a1 = anchors[1], a3 = anchors[3];
+    final pace = (a3.audioSec - a1.audioSec) / (a3.scoreMs - a1.scoreMs);
+    final firstScore = a1.scoreMs - a0.scoreMs;
+    if (!(pace > 0) || !(firstScore > 0)) return anchors;
+    final pace0 = (a1.audioSec - a0.audioSec) / firstScore;
+    if (pace0 > 0 && math.log(pace0 / pace).abs() <= firstBarUnevenness) {
+      return anchors;
+    }
+    final placed = a1.audioSec - firstScore * pace;
+    if (placed < 0) return anchors;
+    return [ScoreAudioAnchor(a0.scoreMs, placed), ...anchors.skip(1)];
   }
 
   static bool _isSilent(Float64List v) => !v.any((x) => x > 0);

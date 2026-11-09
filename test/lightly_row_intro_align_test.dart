@@ -94,13 +94,16 @@ void main() {
           dtw: DtwAligner(skipPenaltyPerFrame: penalty),
         ).align(piece, wavBytes, contentStartSeconds: start);
 
-    // Inferred, 0.4 drags anchor 0 back into the intro — the regression above.
-    final broken = run(0.4);
+    // Inferred, 0.4 drags DTW's anchor 0 back into the intro — the regression
+    // above. `refineFirstAnchor` now puts it back from the tempo of the bars
+    // after it, so this no longer shows on the result; it is the told window
+    // below that makes the penalty irrelevant to DTW itself.
+    final inferred = run(0.4);
     // ignore: avoid_print
     print('lightly row inferred at penalty 0.4: '
-        'a0=${broken.anchors.first.audioSec.toStringAsFixed(3)}');
-    expect(broken.anchors.first.audioSec, lessThan(5.0),
-        reason: 'the premise of this test is that 0.4 breaks inference here');
+        'a0=${inferred.anchors.first.audioSec.toStringAsFixed(3)}');
+    expect(inferred.anchors.first.audioSec, closeTo(6.5, 0.6),
+        reason: 'the first bar re-placed on the tempo of the bars after it');
 
     // Told, every penalty agrees, and agrees with the hand-labelled 6.5s.
     for (final penalty in [0.05, 0.13, 0.18, 0.23, 0.4]) {
