@@ -120,6 +120,46 @@ void main() {
     expect(again.written + again.deleted + again.kept, 0);
   });
 
+  // What the app does at launch: skip the merge when nothing new is staged.
+  Future<DevLibraryReport?> launch() =>
+      DevLibraryIngester(root: docs, skipUnchanged: true).ingest();
+
+  // A push always writes new staging files; pin the mtime forward so the test
+  // never depends on the clock having ticked between two writes.
+  Future<void> bumpStagingClock() async {
+    final f = File('${stage().path}/state.json');
+    await f.setLastModified(
+        (await f.lastModified()).add(const Duration(seconds: 5)));
+  }
+
+  test('nothing new staged: the launch skips the merge', () async {
+    await stageLibrary(files: {score: xml('Tune')}, titles: {'tune_1': 'Tune'});
+    expect(await launch(), isNotNull);
+    expect(await launch(), isNull);
+    expect(read(score), xml('Tune'));
+  });
+
+  test('a new push is merged at the next launch', () async {
+    await stageLibrary(files: {score: xml('Tune')});
+    await launch();
+    await stageLibrary(files: {score: xml('Tune v2')});
+    await bumpStagingClock();
+    final report = await launch();
+    expect(report?.written, greaterThan(0));
+    expect(read(score), xml('Tune v2'));
+  });
+
+  test('after a conflict, later launches keep merging', () async {
+    await stageLibrary(files: {score: xml('Tune')});
+    await launch();
+    await write(docs, score, xml('Device edit'));
+    await stageLibrary(files: {score: xml('Library edit')});
+    await bumpStagingClock();
+    expect((await launch())?.conflicts, ['file:$score']);
+    // Same staging again: the conflict still stands, so no skip.
+    expect((await launch())?.conflicts, ['file:$score']);
+  });
+
   test('library changed, device untouched: the library is applied', () async {
     await stageLibrary(files: {score: xml('Tune')}, media: {'p': [row('m1')]});
     await ingest();

@@ -13,6 +13,7 @@ import 'abc_import_screen.dart';
 import 'manage_pieces_screen.dart';
 import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
+import '../services/launch_timing.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
@@ -67,6 +68,11 @@ class PieceListScreen extends ConsumerWidget {
       ),
       body: piecesAsync.when(
         data: (all) {
+          LaunchTiming.markOnce('piece list built with data');
+          if (LaunchTiming.enabled) {
+            WidgetsBinding.instance.addPostFrameCallback(
+                (_) => LaunchTiming.markOnce('list painted'));
+          }
           final pieces = [
             for (final p in all)
               if (matchesSearch(p.title, query)) p,
@@ -169,7 +175,10 @@ class PieceListScreen extends ConsumerWidget {
           ],
         );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () {
+          LaunchTiming.markOnce('spinner shown');
+          return const Center(child: CircularProgressIndicator());
+        },
         error: (e, st) => Center(child: Text('Error loading pieces: $e')),
       ),
       floatingActionButton: Column(

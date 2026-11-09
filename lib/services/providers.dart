@@ -50,6 +50,7 @@ import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
 import 'system_break_injector.dart';
+import 'launch_timing.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,8 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 /// everything, with hidden marked — without a source. See [visiblePiecesProvider].
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
   await ref.watch(devLibraryProvider.future);
-  return ref.watch(pieceRepositoryProvider).loadAll();
+  return LaunchTiming.span(
+      'loadAll', () => ref.watch(pieceRepositoryProvider).loadAll());
 });
 
 /// Merges a synced dev library (see [DevLibraryIngester]) once per launch,
@@ -91,7 +93,8 @@ final piecesProvider = FutureProvider<List<Piece>>((ref) async {
 /// fatal: a bad library must not stop the app showing everything else.
 final devLibraryProvider = FutureProvider<void>((ref) async {
   try {
-    await DevLibraryIngester().ingest();
+    await LaunchTiming.span('devLibrary ingest',
+        DevLibraryIngester(skipUnchanged: true).ingest);
   } catch (e) {
     // ignore: avoid_print
     print('[dev_library] failed: $e');
@@ -119,7 +122,7 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     // A synced dev library may carry collections; read them after it lands.
     await ref.watch(devLibraryProvider.future);
     final store = ref.watch(pieceLibraryStoreProvider);
-    final loaded = await store.load();
+    final loaded = await LaunchTiming.span('library store.load', store.load);
     final seeded = seedLibrary(
       loaded,
       omrDemoIds: PieceRepository.omrDemoFixtureIds,

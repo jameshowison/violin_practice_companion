@@ -11,7 +11,7 @@ import 'dev_library_bundle.dart';
 /// is the gate, as `state.json`'s is on io. Same constructor as the io version
 /// so callers needn't branch.
 class DevLibraryIngester {
-  DevLibraryIngester();
+  DevLibraryIngester({bool skipUnchanged = false});
 
   Future<Object?> ingest() async {
     final web.Response response;

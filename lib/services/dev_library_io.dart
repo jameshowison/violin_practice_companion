@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'launch_timing.dart';
 import 'piece_storage_io.dart';
 
 /// Where `scripts/push_dev_library.sh` stages a library, under Documents.
@@ -50,11 +51,19 @@ const Set<String> devLibrarySyncedDisplay = {'numbers', 'fretStyle'};
 /// table the other way. The two must fingerprint identically — see [fnv1a]
 /// and [canonicalJson], mirrored in that script.
 class DevLibraryIngester {
-  DevLibraryIngester({Directory? root}) : _root = root;
+  /// [skipUnchanged]: return at once when the staging folder is exactly as it
+  /// was at the last conflict-free ingest — see [_stagedStamp]. What the app
+  /// does at launch; tests that re-ingest the same staging leave it off.
+  DevLibraryIngester({Directory? root, this.skipUnchanged = false})
+      : _root = root;
 
   Directory? _root;
+  final bool skipUnchanged;
 
   static const _baseKey = 'devLibrary.base';
+
+  /// The staging stamp of the last ingest that ended with no conflicts.
+  static const _stampKey = 'devLibrary.ingestedStamp';
   static const _libraryKey = 'pieceLibrary'; // PieceLibraryStore's key
   static const _mediaPrefix = 'pieceMedia.'; // PieceMediaStore's key prefix
   static const _displayPrefix = 'display.'; // pieceDisplayPref's key prefix
@@ -67,17 +76,26 @@ class DevLibraryIngester {
     final stateFile = File('${stage.path}/state.json');
     if (!await stateFile.exists()) return null;
 
+    final prefs = await SharedPreferences.getInstance();
+    final stamp = await _stagedStamp(stage);
+    if (skipUnchanged && prefs.getString(_stampKey) == stamp) {
+      debugPrint('[dev_library] staging unchanged since last merge; skipped');
+      return null;
+    }
+
     final storage = PieceStorage(root: docs);
     // Normalise the title cache first, so this side reads the same index the
     // pull script will.
     await storage.loadScannedPieces();
 
-    final prefs = await SharedPreferences.getInstance();
     final state =
         jsonDecode(await stateFile.readAsString()) as Map<String, dynamic>;
+    LaunchTiming.mark('  ingest: state.json + index read');
     final lib = await _snapshot(stage, _stateValues(state),
         only: await _readManifest(stage));
+    LaunchTiming.mark('  ingest: library snapshot (${lib.fps.length} keys)');
     final dev = await _snapshot(docs, await _deviceValues(docs, prefs));
+    LaunchTiming.mark('  ingest: device snapshot (${dev.fps.length} keys)');
     final base = _decodeBase(prefs.getString(_baseKey));
 
     final report = DevLibraryReport();
@@ -112,7 +130,16 @@ class DevLibraryIngester {
     await _apply(apply,
         stage: stage, docs: docs, lib: lib, prefs: prefs, storage: storage,
         report: report);
+    LaunchTiming.mark('  ingest: applied ${apply.length}');
     await prefs.setString(_baseKey, jsonEncode(nextBase));
+    // Skipping is only sound when the base now equals the library on every
+    // key, which is exactly "no conflicts": then the same staging can apply
+    // nothing next time, whatever this device does meanwhile. A conflict
+    // leaves the base behind the library, so keep merging until a pull
+    // settles it.
+    report.conflicts.isEmpty
+        ? await prefs.setString(_stampKey, stamp)
+        : await prefs.remove(_stampKey);
     debugPrint('[dev_library] $report');
     return report;
   }
@@ -211,6 +238,25 @@ class DevLibraryIngester {
       fps[key] = 'j${fnv1a(utf8.encode(canonicalJson(value)))}';
     }
     return _Snapshot(fps, values);
+  }
+
+  /// Size and mtime of `state.json` and `manifest.json`. Every push writes a
+  /// fresh manifest, so any push moves this; a launch with nothing new pushed
+  /// does not. Two stats instead of fingerprinting every staged and local file
+  /// — that full merge cost ~97ms on the phone (~0.5s on the simulator) on
+  /// every launch, nearly all of the piece-list spinner.
+  static Future<String> _stagedStamp(Directory stage) async {
+    final parts = <String>[];
+    for (final name in ['state.json', 'manifest.json']) {
+      final f = File('${stage.path}/$name');
+      if (!await f.exists()) {
+        parts.add('-');
+        continue;
+      }
+      final st = await f.stat();
+      parts.add('${st.size}@${st.modified.microsecondsSinceEpoch}');
+    }
+    return parts.join(' ');
   }
 
   /// The files the last push actually sent, from the staging folder's

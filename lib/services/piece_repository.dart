@@ -5,6 +5,7 @@ import '../models/section.dart';
 import 'musicxml_beamer.dart';
 import 'musicxml_normalizer.dart';
 import 'musicxml_parser.dart';
+import 'launch_timing.dart';
 import 'piece_storage.dart';
 import 'section_detector.dart';
 
@@ -196,7 +197,10 @@ class PieceRepository {
         sections: sections,
       ));
     }
-    for (final scanned in await _storage.loadScannedPieces()) {
+    LaunchTiming.mark('  loadAll: ${_fixtures.length} fixtures');
+    final scannedPieces = await _storage.loadScannedPieces();
+    LaunchTiming.mark('  loadAll: scanned index (${scannedPieces.length})');
+    for (final scanned in scannedPieces) {
       // Scanned pieces carry their sections only as an override sidecar.
       final override = await _storage.loadSectionsOverride(scanned.id);
       pieces.add(override == null
