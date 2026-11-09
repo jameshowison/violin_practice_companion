@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../models/parsed_piece.dart';
@@ -175,11 +176,13 @@ class AudioScoreAutoAligner {
         openBegin: true, openEnd: true);
 
     final anchors = <ScoreAudioAnchor>[];
+    final referenceFrames = <int>[];
     for (var i = 0; i < reference.measureOnsetSeconds.length; i++) {
       final referenceFrame =
           (reference.measureOnsetSeconds[i] / reference.hopSeconds).round();
       final targetFrame = _targetFrameFor(dtwResult.path, referenceFrame);
       if (targetFrame == null) continue;
+      referenceFrames.add(referenceFrame);
       anchors.add(ScoreAudioAnchor(
         reference.measureOnsetSeconds[i] * 1000,
         // DTW saw only the window, so its frame indices are relative to it —
@@ -191,7 +194,15 @@ class AudioScoreAutoAligner {
 
     final held = heldBarlines(
         _midiGenerator.generate(piece, estimatedBpm), anchors);
-    final placed = interpolateHeld(anchors, held);
+    final placed = refineAtNoteChanges(
+      interpolateHeld(anchors, held),
+      held,
+      referenceFrames,
+      reference.frames,
+      window.frames,
+      window.startFrame,
+      realChroma.hopSeconds,
+    );
 
     return AutoAlignmentResult(
       placed,
@@ -253,6 +264,127 @@ class AudioScoreAutoAligner {
     }
     return out;
   }
+
+  /// How far (seconds of recording) [refineAtNoteChanges] will move an anchor.
+  static const double refineWindowSeconds = 0.75;
+
+  /// Frames of recording either side of a candidate barline that
+  /// [refineAtNoteChanges] compares with the outgoing and incoming notes.
+  static const int refineSideFrames = 5;
+
+  /// Reference frames stepped back from / forward of the barline to read the
+  /// outgoing and incoming notes. The reference builder gives a note frames
+  /// `floor(onset)..ceil(offset)`, so the one or two frames at a note change
+  /// hold both notes; three frames clears that blend.
+  static const int _refineReferenceOffset = 3;
+
+  /// [anchors] with each one at a struck note change moved to where the
+  /// recording actually changes from the bar's outgoing note to its incoming
+  /// one, within [refineWindowSeconds] of where DTW put it.
+  ///
+  /// DTW places a barline wherever the whole path is cheapest, which an
+  /// accompaniment can pull a long way off. On Happy Farmer's violin + piano
+  /// track the bar-1 downbeat arrives at 7.45 s with a piano chord heavy in
+  /// the pickup's own D, so DTW held the pickup until the audio turned clearly
+  /// G at 8.08 s, lighting the pickup for 1.4 s instead of 0.4 s. Snapping to
+  /// the nearest attack doesn't help: the piano strikes every beat and the
+  /// error was larger than a beat. What does locate it is the note change
+  /// itself. Each candidate frame is scored by how well the frames just before
+  /// it match the outgoing note plus how well the frames just after it match
+  /// the incoming one, and the anchor goes to the best.
+  ///
+  /// That score alone is not enough. In a melody-only recording the same
+  /// pair of notes can recur within the window, and on Gundagai it moved six
+  /// good anchors by up to 0.7 s. So a candidate must also leave the bars
+  /// either side at least as evenly paced as DTW's placement did. Happy
+  /// Farmer's misplaced downbeat was obviously uneven (a 0.9-beat pickup that
+  /// took 1.4 s against a 3.5-beat bar in 2.35 s), and the spurious Gundagai
+  /// moves all made the tempo less even.
+  ///
+  /// Left where DTW put them: [held] anchors (no change to see), anchors whose
+  /// outgoing or incoming reference frame is silent (a lead rest, the end),
+  /// anchors whose two notes look alike in chroma (a repeated pitch), and the
+  /// first and last anchors (no tempo on one side to judge by). Each anchor
+  /// stays strictly between its neighbours, the previous one as already
+  /// refined.
+  static List<ScoreAudioAnchor> refineAtNoteChanges(
+    List<ScoreAudioAnchor> anchors,
+    List<bool> held,
+    List<int> referenceFrames,
+    List<Float64List> reference,
+    List<Float64List> target,
+    int targetStartFrame,
+    double hopSeconds,
+  ) {
+    const side = refineSideFrames;
+    const off = _refineReferenceOffset;
+    final window = (refineWindowSeconds / hopSeconds).round();
+    final out = [...anchors];
+    int frameOf(ScoreAudioAnchor a) =>
+        (a.audioSec / hopSeconds).round() - targetStartFrame;
+
+    for (var i = 0; i < anchors.length; i++) {
+      if (held[i]) continue;
+      final r = referenceFrames[i];
+      if (r - off < 0 || r + off >= reference.length) continue;
+      final outgoing = reference[r - off], incoming = reference[r + off];
+      if (_isSilent(outgoing) || _isSilent(incoming)) continue;
+      if (_dot(outgoing, incoming) > 0.9) continue;
+
+      // Both neighbours are needed to judge the tempo either side.
+      if (i == 0 || i + 1 >= anchors.length) continue;
+      final at = frameOf(out[i]);
+      final prev = frameOf(out[i - 1]), next = frameOf(anchors[i + 1]);
+      final lo = _max(_max(at - window, prev + side), side);
+      final hi = _min(_min(at + window, next - side), target.length - side);
+      if (lo > hi) continue;
+
+      // How unevenly placing the barline at t paces the bars either side:
+      // |log| of the ratio of their audio-per-score rates, 0 when steady.
+      final scoreBefore = anchors[i].scoreMs - anchors[i - 1].scoreMs;
+      final scoreAfter = anchors[i + 1].scoreMs - anchors[i].scoreMs;
+      if (scoreBefore <= 0 || scoreAfter <= 0) continue;
+      double unevenness(int t) => math
+          .log(((t - prev) / scoreBefore) / ((next - t) / scoreAfter))
+          .abs();
+      final allowed = unevenness(at.clamp(lo, hi));
+
+      double score(int t) {
+        var s = 0.0;
+        for (var k = 1; k <= side; k++) {
+          s += _dot(target[t - k], outgoing) + _dot(target[t + k - 1], incoming);
+        }
+        return s;
+      }
+
+      var best = at.clamp(lo, hi);
+      var bestScore = score(best);
+      for (var t = lo; t <= hi; t++) {
+        if (unevenness(t) > allowed) continue;
+        final s = score(t);
+        if (s > bestScore) {
+          best = t;
+          bestScore = s;
+        }
+      }
+      out[i] = ScoreAudioAnchor(
+          anchors[i].scoreMs, (targetStartFrame + best) * hopSeconds);
+    }
+    return out;
+  }
+
+  static bool _isSilent(Float64List v) => !v.any((x) => x > 0);
+
+  static double _dot(Float64List a, Float64List b) {
+    var d = 0.0;
+    for (var k = 0; k < a.length; k++) {
+      d += a[k] * b[k];
+    }
+    return d;
+  }
+
+  static int _max(int a, int b) => a > b ? a : b;
+  static int _min(int a, int b) => a < b ? a : b;
 
   /// Anchor count below which [hasCompressedRun] won't attempt outlier
   /// detection — too few segments for a rolling-median comparison to mean

@@ -358,4 +358,110 @@ void main() {
       expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
     });
   });
+
+  group('refineAtNoteChanges', () {
+    // Pitch classes: D=2, G=7, B=11. Hop 0.05 s, so the 0.75 s window is 15
+    // frames. Score: D for 20 frames, G for 40, B for 40; barlines at
+    // reference frames 0, 20 and 60.
+    const hop = 0.05;
+    Float64List chroma(Map<int, double> bins) {
+      final v = Float64List(12);
+      bins.forEach((k, x) => v[k] = x);
+      var n = 0.0;
+      for (final x in v) {
+        n += x * x;
+      }
+      n = math.sqrt(n);
+      for (var i = 0; i < 12; i++) {
+        v[i] /= n;
+      }
+      return v;
+    }
+
+    final d = chroma({2: 1}), g = chroma({7: 1}), b = chroma({11: 1});
+    // The downbeat as it sounds with a piano chord under it: G, but with a
+    // lot of the outgoing D still in it.
+    final gWithD = chroma({7: 0.75, 2: 0.66});
+    final reference = [
+      for (var i = 0; i < 20; i++) d,
+      for (var i = 0; i < 40; i++) g,
+      for (var i = 0; i < 40; i++) b,
+    ];
+    const referenceFrames = [0, 20, 60];
+    const held = [false, false, false];
+    List<ScoreAudioAnchor> anchorsAt(List<int> targetFrames) => [
+          for (var i = 0; i < 3; i++)
+            ScoreAudioAnchor(referenceFrames[i] * hop * 1000,
+                targetFrames[i] * hop),
+        ];
+
+    test('moves a late downbeat back to where the note actually changes', () {
+      // Played at the score's own tempo, downbeat at frame 20, but the first
+      // 15 frames of the G sound like G+D, so DTW put the barline at 35.
+      final target = [
+        for (var i = 0; i < 20; i++) d,
+        for (var i = 0; i < 15; i++) gWithD,
+        for (var i = 0; i < 25; i++) g,
+        for (var i = 0; i < 40; i++) b,
+      ];
+      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 35, 60]),
+          held, referenceFrames, reference, target, 0, hop);
+      expect(out[1].audioSec, closeTo(1.0, 1e-9));
+      expect(out[0].audioSec, 0);
+      expect(out[2].audioSec, closeTo(3.0, 1e-9));
+    });
+
+    test('leaves a correct anchor alone', () {
+      final target = [
+        for (var i = 0; i < 20; i++) d,
+        for (var i = 0; i < 40; i++) g,
+        for (var i = 0; i < 40; i++) b,
+      ];
+      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
+          held, referenceFrames, reference, target, 0, hop);
+      expect(out[1].audioSec, closeTo(1.0, 1e-9));
+    });
+
+    test('does not trade an even tempo for a cleaner-looking note change', () {
+      // A cleaner D-to-G change recurs at frame 35, but taking it would pace
+      // the two bars 2.8x apart. DTW's steady placement at 20 stays.
+      final target = [
+        for (var i = 0; i < 20; i++) d,
+        for (var i = 0; i < 10; i++) gWithD,
+        for (var i = 0; i < 5; i++) d,
+        for (var i = 0; i < 25; i++) g,
+        for (var i = 0; i < 40; i++) b,
+      ];
+      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
+          held, referenceFrames, reference, target, 0, hop);
+      expect(out[1].audioSec, closeTo(1.0, 1e-9));
+    });
+
+    test('leaves held barlines and repeated pitches alone', () {
+      final target = [
+        for (var i = 0; i < 20; i++) d,
+        for (var i = 0; i < 15; i++) gWithD,
+        for (var i = 0; i < 25; i++) g,
+        for (var i = 0; i < 40; i++) b,
+      ];
+      final asHeld = AudioScoreAutoAligner.refineAtNoteChanges(
+          anchorsAt([0, 35, 60]),
+          const [false, true, false],
+          referenceFrames,
+          reference,
+          target,
+          0,
+          hop);
+      expect(asHeld[1].audioSec, closeTo(1.75, 1e-9));
+
+      final sameNote = [
+        for (var i = 0; i < 20; i++) g,
+        for (var i = 0; i < 40; i++) g,
+        for (var i = 0; i < 40; i++) b,
+      ];
+      final repeated = AudioScoreAutoAligner.refineAtNoteChanges(
+          anchorsAt([0, 35, 60]), held, referenceFrames, sameNote, target, 0, hop);
+      expect(repeated[1].audioSec, closeTo(1.75, 1e-9));
+    });
+  });
 }
