@@ -254,7 +254,8 @@ class VerovioEngraver {
   /// without this a fix to the anchors is invisible on every score opened
   /// before it. 2: notes under spilling ink go to the bar they start in.
   /// 3: measure rects end where the next bar on the system begins.
-  static const _diskFormat = 3;
+  /// 4: grace notes take no noteIndex.
+  static const _diskFormat = 4;
 
   /// [_keyFor], made stable across launches (`String.hashCode` is not
   /// guaranteed to be) and safe as a file name.
@@ -385,6 +386,21 @@ class VerovioEngraver {
       if (debugLogging) debugPrint('[engraver] timemap skipped: $e');
     }
 
+    // Grace notes are `<g class="note">` like any other in the SVG, but the
+    // parser skips them, so they must not take a positional noteIndex. Only
+    // the toolkit can say which they are: the native build ignores
+    // `svgAdditionalAttribute` (no `data-grace` in its SVG, though the wasm
+    // build writes one). One call per note, so only for a score that has any.
+    final graceIds = <String>{};
+    if (musicXml.contains('<grace')) {
+      for (final h in hitMap.byType) {
+        if (h.type != 'note' || h.id.startsWith(_bboxIdPrefix)) continue;
+        try {
+          if (isGraceAttr(await svc.getElementAttr(h.id))) graceIds.add(h.id);
+        } catch (_) {}
+      }
+    }
+
     final vrvMs = sw.elapsedMilliseconds;
     if (timingLogging) {
       debugPrint('[timing]   opts=${tOpts}ms load=${tLoad - tOpts}ms '
@@ -395,6 +411,7 @@ class VerovioEngraver {
       svg: res.svg,
       hitMap: hitMap,
       qstampById: qstampById,
+      graceIds: graceIds,
       pageWidthUnits: pageWidthUnits,
       renderMs: sw.elapsedMilliseconds,
       tabFingerLabels: tabFingerLabels,
@@ -466,6 +483,7 @@ class VerovioEngraver {
     required String svg,
     required PageHitMap hitMap,
     required Map<String, double> qstampById,
+    required Set<String> graceIds,
     required int pageWidthUnits,
     required int renderMs,
     List<String>? tabFingerLabels,
@@ -504,6 +522,10 @@ class VerovioEngraver {
     // from the anchors so positional noteIndex (and thus the highlight/cursor,
     // which map a model note → anchor) stays on the melody staff.
     final tabIds = tabMode ? _tabStaffElementIds(svg) : const <String>{};
+    // Grace notes too ([graceIds]): the parser skips them, so counting them
+    // here would put every later note in the bar one anchor early — the
+    // highlight lands on the grace note while its main note sounds, then on
+    // the main note while the next one sounds (Gossec's F#5 grace before G5).
 
     // Assign each note/rest to the measure whose bbox contains its center,
     // then rank within the measure by x to get our positional noteIndex
@@ -511,7 +533,9 @@ class VerovioEngraver {
     final noteHits = hits
         .where(
           (h) =>
-              (h.type == 'note' || h.type == 'rest') && !tabIds.contains(h.id),
+              (h.type == 'note' || h.type == 'rest') &&
+              !tabIds.contains(h.id) &&
+              !graceIds.contains(h.id),
         )
         .toList();
     final perMeasure = <int, List<ElementHit>>{};
@@ -1089,7 +1113,7 @@ class VerovioEngraver {
   /// order of [labels] from `TabScoreGenerator`. `text-anchor="middle"` keeps a
   /// multi-character label (e.g. "2L") centered.
   static final _tabFretRe = RegExp(
-    r'(<g id="[^"]+" class="note">\s*<text\b[^>]*>\s*<tspan\b[^>]*>)([^<]*)(</tspan>)',
+    r'(<g id="[^"]+" class="note"[^>]*>\s*<text\b[^>]*>\s*<tspan\b[^>]*>)([^<]*)(</tspan>)',
     dotAll: true,
   );
 
@@ -1140,6 +1164,18 @@ class VerovioEngraver {
   }
 
   static final _noteOpenRe = RegExp(r'<g id="([^"]+)" class="note"');
+
+  /// Whether `getElementAttr`'s JSON for a note marks it a grace note, e.g.
+  /// `{"dur":"8","grace":"unacc","oct":"5","pname":"f",…}`.
+  @visibleForTesting
+  static bool isGraceAttr(String attrJson) {
+    try {
+      final m = jsonDecode(attrJson);
+      return m is Map && (m['grace'] as Object?) != null;
+    } catch (_) {
+      return false;
+    }
+  }
   static const _noteheadOpen = '<g class="notehead"';
 
   /// Ids of every note/rest element on a tab (second) staff. The SVG nests
