@@ -48,6 +48,51 @@ APP="build/ios/iphoneos/Runner.app"
 
 cd "$(dirname "$0")/.."
 
+# --- Progress you can watch ---------------------------------------------------
+# A release build plus a wireless install can take many minutes with long
+# silences, which look exactly like a hang. So everything also goes to
+# device_install.log (watch it from another terminal: tail -f device_install.log),
+# each phase is announced with the time, and while a phase is quiet a heartbeat
+# line says which phase it is still in and for how long. The last line says
+# where it ended: done, or FAILED in which phase.
+LOG="device_install.log"
+: > "$LOG"
+exec > >(tee -a "$LOG") 2>&1
+T0=$(date +%s)
+PHASE_FILE=$(mktemp -t device_install_phase)
+elapsed() { local s=$(( $(date +%s) - $1 )); printf '%dm%02ds' $((s / 60)) $((s % 60)); }
+phase() {
+  printf '%s %s\n' "$(date +%s)" "$1" > "$PHASE_FILE"
+  echo "[$(date +%H:%M:%S)] ▶ $1 (total $(elapsed "$T0"))"
+}
+( while sleep 30; do
+    read -r since name < "$PHASE_FILE" 2>/dev/null || continue
+    echo "[$(date +%H:%M:%S)]   … still $name ($(elapsed "$since"), total $(elapsed "$T0"))"
+  done ) &
+HEARTBEAT=$!
+finish() {
+  local code=$?
+  kill "$HEARTBEAT" 2>/dev/null || true
+  wait "$HEARTBEAT" 2>/dev/null || true
+  local name; name=$(cut -d' ' -f2- "$PHASE_FILE" 2>/dev/null || echo "?")
+  rm -f "$PHASE_FILE"
+  if [[ $code -eq 0 ]]; then
+    echo "[$(date +%H:%M:%S)] ✔ done in $(elapsed "$T0")"
+  else
+    echo "[$(date +%H:%M:%S)] ✘ FAILED while $name, after $(elapsed "$T0") (exit $code)"
+  fi
+}
+trap finish EXIT
+echo "device_install → $DEVICE (log: $LOG)"
+
+# Fail in seconds, not after a full build, if the device can't be reached
+# (asleep, locked off Wi-Fi, CoreDevice tunnel wedged).
+phase "checking $DEVICE is reachable"
+if ! xcrun devicectl device info details --timeout 30 --device "$DEVICE" >/dev/null 2>&1; then
+  echo "can't reach $DEVICE — wake and unlock it (or plug it in), then retry" >&2
+  exit 1
+fi
+
 if [[ -n "$NO_BUILD" ]]; then
   if [[ ! -d "$APP" ]]; then
     echo "--no-build: no $APP to install — run without --no-build first" >&2
@@ -70,6 +115,7 @@ fi
 # A simulator dev server holds build/ios/; the two contend.
 pkill -f flutter_tools.snapshot 2>/dev/null || true
 
+phase "building (flutter build ios --release)"
 flutter build ios --release
 
 fi
@@ -82,6 +128,7 @@ echo "installing artifact built at: $(stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$APP
 # --timeout: when CoreDevice's tunnel to the phone wedges (seen after a USB
 # drop: the device sits at "connecting" and every request queues behind a stuck
 # Xcode one), devicectl otherwise hangs forever. Fail loudly instead.
+phase "installing on $DEVICE"
 xcrun devicectl device install app --timeout 300 --device "$DEVICE" "$APP"
 
 # The profile is the thing with a shelf life on a free Apple ID team: 7 days,
@@ -95,7 +142,7 @@ SYNC_FAILED=""
 if [[ -n "$SYNC" ]]; then
   if [[ ! -f "${DEV_LIBRARY:-../violin_dev_library}/state.json" ]]; then
     echo "no dev library at ${DEV_LIBRARY:-../violin_dev_library}; installed without it"
-  elif ! bash scripts/sync_dev_library.sh "$DEVICE"; then
+  elif phase "syncing the dev library" && ! bash scripts/sync_dev_library.sh "$DEVICE"; then
     SYNC_FAILED=1
   fi
 fi

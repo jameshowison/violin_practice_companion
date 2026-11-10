@@ -365,3 +365,36 @@ Two further facts worth not re-deriving: a **release** build does not render
 the feature instead. And this is a **free** Apple ID team (`TimeToLive = 7` on the
 provisioning profile), so an installed build stops launching a week after it is
 signed.
+
+**Watch it, don't wait on it.** The script copies everything to
+`device_install.log` with a `▶` line per phase and a heartbeat every 30s while a
+phase is quiet; the last line is `✔ done` or `✘ FAILED while <phase>`. Run it in
+the background and tell the user to `tail -f device_install.log`. It checks the
+device is reachable first, so a sleeping device fails in seconds, not after a build.
+
+**Don't hand-roll `flutter run` on a device to get logs.** The iPads/phone are
+usually on Wi-Fi only, where a debug `flutter run` on iOS 26 crawls and stalls; and
+`flutter -d` wants the hardware UDID (`flutter devices --device-timeout 30`), not
+the CoreDevice id `devicectl list devices` prints. Install a release build with the
+script and have the feature write what you need to `Documents/` instead — as the
+calibration trace does (`scripts/pull_sync_trace.sh <device>`).
+
+### Audio on iOS: one session, and a synth that doesn't follow the speaker
+
+Two traps behind the 2026-11-10 "calibration volume drops to zero / woodblocks
+silent" hunt; both looked like calibration bugs and were not:
+
+1. **Something must configure `audio_session` before anything plays.** Otherwise
+   just_audio's first `play()` applies audio_session's fallback (`.playback`),
+   overriding the play-and-record session AppDelegate sets. That switch stops the
+   synth's engines and resets AirPlay volume. `lib/services/app_audio_session.dart`,
+   called first in `main()`, prevents it. Its options must match
+   `AudioCalibrationPlugin.applyAppSession` exactly, or it is itself a switch.
+2. **flutter_midi_pro never restarts its 16 AVAudioEngines**, and they do not
+   follow an output switch (built on the iPad speaker → silent on AirPlay, with no
+   notification). `PlaybackService` rebuilds the synth when the speaker changes and
+   before calibration's claves (`playback_service_io.dart`, "Following the speaker").
+
+For anything audio-routing on a device, calibrate once and read the trace
+(`bash scripts/pull_sync_trace.sh "Hazel iPad"`): every volume, category, route and
+engine-configuration change, with the step it happened in. It is what found both.

@@ -5,6 +5,7 @@ import 'package:marionette_flutter/marionette_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'debug/realign_all.dart';
+import 'services/app_audio_session.dart';
 import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
@@ -29,6 +30,9 @@ Future<void> main() async {
   // Opened before the first frame so per-piece display settings read
   // synchronously — see [sharedPreferencesProvider]. A failure just means
   // session-only settings, as before they were saved.
+  // Before any player exists, or just_audio's first play() switches the iOS
+  // session to .playback — see configureAppAudioSession.
+  await configureAppAudioSession();
   SharedPreferences? prefs;
   try {
     prefs = await SharedPreferences.getInstance();

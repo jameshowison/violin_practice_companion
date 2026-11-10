@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show MethodChannel, rootBundle;
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'audio_output.dart';
 import 'playback_service_base.dart';
@@ -27,8 +29,73 @@ class PlaybackService extends PlaybackServiceBase {
   PlaybackService(super.generator, {double Function()? outputLatency})
       : _outputLatency = outputLatency ??
             (() => AudioOutput.heardDelaySeconds(AudioSyncSource.score)) {
-    if (outputLatency == null) AudioOutput.ensureStarted();
+    if (outputLatency == null) {
+      AudioOutput.ensureStarted();
+      AudioOutput.route.addListener(_onRouteChanged);
+    }
     _initMidi();
+  }
+
+  @override
+  void dispose() {
+    AudioOutput.route.removeListener(_onRouteChanged);
+    _routeSettle?.cancel();
+    super.dispose();
+  }
+
+  // --- Following the speaker ------------------------------------------------
+  // flutter_midi_pro's engines stay on the output they were built on: switch
+  // from the iPad's speaker to an AirPlay speaker and the score plays to
+  // nowhere — with no engine configuration change to say so — until the app
+  // restarts (Hazel iPad → Kitchen, 2026-11-10; the recording player follows
+  // the switch fine). So the synth is rebuilt whenever the speaker differs
+  // from the one it was built on.
+
+  /// The output the synth was built on (type, name and iOS's port id — a new
+  /// id for the same AirPlay speaker is a reconnection, also worth a rebuild).
+  /// Null until known.
+  String? _builtFor;
+  Timer? _routeSettle;
+  Future<void>? _rebuilding;
+
+  static String? _routeKey(AudioOutputRoute? r) =>
+      r == null ? null : '${r.portType}|${r.portName}|${r.uid}';
+
+  void _onRouteChanged() {
+    // Route reports come in pairs (at once and 0.5s later), and connecting
+    // AirPlay can pass through intermediate routes: act once it has settled.
+    _routeSettle?.cancel();
+    _routeSettle = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_followSpeaker());
+    });
+  }
+
+  /// Rebuilds the synth if the speaker has changed since it was built.
+  /// Safe to call at any time; concurrent calls share one rebuild.
+  Future<void> _followSpeaker() async {
+    while (_rebuilding != null) {
+      await _rebuilding;
+    }
+    final now = _routeKey(AudioOutput.route.value);
+    final built = _builtFor;
+    if (!_midiReady || now == null) return;
+    if (built == null) {
+      // Built before the route was known: it was built on this one.
+      _builtFor = now;
+      return;
+    }
+    if (now == built) return;
+    debugPrint('[playback] speaker changed ($built -> $now); rebuilding synth');
+    _nativeAudio
+        .invokeMethod<void>('mark', 'synth: speaker changed; rebuilding')
+        .catchError((_) {});
+    final done = restartAudio();
+    _rebuilding = done;
+    try {
+      await done;
+    } finally {
+      _rebuilding = null;
+    }
   }
 
   // Notes are struck from [onTick] on wall time, but heard [_outputLatency]
@@ -57,6 +124,8 @@ class PlaybackService extends PlaybackServiceBase {
       await _midi.selectInstrument(
           sfId: _sfId!, channel: _channel, bank: 0, program: _program);
       _midiReady = true;
+      _resetsAtLoad = await _engineResets();
+      _builtFor = _routeKey(await AudioOutput.fetchRoute());
     } catch (e) {
       // Soundfont not yet installed; playback silently disabled on mobile
     }
@@ -72,8 +141,38 @@ class PlaybackService extends PlaybackServiceBase {
   static const _clickKey = 75;
   bool _clickReady = false;
 
+  // The synth's engines stop on an audio-session reconfiguration and
+  // flutter_midi_pro never restarts them (AudioCalibrationPlugin,
+  // `engineResets`). The count at load tells whether that has happened since.
+  static const _nativeAudio =
+      MethodChannel('violin_practice_companion/audio_calibration');
+  int? _resetsAtLoad;
+
+  static Future<int?> _engineResets() async {
+    try {
+      return await _nativeAudio.invokeMethod<int>('engineResets');
+    } catch (_) {
+      return null; // no such plugin on this platform: nothing to check
+    }
+  }
+
   @override
   Future<bool> prepareCalibrationClick() async {
+    // On a different speaker from the one it was built on, the synth is
+    // silent (see "Following the speaker"); rebuild before striking.
+    await _followSpeaker();
+    // A silent synth would strike every clave unheard and fail as "heard too
+    // few clicks". Check first, and reload it if its engines were stopped.
+    final now = await _engineResets();
+    final atLoad = _resetsAtLoad;
+    if (_midiReady && now != null && atLoad != null && now > atLoad) {
+      final msg = 'synth engines reconfigured ${now - atLoad}x since load; '
+          'reloading the soundfont';
+      debugPrint('[sync_cal] $msg');
+      _nativeAudio.invokeMethod<void>('mark', msg).catchError((_) {});
+      await restartAudio();
+      if (!_midiReady) return false;
+    }
     final id = _sfId;
     if (!_midiReady || id == null) return false;
     if (!_clickReady) {

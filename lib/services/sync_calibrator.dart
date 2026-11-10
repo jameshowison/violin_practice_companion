@@ -44,10 +44,43 @@ class SyncCalibrator {
 
   /// Whether the last calibration had to put the app's audio session back
   /// (something else, e.g. the teacher-demo recorder, had changed it) — in
-  /// which case the players should be rebuilt on it.
+  /// which case the players should be rebuilt on it. Before
+  /// `configureAppAudioSession` this was true on nearly every run: just_audio's
+  /// first play() had switched the session to `.playback` behind our back.
   static bool lastRunChangedSession = false;
 
   static double _wallNow() => DateTime.now().microsecondsSinceEpoch / 1e6;
+
+  // Diagnostic trace (AudioCalibrationPlugin.swift, "Trace"): every volume,
+  // route and engine change across a whole calibration, with the step it
+  // happened in. Printed as `[sync_cal trace]` lines when the run ends.
+  static Future<void> _traceStart() async {
+    try {
+      await _channel.invokeMethod<void>('traceStart');
+    } catch (_) {}
+  }
+
+  /// Not awaited, so it doesn't shift the timing it is marking; the channel
+  /// keeps the calls in order.
+  static void _mark(String label) {
+    _channel.invokeMethod<void>('mark', label).catchError((_) {});
+  }
+
+  static Future<void> _traceStop() async {
+    final List<Object?>? events;
+    try {
+      events = await _channel.invokeListMethod<Object?>('traceStop');
+    } catch (_) {
+      return;
+    }
+    if (events == null || events.isEmpty) return;
+    final t0 = ((events.first as Map)['t'] as num).toDouble();
+    for (final e in events.cast<Map<Object?, Object?>>()) {
+      final ms = ((e['t'] as num).toDouble() - t0) * 1000;
+      debugPrint('[sync_cal trace] +${ms.round().toString().padLeft(6)}ms '
+          '${e['kind']} ${e['detail']}');
+    }
+  }
 
   /// Calibrates both players on the current speaker, one after the other
   /// (about 20 seconds), storing each result that succeeds. Anything playing
@@ -55,11 +88,18 @@ class SyncCalibrator {
   static Future<({CalibrationResult recording, CalibrationResult score})>
       calibrateAll(PlaybackServiceBase score) async {
     lastRunChangedSession = false;
-    final recording = await _withRetry(
-        AudioSyncSource.recording, _recordingClicks);
-    final synth = await _withRetry(
-        AudioSyncSource.score, () => _scoreClicks(score));
-    return (recording: recording, score: synth);
+    await _traceStart();
+    try {
+      _mark('recording phase');
+      final recording = await _withRetry(
+          AudioSyncSource.recording, _recordingClicks);
+      _mark('score phase');
+      final synth = await _withRetry(
+          AudioSyncSource.score, () => _scoreClicks(score));
+      return (recording: recording, score: synth);
+    } finally {
+      await _traceStop();
+    }
   }
 
   // The first switch to play-and-record after launch could come up deaf — on
@@ -88,8 +128,10 @@ class SyncCalibrator {
       if (p > 0.05) samples.add((_wallNow(), p));
     });
     try {
+      _mark('clip setFilePath');
       await player.setFilePath(path);
       await Future<void>.delayed(const Duration(milliseconds: 300));
+      _mark('clip play');
       unawaited(player.play());
       await player.processingStateStream
           .firstWhere((s) => s == ProcessingState.completed)
@@ -103,7 +145,9 @@ class SyncCalibrator {
       throw const _Failed('the clip never finished playing');
     } finally {
       sampler.cancel();
+      _mark('clip done; disposing player');
       await player.dispose();
+      _mark('clip player disposed');
     }
     final zero = playerZeroWallSeconds(samples);
     if (zero == null) throw const _Failed("couldn't follow the clip's playback");
@@ -113,10 +157,12 @@ class SyncCalibrator {
   /// The score path: the same pattern struck through the synth, each click's
   /// moment the wall-clock second it was struck — as the score's own notes are.
   static Future<List<double>> _scoreClicks(PlaybackServiceBase score) async {
+    _mark('synth prepare');
     if (!await score.prepareCalibrationClick()) {
       throw const _Failed("the score's sound isn't ready");
     }
     const times = CalibrationClip.clickTimes;
+    _mark('synth clicks begin');
     final t0 = _wallNow() + 0.5 - times.first;
     final struck = <double>[];
     for (final c in times) {
@@ -128,6 +174,7 @@ class SyncCalibrator {
       struck.add(_wallNow());
       score.strikeCalibrationClick();
     }
+    _mark('synth clicks end');
     return struck;
   }
 
@@ -137,7 +184,9 @@ class SyncCalibrator {
       AudioSyncSource source, _PlayClicks play) async {
     // The speaker being calibrated, taken before the mic re-routes anything.
     final speaker = await AudioOutput.fetchRoute() ?? AudioOutput.route.value;
+    _mark('${source.name}: wake-up');
     await _wakeSpeaker();
+    _mark('${source.name}: mic start');
     final played = CalibrationClip.clickTimes.length;
     var started = false;
     Map<Object?, Object?>? capture;
@@ -169,9 +218,12 @@ class SyncCalibrator {
             ? 'this speaker switches to call mode when the mic is on'
             : 'the sound moved from $before to $after when the mic came on');
       }
+      _mark('${source.name}: playing clicks');
       expected = await play();
       await Future<void>.delayed(_tail);
+      _mark('${source.name}: tail done');
     } on _Failed catch (f) {
+      _mark('${source.name} RESULT failed: ${f.reason}');
       return CalibrationResult.failed(f.reason, clicksPlayed: played);
     } finally {
       if (started) {
@@ -198,6 +250,9 @@ class SyncCalibrator {
     for (final e in energy) {
       if (e > loudest) loudest = e;
     }
+    _mark('${source.name} RESULT $result '
+        'loudest=${loudest.toStringAsExponential(1)} '
+        'sessionChanged=${capture['sessionChanged']}');
     debugPrint('[sync_cal] ${source.name} $result '
         'hops=${energy.length} loudest=${loudest.toStringAsExponential(1)} '
         'hostTime=${capture['hostTimeValid']} '
@@ -225,10 +280,12 @@ class SyncCalibrator {
     final player = AudioPlayer();
     try {
       await player.setFilePath(path);
+      _mark('wake play');
       unawaited(player.play());
       await player.processingStateStream
           .firstWhere((s) => s == ProcessingState.completed)
           .timeout(const Duration(seconds: 8));
+      _mark('wake done');
     } catch (e) {
       debugPrint('[sync_cal] wake-up: $e');
     } finally {

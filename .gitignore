@@ -75,3 +75,6 @@ web/dev_library.json
 
 # Lyrics evaluation: copyrighted pages and answer keys, never committed
 lyrics_eval/
+
+# Speaker-calibration trace copied off a device (scripts/pull_sync_trace.sh)
+sync_cal_trace.txt

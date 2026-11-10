@@ -78,6 +78,9 @@ dependencies:
   # lib/services/audio_chroma_features.dart), `fftea` does the STFT for chroma
   # feature extraction. All three declare iOS/Android/macOS/Web.
   just_audio: ^0.10.6
+  # Already just_audio's; direct so the app can configure it before anything
+  # plays (lib/services/app_audio_session.dart). iOS/Android/macOS/Web.
+  audio_session: ^0.2.4
   wav: ^1.5.0
   fftea: ^1.5.0+1
 
