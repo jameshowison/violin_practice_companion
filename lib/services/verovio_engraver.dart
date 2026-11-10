@@ -159,6 +159,11 @@ class VerovioEngraver {
   ///   `'encoded'` instead honors explicit `<print new-system="yes"/>` markers
   ///   already present in [musicXml] (see `insertSystemBreaksEvery`) — the
   ///   mechanism behind a guaranteed-exact "lock to N measures per line".
+  /// - [minLastJustification]: Verovio's threshold (fraction of the page) at
+  ///   or above which the LAST system is stretched to the full width; null
+  ///   keeps Verovio's 0.8. 0 always justifies it, 1 never does. The section
+  ///   layout sets it so the last line matches the others' note density (see
+  ///   `justifyLastSectionLine`).
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
@@ -172,6 +177,7 @@ class VerovioEngraver {
     bool stripRepeatClefs = true,
     String breaks = 'auto',
     bool tight = false,
+    double? minLastJustification,
   }) {
     // Both lane flags go in the key, not just their count: a chords-only and a
     // fingering-only score engrave identically, but the bands are read back off
@@ -180,6 +186,7 @@ class VerovioEngraver {
         '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
         '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
         '|${tight ? 1 : 0}|'
+        '${minLastJustification == null ? '' : 'mlj$minLastJustification|'}'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
@@ -202,6 +209,7 @@ class VerovioEngraver {
           stripRepeatClefs: stripRepeatClefs,
           breaks: breaks,
           tight: tight,
+          minLastJustification: minLastJustification,
         ), diskKey: () => _diskKeyFor(musicXml, widthPx, scale, variant));
   }
 
@@ -292,6 +300,7 @@ class VerovioEngraver {
     bool stripRepeatClefs = true,
     String breaks = 'auto',
     bool tight = false,
+    double? minLastJustification,
   }) async {
     final spawnSw = Stopwatch()..start();
     final svc = await _ensureService();
@@ -333,6 +342,8 @@ class VerovioEngraver {
       // move the layout (verified: identical viewBox and system count with it
       // on and off).
       'svgBoundingBoxes': true,
+      if (minLastJustification != null)
+        'minLastJustification': minLastJustification,
       // For an engrave that is nothing but its glyphs (the title bar's
       // clef/key/time): no side margins, and a measure only as wide as what's
       // in it. Measured headlessly, with the barline the preview also drops,

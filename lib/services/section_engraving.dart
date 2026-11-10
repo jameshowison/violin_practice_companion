@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'section_line_planner.dart';
 import 'staff_zoom.dart';
 import 'system_break_injector.dart';
@@ -21,9 +23,9 @@ import 'system_break_injector.dart';
 ///   fewest that fit.
 ///
 /// The returned [xml] carries the planned breaks; engrave it with
-/// `breaks: 'encoded'` at [scale].
+/// `breaks: 'encoded'` at [scale] and [minLastJustification].
 ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
-    double widestUnits}) solveSectionLayout({
+    double widestUnits, double? minLastJustification}) solveSectionLayout({
   required String musicXml,
   required List<double> naturalWidths,
   required double widthPx,
@@ -45,6 +47,22 @@ import 'system_break_injector.dart';
           ((plan.widestUnits + sectionLineStartUnits) * staffFitSlack +
               sectionPageMarginUnits))
       .clamp(staffScaleMin, maxScale);
+  final lineStarts = {...starts, ...plan.breaks, 0}
+      .where((s) => s < naturalWidths.length)
+      .toList()
+    ..sort();
+  final lineUnits = [
+    for (var i = 0; i < lineStarts.length; i++)
+      naturalWidths
+              .sublist(lineStarts[i],
+                  i + 1 < lineStarts.length ? lineStarts[i + 1] : naturalWidths.length)
+              .fold(0.0, (a, b) => a + b) +
+          sectionLineStartUnits,
+  ];
+  final justify = justifyLastSectionLine(
+    lineUnits: lineUnits,
+    pageUnits: widthPx * 100 / scale - sectionPageMarginUnits,
+  );
   return (
     xml: insertBreaksAtPositions(musicXml, plan.breaks),
     scale: scale,
@@ -52,7 +70,45 @@ import 'system_break_injector.dart';
     maxLines: plan.maxLines,
     breaks: plan.breaks,
     widestUnits: plan.widestUnits,
+    minLastJustification: justify == null ? null : (justify ? 0.0 : 1.0),
   );
+}
+
+/// Whether the section layout's LAST line should be stretched to the full
+/// width, so that its notes sit about as far apart as everyone else's.
+///
+/// Verovio justifies every system but the last, and the last only when it
+/// fills 80% of the page (`minLastJustification`). So every other line is
+/// stretched by `pageUnits / its natural width`, and when the solved scale is
+/// clamped at its maximum (a short piece) that stretch is the same large
+/// factor on every line, while the last line is left at natural spacing and
+/// reads as cramped (O Come, Little Children on the SE: lines 1–3 stretched
+/// ~1.27×, the last at 79% of the page and so left alone).
+///
+/// Verovio can only justify the last line fully or not at all, so this picks
+/// whichever leaves its stretch closer to the other lines' median, compared
+/// as ratios (log scale): justified it stretches by `pageUnits / last`, left
+/// alone by 1.
+///
+/// [lineUnits] — each line's natural width in MEI units, in order.
+/// [pageUnits] — the width a justified line fills, in the same units.
+/// Returns null (Verovio's default) when there is no other line to match.
+bool? justifyLastSectionLine({
+  required List<double> lineUnits,
+  required double pageUnits,
+}) {
+  if (lineUnits.length < 2 || pageUnits <= 0) return null;
+  final last = lineUnits.last;
+  if (last <= 0) return null;
+  final others = [
+    for (final w in lineUnits.take(lineUnits.length - 1))
+      if (w > 0) math.max(1.0, pageUnits / w),
+  ]..sort();
+  if (others.isEmpty) return null;
+  final ref = others[others.length ~/ 2];
+  final justified = math.max(1.0, pageUnits / last);
+  // |ln(justified) - ln(ref)| < |ln(1) - ln(ref)|
+  return (math.log(justified) - math.log(ref)).abs() < math.log(ref).abs();
 }
 
 /// Wide enough that the natural-width engrave keeps the whole piece on one

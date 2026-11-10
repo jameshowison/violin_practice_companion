@@ -766,7 +766,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         'segments=${lines - solved.breaks.length} lines=$lines '
         'widest=${solved.widestUnits.round()}u '
         'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
-        'scale=${scale.toStringAsFixed(1)} breaks=${(solved.breaks.toList()..sort())}',
+        'scale=${scale.toStringAsFixed(1)} breaks=${(solved.breaks.toList()..sort())} '
+        'minLastJust=${solved.minLastJustification}',
       );
     }
     final score = await _engraveAt(
@@ -777,6 +778,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       pageMarginTopReserve: _reservePageMarginUnits,
       breaks: 'encoded',
       musicXmlOverride: solved.xml,
+      minLastJustification: solved.minLastJustification,
     );
     if (!mounted || seq != _engraveSeq) return;
     _publish(score, req);
@@ -852,6 +854,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     int pageMarginTopReserve = 0,
     String breaks = 'auto',
     String? musicXmlOverride,
+    double? minLastJustification,
   }) {
     return VerovioEngraver.instance.engrave(
       musicXmlOverride ?? widget.musicXml,
@@ -877,6 +880,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       tabMode: widget.tabMode,
       tabFingerLabels: widget.tabFingerLabels,
       stripRepeatClefs: !widget.tabMode,
+      minLastJustification: minLastJustification,
     );
   }
 

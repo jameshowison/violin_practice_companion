@@ -231,6 +231,7 @@ Future<PrintLayout> layoutScoreForPrint(
         systemHeightPx: systemHeightPx,
       ),
       breaks: 'encoded',
+      minLastJustification: solved.minLastJustification,
     );
     final scale = engraveW / score.viewBox.width;
 

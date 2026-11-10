@@ -7,6 +7,7 @@ import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
+import 'package:violin_practice_companion/services/section_engraving.dart';
 import 'package:violin_practice_companion/services/section_line_planner.dart';
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/services/system_break_injector.dart';
@@ -289,6 +290,38 @@ void main() {
       // 250 | 250, the one exact balance.
       expect(plan.breaks, [3]);
       expect(balancedLines([100.0, 100, 100], 2).breaks, [1]); // 100 | 200
+    });
+  });
+
+  group('justifyLastSectionLine', () {
+    test('stretches a natural last line when every other line is stretched',
+        () {
+      // O Come on the SE: scale at its max, lines 1-3 at ~79%, last at 79%.
+      expect(
+          justifyLastSectionLine(
+              lineUnits: [790, 800, 780, 790], pageUnits: 1000),
+          isTrue);
+    });
+    test('leaves a short tail natural when the others are not stretched', () {
+      expect(
+          justifyLastSectionLine(
+              lineUnits: [980, 1000, 990, 300], pageUnits: 1000),
+          isFalse);
+    });
+    test('picks whichever spacing is closer to the others', () {
+      // Others stretched 1.25x; last justified would be 2x, natural 1x.
+      // ln 2 - ln 1.25 = 0.47 > ln 1.25 = 0.22 -> keep natural.
+      expect(
+          justifyLastSectionLine(lineUnits: [800, 800, 500], pageUnits: 1000),
+          isFalse);
+      // Last justified 1.43x vs others 1.25x: closer than natural.
+      expect(
+          justifyLastSectionLine(lineUnits: [800, 800, 700], pageUnits: 1000),
+          isTrue);
+    });
+    test('null for a single line (nothing to match)', () {
+      expect(justifyLastSectionLine(lineUnits: [500], pageUnits: 1000),
+          isNull);
     });
   });
 }
