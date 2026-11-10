@@ -459,6 +459,12 @@ void main() {
       expect((c.number, c.partLabelNote), (13, 2));
     });
 
+    test('O Come Little Children (scan): one section per printed line', () {
+      // A lone `:|` at the end and nothing else to go by but the page's four
+      // lines, each a phrase that starts on the note after a rest.
+      expect(detect('o_come_scan'), 'A@1:0 A@5:2 B@9:2 C@13:2');
+    });
+
     test('re-detection borrows the hints of a fresh conversion, bar for bar',
         () {
       List<Measure> parse(String xml) => MusicXmlParser().parse(xml).measures;
@@ -510,6 +516,91 @@ void main() {
       expect([for (final r in runs) edges(r)],
           ['1:0-9:5', '9:5-9:5', '9:5-17:-1', '10:0-18:-1']);
       expect([for (final r in runs) r.perfStart], [0, 8, 16, 25]);
+    });
+  });
+
+  group('a lone :| and printed lines', () {
+    NoteEvent n(NoteValue v, int midi, {bool rest = false}) => NoteEvent(
+          pitch: rest ? 'R' : 'X',
+          midiNumber: rest ? 0 : midi,
+          octave: 4,
+          noteValue: v,
+          dotted: false,
+          isRest: rest,
+        );
+    const q = NoteValue.quarter, e = NoteValue.eighth;
+    String detect(List<Measure> measures) => SectionDetector.detect(measures)
+        .map((s) => '${s.label}@${s.startMeasure}:${s.startNote}')
+        .join(' ');
+
+    // O Come's shape in 2/4: an eighth pickup, then four 4-bar phrases whose
+    // last bars end `q R e` — the eighth is the next phrase's lead-in.
+    // Phrase 2 is phrase 1 with a new lead-in note; 3 and 4 are new.
+    List<Measure> oCome({
+      bool repeatStart = false,
+      bool repeatEnd = false,
+      Set<int> lines = const {},
+    }) {
+      const tunes = [10, 10, 30, 50];
+      final out = [Measure(number: 1, notes: [n(e, 70)])];
+      for (var p = 0; p < 4; p++) {
+        for (var k = 0; k < 4; k++) {
+          final b = 2 + p * 4 + k;
+          final last = k == 3;
+          out.add(Measure(
+            number: b,
+            notes: last
+                ? [n(q, tunes[p] + k), n(e, 0, rest: true), n(e, 70 + p)]
+                : [n(q, tunes[p] + k), n(e, tunes[p]), n(e, tunes[p] + 1)],
+            repeatStart: repeatStart && b == 2,
+            repeatEnd: repeatEnd && b == 17,
+            systemStart: lines.contains(b),
+          ));
+        }
+      }
+      return out;
+    }
+
+    test('a :| with no |: is the same as one with |: on the first full bar',
+        () {
+      final lone = detect(oCome(repeatEnd: true));
+      expect(lone, isNotEmpty);
+      expect(lone, detect(oCome(repeatStart: true, repeatEnd: true)));
+      expect(lone, detect(oCome()));
+    });
+
+    test('a :| ending the first strain starts that strain at the top', () {
+      // Minuet-like: `A :| |: B :|`, written without the opening `|:`.
+      final m = [
+        for (var b = 1; b <= 16; b++)
+          Measure(
+            number: b,
+            notes: [n(q, b < 9 ? 40 : 60), n(q, b)],
+            repeatEnd: b == 8 || b == 16,
+            repeatStart: b == 9,
+          ),
+      ];
+      expect(detect(m), 'A@1:0 B@9:0');
+    });
+
+    test('a page a phrase to a line gives a section per line, on its lead-in',
+        () {
+      expect(detect(oCome(repeatEnd: true, lines: {6, 10, 14})),
+          'A@1:0 A@5:2 B@9:2 C@13:2');
+    });
+
+    test('irregular lines are only page layout, and are ignored', () {
+      expect(detect(oCome(lines: {5, 8, 11, 14})), detect(oCome()));
+    });
+
+    test('the parser reads a printed line start', () {
+      final xml = File('test/fixtures/o_come_scan.musicxml').readAsStringSync();
+      expect(
+          [
+            for (final m in MusicXmlParser().parse(xml).measures)
+              if (m.systemStart) m.number
+          ],
+          [6, 10, 14]);
     });
   });
 }

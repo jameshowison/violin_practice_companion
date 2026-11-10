@@ -23,8 +23,8 @@ class SectionDetector {
   static const _blockSizes = [8, 4];
 
   /// Strain boundaries come from, in order of trust: the author's part labels,
-  /// repeat brackets, the author's ABC music lines, double barlines, then
-  /// equal 8/4-bar blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
+  /// repeat brackets, the author's ABC music lines, double barlines, a
+  /// scanned page's printed lines, then equal 8/4-bar blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
   /// begins on a lead-in) is kept exactly; the rest start on a downbeat and
   /// are then moved back onto their lead-in by [withLeadIns].
   static List<Section> detect(List<Measure> measures) {
@@ -72,6 +72,7 @@ class SectionDetector {
           partLabel: source[i].partLabel,
           partLabelNote: source[i].partLabelNote,
           lineStartNote: source[i].lineStartNote,
+          systemStart: measures[i].systemStart,
         ),
     ];
   }
@@ -265,49 +266,8 @@ class SectionDetector {
   static _Strains? _segment(
       List<Measure> measures) {
     if (measures.length < 2) return null;
-
-    if (measures.any((m) => m.repeatStart || m.repeatEnd)) {
-      // A `|:` begins each strain; an opening pickup before the first one
-      // joins it in [withLeadIns].
-      final marks = [
-        for (var i = 0; i < measures.length; i++)
-          if (measures[i].repeatStart) i,
-      ];
-      if (marks.isEmpty) return null; // nothing to anchor a strain on
-
-      // Everything through the last `:|` is covered by a repeat-bracketed
-      // strain above; a straight-through tail with no bracket of its own
-      // (e.g. "AABC": A repeats, B and C don't) still needs splitting below.
-      var lastRepeatEnd = -1;
-      for (var i = measures.length - 1; i >= 0; i--) {
-        if (measures[i].repeatEnd) {
-          lastRepeatEnd = i;
-          break;
-        }
-      }
-      final bracketedEnd =
-          lastRepeatEnd >= 0 ? lastRepeatEnd + 1 : measures.length;
-
-      final strains = <List<Measure>>[];
-      final starts = <int>[];
-      for (var k = 0; k < marks.length; k++) {
-        final s = marks[k];
-        final e = k + 1 < marks.length ? marks[k + 1] : bracketedEnd;
-        strains.add(measures.sublist(s, e));
-        starts.add(measures[s].number);
-      }
-
-      if (bracketedEnd < measures.length) {
-        final tail = _tileTail(measures.sublist(bracketedEnd));
-        if (tail != null) {
-          strains.addAll(tail.strains);
-          starts.addAll(tail.starts);
-        }
-      }
-
-      if (strains.length < 2) return null;
-      return (strains: strains, starts: starts, startNotes: null);
-    }
+    final repeats = _repeatStrains(measures);
+    if (repeats != null) return repeats;
 
     final lines = _lineStrains(measures);
     if (lines != null) return lines;
@@ -315,6 +275,70 @@ class SectionDetector {
     final doubleBars = _doubleBarStrains(measures);
     if (doubleBars != null) return doubleBars;
 
+    final printed = _printedLineStrains(measures);
+    if (printed != null) return printed;
+
+    return _blockStrains(measures);
+  }
+
+  /// The strains repeat brackets mark out: a `|:` begins each one. A `:|` with
+  /// no `|:` before it goes back to the start (as [repeatTargetIndex] plays
+  /// it), so it begins one there — on the first full bar, exactly where a
+  /// written `|:` would sit after an opening pickup. Null when the brackets
+  /// give fewer than [_minStrains] (one repeat round the whole piece, either
+  /// way it is written), so the other signals get their turn.
+  static _Strains? _repeatStrains(List<Measure> measures) {
+    if (!measures.any((m) => m.repeatStart || m.repeatEnd)) return null;
+    // A `|:` begins each strain; an opening pickup before the first one
+    // joins it in [withLeadIns].
+    final marks = [
+      for (var i = 0; i < measures.length; i++)
+        if (measures[i].repeatStart) i,
+    ];
+    final firstEnd = measures.indexWhere((m) => m.repeatEnd);
+    if (firstEnd >= 0 && (marks.isEmpty || marks.first > firstEnd)) {
+      final first =
+          measures.first.actualUnits < _commonUnits(measures) ? 1 : 0;
+      if (first <= firstEnd) marks.insert(0, first);
+    }
+    if (marks.isEmpty) return null;
+
+    // Everything through the last `:|` is covered by a repeat-bracketed
+    // strain above; a straight-through tail with no bracket of its own
+    // (e.g. "AABC": A repeats, B and C don't) still needs splitting below.
+    var lastRepeatEnd = -1;
+    for (var i = measures.length - 1; i >= 0; i--) {
+      if (measures[i].repeatEnd) {
+        lastRepeatEnd = i;
+        break;
+      }
+    }
+    final bracketedEnd =
+        lastRepeatEnd >= 0 ? lastRepeatEnd + 1 : measures.length;
+
+    final strains = <List<Measure>>[];
+    final starts = <int>[];
+    for (var k = 0; k < marks.length; k++) {
+      final s = marks[k];
+      final e = k + 1 < marks.length ? marks[k + 1] : bracketedEnd;
+      strains.add(measures.sublist(s, e));
+      starts.add(measures[s].number);
+    }
+
+    if (bracketedEnd < measures.length) {
+      final tail = _tileTail(measures.sublist(bracketedEnd));
+      if (tail != null) {
+        strains.addAll(tail.strains);
+        starts.addAll(tail.starts);
+      }
+    }
+
+    if (strains.length < _minStrains) return null;
+    return (strains: strains, starts: starts, startNotes: null);
+  }
+
+  /// Equal blocks of bars, for a tune with nothing else to go by.
+  static _Strains? _blockStrains(List<Measure> measures) {
     // No repeats: group into equal blocks of counted bars (lead-ins left out,
     // see [_leadInBars]), preferring 8-bar then 4-bar strains. Require ≥2
     // whole strains.
@@ -380,6 +404,39 @@ class SectionDetector {
           _tiling(counted.length) ?? [counted.length], strains, starts);
     }
     if (strains.length < _minStrains) return null;
+    return (strains: strains, starts: starts, startNotes: null);
+  }
+
+  /// One strain per printed line ([Measure.systemStart]) of a scanned page,
+  /// when every line holds the same 4 or 8 counted bars — a page laid out a
+  /// phrase to a line, as Suzuki books are (O Come Little Children's four
+  /// lines). Irregular lines are only where the page ran out (Perpetual
+  /// Motion's three-bar lines) and are ignored. Lines break at barlines, so
+  /// each strain starts on its downbeat and [withLeadIns] moves it onto its
+  /// lead-in, as for blocks.
+  static _Strains? _printedLineStrains(List<Measure> measures) {
+    final breaks = [
+      for (var i = 1; i < measures.length; i++)
+        if (measures[i].systemStart) i,
+    ];
+    if (breaks.length + 1 < _minStrains) return null;
+    final leadIns = _leadInBars(measures);
+    final counted = [
+      for (var i = 0; i < measures.length; i++)
+        if (!leadIns.contains(i)) i,
+    ];
+    final sizes = <int>[];
+    var from = 0;
+    for (final end in [...breaks, measures.length]) {
+      sizes.add(counted.where((i) => i >= from && i < end).length);
+      from = end;
+    }
+    if (sizes.toSet().length != 1 || !_blockSizes.contains(sizes.first)) {
+      return null;
+    }
+    final strains = <List<Measure>>[];
+    final starts = <int>[];
+    _addBlocks(measures, leadIns, counted, sizes, strains, starts);
     return (strains: strains, starts: starts, startNotes: null);
   }
 

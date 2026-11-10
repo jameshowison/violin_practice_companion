@@ -249,6 +249,9 @@ class MusicXmlParser {
         partLabel: partLabel,
         partLabelNote: partLabelNote,
         lineStartNote: lineStartNote,
+        systemStart: measureEl
+            .findElements('print')
+            .any((p) => p.getAttribute('new-system') == 'yes'),
       ));
     }
 

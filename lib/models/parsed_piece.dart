@@ -53,6 +53,12 @@ class Measure {
   /// [SectionDetector]; see abc_to_musicxml.js.
   final int? lineStartNote;
 
+  /// This measure opens a printed line: a `<print new-system="yes">` in the
+  /// stored score, which only an OMR scan writes (the page's own layout; the
+  /// app adds its line breaks to the engrave copy, never the file). A
+  /// phrase-start hint for [SectionDetector].
+  final bool systemStart;
+
   const Measure({
     required this.number,
     required this.notes,
@@ -69,6 +75,7 @@ class Measure {
     this.partLabel,
     this.partLabelNote = 0,
     this.lineStartNote,
+    this.systemStart = false,
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
@@ -93,6 +100,7 @@ class Measure {
         partLabel: partLabel,
         partLabelNote: partLabelNote,
         lineStartNote: lineStartNote,
+        systemStart: systemStart,
       );
 
   /// True when this measure's visible notes don't sum to the expected number of
