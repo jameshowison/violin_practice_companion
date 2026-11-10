@@ -25,7 +25,8 @@ class PlaybackService extends PlaybackServiceBase {
   final double Function() _outputLatency;
 
   PlaybackService(super.generator, {double Function()? outputLatency})
-      : _outputLatency = outputLatency ?? (() => AudioOutput.latencySeconds) {
+      : _outputLatency = outputLatency ??
+            (() => AudioOutput.heardDelaySeconds(AudioSyncSource.score)) {
     if (outputLatency == null) AudioOutput.ensureStarted();
     _initMidi();
   }
@@ -59,6 +60,21 @@ class PlaybackService extends PlaybackServiceBase {
     } catch (e) {
       // Soundfont not yet installed; playback silently disabled on mobile
     }
+  }
+
+  /// flutter_midi_pro's engines don't restart themselves after an audio
+  /// session change, so the synth would go silent: load it afresh.
+  @override
+  Future<void> restartAudio() async {
+    _midiReady = false;
+    final id = _sfId;
+    _sfId = null;
+    if (id != null) {
+      try {
+        await _midi.unloadSoundfont(id);
+      } catch (_) {}
+    }
+    await _initMidi();
   }
 
   @override

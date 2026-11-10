@@ -1,5 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Which player a sync offset belongs to. They are tuned separately: the
+/// synthesized score strikes notes itself, a recording goes through AVPlayer,
+/// and the two needn't be off by the same amount on one speaker.
+enum AudioSyncSource { score, recording }
 
 /// Where audio is currently going, as the OS reports it.
 @immutable
@@ -10,8 +18,15 @@ class AudioOutputRoute {
   /// `AirPlay`, `Headphones`.
   final String portType;
 
-  /// Stable per-device id — the key a per-speaker calibration would use.
+  /// iOS's id for the port. NOT stable for AirPlay across reconnections, so
+  /// calibrations are keyed on [speakerKey] instead.
   final String uid;
+
+  /// What a calibration is remembered under: the speaker's type and name,
+  /// e.g. `AirPlay|Roam` — the same speaker on Bluetooth is a separate entry,
+  /// as its delay is entirely different.
+  String get speakerKey =>
+      portType.isEmpty && portName.isEmpty ? 'unknown' : '$portType|$portName';
   final double outputLatency;
   final double ioBufferDuration;
 
@@ -70,6 +85,7 @@ class AudioOutput {
   static Future<void> ensureStarted() async {
     if (_started) return;
     _started = true;
+    unawaited(_loadCalibrations());
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'routeChanged' && call.arguments is Map) {
         _set(AudioOutputRoute.fromMap(call.arguments as Map));
@@ -89,6 +105,17 @@ class AudioOutput {
     final old = route.value;
     route.value = r;
     if (old?.toString() != r.toString()) debugPrint('[audio_route] $r');
+  }
+
+  /// Asks the native side for the route now, rather than waiting for a
+  /// change to be pushed. Null where there is no native side.
+  static Future<AudioOutputRoute?> fetchRoute() async {
+    try {
+      final m = await _channel.invokeMethod<Map<Object?, Object?>>('getRoute');
+      return m == null ? null : AudioOutputRoute.fromMap(m);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Seconds between striking a note and hearing it on the current output.
@@ -111,6 +138,80 @@ class AudioOutput {
       debugPrint('[audio_route] showPicker failed: $e');
       return false;
     }
+  }
+
+  // ---- Per-speaker measured delay ------------------------------------------
+  //
+  // iOS's outputLatency is only an estimate, and for a recording AVPlayer
+  // already hides some of it, so neither is the delay actually seen. The
+  // calibration (SyncCalibrator) measures it with the mic; the result is kept
+  // per speaker ([AudioOutputRoute.speakerKey]) and per player, so each speaker remembers its
+  // own. Until a speaker is calibrated, iOS's estimate stands in.
+
+  static const _prefPrefix = 'audioSyncDelay.';
+
+  /// Measured delays in ms, by [syncDelayKey]. Listen to rebuild the sheet.
+  static final ValueNotifier<Map<String, int>> calibratedDelaysMs =
+      ValueNotifier(const {});
+
+  @visibleForTesting
+  static String syncDelayKey(AudioSyncSource source, String speaker) =>
+      '$_prefPrefix${source.name}.$speaker';
+
+  static Future<void> _loadCalibrations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final loaded = <String, int>{
+        for (final k in prefs.getKeys())
+          if (k.startsWith(_prefPrefix) && prefs.get(k) is int)
+            k: prefs.getInt(k)!,
+      };
+      // Anything measured while loading wins over what was on disk.
+      calibratedDelaysMs.value = {...loaded, ...calibratedDelaysMs.value};
+    } catch (e) {
+      debugPrint('[audio_route] loading calibrations failed: $e');
+    }
+  }
+
+  /// The measured delay for [source] on the current output, in ms, or null
+  /// if this speaker hasn't been calibrated.
+  static int? calibratedDelayMs(AudioSyncSource source) {
+    final r = route.value;
+    if (r == null) return null;
+    return calibratedDelaysMs.value[syncDelayKey(source, r.speakerKey)];
+  }
+
+  /// Stores [ms] as the measured delay for [source] on [on] — the current
+  /// output if not given; null forgets it (back to iOS's estimate). Takes
+  /// effect at once. A calibration passes the route it STARTED on: by the
+  /// time it finishes, the mic has been on and off and the current route may
+  /// be a passing one.
+  static Future<void> setCalibratedDelayMs(AudioSyncSource source, int? ms,
+      {AudioOutputRoute? on}) async {
+    final r = on ?? route.value;
+    if (r == null) return;
+    final key = syncDelayKey(source, r.speakerKey);
+    calibratedDelaysMs.value = {...calibratedDelaysMs.value}..remove(key);
+    if (ms != null) {
+      calibratedDelaysMs.value = {...calibratedDelaysMs.value, key: ms};
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      ms == null ? await prefs.remove(key) : await prefs.setInt(key, ms);
+    } catch (_) {
+      // Best-effort: the session still holds the value.
+    }
+  }
+
+  /// Seconds from [source] reaching a moment to it being heard: the measured
+  /// delay for this speaker, else iOS's estimate. A recording's may be
+  /// negative (AVPlayer over-compensating); the score's strikes notes ahead,
+  /// which can't be done backwards.
+  static double heardDelaySeconds(AudioSyncSource source) {
+    final ms = calibratedDelayMs(source);
+    final s = ms == null ? latencySeconds : ms / 1000;
+    final min = source == AudioSyncSource.recording ? -0.5 : 0.0;
+    return s.clamp(min, AudioOutputRoute.maxLatencySeconds);
   }
 
   @visibleForTesting

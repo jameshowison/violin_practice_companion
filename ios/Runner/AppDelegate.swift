@@ -11,7 +11,9 @@ import UIKit
     // Without a category iOS applies the default one, which the ringer/silent
     // switch mutes: the score went silent on the phone while the simulator
     // (which ignores the switch) kept playing. Muting is the app's own button.
-    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+    // Play-and-record rather than .playback so the speaker sync calibration
+    // can use the mic without switching sessions — see AudioCalibrationPlugin.
+    AudioCalibrationPlugin.applyAppSession()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -24,5 +26,7 @@ import UIKit
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioDecoderPlugin")!)
     AudioRoutePlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioRoutePlugin")!)
+    AudioCalibrationPlugin.register(
+      with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioCalibrationPlugin")!)
   }
 }

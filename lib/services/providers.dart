@@ -44,6 +44,7 @@ import 'abc_source_store.dart';
 import 'media_alignment_store.dart';
 import 'media_catalog.dart';
 import 'media_paths.dart';
+import 'audio_output.dart';
 import 'media_playback_service.dart';
 import 'piece_media_store.dart';
 import 'playback_service.dart';
@@ -630,6 +631,7 @@ final selectedMediaIdProvider =
 /// per-visit tool, not a persistent session-wide service.
 final mediaPlaybackServiceProvider =
     Provider.autoDispose<MediaPlaybackService>((ref) {
+  AudioOutput.ensureStarted();
   final service = MediaPlaybackService(
     ref.watch(midiGeneratorProvider),
     store: ref.watch(mediaAlignmentStoreProvider),

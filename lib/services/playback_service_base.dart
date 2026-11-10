@@ -235,6 +235,10 @@ abstract class PlaybackServiceBase {
 
   void stop() => _stopInternal();
 
+  /// Rebuilds the player's audio after the session was reconfigured (the mic
+  /// calibration switches it to play-and-record and back). Nothing by default.
+  Future<void> restartAudio() async {}
+
   void setTempo(int bpm) {
     final wasPlaying = _state == PlaybackState.playing;
     final savedMeasure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;

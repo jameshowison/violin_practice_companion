@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +12,7 @@ import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import 'tempo_controls.dart';
 
@@ -682,7 +685,8 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           tooltip: service.muted ? 'Unmute' : 'Mute',
           onPressed: () => setState(() => service.muted = !service.muted),
         ),
-        const _OutputPickerButton(compact: true),
+        const _OutputPickerButton(
+            source: AudioSyncSource.score, compact: true),
         // Named practice speeds rather than a slider: a slider's exact value
         // is hard to hit again tomorrow, and "slow / medium / performance" is
         // how the tempo is actually thought about. The bpm behind each name is
@@ -875,7 +879,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 ],
               ),
             ),
-            const _OutputPickerButton(),
+            const _OutputPickerButton(source: AudioSyncSource.recording),
             if (result?.outcome == MediaLoadOutcome.playsWithoutHighlight)
               IconButton(
                 icon: const Icon(Icons.info_outline, color: Colors.amber),
@@ -906,14 +910,19 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
   }
 }
 
-/// Opens the system speaker / Bluetooth / AirPlay picker. Hidden where there is
-/// no native picker (see [AudioOutput.canPick]). Tinted when the sound is going
-/// somewhere other than the built-in speaker, so that is visible at a glance.
+/// Opens the audio output sheet: which speaker, a button for the system
+/// speaker / Bluetooth / AirPlay picker, and the sync fine-tune for this
+/// speaker. Hidden where there is no native picker (see
+/// [AudioOutput.canPick]). Tinted when the sound is going somewhere other than
+/// the built-in speaker, so that is visible at a glance.
 class _OutputPickerButton extends StatefulWidget {
   /// The score transport's row is already full on a 375pt phone.
   final bool compact;
 
-  const _OutputPickerButton({this.compact = false});
+  /// Which player's sync the sheet's slider tunes.
+  final AudioSyncSource source;
+
+  const _OutputPickerButton({required this.source, this.compact = false});
 
   @override
   State<_OutputPickerButton> createState() => _OutputPickerButtonState();
@@ -946,9 +955,149 @@ class _OutputPickerButtonState extends State<_OutputPickerButton> {
           constraints: widget.compact
               ? const BoxConstraints(minWidth: 36, minHeight: 36)
               : null,
-          onPressed: AudioOutput.showPicker,
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => _AudioOutputSheet(source: widget.source),
+          ),
         );
       },
+    );
+  }
+}
+
+/// The current output, a way to change it, and how far behind the player the
+/// sound arrives there — measured by the mic for recordings
+/// ([SyncCalibrator]), iOS's estimate until then.
+class _AudioOutputSheet extends ConsumerStatefulWidget {
+  final AudioSyncSource source;
+
+  const _AudioOutputSheet({required this.source});
+
+  @override
+  ConsumerState<_AudioOutputSheet> createState() => _AudioOutputSheetState();
+}
+
+class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
+  bool _calibrating = false;
+  String? _message;
+
+  Future<void> _calibrate() async {
+    setState(() {
+      _calibrating = true;
+      _message = null;
+    });
+    ref.read(mediaPlaybackServiceProvider).stop();
+    ref.read(playbackServiceProvider).stop();
+    final result = await SyncCalibrator.calibrateRecordings();
+    // Only if the calibration had to re-apply the app's audio session do the
+    // players need rebuilding on it — after the result is on screen, as
+    // reloading the soundfont is heavy enough to hold the sheet up.
+    final playback = ref.read(playbackServiceProvider);
+    final media = ref.read(mediaPlaybackServiceProvider);
+    if (mounted) {
+      setState(() {
+        _calibrating = false;
+        _message = result.ok
+            ? 'Measured from ${result.clicksHeard} of ${result.clicksPlayed} clicks.'
+            : 'Calibration failed: ${result.failure}.';
+      });
+    }
+    if (!SyncCalibrator.lastRunChangedSession) return;
+    await WidgetsBinding.instance.endOfFrame;
+    unawaited(playback.restartAudio());
+    unawaited(media.restartAudio());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = widget.source;
+    return ValueListenableBuilder<AudioOutputRoute?>(
+      valueListenable: AudioOutput.route,
+      builder: (context, route, _) => ValueListenableBuilder<Map<String, int>>(
+        valueListenable: AudioOutput.calibratedDelaysMs,
+        builder: (context, delays, _) {
+          final reportedMs = ((route?.latencySeconds ?? 0) * 1000).round();
+          final measuredMs = AudioOutput.calibratedDelayMs(source);
+          final canCalibrate = source == AudioSyncSource.recording;
+          final text = Theme.of(context).textTheme;
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          route == null || route.portName.isEmpty
+                              ? 'Audio output'
+                              : route.portName,
+                          style: text.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton.icon(
+                        key: const ValueKey('audio_output_change'),
+                        icon: const Icon(Icons.airplay, size: 18),
+                        label: const Text('Change…'),
+                        onPressed: _calibrating ? null : AudioOutput.showPicker,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    measuredMs != null
+                        ? 'Sound delay: $measuredMs ms (measured)'
+                        : 'Sound delay: $reportedMs ms (iOS estimate)',
+                    key: const ValueKey('audio_sync_label'),
+                    style: text.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (canCalibrate)
+                    Row(
+                      children: [
+                        FilledButton.tonalIcon(
+                          key: const ValueKey('audio_sync_calibrate'),
+                          icon: _calibrating
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.hearing, size: 18),
+                          label: Text(_calibrating ? 'Listening…' : 'Calibrate'),
+                          onPressed: _calibrating ? null : _calibrate,
+                        ),
+                        const Spacer(),
+                        if (measuredMs != null && !_calibrating)
+                          TextButton(
+                            onPressed: () => AudioOutput.setCalibratedDelayMs(
+                                source, null),
+                            child: const Text('Forget'),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _calibrating
+                        ? 'Playing clicks — keep the room quiet for a few seconds.'
+                        : _message ??
+                            (canCalibrate
+                                ? 'Calibrate plays a few clicks and listens '
+                                    'with the mic. Once per speaker.'
+                                : 'Automatic calibration is for recordings '
+                                    'so far.'),
+                    key: const ValueKey('audio_sync_message'),
+                    style: text.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -104,6 +104,19 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
 
     await controller.startVideoRecording();
     _videoStartedAt = DateTime.now();
+    // AUDIO SESSION — untested since the speaker sync calibration (Nov 2026);
+    // suspect this first if playback misbehaves after a teacher demo. The app
+    // runs in ONE session for its whole life — play-and-record, A2DP and
+    // AirPlay allowed, no HFP (AudioCalibrationPlugin.applyAppSession) —
+    // because switching sessions broke playback three ways (synth silent,
+    // recording silent, AirPlay muted until a volume press). `record` sets
+    // its OWN: play-and-record with .allowBluetooth (HFP) and no .allowAirPlay,
+    // and does not put ours back. So after a demo: a Bluetooth speaker may
+    // stay in call mode, AirPlay may have moved to the built-in speaker, and
+    // the players may need rebuilding (restartAudio). Calibration re-applies
+    // the app session if it finds it changed; plain playback does not. Fix
+    // candidates: re-apply the app session after stop() and restartAudio()
+    // the players, or `_recorder.manageAudioSession(false)` to keep ours.
     await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav),
         path: _audioPath!);
     _audioStartedAt = DateTime.now();

@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../models/parsed_piece.dart';
 import '../models/piece_media.dart';
+import 'audio_output.dart';
 import 'audio_decoder.dart';
 import 'audio_score_auto_aligner.dart';
 import 'media_alignment_store.dart';
@@ -98,6 +99,30 @@ class MediaPlaybackService extends PlaybackServiceBase {
   final AudioDecoderBase _decoder;
   final AudioPlayer _player = AudioPlayer();
 
+  // What [load] last gave the player, so [restartAudio] can give it again.
+  String? _sourceAsset;
+  String? _sourceFile;
+
+  /// After the mic calibration has switched the audio session and back, the
+  /// player can stay bound to the old route and play silently (seen with an
+  /// AirPlay speaker). Giving it its source again rebuilds the item on the
+  /// current route.
+  @override
+  Future<void> restartAudio() async {
+    try {
+      if (_sourceAsset != null) {
+        await _player.setAsset(_sourceAsset!);
+      } else if (_sourceFile != null) {
+        await _player.setFilePath(_sourceFile!);
+      }
+      await _player.setSpeed(playbackSpeed.value);
+      debugPrint('[sync_cal] recording player reloaded: '
+          '${_player.processingState} ${_player.duration}');
+    } catch (e) {
+      debugPrint('MediaPlaybackService: restartAudio failed — $e');
+    }
+  }
+
   List<ScoreAudioAnchor> _anchors = const [];
   PieceMedia? _media;
   String? _videoPath;
@@ -140,8 +165,17 @@ class MediaPlaybackService extends PlaybackServiceBase {
     super.generator, {
     MediaAlignmentStore? store,
     AudioDecoderBase? decoder,
+    double Function()? heardDelay,
   })  : _store = store ?? MediaAlignmentStore(),
-        _decoder = decoder ?? const AudioDecoder();
+        _decoder = decoder ?? const AudioDecoder(),
+        _heardDelay = heardDelay ??
+            (() => AudioOutput.heardDelaySeconds(AudioSyncSource.recording));
+
+  /// Real seconds between the player reaching a position and that moment
+  /// being heard — ~10ms on the built-in speaker, a note's worth over
+  /// Bluetooth. Read live, so a route change or the sync slider applies
+  /// mid-play. AVPlayer's position is where it has got to, not what is heard.
+  final double Function() _heardDelay;
 
   PieceMedia? get media => _media;
   List<ScoreAudioAnchor> get anchors => List.unmodifiable(_anchors);
@@ -151,6 +185,16 @@ class MediaPlaybackService extends PlaybackServiceBase {
   String? get videoPath => _videoPath;
   int get avOffsetMs => _avOffsetMs;
   Duration get rawAudioPosition => _player.position;
+
+  /// The recording position being HEARD now: [rawAudioPosition] less the
+  /// output delay, in audio time (which runs at [playbackSpeed]). Everything
+  /// shown — highlight, count-in, video — follows this one.
+  double _heardAudioSec() =>
+      _player.position.inMicroseconds / 1e6 -
+      _heardDelay() * playbackSpeed.value;
+
+  Duration get heardAudioPosition =>
+      Duration(microseconds: (_heardAudioSec() * 1e6).round());
 
   /// Whether the score highlight is being driven. False for a medium that
   /// plays but could not be aligned.
@@ -276,8 +320,13 @@ class MediaPlaybackService extends PlaybackServiceBase {
     try {
       if (audio.isAsset) {
         await _player.setAsset(audio.path);
+        _sourceAsset = audio.path;
+        _sourceFile = null;
       } else {
-        await _player.setFilePath((await absolutePathOf(audio))!);
+        final path = (await absolutePathOf(audio))!;
+        await _player.setFilePath(path);
+        _sourceFile = path;
+        _sourceAsset = null;
       }
     } catch (e) {
       debugPrint('MediaPlaybackService: player rejected ${media.id} — $e');
@@ -567,15 +616,20 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// runs on one clock whether it is heard over the intro, over silence, or
   /// over both in turn.
   double _virtualAudioSec(LeadInPlan lead) {
+    // All three branches are shifted by the same output delay, so the
+    // hand-overs between them stay seamless.
     final double v;
     final endsAt = _leadInEndsAt;
     final now = _wallNow();
+    final delayAudioSec = _heardDelay() * playbackSpeed.value;
     if (endsAt != null && now < endsAt) {
-      v = lead.seekAudioSec - (endsAt - now) * playbackSpeed.value;
+      v = lead.seekAudioSec -
+          (endsAt - now) * playbackSpeed.value -
+          delayAudioSec;
     } else if (_seekPending) {
-      v = lead.seekAudioSec;
+      v = lead.seekAudioSec - delayAudioSec;
     } else {
-      v = _player.position.inMicroseconds / 1e6;
+      v = _heardAudioSec();
     }
     if (v > _lastVirtualAudioSec) _lastVirtualAudioSec = v;
     return _lastVirtualAudioSec;
@@ -596,7 +650,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
             (lead.entryAudioSec - v) * lead.scorePerAudio;
       }
     }
-    return _scoreSecForAudioSec(_player.position.inMicroseconds / 1e6);
+    return _scoreSecForAudioSec(_heardAudioSec());
   }
 
   @override
@@ -651,8 +705,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   @override
   double? highlightAdvanceSeconds() {
     if (!isAligned) return null;
-    final aheadAudioSec =
-        _player.position.inMicroseconds / 1e6 + highlightLeadSeconds;
+    final aheadAudioSec = _heardAudioSec() + highlightLeadSeconds;
     return _scoreSecForAudioSec(aheadAudioSec);
   }
 

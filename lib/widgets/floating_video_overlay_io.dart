@@ -109,7 +109,8 @@ class _FloatingVideoOverlayState extends State<FloatingVideoOverlay> {
 
     if (!playing) return;
     final target =
-        service.rawAudioPosition + Duration(milliseconds: service.avOffsetMs);
+        service.heardAudioPosition +
+        Duration(milliseconds: service.avOffsetMs);
     final clampedTarget = target.isNegative ? Duration.zero : target;
     if ((controller.value.position - clampedTarget).abs() > _driftThreshold) {
       controller.seekTo(clampedTarget);
