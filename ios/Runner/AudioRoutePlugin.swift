@@ -1,5 +1,7 @@
 import AVFoundation
+import AVKit
 import Flutter
+import UIKit
 
 /// Reports where audio is going and how late it arrives there: the current
 /// output port (built-in speaker, Bluetooth, AirPlay, wired…) and the session's
@@ -29,11 +31,43 @@ public class AudioRoutePlugin: NSObject, FlutterPlugin {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    guard call.method == "getRoute" else {
+    switch call.method {
+    case "getRoute":
+      result(Self.describe())
+    case "showPicker":
+      DispatchQueue.main.async { [weak self] in
+        result(self?.showPicker() ?? false)
+      }
+    default:
       result(FlutterMethodNotImplemented)
-      return
     }
-    result(Self.describe())
+  }
+
+  /// One hidden system route picker, kept for the app's life. The button the
+  /// user sees is Flutter's (so it matches the transport and Marionette can
+  /// find it); tapping it presses this picker's own button, which presents the
+  /// standard speaker / Bluetooth / AirPlay sheet. The resulting route change
+  /// arrives through [routeChanged] like any other.
+  private var picker: AVRoutePickerView?
+
+  private func showPicker() -> Bool {
+    if picker == nil {
+      let window = UIApplication.shared.connectedScenes
+        .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+      guard let root = window?.rootViewController?.view else { return false }
+      // Not isHidden and not zero-sized: iOS presents nothing from a picker
+      // that isn't on screen. Nearly transparent, untouchable, in a corner.
+      let p = AVRoutePickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+      p.prioritizesVideoDevices = false
+      p.alpha = 0.011
+      p.isUserInteractionEnabled = false
+      root.addSubview(p)
+      picker = p
+    }
+    guard let button = picker?.subviews.compactMap({ $0 as? UIButton }).first
+    else { return false }
+    button.sendActions(for: .touchUpInside)
+    return true
   }
 
   @objc private func routeChanged(_ notification: Notification) {

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_output.dart';
 
@@ -28,5 +29,36 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     await AudioOutput.ensureStarted();
     expect(AudioOutput.latencySeconds, 0);
+  });
+
+  group('output picker', () {
+    const channel = MethodChannel('violin_practice_companion/audio_route');
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+    tearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      AudioOutput.debugSetRoute(null);
+    });
+
+    test('is not offered until a native side has reported a route', () {
+      AudioOutput.debugSetRoute(null);
+      expect(AudioOutput.canPick, isFalse);
+      AudioOutput.debugSetRoute(AudioOutputRoute.fromMap({'portType': 'Speaker'}));
+      expect(AudioOutput.canPick, isTrue);
+    });
+
+    test('showPicker is false without a native side', () async {
+      expect(await AudioOutput.showPicker(), isFalse);
+    });
+
+    test('showPicker reports what the native side did', () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'showPicker');
+        return true;
+      });
+      expect(await AudioOutput.showPicker(), isTrue);
+    });
   });
 }

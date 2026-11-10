@@ -93,4 +93,26 @@ class AudioOutput {
 
   /// Seconds between striking a note and hearing it on the current output.
   static double get latencySeconds => route.value?.latencySeconds ?? 0;
+
+  /// Whether [showPicker] can do anything here. A route is only ever reported
+  /// where the native side exists, so this is the platform check without a
+  /// `Platform.is*`.
+  static bool get canPick => route.value != null;
+
+  /// Presents the system output picker (speaker / Bluetooth / AirPlay). The
+  /// choice comes back as an ordinary route change. False if there is no
+  /// picker on this platform.
+  static Future<bool> showPicker() async {
+    try {
+      return await _channel.invokeMethod<bool>('showPicker') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException catch (e) {
+      debugPrint('[audio_route] showPicker failed: $e');
+      return false;
+    }
+  }
+
+  @visibleForTesting
+  static void debugSetRoute(AudioOutputRoute? r) => route.value = r;
 }

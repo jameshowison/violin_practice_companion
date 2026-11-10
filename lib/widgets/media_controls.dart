@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/piece.dart';
 import '../models/piece_media.dart';
 import '../screens/record_teacher_demo_screen.dart';
+import '../services/audio_output.dart';
 import '../services/audio_score_auto_aligner.dart' show alignmentReviewMessage;
 import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
@@ -102,6 +103,10 @@ class _MediaControlsState extends ConsumerState<MediaControls> {
   }
 }
 
+/// The id of a medium whose alignment the menu has asked to be re-run, until
+/// the transport playing it takes the request.
+final _pendingRealignProvider = StateProvider<String?>((_) => null);
+
 // ── Picker ───────────────────────────────────────────────────────────────────
 
 /// Names what is playing, and opens the list of everything that could.
@@ -151,10 +156,10 @@ class _MediaPicker extends ConsumerWidget {
               isSelected: m.id == selected.id,
               // Both actions pop the menu first and then run against the
               // picker's own context, for the reason given above.
-              onEditWindow: m.isRemovable && m.canAlign
+              onRealign: m.canAlign
                   ? () {
                       Navigator.pop(menuContext);
-                      _editContentWindow(context, ref, m);
+                      _realign(context, ref, m);
                     }
                   : null,
               onDelete: m.isRemovable
@@ -245,27 +250,42 @@ class _MediaPicker extends ConsumerWidget {
     ref.invalidate(pieceMediaProvider(piece.id));
   }
 
-  /// Asks where the tune sits inside a recording, and re-runs the alignment
-  /// with the answer.
+  /// Re-runs a medium's alignment, first asking — where the medium can keep
+  /// one — where the tune sits inside the file.
   ///
-  /// Worth offering because the alternative — inferring it from the audio —
+  /// The window is worth offering because the alternative — inferring it from the audio —
   /// cannot be made reliable: a lead-in that quotes the tune and a lead-in of
   /// hum pull the one constant that decides it in opposite directions (see
   /// docs/audio-sync-next-steps.md). The user has the answer for nothing; the
   /// aligner has to guess for it.
-  Future<void> _editContentWindow(
+  Future<void> _realign(
       BuildContext context, WidgetRef ref, PieceMedia media) async {
     final window = await showDialog<_ContentWindow>(
       context: context,
-      builder: (_) => _ContentWindowDialog(media: media),
+      builder: (_) => _RealignDialog(media: media),
     );
     if (window == null || !context.mounted) return;
-    await ref.read(mediaActionsProvider).setContentWindow(
-          piece.id,
-          media,
-          startSeconds: window.startSeconds,
-          endSeconds: window.endSeconds,
-        );
+    final changed = media.isRemovable &&
+        (window.startSeconds != media.contentStartSeconds ||
+            window.endSeconds != media.contentEndSeconds);
+    if (changed) {
+      // New alignment inputs: the transport sees a different medium and
+      // re-runs the alignment itself (see _MediaTransport.didUpdateWidget).
+      await ref.read(mediaActionsProvider).setContentWindow(
+            piece.id,
+            media,
+            startSeconds: window.startSeconds,
+            endSeconds: window.endSeconds,
+          );
+    } else {
+      // Same inputs, so the cached alignment would just be reused: ask the
+      // transport to throw it away. Set before selecting, so a transport that
+      // is only now switching to this medium finds the request waiting.
+      ref.read(_pendingRealignProvider.notifier).state = media.id;
+    }
+    if (!context.mounted) return;
+    // Realigning is something you watch happen, so it plays what you asked about.
+    ref.read(selectedMediaIdProvider(piece.id).notifier).state = media.id;
   }
 
   Future<void> _confirmDelete(
@@ -311,13 +331,13 @@ class _MediaPicker extends ConsumerWidget {
 class _MediaRow extends StatelessWidget {
   final PieceMedia media;
   final bool isSelected;
-  final VoidCallback? onEditWindow;
+  final VoidCallback? onRealign;
   final VoidCallback? onDelete;
 
   const _MediaRow({
     required this.media,
     required this.isSelected,
-    this.onEditWindow,
+    this.onRealign,
     this.onDelete,
   });
 
@@ -342,20 +362,20 @@ class _MediaRow extends StatelessWidget {
       subtitle: _subtitle(),
       // Null rather than an empty Row for a medium with neither action —
       // bundled tracks and the synthesized score keep exactly the row they had.
-      trailing: onEditWindow == null && onDelete == null
+      trailing: onRealign == null && onDelete == null
           ? null
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (onEditWindow != null)
+                if (onRealign != null)
                   _RowAction(
-                    icon: Icons.content_cut,
-                    tooltip: 'Where does the tune start?',
+                    icon: Icons.tune,
+                    tooltip: 'Realign to the score',
                     // Lit when this medium carries a window, so an alignment
                     // the user constrained is visibly not an inferred one.
                     highlighted: media.contentStartSeconds != null ||
                         media.contentEndSeconds != null,
-                    onPressed: onEditWindow!,
+                    onPressed: onRealign!,
                   ),
                 if (onDelete != null)
                   _RowAction(
@@ -437,20 +457,22 @@ class _ContentWindow {
   const _ContentWindow(this.startSeconds, this.endSeconds);
 }
 
-/// Two seconds fields. Deliberately the plainest thing that can express the
+/// Confirms a realign. For a medium that can keep a content window (the
+/// user's own recordings and imports), also two seconds fields saying where the
+/// tune is. The fields are deliberately the plainest thing that can express the
 /// idea: the scrub-and-mark this eventually wants belongs on the capture
 /// screen, where there is a waveform to scrub, and is no use at all for a file
 /// imported from elsewhere.
-class _ContentWindowDialog extends StatefulWidget {
+class _RealignDialog extends StatefulWidget {
   final PieceMedia media;
 
-  const _ContentWindowDialog({required this.media});
+  const _RealignDialog({required this.media});
 
   @override
-  State<_ContentWindowDialog> createState() => _ContentWindowDialogState();
+  State<_RealignDialog> createState() => _RealignDialogState();
 }
 
-class _ContentWindowDialogState extends State<_ContentWindowDialog> {
+class _RealignDialogState extends State<_RealignDialog> {
   final _formKey = GlobalKey<FormState>();
   late final _start = TextEditingController(
       text: _format(widget.media.contentStartSeconds));
@@ -480,6 +502,10 @@ class _ContentWindowDialogState extends State<_ContentWindowDialog> {
   }
 
   void _submit() {
+    if (!widget.media.isRemovable) {
+      Navigator.of(context).pop(const _ContentWindow(null, null));
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final start = _parse(_start.text), end = _parse(_end.text);
     if (start != null && end != null && end <= start) {
@@ -495,13 +521,19 @@ class _ContentWindowDialogState extends State<_ContentWindowDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Where is the tune?'),
+      title: const Text('Realign to the score?'),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+                'This re-runs the sync between this recording and the score, '
+                'replacing the current one. Worth doing if the score has been '
+                'edited or the highlight drifts from the music.'),
+            if (widget.media.isRemovable) ...[
+            const SizedBox(height: 12),
             const Text(
               'If this recording has talking, tuning or a false start before '
               'the tune — or carries on afterwards — say so here and the score '
@@ -510,7 +542,6 @@ class _ContentWindowDialogState extends State<_ContentWindowDialog> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _start,
-              autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               validator: _validate,
@@ -532,6 +563,7 @@ class _ContentWindowDialogState extends State<_ContentWindowDialog> {
                 helperText: 'Leave blank for the end of the file',
               ),
             ),
+            ],
           ],
         ),
       ),
@@ -650,6 +682,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           tooltip: service.muted ? 'Unmute' : 'Mute',
           onPressed: () => setState(() => service.muted = !service.muted),
         ),
+        const _OutputPickerButton(compact: true),
         // Named practice speeds rather than a slider: a slider's exact value
         // is hard to hit again tomorrow, and "slow / medium / performance" is
         // how the tempo is actually thought about. The bpm behind each name is
@@ -720,10 +753,14 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
 
   MediaPlaybackService get _service => ref.read(mediaPlaybackServiceProvider);
 
-  Future<void> _load({bool realign = false}) async {
+  Future<void> _load() async {
     setState(() => _loading = true);
     final parsed = await ref.read(parsedPieceProvider.future);
     if (parsed == null || !mounted) return;
+    // Asked for from the picker's menu. Consumed here, after the await, since
+    // _load can start inside didUpdateWidget, where a provider can't be set.
+    final realign = ref.read(_pendingRealignProvider) == widget.media.id;
+    if (realign) ref.read(_pendingRealignProvider.notifier).state = null;
     final result = realign
         ? await _service.realign(piece: parsed, media: widget.media)
         : await _service.load(piece: parsed, media: widget.media);
@@ -741,33 +778,6 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     });
   }
 
-  /// Realigning throws away a working alignment and makes the player wait for
-  /// a new one, and the button sits right beside the tempo control — so it
-  /// asks first.
-  Future<void> _confirmRealign() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Realign to the score?'),
-        content: const Text(
-            'This re-runs the sync between this recording and the score, '
-            'replacing the current one. Worth doing if the score has been '
-            'edited or the highlight drifts from the music.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Realign'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && mounted) await _load(realign: true);
-  }
-
   @override
   Widget build(BuildContext context) {
     final startMeasure = ref.watch(playbackStartMeasureProvider);
@@ -776,6 +786,11 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     // Safe mid-play: the highlight reads the player's file-time position.
     ref.listen(exactTempoBpmProvider, (_, _) {
       if (_result?.isPlayable ?? false) service.setPlaybackSpeed(_speed);
+    });
+    // A realign of the medium already playing; one that is being switched to
+    // is picked up by the _load the switch itself runs.
+    ref.listen(_pendingRealignProvider, (_, id) {
+      if (id == widget.media.id) _load();
     });
 
     return ValueListenableBuilder<bool>(
@@ -838,8 +853,11 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
             // can't be re-generated at a bpm, so the chosen bpm becomes a
             // playback rate against the recording's own measured tempo (see
             // MediaPlaybackService.speedFor); the rate is shown beside it.
-            Expanded(
+            // Flexible, not Expanded: the row is left-justified, so the
+            // buttons after it follow the rate rather than sit in the corner.
+            Flexible(
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Flexible(child: TempoPresetPicker()),
                   Consumer(builder: (context, ref, _) {
@@ -857,15 +875,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 ],
               ),
             ),
-            // Only offered where it can do something: a medium with no
-            // analysis source has nothing to re-run.
-            if (widget.media.canAlign)
-              IconButton(
-                icon: const Icon(Icons.tune),
-                iconSize: 20,
-                tooltip: 'Realign to the score',
-                onPressed: _confirmRealign,
-              ),
+            const _OutputPickerButton(),
             if (result?.outcome == MediaLoadOutcome.playsWithoutHighlight)
               IconButton(
                 icon: const Icon(Icons.info_outline, color: Colors.amber),
@@ -893,6 +903,53 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
   void _say(String message) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+/// Opens the system speaker / Bluetooth / AirPlay picker. Hidden where there is
+/// no native picker (see [AudioOutput.canPick]). Tinted when the sound is going
+/// somewhere other than the built-in speaker, so that is visible at a glance.
+class _OutputPickerButton extends StatefulWidget {
+  /// The score transport's row is already full on a 375pt phone.
+  final bool compact;
+
+  const _OutputPickerButton({this.compact = false});
+
+  @override
+  State<_OutputPickerButton> createState() => _OutputPickerButtonState();
+}
+
+class _OutputPickerButtonState extends State<_OutputPickerButton> {
+  @override
+  void initState() {
+    super.initState();
+    AudioOutput.ensureStarted();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AudioOutputRoute?>(
+      valueListenable: AudioOutput.route,
+      builder: (context, route, _) {
+        if (route == null) return const SizedBox.shrink();
+        final elsewhere = route.portType != 'Speaker';
+        return IconButton(
+          key: const ValueKey('audio_output_picker'),
+          icon: const Icon(Icons.airplay),
+          iconSize: 20,
+          color: elsewhere ? Theme.of(context).colorScheme.primary : null,
+          tooltip: route.portName.isEmpty
+              ? 'Audio output'
+              : 'Audio output: ${route.portName}',
+          padding: widget.compact ? EdgeInsets.zero : null,
+          visualDensity: widget.compact ? VisualDensity.compact : null,
+          constraints: widget.compact
+              ? const BoxConstraints(minWidth: 36, minHeight: 36)
+              : null,
+          onPressed: AudioOutput.showPicker,
+        );
+      },
+    );
   }
 }
 
