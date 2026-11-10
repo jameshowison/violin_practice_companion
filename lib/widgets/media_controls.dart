@@ -12,6 +12,7 @@ import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import 'tempo_controls.dart';
@@ -989,20 +990,23 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
     });
     ref.read(mediaPlaybackServiceProvider).stop();
     ref.read(playbackServiceProvider).stop();
-    final result = await SyncCalibrator.calibrateRecordings();
-    // Only if the calibration had to re-apply the app's audio session do the
-    // players need rebuilding on it — after the result is on screen, as
-    // reloading the soundfont is heavy enough to hold the sheet up.
     final playback = ref.read(playbackServiceProvider);
     final media = ref.read(mediaPlaybackServiceProvider);
+    final r = await SyncCalibrator.calibrateAll(playback);
+    String line(String what, CalibrationResult x) => x.ok
+        ? '$what: ${(x.delaySeconds! * 1000).round()} ms '
+            '(${x.clicksHeard}/${x.clicksPlayed} clicks)'
+        : '$what failed: ${x.failure}';
     if (mounted) {
       setState(() {
         _calibrating = false;
-        _message = result.ok
-            ? 'Measured from ${result.clicksHeard} of ${result.clicksPlayed} clicks.'
-            : 'Calibration failed: ${result.failure}.';
+        _message = '${line('Recordings', r.recording)}.\n'
+            '${line('Score', r.score)}.';
       });
     }
+    // Only if the calibration had to re-apply the app's audio session do the
+    // players need rebuilding on it — after the result is on screen, as
+    // reloading the soundfont is heavy enough to hold the sheet up.
     if (!SyncCalibrator.lastRunChangedSession) return;
     await WidgetsBinding.instance.endOfFrame;
     unawaited(playback.restartAudio());
@@ -1019,7 +1023,6 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
         builder: (context, delays, _) {
           final reportedMs = ((route?.latencySeconds ?? 0) * 1000).round();
           final measuredMs = AudioOutput.calibratedDelayMs(source);
-          final canCalibrate = source == AudioSyncSource.recording;
           final text = Theme.of(context).textTheme;
           return SafeArea(
             child: Padding(
@@ -1056,8 +1059,9 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                     style: text.bodyMedium,
                   ),
                   const SizedBox(height: 8),
-                  if (canCalibrate)
-                    Row(
+                  // One tap calibrates both players on this speaker; each
+                  // gets its own delay (AudioOutput.calibratedDelayMs).
+                  Row(
                       children: [
                         FilledButton.tonalIcon(
                           key: const ValueKey('audio_sync_calibrate'),
@@ -1073,8 +1077,12 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                         const Spacer(),
                         if (measuredMs != null && !_calibrating)
                           TextButton(
-                            onPressed: () => AudioOutput.setCalibratedDelayMs(
-                                source, null),
+                            onPressed: () {
+                              AudioOutput.setCalibratedDelayMs(
+                                  AudioSyncSource.recording, null);
+                              AudioOutput.setCalibratedDelayMs(
+                                  AudioSyncSource.score, null);
+                            },
                             child: const Text('Forget'),
                           ),
                       ],
@@ -1082,13 +1090,10 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                   const SizedBox(height: 4),
                   Text(
                     _calibrating
-                        ? 'Playing clicks — keep the room quiet for a few seconds.'
+                        ? 'Playing clicks — keep the room quiet for about 20 seconds.'
                         : _message ??
-                            (canCalibrate
-                                ? 'Calibrate plays a few clicks and listens '
-                                    'with the mic. Once per speaker.'
-                                : 'Automatic calibration is for recordings '
-                                    'so far.'),
+                            'Calibrate plays a few clicks and listens '
+                                'with the mic. Once per speaker.',
                     key: const ValueKey('audio_sync_message'),
                     style: text.bodySmall,
                   ),

@@ -239,6 +239,14 @@ abstract class PlaybackServiceBase {
   /// calibration switches it to play-and-record and back). Nothing by default.
   Future<void> restartAudio() async {}
 
+  /// Gets ready to [strikeCalibrationClick]; false if this player can't
+  /// (no synth on this platform, or it isn't loaded).
+  Future<bool> prepareCalibrationClick() async => false;
+
+  /// Sounds one short, sharp click through this player's own sound path, at
+  /// once — for the speaker sync calibration (SyncCalibrator). Ignores mute.
+  void strikeCalibrationClick() {}
+
   void setTempo(int bpm) {
     final wasPlaying = _state == PlaybackState.playing;
     final savedMeasure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;

@@ -108,6 +108,7 @@ void main() {
       await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording, 70);
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording),
           closeTo(0.07, 1e-9));
+      // Not shared: the synth's delay differs from AVPlayer's.
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.score),
           closeTo(0.16, 1e-9));
 

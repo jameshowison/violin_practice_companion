@@ -175,6 +175,11 @@ class AudioOutput {
 
   /// The measured delay for [source] on the current output, in ms, or null
   /// if this speaker hasn't been calibrated.
+  ///
+  /// Never shared between the players: AVPlayer's position already allows
+  /// for part of the delay and the synth's strikes don't, so the score's is
+  /// markedly larger on the same speaker (borrowing the recording's put the
+  /// cursor well ahead of the notes on a Sonos Roam).
   static int? calibratedDelayMs(AudioSyncSource source) {
     final r = route.value;
     if (r == null) return null;

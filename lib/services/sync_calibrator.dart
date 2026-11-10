@@ -5,23 +5,41 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_output.dart';
+import 'playback_service_base.dart';
 import 'sync_calibration.dart';
 import 'sync_calibration_clip.dart';
 
-/// Measures how long after a recording player reaches a moment that moment is
-/// heard, on whatever speaker is connected, by playing [CalibrationClip]
-/// through a just_audio player — the same kind of player as a recording —
-/// while the mic listens (`ios/Runner/AudioCalibrationPlugin.swift`).
+/// Thrown inside a calibration run to stop it with a reason for the user.
+class _Failed implements Exception {
+  final String reason;
+  const _Failed(this.reason);
+}
+
+/// Plays the click pattern through ONE player's own sound path while the mic
+/// listens, and returns the wall-clock second at which that player sent each
+/// click on its way — the moment its cursor treats as "now".
+typedef _PlayClicks = Future<List<double>> Function();
+
+/// Measures, per player, how long after it sends a sound that sound is heard
+/// on whatever speaker is connected, with the mic listening
+/// (`ios/Runner/AudioCalibrationPlugin.swift`). Two players, two delays:
 ///
-/// What comes out is exactly the delay `MediaPlaybackService` subtracts from
-/// the player's position, so anything AVPlayer already compensates for itself
-/// is measured away rather than double-counted.
+/// - **Recordings** — [CalibrationClip] through a just_audio player, timed by
+///   its own `position`. That is exactly what `MediaPlaybackService`
+///   subtracts from, so whatever AVPlayer already allows for itself is
+///   measured away rather than double-counted (531ms on a Sonos Roam over
+///   AirPlay, where iOS's estimate over-corrected).
+/// - **The synthesized score** — claves struck through the synth
+///   (`PlaybackServiceBase.strikeCalibrationClick`), timed by when they were
+///   struck. The synth has no such allowance, so its delay is markedly larger
+///   on the same speaker: borrowing the recording's put the cursor well
+///   ahead of the notes.
 class SyncCalibrator {
   static const _channel =
       MethodChannel('violin_practice_companion/audio_calibration');
 
-  /// How long to keep listening after the clip ends, for the last click to
-  /// arrive over the slowest route (AirPlay).
+  /// How long to keep listening after the last click, for it to arrive over
+  /// the slowest route (AirPlay).
   static const _tail = Duration(milliseconds: 2600);
 
   /// Whether the last calibration had to put the app's audio session back
@@ -31,18 +49,168 @@ class SyncCalibrator {
 
   static double _wallNow() => DateTime.now().microsecondsSinceEpoch / 1e6;
 
-  /// Runs one calibration (about 9 seconds) and, if it succeeds, stores the
-  /// result for the current speaker. Anything playing must be stopped first.
-  static Future<CalibrationResult> calibrateRecordings() async {
-    // The first switch to play-and-record after launch can come up deaf — on
-    // the simulator it heard none of the clicks, then every one on the next
-    // try. So hearing nothing at all earns one automatic retry.
-    final first = await _calibrateOnce();
+  /// Calibrates both players on the current speaker, one after the other
+  /// (about 20 seconds), storing each result that succeeds. Anything playing
+  /// must be stopped first.
+  static Future<({CalibrationResult recording, CalibrationResult score})>
+      calibrateAll(PlaybackServiceBase score) async {
+    lastRunChangedSession = false;
+    final recording = await _withRetry(
+        AudioSyncSource.recording, _recordingClicks);
+    final synth = await _withRetry(
+        AudioSyncSource.score, () => _scoreClicks(score));
+    return (recording: recording, score: synth);
+  }
+
+  // The first switch to play-and-record after launch could come up deaf — on
+  // the simulator it heard none of the clicks, then every one on the next
+  // try. So hearing nothing at all earns one automatic retry.
+  static Future<CalibrationResult> _withRetry(
+      AudioSyncSource source, _PlayClicks play) async {
+    final first = await _measure(source, play);
     if (first.ok || first.clicksHeard > 0 || first.clicksPlayed == 0) {
       return first;
     }
-    debugPrint('[sync_cal] heard nothing; retrying once');
-    return _calibrateOnce();
+    debugPrint('[sync_cal] ${source.name}: heard nothing; retrying once');
+    return _measure(source, play);
+  }
+
+  /// The recording path: the clip through a just_audio player, each click's
+  /// moment read off the player's own position.
+  static Future<List<double>> _recordingClicks() async {
+    final path = await writeCalibrationClip(CalibrationClip.wavBytes());
+    if (path == null) throw const _Failed('not available on this platform');
+    final player = AudioPlayer();
+    final samples = <(double, double)>[];
+    final sampler = Timer.periodic(const Duration(milliseconds: 10), (_) {
+      if (!player.playing) return;
+      final p = player.position.inMicroseconds / 1e6;
+      if (p > 0.05) samples.add((_wallNow(), p));
+    });
+    try {
+      await player.setFilePath(path);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      unawaited(player.play());
+      await player.processingStateStream
+          .firstWhere((s) => s == ProcessingState.completed)
+          .timeout(Duration(
+              milliseconds:
+                  (CalibrationClip.durationSeconds * 1000).round() + 6000));
+    } on TimeoutException {
+      debugPrint('[sync_cal] timed out: state=${player.processingState} '
+          'playing=${player.playing} position=${player.position} '
+          'samples=${samples.length}');
+      throw const _Failed('the clip never finished playing');
+    } finally {
+      sampler.cancel();
+      await player.dispose();
+    }
+    final zero = playerZeroWallSeconds(samples);
+    if (zero == null) throw const _Failed("couldn't follow the clip's playback");
+    return [for (final c in CalibrationClip.clickTimes) zero + c];
+  }
+
+  /// The score path: the same pattern struck through the synth, each click's
+  /// moment the wall-clock second it was struck — as the score's own notes are.
+  static Future<List<double>> _scoreClicks(PlaybackServiceBase score) async {
+    if (!await score.prepareCalibrationClick()) {
+      throw const _Failed("the score's sound isn't ready");
+    }
+    const times = CalibrationClip.clickTimes;
+    final t0 = _wallNow() + 0.5 - times.first;
+    final struck = <double>[];
+    for (final c in times) {
+      final wait = t0 + c - _wallNow();
+      if (wait > 0) {
+        await Future<void>.delayed(
+            Duration(microseconds: (wait * 1e6).round()));
+      }
+      struck.add(_wallNow());
+      score.strikeCalibrationClick();
+    }
+    return struck;
+  }
+
+  /// One measurement of [source]: mic on, [play] the clicks, listen out the
+  /// tail, mic off, compare. Stores the result if it succeeds.
+  static Future<CalibrationResult> _measure(
+      AudioSyncSource source, _PlayClicks play) async {
+    // The speaker being calibrated, taken before the mic re-routes anything.
+    final speaker = await AudioOutput.fetchRoute() ?? AudioOutput.route.value;
+    await _wakeSpeaker();
+    final played = CalibrationClip.clickTimes.length;
+    var started = false;
+    Map<Object?, Object?>? capture;
+    List<double> expected;
+    try {
+      final Map<Object?, Object?>? info;
+      try {
+        info = await _channel.invokeMapMethod<Object?, Object?>('start');
+        started = true;
+      } on PlatformException catch (e) {
+        throw _Failed(e.code == 'permission'
+            ? 'microphone access is off (Settings › Privacy › Microphone)'
+            : "couldn't start the microphone: ${e.message}");
+      } on MissingPluginException {
+        throw const _Failed('not available on this platform');
+      }
+      debugPrint('[sync_cal] ${source.name} start $info');
+      final before = info?['outputBefore'] as String? ?? '';
+      // Switching the mic on can re-route, and the route read straight after
+      // can be mid-change. Give it up to 2s to come back to the speaker.
+      var after = info?['outputAfter'] as String? ?? '';
+      final settleBy = DateTime.now().add(const Duration(seconds: 2));
+      while (after != before && DateTime.now().isBefore(settleBy)) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        after = (await AudioOutput.fetchRoute())?.portType ?? after;
+      }
+      if (before.isNotEmpty && after != before) {
+        throw _Failed(after.contains('HFP')
+            ? 'this speaker switches to call mode when the mic is on'
+            : 'the sound moved from $before to $after when the mic came on');
+      }
+      expected = await play();
+      await Future<void>.delayed(_tail);
+    } on _Failed catch (f) {
+      return CalibrationResult.failed(f.reason, clicksPlayed: played);
+    } finally {
+      if (started) {
+        try {
+          capture = await _channel.invokeMapMethod<Object?, Object?>('stop');
+        } catch (e) {
+          debugPrint('[sync_cal] stop failed: $e');
+        }
+      }
+    }
+
+    final energy = capture?['energy'];
+    if (energy is! Float32List) {
+      return CalibrationResult.failed('the mic recorded nothing',
+          clicksPlayed: played);
+    }
+    final mic = MicEnvelope(
+      startSeconds: (capture!['startWall'] as num).toDouble(),
+      hopSeconds: (capture['hop'] as num).toDouble(),
+      energy: energy,
+    );
+    final result = measureDelay(expected, mic);
+    var loudest = 0.0;
+    for (final e in energy) {
+      if (e > loudest) loudest = e;
+    }
+    debugPrint('[sync_cal] ${source.name} $result '
+        'hops=${energy.length} loudest=${loudest.toStringAsExponential(1)} '
+        'hostTime=${capture['hostTimeValid']} '
+        'drift=${((capture['driftSeconds'] as num? ?? 0) * 1000).toStringAsFixed(1)}ms '
+        'inLat=${((capture['inputLatency'] as num? ?? 0) * 1000).round()}ms '
+        'speaker=$speaker sessionChanged=${capture['sessionChanged']}');
+    if (capture['sessionChanged'] == true) lastRunChangedSession = true;
+    if (result.ok) {
+      await AudioOutput.setCalibratedDelayMs(
+          source, (result.delaySeconds! * 1000).round(),
+          on: speaker);
+    }
+    return result;
   }
 
   /// Plays a moment of silence in ordinary playback mode, before the mic
@@ -66,123 +234,5 @@ class SyncCalibrator {
     } finally {
       await player.dispose();
     }
-  }
-
-  static Future<CalibrationResult> _calibrateOnce() async {
-    // The speaker being calibrated, taken before the mic re-routes anything.
-    final speaker = await AudioOutput.fetchRoute() ?? AudioOutput.route.value;
-    await _wakeSpeaker();
-    final path = await writeCalibrationClip(CalibrationClip.wavBytes());
-    if (path == null) {
-      return const CalibrationResult.failed('not available on this platform');
-    }
-    final played = CalibrationClip.clickTimes.length;
-    final player = AudioPlayer();
-    final samples = <(double, double)>[];
-    Timer? sampler;
-    var started = false;
-    Map<Object?, Object?>? capture;
-    String? failure;
-    try {
-      final Map<Object?, Object?>? info;
-      try {
-        info = await _channel.invokeMapMethod<Object?, Object?>('start');
-        started = true;
-      } on PlatformException catch (e) {
-        return CalibrationResult.failed(
-            e.code == 'permission'
-                ? 'microphone access is off (Settings › Privacy › Microphone)'
-                : "couldn't start the microphone: ${e.message}",
-            clicksPlayed: played);
-      } on MissingPluginException {
-        return CalibrationResult.failed('not available on this platform',
-            clicksPlayed: played);
-      }
-      debugPrint('[sync_cal] start $info');
-      final before = info?['outputBefore'] as String? ?? '';
-      // Switching the mic on re-routes, and the route read straight after can
-      // be mid-change. Give it up to 2s to come back to the speaker it was on.
-      var after = info?['outputAfter'] as String? ?? '';
-      final settleBy = DateTime.now().add(const Duration(seconds: 2));
-      while (after != before && DateTime.now().isBefore(settleBy)) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        after = (await AudioOutput.fetchRoute())?.portType ?? after;
-      }
-      debugPrint('[sync_cal] route $before -> $after');
-      if (before.isNotEmpty && after != before) {
-        failure = after.contains('HFP')
-            ? 'this speaker switches to call mode when the mic is on'
-            : 'the sound moved from $before to $after when the mic came on';
-        return CalibrationResult.failed(failure, clicksPlayed: played);
-      }
-      // Load the clip on the settled play-and-record route, not the one
-      // before it, and give that route a moment more.
-      await player.setFilePath(path);
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-
-      sampler = Timer.periodic(const Duration(milliseconds: 10), (_) {
-        if (!player.playing) return;
-        final p = player.position.inMicroseconds / 1e6;
-        if (p > 0.05) samples.add((_wallNow(), p));
-      });
-      unawaited(player.play());
-      await player.processingStateStream
-          .firstWhere((s) => s == ProcessingState.completed)
-          .timeout(Duration(
-              milliseconds:
-                  (CalibrationClip.durationSeconds * 1000).round() + 6000));
-      sampler.cancel();
-      await Future<void>.delayed(_tail);
-    } on TimeoutException {
-      failure = 'the clip never finished playing';
-      debugPrint('[sync_cal] timed out: state=${player.processingState} '
-          'playing=${player.playing} position=${player.position} '
-          'samples=${samples.length}');
-    } finally {
-      sampler?.cancel();
-      if (started) {
-        try {
-          capture = await _channel.invokeMapMethod<Object?, Object?>('stop');
-        } catch (e) {
-          debugPrint('[sync_cal] stop failed: $e');
-        }
-      }
-      await player.dispose();
-    }
-    if (failure != null) {
-      return CalibrationResult.failed(failure, clicksPlayed: played);
-    }
-
-    final zero = playerZeroWallSeconds(samples);
-    final energy = capture?['energy'];
-    if (zero == null || energy is! Float32List) {
-      return CalibrationResult.failed("couldn't follow the clip's playback",
-          clicksPlayed: played);
-    }
-    final mic = MicEnvelope(
-      startSeconds: (capture!['startWall'] as num).toDouble(),
-      hopSeconds: (capture['hop'] as num).toDouble(),
-      energy: energy,
-    );
-    final result = measureDelay(
-        [for (final c in CalibrationClip.clickTimes) zero + c], mic);
-    var loudest = 0.0;
-    for (final e in energy) {
-      if (e > loudest) loudest = e;
-    }
-    debugPrint('[sync_cal] $result '
-        'hops=${energy.length} loudest=${loudest.toStringAsExponential(1)} '
-        'hostTime=${capture['hostTimeValid']} '
-        'drift=${((capture['driftSeconds'] as num? ?? 0) * 1000).toStringAsFixed(1)}ms '
-        'inLat=${((capture['inputLatency'] as num? ?? 0) * 1000).round()}ms '
-        'speaker=$speaker now=${AudioOutput.route.value} '
-        'sessionChanged=${capture['sessionChanged']}');
-    lastRunChangedSession = capture['sessionChanged'] == true;
-    if (result.ok) {
-      await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording,
-          (result.delaySeconds! * 1000).round(),
-          on: speaker);
-    }
-    return result;
   }
 }
