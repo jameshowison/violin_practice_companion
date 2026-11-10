@@ -415,7 +415,19 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     // Tab is never laid out by section (its xml carries no
                     // section breaks — see [staffBySectionProvider]).
                     if (displayMode != DisplayMode.tab &&
-                        ref.watch(sectionLayoutAvailableProvider))
+                        ref.watch(printedLayoutAvailableProvider))
+                      SwitchListTile(
+                        key: const ValueKey('printed_layout_toggle'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Layout like printed page'),
+                        value: ref.watch(printedLayoutProvider),
+                        onChanged: (v) =>
+                            ref.read(printedLayoutProvider.notifier).state = v,
+                      ),
+                    if (displayMode != DisplayMode.tab &&
+                        ref.watch(sectionLayoutAvailableProvider) &&
+                        !ref.watch(staffByPrintedLinesProvider))
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
@@ -425,7 +437,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                             ref.read(sectionLayoutProvider.notifier).state = v,
                       ),
                     if (displayMode != DisplayMode.tab)
-                      const _RedetectSectionsButton(),
+                      const Row(children: [
+                        Text('Sections:'),
+                        _RedetectSectionsButton(),
+                        _ClearSectionsButton(),
+                      ]),
                     if (printAvailableFor(ref, displayMode))
                       ListTile(
                         key: const ValueKey('print_drawer_tile'),
@@ -440,14 +456,16 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       ),
                     _MeasuresPerLineSlider(
                       bySection: displayMode != DisplayMode.tab &&
-                          ref.watch(staffBySectionProvider),
+                          (ref.watch(staffBySectionProvider) ||
+                              ref.watch(staffByPrintedLinesProvider)),
                     ),
                     // Guaranteed-exact breaks aren't wired up for the tab
                     // view (see `system_break_injector.dart`'s callers) —
                     // only offer it where it actually takes effect. The
                     // section layout's breaks are exact already.
                     if (displayMode != DisplayMode.tab &&
-                        !ref.watch(staffBySectionProvider))
+                        !ref.watch(staffBySectionProvider) &&
+                        !ref.watch(staffByPrintedLinesProvider))
                       const _MeasuresPerLineLockToggle(),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1183,15 +1201,74 @@ class _RedetectSectionsButton extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          key: const ValueKey('redetect_sections'),
-          icon: const Icon(Icons.auto_fix_high, size: 18),
-          label: const Text('Re-detect sections'),
-          onPressed: () => _redetect(context, ref),
-        ),
+  Widget build(BuildContext context, WidgetRef ref) => TextButton.icon(
+        key: const ValueKey('redetect_sections'),
+        style: _sectionButtonStyle,
+        icon: const Icon(Icons.auto_fix_high, size: 18),
+        label: const Text('Re-detect'),
+        onPressed: () => _redetect(context, ref),
       );
+}
+
+/// Compact, so "Sections:" and both its buttons share one drawer row.
+final _sectionButtonStyle = TextButton.styleFrom(
+  padding: const EdgeInsets.symmetric(horizontal: 6),
+  visualDensity: VisualDensity.compact,
+);
+
+/// Removes every section from the open piece, once confirmed — a clean slate
+/// for marking sections by hand when detection's guess is further off than
+/// it is worth correcting. Saved as an empty override, so a bundled piece's
+/// own sections don't come back either.
+class _ClearSectionsButton extends ConsumerWidget {
+  const _ClearSectionsButton();
+
+  Future<void> _clear(BuildContext context) async {
+    // As for [_RedetectSectionsButton]: the container outlives the drawer.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final piece = container.read(selectedPieceProvider);
+    if (piece == null || piece.sections.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete all sections?'),
+        content: Text('This removes all ${piece.sections.length} sections '
+            'from "${piece.title}". Re-detect can find them again.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const ValueKey('clear_sections_confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await container.read(pieceRepositoryProvider).saveSections(piece.id, []);
+    container.read(selectedPieceProvider.notifier).state =
+        piece.copyWith(sections: const []);
+    container.invalidate(piecesProvider);
+    container.invalidate(parsedPieceProvider);
+    messenger.showSnackBar(const SnackBar(content: Text('Sections deleted.')));
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasSections =
+        ref.watch(selectedPieceProvider)?.sections.isNotEmpty ?? false;
+    return TextButton.icon(
+      key: const ValueKey('clear_sections'),
+        style: _sectionButtonStyle,
+      icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+      label: const Text('Delete all'),
+      onPressed: hasSections ? () => _clear(context) : null,
+    );
+  }
 }
 
 class _LyricVersePicker extends ConsumerWidget {
@@ -2191,6 +2268,8 @@ class _NotationView extends ConsumerWidget {
     // measures. Tab is never split (see [staffBySectionProvider]).
     final bySection =
         mode != DisplayMode.tab && ref.watch(staffBySectionProvider);
+    final byPrintedLines =
+        mode != DisplayMode.tab && ref.watch(staffByPrintedLinesProvider);
     final overlays = staffOverlaysFor(
       ref.watch,
       parsed: parsed,
@@ -2239,7 +2318,9 @@ class _NotationView extends ConsumerWidget {
           onMeasureTapped: (m) => _selectMeasure(ref, m),
           flaggedMeasures: flaggedMeasures,
           measureMap: measureMap,
-          sectionLayout: bySection,
+          // The printed page's lines engrave the section layout's way: each
+          // line a pre-broken segment (see [staffByPrintedLinesProvider]).
+          sectionLayout: bySection || byPrintedLines,
           sectionTints: sectionTints,
           chordRuns: chordRuns,
           fingeringAnnotations: annotations,

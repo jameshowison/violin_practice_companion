@@ -505,6 +505,38 @@ final sectionLayoutProvider = pieceDisplayPref<bool>(
   decode: bool.parse,
 );
 
+/// "Layout like printed page": a scanned piece keeps the lines its page was
+/// printed in (the `<print new-system>` breaks the scan recorded), still with
+/// the section wash — so the screen can be checked against the paper. Takes
+/// precedence over [sectionLayoutProvider] while on. Off by default;
+/// remembered per piece. See [staffByPrintedLinesProvider].
+final printedLayoutProvider = pieceDisplayPref<bool>(
+  'printedLayout',
+  false,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
+/// Whether "Layout like printed page" is offered: the piece's MusicXML
+/// records where its printed lines broke (a scan does), and it is engraved
+/// natively.
+final printedLayoutAvailableProvider = Provider<bool>((ref) {
+  if (ref.watch(staffRendererProvider) != StaffRenderer.verovio) return false;
+  final parsed = ref.watch(parsedPieceProvider).valueOrNull;
+  return parsed != null && parsed.measures.skip(1).any((m) => m.systemStart);
+});
+
+/// Whether the staff views break where the printed page did
+/// ([printedLayoutProvider]). Lines are then engraved like the section
+/// layout's segments — one segment per printed line, each kept whole unless
+/// it cannot fit at the minimum note size (lines-per-section zoom 1 forces
+/// it whole). Never the tab view.
+final staffByPrintedLinesProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(printedLayoutAvailableProvider) &&
+      ref.watch(printedLayoutProvider),
+);
+
 final linesPerSectionStoreProvider = Provider<StaffZoomStore>(
   (_) => StaffZoomStore(prefix: 'linesPerSection.'),
 );
@@ -959,7 +991,8 @@ bool _injectFingeringFor(Ref ref) =>
 final staffBySectionProvider = Provider<bool>(
   (ref) =>
       ref.watch(sectionLayoutAvailableProvider) &&
-      ref.watch(sectionLayoutProvider),
+      ref.watch(sectionLayoutProvider) &&
+      !ref.watch(staffByPrintedLinesProvider),
 );
 
 /// Whether "Layout by section" is offered for the selected piece at all — the
@@ -993,6 +1026,9 @@ EngravedMeasureMap staffMeasureMapFor(
 ///    repeats moved to include a lead-in the split sent to the next line
 ///    ([movedRepeats]), and a break before every section. The staff view
 ///    plans the rest.
+///  * like the printed page ([staffByPrintedLinesProvider]): a break at each
+///    of [printedLines] (document positions, read before the scan's own
+///    breaks were stripped). The staff view plans the rest, as by section.
 ///  * locked: every N measures, and before every section start
 ///    (`insertSystemBreaks`).
 ///  * otherwise untouched; Verovio breaks it.
@@ -1001,15 +1037,16 @@ String _breaksFor(
   String xml,
   List<Section> sections,
   ParsedPiece? parsed, {
-  bool? bySection,
-  bool honourLock = true,
+  List<int> printedLines = const [],
 }) {
-  if ((bySection ?? ref.watch(staffBySectionProvider)) && parsed != null) {
+  if (ref.watch(staffByPrintedLinesProvider)) {
+    return insertBreaksAtPositions(xml, printedLines.toSet());
+  }
+  if (ref.watch(staffBySectionProvider) && parsed != null) {
     xml = splitBarsAtSections(xml, sectionBarSplits(sections, parsed.measures));
     xml = moveRepeatsOntoLeadIns(xml, movedRepeats(sections, parsed.measures));
     return insertSystemBreaks(xml, sections: sections);
   }
-  if (!honourLock) return xml;
   final mpl = ref.watch(measuresPerLineProvider);
   if (!mpl.locked || mpl.value == null) return xml;
   return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
@@ -1035,9 +1072,9 @@ final staffXmlProvider = FutureProvider<String?>(
 
 /// The staff views' xml: plain, or with the fingering row reserved
 /// ([fingering], the annotation view). With [print], the xml print engraves
-/// (`score_printer.dart`): the same pipeline, except that it keeps the opening
-/// clef/key/time — paper has no title bar to move them to — and is always laid
-/// out by section when the piece has sections, whatever the on-screen toggle.
+/// (`score_printer.dart`): the same pipeline, line breaks included, except
+/// that it keeps the opening clef/key/time — paper has no title bar to move
+/// them to.
 Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
@@ -1048,6 +1085,8 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   if (parsed == null) return null;
   final repo = ref.watch(pieceRepositoryProvider);
   String xml = await repo.loadMusicXml(piece);
+  // The printed page's lines, before [PieceLayout.stripLayoutHints] drops them.
+  final printedLines = systemStartPositions(xml);
   xml = PieceLayout.stripLayoutHints(xml);
   if (!print) xml = _hidePreambleFor(ref, xml);
   if (!fingering) {
@@ -1067,11 +1106,10 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   // Keep `<harmony>` for the native renderer so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
-  return print
-      ? _breaksFor(ref, xml, piece.sections, parsed,
-          bySection: ref.watch(sectionLayoutAvailableProvider),
-          honourLock: false)
-      : _breaksFor(ref, xml, piece.sections, parsed);
+  // Print breaks exactly as the screen does, so the page follows the
+  // current layout (by section, like the printed page, locked or free).
+  return _breaksFor(ref, xml, piece.sections, parsed,
+      printedLines: printedLines);
 }
 
 /// The xml print engraves, by whether it carries the fingering row (the

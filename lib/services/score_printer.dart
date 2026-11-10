@@ -47,8 +47,8 @@ class PrintJob {
 
   final String title;
 
-  /// From `printStaffXmlProvider`: broken before every section, opening
-  /// clef/key/time kept.
+  /// From `printStaffXmlProvider`: broken as the screen's layout breaks,
+  /// opening clef/key/time kept.
   final String musicXml;
   final ParsedPiece? parsed;
   final List<Section> sections;
@@ -59,8 +59,9 @@ class PrintJob {
   /// The staff-spacing preference, resolved (`verovioSpacingSystemFor`).
   final int spacingUnits;
 
-  /// The on-screen lines-per-section zoom, or null for the fewest that fit
-  /// at [printMinStaffHeightMm].
+  /// Lines per pre-broken segment of [musicXml] (a section, a printed or a
+  /// locked line), or null for the fewest that fit at
+  /// [printMinStaffHeightMm]. See `_PrintSheetState._linesPerSegment`.
   final int? linesPerSection;
 
   final PrintColour colour;

@@ -21,7 +21,7 @@ bool printAvailableFor(WidgetRef ref, DisplayMode mode) =>
     (mode == DisplayMode.staff || mode == DisplayMode.staffFingering);
 
 /// The print options sheet: colour, paper (for sharing — the print dialog
-/// picks its own), and whether to keep the screen's lines-per-section zoom.
+/// picks its own). The layout always follows the screen's.
 Future<void> showPrintSheet(BuildContext context, DisplayMode mode) =>
     showModalBottomSheet<void>(
       context: context,
@@ -40,7 +40,6 @@ class _PrintSheet extends ConsumerStatefulWidget {
 
 class _PrintSheetState extends ConsumerState<_PrintSheet> {
   PrintColour _colour = PrintColour.colour;
-  bool _screenLines = false;
   late PdfPageFormat _paper = _defaultPaper();
   bool _busy = false;
   String? _error;
@@ -52,6 +51,20 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
         WidgetsBinding.instance.platformDispatcher.locale.countryCode;
     const letter = {'US', 'CA', 'MX', 'PH', 'CL', 'CO', 'VE', 'GT', 'PR'};
     return letter.contains(country) ? PdfPageFormat.letter : PdfPageFormat.a4;
+  }
+
+  /// How the printer plans each pre-broken segment of the xml, so the page
+  /// follows the screen's layout (the xml already breaks as the screen does —
+  /// see `printStaffXmlProvider`): a printed-page or locked line is kept
+  /// whole; a section takes the screen's lines-per-section, or the fewest
+  /// that fit the page when that is on auto; free flow, the fewest that fit.
+  int? _linesPerSegment() {
+    if (ref.read(staffByPrintedLinesProvider)) return 1;
+    if (ref.read(staffBySectionProvider)) {
+      return ref.read(linesPerSectionProvider).value;
+    }
+    final mpl = ref.read(measuresPerLineProvider);
+    return mpl.locked && mpl.value != null ? 1 : null;
   }
 
   /// Reads everything the print needs from the providers, once.
@@ -68,7 +81,7 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
       mode: widget.mode,
       sections: piece.sections,
       sectionColors: SectionPalette.colorsForSections(piece.sections),
-      bySection: ref.read(sectionLayoutAvailableProvider),
+      bySection: ref.read(staffBySectionProvider),
       // The underline's stagger and line weight carry the string without
       // colour; chips are nothing but colour, so they lose it for letters.
       colourStyle: greyscale &&
@@ -85,8 +98,7 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
       sections: piece.sections,
       overlays: overlays,
       spacingUnits: verovioSpacingSystemFor(ref.read(staffSpacingProvider)),
-      linesPerSection:
-          _screenLines ? ref.read(linesPerSectionProvider).value : null,
+      linesPerSection: _linesPerSegment(),
       colour: _colour,
     );
   }
@@ -118,7 +130,6 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final screenLines = ref.watch(linesPerSectionProvider).value;
     final theme = Theme.of(context);
     return SafeArea(
       child: Padding(
@@ -155,18 +166,6 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
               onSelectionChanged:
                   _busy ? null : (s) => setState(() => _paper = s.first),
             ),
-            if (screenLines != null)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                    'Keep $screenLines line${screenLines == 1 ? '' : 's'} '
-                    'per section'),
-                subtitle: const Text(
-                    'As on screen; otherwise the fewest that fit the page'),
-                value: _screenLines,
-                onChanged:
-                    _busy ? null : (v) => setState(() => _screenLines = v),
-              ),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!,
