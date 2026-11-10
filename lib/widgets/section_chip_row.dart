@@ -6,11 +6,18 @@ import '../models/section_run.dart';
 import '../services/midi_generator.dart'; // HighlightEvent
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../models/section_run_groups.dart';
+import 'section_loop.dart';
 import 'section_minimap.dart';
 
+/// Height of the strip a folded repeat's loop is drawn in, above its chips.
+const double _loopStrip = 12;
+
 /// The phone's section picker: a row of chips on top of the play controls —
-/// `All · A¹ · A² · B …`, one per **unfolded** [SectionRun], the same runs the
-/// wide layout's [SectionMinimap] rail shows.
+/// `All · A¹ · A² · B …`, over the **unfolded** [SectionRun]s, the same runs
+/// the wide layout's [SectionMinimap] rail shows. A repeated block of two or
+/// more sections is folded ([foldRunGroups]): `B C B C` shows as one `B C`
+/// under a loop arrow, which shrinks the row and shows the form at a glance.
 ///
 /// It lives in the play tray rather than down the right edge because picking a
 /// section is something you do just before pressing Play, and a rail (even
@@ -22,20 +29,33 @@ import 'section_minimap.dart';
 /// selected measure sit at the right end, outside the scroll.
 class SectionChipRow extends ConsumerStatefulWidget {
   final List<SectionRun> runs;
+
+  /// [runs] as the picker shows them ([sectionRunGroupsProvider]).
+  final List<RunGroup> groups;
   final Map<String, Color> sectionColors;
   final PlaybackServiceBase service;
   final ValueChanged<int> onTapRun;
+
+  /// Selects unfolded runs [first]..[last] as one stretch — a folded
+  /// repeat's loop, tapped.
+  final void Function(int first, int last) onTapSpan;
 
   /// Fixed, so selecting a measure (which brings Edit/Delete in) never changes
   /// the tray's height and nudges the score's autoscroll inset.
   static const double height = 36;
 
+  /// The row's height for a piece with a folded repeat: the chips plus the
+  /// loop strip over them. Still fixed for the piece, for the same reason.
+  static const double heightWithLoops = height + _loopStrip - 4;
+
   const SectionChipRow({
     super.key,
     required this.runs,
+    required this.groups,
     required this.sectionColors,
     required this.service,
     required this.onTapRun,
+    required this.onTapSpan,
   });
 
   @override
@@ -46,14 +66,23 @@ class _SectionChipRowState extends ConsumerState<SectionChipRow> {
   final _keys = <int, GlobalKey>{};
   int? _shownCurrent;
 
-  GlobalKey _keyFor(int i) => _keys.putIfAbsent(i, GlobalKey.new);
+  // Run index → the chip showing it (keyed by that chip's first run), so
+  // following the current run finds its chip on any pass. Rebuilt each build.
+  final _chipOf = <int, int>{};
+
+  GlobalKey _keyFor(RunSlot slot) {
+    for (final r in slot.runs) {
+      _chipOf[r] = slot.runs.first;
+    }
+    return _keys.putIfAbsent(slot.runs.first, GlobalKey.new);
+  }
 
   // Bring the newly current chip into view, after the frame that lights it.
   void _follow(int? current) {
     if (current == null || current == _shownCurrent) return;
     _shownCurrent = current;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _keys[current]?.currentContext;
+      final ctx = _keys[_chipOf[current]]?.currentContext;
       if (ctx != null && ctx.mounted) {
         Scrollable.ensureVisible(ctx,
             alignment: 0.5, duration: const Duration(milliseconds: 200));
@@ -70,9 +99,14 @@ class _SectionChipRowState extends ConsumerState<SectionChipRow> {
     final scrollMeasure = ref.watch(scrollMeasureProvider);
     final selection = ref.watch(measureSelectionProvider);
     final runs = widget.runs;
+    final groups = widget.groups;
+    _chipOf.clear();
+    // Loops and the D.C. label both sit in a strip over their chips.
+    final hasLoop = groups.any((g) => g.isLoop || g.isJump);
+    final theme = Theme.of(context);
 
     return SizedBox(
-      height: SectionChipRow.height,
+      height: hasLoop ? SectionChipRow.heightWithLoops : SectionChipRow.height,
       child: Row(
         children: [
           Expanded(
@@ -84,39 +118,115 @@ class _SectionChipRowState extends ConsumerState<SectionChipRow> {
                       final current = resolveCurrentRun(
                           runs, isCustom, scrollMeasure, play, selection);
                       _follow(current);
+
+                      Widget slotChip(RunSlot slot, {bool lit = false}) => _Chip(
+                            key: _keyFor(slot),
+                            label: slot.label,
+                            color: widget.sectionColors[slot.label] ??
+                                Colors.blueGrey,
+                            active: lit || slot.runs.contains(current),
+                            onTap: () => widget.onTapRun(
+                                runForSlotTap(runs, slot, selection)),
+                          );
+
+                      Widget group(RunGroup g) {
+                        final st = RunGroupState.of(
+                            g, runs, current, play, selection);
+                        final chips = Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final s in g.slots)
+                              slotChip(s, lit: st.wholeSelected)
+                          ],
+                        );
+                        if (!hasLoop) return chips;
+                        if (!g.isLoop && !g.isJump) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: _loopStrip),
+                            child: chips,
+                          );
+                        }
+                        final onSurface = theme.colorScheme.onSurface;
+                        final lineColor =
+                            st.lit ? onSurface : onSurface.withAlpha(130);
+                        // The strip over the chips: the loop with its pass
+                        // dots, or the D.C. instruction in words.
+                        final strip = g.isJump
+                            ? Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: Text(g.jumpLabel!,
+                                      maxLines: 1,
+                                      style: sectionJumpLabelStyle(st.lit
+                                          ? onSurface
+                                          : onSurface.withAlpha(170))),
+                                ),
+                              )
+                            : CustomPaint(
+                                painter: SectionLoopPainter(
+                                  axis: Axis.horizontal,
+                                  color: lineColor,
+                                  dotColor: onSurface,
+                                  passes: g.passes,
+                                  filled: st.filled,
+                                  endInset: 6, // the last chip's margin
+                                ),
+                              );
+                        // IntrinsicWidth: the row scrolls, so its width is
+                        // unbounded — the strip takes the chips' width.
+                        return IntrinsicWidth(
+                            child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Tapping the strip selects the whole stretch:
+                            // every pass of a repeat, or the D.C. return.
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () =>
+                                  widget.onTapSpan(g.firstRun, g.lastRun),
+                              child: SizedBox(height: _loopStrip, child: strip),
+                            ),
+                            Expanded(child: chips),
+                          ],
+                        ));
+                      }
+
                       return SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                        // With loops, the strip itself is the top margin.
+                        // The trailing room lets the row's end scroll clear
+                        // of the tray's chevron, which the strip tucks beside.
+                        padding: EdgeInsets.fromLTRB(
+                            8, hasLoop ? 0 : 4, hasLoop ? 44 : 8, 4),
                         child: Row(
                           // Full row height: a taller target than the label.
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _Chip(
-                              label: 'All',
-                              color: null,
-                              active: selection == null,
-                              tooltip: 'Play the whole piece',
-                              onTap: () => ref
-                                  .read(measureSelectionProvider.notifier)
-                                  .state = null,
-                            ),
-                            for (var i = 0; i < runs.length; i++)
-                              _Chip(
-                                key: _keyFor(i),
-                                label: sectionRunLabel(runs[i]),
-                                color: widget.sectionColors[runs[i].label] ??
-                                    Colors.blueGrey,
-                                active: i == current,
-                                onTap: () => widget.onTapRun(i),
+                            Padding(
+                              padding: EdgeInsets.only(
+                                  top: hasLoop ? _loopStrip : 0),
+                              child: _Chip(
+                                label: 'All',
+                                color: null,
+                                active: selection == null,
+                                tooltip: 'Play the whole piece',
+                                onTap: () => ref
+                                    .read(measureSelectionProvider.notifier)
+                                    .state = null,
                               ),
+                            ),
+                            for (final g in groups) group(g),
                           ],
                         ),
                       );
                     },
                   ),
           ),
-          const MeasureActions(direction: Axis.horizontal),
+          Padding(
+            padding: EdgeInsets.only(top: hasLoop ? _loopStrip : 0),
+            child: const MeasureActions(direction: Axis.horizontal),
+          ),
           const SizedBox(width: 4),
         ],
       ),

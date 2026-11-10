@@ -215,8 +215,34 @@ class ParsedPiece {
   ///
   /// Shared by MIDI generation (audio order) and the section-organized layout /
   /// staff unfold (so a `|: A :|` span shows up as two `A`s on the staff).
-  static List<int> performanceOrder(List<Measure> measures) {
+  static List<int> performanceOrder(List<Measure> measures) =>
+      _unfold(measures).order;
+
+  /// The D.C./D.S. jump, if the piece has one: [perfIndex] is the position in
+  /// [performanceOrder] of the first bar played after it, and [label] is
+  /// the instruction as a player reads it (`D.C.`, `D.S. al Fine`,
+  /// `D.C. al Coda`). Null when nothing jumps. The section bar draws what
+  /// follows the jump as one labelled stretch rather than as repeats.
+  static ({int perfIndex, String label})? navigationJump(
+      List<Measure> measures) {
+    final at = _unfold(measures).jumpAt;
+    if (at == null) return null;
+    final from = measures[at.from];
+    final sign = from.daCapo ? 'D.C.' : 'D.S.';
+    final suffix = measures.any((m) => m.fine)
+        ? ' al Fine'
+        : measures.any((m) => m.toCoda)
+            ? ' al Coda'
+            : '';
+    return (perfIndex: at.perfIndex, label: '$sign$suffix');
+  }
+
+  /// [performanceOrder]'s walk, also reporting where its one jump happened:
+  /// the document index of the D.C./D.S. bar and the order position after it.
+  static ({List<int> order, ({int from, int perfIndex})? jumpAt}) _unfold(
+      List<Measure> measures) {
     final order = <int>[];
+    ({int from, int perfIndex})? jumpAt;
     final endRepeatTaken = <int>{};
     var returnIndex = 0;
     var jumped = false;
@@ -243,6 +269,7 @@ class ParsedPiece {
         }
       } else if (m.daCapo || m.dalSegno) {
         jumped = true;
+        jumpAt = (from: i, perfIndex: order.length);
         var target = 0;
         if (!m.daCapo) {
           final s = measures.lastIndexWhere((x) => x.segno, i);
@@ -253,7 +280,7 @@ class ParsedPiece {
       }
       i++;
     }
-    return order;
+    return (order: order, jumpAt: jumpAt);
   }
 
   /// Measure numbers whose visible notes don't total the expected beat count.

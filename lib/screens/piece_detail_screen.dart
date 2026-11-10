@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
+import '../models/section_run_groups.dart';
 import '../models/count_in.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
@@ -559,6 +560,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               // folded run for in-view navigation + practice-range selection.
               final unfoldedRuns =
                   ref.watch(sectionRunsProvider).valueOrNull ?? const [];
+              // The two providers resolve separately: while they disagree
+              // (a piece just switched), fold without the D.C. rather than
+              // index runs that aren't there.
+              final foldedRuns =
+                  ref.watch(sectionRunGroupsProvider).valueOrNull ?? const [];
+              final runGroups = unfoldedRuns.isEmpty
+                  ? const <RunGroup>[]
+                  : foldedRuns.isNotEmpty &&
+                          foldedRuns.last.lastRun == unfoldedRuns.length - 1
+                      ? foldedRuns
+                      : foldRunGroups(unfoldedRuns);
               // Edit/Delete now live at the top of this rail (see
               // SectionMinimap's header), so a piece with no sections still
               // needs the rail the moment a measure is selected — otherwise
@@ -566,9 +578,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               final canEditSelection = selection != null &&
                   selection.isSingle &&
                   ref.watch(pieceRepositoryProvider).supportsEditing;
-              void onTapRun(int i) {
-                final run = unfoldedRuns[i];
-                final picked = MeasureSelection.ofRun(run);
+              void onTapSpan(int first, int last) {
+                final run = unfoldedRuns[first];
+                final picked =
+                    MeasureSelection.ofRuns(run, unfoldedRuns[last]);
                 final selection = ref.read(measureSelectionProvider.notifier);
                 // Tapping the selected section again clears it, back to how
                 // the piece opens.
@@ -587,6 +600,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                 }
               }
 
+              // One section: the same as a span of just that run.
+              void onTapRun(int i) => onTapSpan(i, i);
+
               final hasSectionUi = unfoldedRuns.isNotEmpty || canEditSelection;
 
               if (useCompact) {
@@ -596,13 +612,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   const _PalettePanel(),
                   Expanded(child: _CompactPieceLayout(
                   notationView: notationView,
+                  sectionRowHasStrip:
+                      runGroups.any((g) => g.isLoop || g.isJump),
                   sectionRow: !hasSectionUi
                       ? null
                       : SectionChipRow(
                           runs: unfoldedRuns,
+                          groups: runGroups,
                           sectionColors: sectionColors,
                           service: activeService,
                           onTapRun: onTapRun,
+                          onTapSpan: onTapSpan,
                         ),
                   drawers: _drawers,
                   layout: layout,
@@ -620,9 +640,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   ? null
                   : SectionMinimap(
                       runs: unfoldedRuns,
+                      groups: runGroups,
                       sectionColors: sectionColors,
                       service: activeService,
                       onTapRun: onTapRun,
+                      onTapSpan: onTapSpan,
                     );
 
               return Column(
@@ -1336,6 +1358,10 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   /// sections and nothing to edit.
   final Widget? sectionRow;
 
+  /// [sectionRow] has a loop / D.C. strip over its chips (see
+  /// [SectionChipRow.heightWithLoops]), which can tuck under the tray's edge.
+  final bool sectionRowHasStrip;
+
   final PieceLayout layout;
   final Piece piece;
   final PlaybackServiceBase service;
@@ -1354,6 +1380,7 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   const _CompactPieceLayout({
     required this.notationView,
     required this.sectionRow,
+    required this.sectionRowHasStrip,
     required this.drawers,
     required this.layout,
     required this.piece,
@@ -1372,6 +1399,10 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
 class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
   static bool _hasPeeked = false;
   static const _slide = Duration(milliseconds: 250);
+
+  /// How far a section row with a loop strip tucks up under the tray's top
+  /// edge — its arcs then sit beside the chevron rather than below it.
+  static const double _tuck = 8;
   static const _peekFor = Duration(milliseconds: 3000);
 
   final _trayKey = GlobalKey();
@@ -1527,6 +1558,10 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     // Guards the case where the drawer's contents go away while it's open —
     // switching to Jianpu, or turning chords off from the settings drawer.
     final sheetOpen = _sheetOpen && hasDrawer;
+    // The tray's top edge: room for the chord handle, or just the chevron.
+    final edgeH = hasDrawer ? 20.0 : 12.0;
+    // The section row's loop strip tucks up under the edge, chords closed.
+    final tuck = widget.sectionRowHasStrip && !sheetOpen;
 
     return Stack(
       children: [
@@ -1563,101 +1598,140 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ── the top edge: chord handle + put-away chevron ──
-                    //
-                    // The chord handle sits on the tray's own top edge so it
-                    // travels with the panel as it grows. No handle when
-                    // there's nothing behind it — an affordance that opens
-                    // onto an empty panel is worse than no affordance.
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: !hasDrawer
-                          ? null
-                          : () => _sheetOpen ? _closeSheet() : _openSheet(),
-                      onVerticalDragUpdate: (d) =>
-                          _onTrayDrag(d, hasDrawer: hasDrawer),
-                      // Full width, or the Stack shrinks to the chord handle
-                      // and the chevron lands on top of it.
-                      child: SizedBox(
-                        height: 20,
-                        width: double.infinity,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (hasDrawer)
-                              Container(
-                                width: 40,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade400,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            Positioned(
-                              right: 8,
-                              top: 0,
-                              bottom: 0,
-                              child: IconButton(
-                                tooltip: 'Hide controls',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints.tightFor(
-                                    width: 36, height: 20),
-                                iconSize: 20,
-                                icon: const Icon(Icons.keyboard_arrow_down),
-                                onPressed: () => _setTray(false),
+                    // The top edge is drawn OVER the rest, so that on a piece
+                    // whose section row has a loop strip, the strip can tuck
+                    // up under it (while the chords are closed) instead of
+                    // leaving the edge's height empty above it.
+                    Stack(
+                      children: [
+                        AnimatedPadding(
+                          duration: _slide,
+                          curve: Curves.easeOut,
+                          padding: EdgeInsets.only(
+                              top: edgeH - (tuck ? _tuck : 0)),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                            // ── chord diagrams (slide up above the play bar) ──
+                            //
+                            // Tall on purpose, and that's fine: on a phone the
+                            // diagrams are reference — read before playing, not
+                            // while — and the drawer closes itself the moment Play is
+                            // pressed (the playbackStateProvider listener above). So
+                            // the score it covers (about half the screen in portrait,
+                            // all but one line in landscape on the SE) is not score
+                            // anyone is trying to read. Don't shrink it to make room.
+                            AnimatedSize(
+                              duration: _slide,
+                              curve: Curves.easeOut,
+                              child: sheetOpen
+                                  ? ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxHeight: 280),
+                                      child: const SingleChildScrollView(
+                                        // The drag handle above is already the
+                                        // boundary, so no second rule under it.
+                                        child: NewChordsBlock(topBorder: false),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            // ── the play bar ──
+                            //
+                            // Drag-sensitive too, so a flick up opens the chords and a
+                            // flick down puts the tray away, without finding the edge.
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onVerticalDragUpdate: (d) =>
+                                  _onTrayDrag(d, hasDrawer: hasDrawer),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ?widget.sectionRow,
+                                  MediaControls(
+                                    piece: widget.piece,
+                                    media: widget.media,
+                                    selected: widget.selectedMedia,
+                                  ),
+                                  // Spacer so interactive content sits above the
+                                  // home-indicator zone; Material background fills
+                                  // the safe area gap visually.
+                                  SizedBox(height: safeBottom),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // ── chord diagrams (slide up above the play bar) ──
-                    //
-                    // Tall on purpose, and that's fine: on a phone the
-                    // diagrams are reference — read before playing, not
-                    // while — and the drawer closes itself the moment Play is
-                    // pressed (the playbackStateProvider listener above). So
-                    // the score it covers (about half the screen in portrait,
-                    // all but one line in landscape on the SE) is not score
-                    // anyone is trying to read. Don't shrink it to make room.
-                    AnimatedSize(
-                      duration: _slide,
-                      curve: Curves.easeOut,
-                      child: sheetOpen
-                          ? ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxHeight: 280),
-                              child: const SingleChildScrollView(
-                                // The drag handle above is already the
-                                // boundary, so no second rule under it.
-                                child: NewChordsBlock(topBorder: false),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    // ── the play bar ──
-                    //
-                    // Drag-sensitive too, so a flick up opens the chords and a
-                    // flick down puts the tray away, without finding the edge.
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragUpdate: (d) =>
-                          _onTrayDrag(d, hasDrawer: hasDrawer),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ?widget.sectionRow,
-                          MediaControls(
-                            piece: widget.piece,
-                            media: widget.media,
-                            selected: widget.selectedMedia,
+                            ],
                           ),
-                          // Spacer so interactive content sits above the
-                          // home-indicator zone; Material background fills
-                          // the safe area gap visually.
-                          SizedBox(height: safeBottom),
-                        ],
-                      ),
+                        ),
+                        // ── the top edge: chord handle + put-away chevron ──
+                        //
+                        // The chord handle sits on the tray's own top edge so
+                        // it travels with the panel as it grows. No handle
+                        // when there's nothing behind it — an affordance that
+                        // opens onto an empty panel is worse than no
+                        // affordance.
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: GestureDetector(
+                              // The edge overlaps what's below it when the strip is
+                              // tucked under, or when it's only the chevron's
+                              // (20pt over a 12pt edge) — then only the handle and
+                              // the chevron take touches; the rest fall through.
+                              behavior: tuck || !hasDrawer
+                                  ? HitTestBehavior.deferToChild
+                                  : HitTestBehavior.opaque,
+                              onTap: !hasDrawer
+                                  ? null
+                                  : () => _sheetOpen ? _closeSheet() : _openSheet(),
+                              onVerticalDragUpdate: (d) =>
+                                  _onTrayDrag(d, hasDrawer: hasDrawer),
+                              // Full width, or the Stack shrinks to the chord handle
+                              // and the chevron lands on top of it.
+                              // 20pt even over a 12pt edge: the chevron's target.
+                              child: SizedBox(
+                                height: 20,
+                                width: double.infinity,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    if (hasDrawer)
+                                      // A touch target wider than the bar it draws.
+                                      Container(
+                                        width: 80,
+                                        height: edgeH,
+                                        color: Colors.transparent,
+                                        alignment: Alignment.center,
+                                        child: Container(
+                                          width: 40,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade400,
+                                            borderRadius: BorderRadius.circular(2),
+                                          ),
+                                        ),
+                                      ),
+                                    Positioned(
+                                      right: 8,
+                                      top: 0,
+                                      bottom: 0,
+                                      child: IconButton(
+                                        tooltip: 'Hide controls',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints.tightFor(
+                                            width: 36, height: 20),
+                                        iconSize: 20,
+                                        icon: const Icon(Icons.keyboard_arrow_down),
+                                        onPressed: () => _setTray(false),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -56,6 +56,39 @@ String _bar(int n, String extra) => '''<measure number="$n">
 </measure>''';
 
 void main() {
+  group('navigationJump', () {
+    test('Gossec-shaped D.C. al Fine: where the return starts, and its words',
+        () {
+      // |: 1 :| 2 Fine |: 3 :| D.C. — plays 1 1 2 3 3 1 2.
+      final ms = [
+        _m(1, repeatStart: true, repeatEnd: true),
+        _m(2, fine: true),
+        _m(3, repeatStart: true, repeatEnd: true, daCapo: true),
+      ];
+      expect(_played(ms), [1, 1, 2, 3, 3, 1, 2]);
+      expect(ParsedPiece.navigationJump(ms),
+          (perfIndex: 5, label: 'D.C. al Fine'));
+    });
+
+    test('D.S. al Coda', () {
+      final ms = [
+        _m(1),
+        _m(2, segno: true),
+        _m(3, toCoda: true),
+        _m(4, dalSegno: true),
+        _m(5, coda: true),
+      ];
+      expect(ParsedPiece.navigationJump(ms)?.label, 'D.S. al Coda');
+    });
+
+    test('plain D.C., and none at all', () {
+      expect(ParsedPiece.navigationJump([_m(1), _m(2, daCapo: true)])?.label,
+          'D.C.');
+      expect(ParsedPiece.navigationJump([_m(1), _m(2, repeatEnd: true)]),
+          isNull);
+    });
+  });
+
   group('performanceOrder with navigation marks', () {
     test('D.C. al Fine returns to the start and stops at Fine', () {
       expect(

@@ -19,6 +19,7 @@ import '../models/piece_media.dart';
 import '../models/piece_library.dart' as plib;
 import '../models/section.dart';
 import '../models/section_run.dart';
+import '../models/section_run_groups.dart';
 import '../models/string_label_style.dart';
 import '../models/violin_string_palette.dart';
 import 'fingering_mapper.dart';
@@ -553,6 +554,16 @@ final sectionRunsProvider = FutureProvider<List<SectionRun>>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (parsed == null || piece == null) return const [];
   return sectionRuns(parsed.measures, piece.sections);
+});
+
+// The section picker's view of [sectionRunsProvider]: repeats folded under
+// loops, and the score's D.C./D.S. return as one labelled stretch.
+final sectionRunGroupsProvider = FutureProvider<List<RunGroup>>((ref) async {
+  final runs = await ref.watch(sectionRunsProvider.future);
+  final parsed = await ref.watch(parsedPieceProvider.future);
+  if (runs.isEmpty || parsed == null) return const [];
+  return foldRunGroups(runs,
+      jump: ParsedPiece.navigationJump(parsed.measures));
 });
 
 // ── Display mode ──────────────────────────────────────────────────────────────
@@ -1208,6 +1219,15 @@ class MeasureSelection {
       endNote: run.endNote,
       startPerf: run.perfStart,
       endPerf: run.perfEnd < 0 ? -1 : run.perfEnd - 1);
+
+  /// The selection from the start of [first] to the end of [last], pinned to
+  /// those passes — e.g. a whole folded repeat, `B¹` through `C²`.
+  factory MeasureSelection.ofRuns(SectionRun first, SectionRun last) =>
+      MeasureSelection(first.firstMeasure, last.lastMeasure,
+          startNote: first.startNote,
+          endNote: last.endNote,
+          startPerf: first.perfStart,
+          endPerf: last.perfEnd < 0 ? -1 : last.perfEnd - 1);
 
   bool contains(int measure) =>
       measure >= startMeasure && measure <= endMeasure;

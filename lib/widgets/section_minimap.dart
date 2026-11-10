@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/note_event.dart'; // DisplayMode
 import '../models/section.dart'; // sectionsAfterMeasureDelete
 import '../models/section_run.dart';
+import '../models/section_run_groups.dart';
 import '../screens/edit_measure_screen.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
+import 'section_loop.dart';
 
 /// Which unfolded run is "where we are": the playing pass (by performance
 /// index), else the top-most scrolled run in the custom views, else the
@@ -36,6 +38,14 @@ int? resolveCurrentRun(List<SectionRun> runs, bool isCustom,
   if (sel != null) {
     final exact = runs.indexWhere((r) => MeasureSelection.ofRun(r) == sel);
     if (exact >= 0) return exact;
+    // A selection pinned to a pass (a whole repeat, or the D.C. return) starts
+    // in a run by playing position — its bars alone may also be an earlier
+    // pass's (the D.C. return's A is the first A's bars).
+    if (sel.startPerf >= 0) {
+      final pinned = runs.indexWhere((r) => r.containsPerf(sel.startPerf,
+          noteIndex: sel.startNote));
+      if (pinned >= 0) return pinned;
+    }
     final inside = runs.indexWhere((r) =>
         sel.startMeasure >= r.firstMeasure &&
         sel.startMeasure <= r.lastMeasure);
@@ -64,19 +74,23 @@ int? sectionRunForDoubleTap(
   return matches[(at + 1) % matches.length];
 }
 
-/// A run's display label, with a superscript pass number for a repeated
-/// section (e.g. `A¹` / `A²`).
-String sectionRunLabel(SectionRun run) {
-  if (run.passCount <= 1) return run.label;
-  final n = run.passIndex + 1;
-  return n < _sup.length ? '${run.label}${_sup[n]}' : '${run.label}$n';
+/// The run a tap on [slot] (a folded section's chip) selects, as an index into
+/// [runs]: its first pass, or — when one of its passes is the selection — the
+/// next one. The last pass maps to itself, so the caller's "tap the selected
+/// section again to clear" takes over: B¹ → B² → nothing.
+int runForSlotTap(
+    List<SectionRun> runs, RunSlot slot, MeasureSelection? selection) {
+  final at = selection == null
+      ? -1
+      : slot.runs
+          .indexWhere((i) => MeasureSelection.ofRun(runs[i]) == selection);
+  if (at < 0) return slot.runs.first;
+  return slot.runs[(at + 1).clamp(0, slot.runs.length - 1)];
 }
 
-// Unicode superscripts for numbered passes (e.g. C¹ / C²).
-const _sup = ['', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-
-/// Right-hand navigation strip: one emblem per **unfolded** [SectionRun] (so a
-/// `|: A :|` repeat shows two A emblems — `A A B B`). This is the single place
+/// Right-hand navigation strip: the **unfolded** [SectionRun]s (so a
+/// `|: A :|` repeat shows two A emblems — `A¹ A²`), with a repeated block of
+/// two or more sections folded under a loop down its left ([foldRunGroups]). This is the single place
 /// that conveys the whole-piece structure; the notation itself stays folded.
 ///
 /// Each section is drawn as an emblematic bar in the section's color. The
@@ -102,9 +116,19 @@ const _sup = ['', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 /// reflow each time. A constant width makes that structurally impossible.
 class SectionMinimap extends ConsumerWidget {
   final List<SectionRun> runs;
+
+  /// [runs] as the rail shows them ([sectionRunGroupsProvider]).
+  final List<RunGroup> groups;
   final Map<String, Color> sectionColors;
   final PlaybackServiceBase service;
   final ValueChanged<int> onTapRun;
+
+  /// Selects unfolded runs [first]..[last] as one stretch — a folded
+  /// repeat's loop, tapped.
+  final void Function(int first, int last) onTapSpan;
+
+  /// Width of the gutter a folded repeat's loop takes from its emblems.
+  static const double loopGutter = 12;
 
   /// Fixed strip width — wide enough for a two-glyph label (e.g. `A¹`) at the
   /// largest marker scale. See the class doc for why this must not vary.
@@ -113,9 +137,11 @@ class SectionMinimap extends ConsumerWidget {
   const SectionMinimap({
     super.key,
     required this.runs,
+    required this.groups,
     required this.sectionColors,
     required this.service,
     required this.onTapRun,
+    required this.onTapSpan,
   });
 
   @override
@@ -185,15 +211,8 @@ class SectionMinimap extends ConsumerWidget {
                                     .read(measureSelectionProvider.notifier)
                                     .state = null,
                               ),
-                            for (var i = 0; i < runs.length; i++)
-                              _Emblem(
-                                run: runs[i],
-                                color: sectionColors[runs[i].label] ??
-                                    Colors.blueGrey,
-                                active: i == current,
-                                scale: scale,
-                                onTap: () => onTapRun(i),
-                              ),
+                            for (final g in groups)
+                              _group(context, g, current, play, selection, scale),
                           ],
                         ),
                       ),
@@ -201,6 +220,81 @@ class SectionMinimap extends ConsumerWidget {
                   );
                 },
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// One stretch of the rail: a lone emblem; a folded repeat's emblems with
+  /// its loop in a gutter down their left; or the D.C. return's emblems under
+  /// its instruction. Tapping the loop or the instruction selects the whole
+  /// stretch.
+  Widget _group(BuildContext context, RunGroup g, int? current,
+      HighlightEvent? play, MeasureSelection? selection, double scale) {
+    final st = RunGroupState.of(g, runs, current, play, selection);
+    final emblems = [
+      for (final slot in g.slots)
+        _Emblem(
+          label: slot.label,
+          color: sectionColors[slot.label] ?? Colors.blueGrey,
+          active: st.wholeSelected || slot.runs.contains(current),
+          scale: scale,
+          onTap: () => onTapRun(runForSlotTap(runs, slot, selection)),
+        ),
+    ];
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    if (g.isJump) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onTapSpan(g.firstRun, g.lastRun),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              // The rail is narrow: the instruction shrinks to fit it.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(g.jumpLabel!,
+                    maxLines: 1,
+                    style: sectionJumpLabelStyle(
+                        st.lit ? onSurface : onSurface.withAlpha(170),
+                        fontSize: 9 * scale)),
+              ),
+            ),
+          ),
+          ...emblems,
+        ],
+      );
+    }
+    if (!g.isLoop) return emblems.single;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onTapSpan(g.firstRun, g.lastRun),
+            child: SizedBox(
+              width: loopGutter,
+              child: CustomPaint(
+                painter: SectionLoopPainter(
+                  axis: Axis.vertical,
+                  color: st.lit ? onSurface : onSurface.withAlpha(130),
+                  dotColor: onSurface,
+                  passes: g.passes,
+                  filled: st.filled,
+                  endInset: 4, // the last emblem's margin
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: emblems,
             ),
           ),
         ],
@@ -397,7 +491,7 @@ class _AllEmblem extends StatelessWidget {
 }
 
 class _Emblem extends StatelessWidget {
-  final SectionRun run;
+  final String label;
   final Color color;
   final bool active;
 
@@ -408,7 +502,7 @@ class _Emblem extends StatelessWidget {
   final VoidCallback onTap;
 
   const _Emblem({
-    required this.run,
+    required this.label,
     required this.color,
     required this.active,
     required this.scale,
@@ -453,7 +547,7 @@ class _Emblem extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  sectionRunLabel(run),
+                  label,
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 11 * scale,
