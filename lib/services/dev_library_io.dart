@@ -29,6 +29,14 @@ const List<String> devLibrarySyncedFolders = [
 /// per device, since a phone and an iPad want them different.
 const Set<String> devLibrarySyncedDisplay = {'numbers', 'fretStyle'};
 
+/// Cached score-to-audio alignments (`MediaAlignmentStore`, one pref per
+/// alignment key) travel too: they are computed per device, and two devices
+/// aligning the same recording with different builds otherwise play it with
+/// different highlight timing. Carried as the pref's raw JSON string, not its
+/// decoded value, so Dart and Python fingerprint it byte-for-byte alike — the
+/// two languages print some doubles differently (`1e-05` vs `0.00001`).
+const String devLibraryAlignmentPrefix = 'mediaAlignment.';
+
 /// The push half of the dev-library sync: merges a library staged in
 /// `Documents/dev_library/` into this device's own Documents and prefs.
 ///
@@ -112,6 +120,10 @@ class DevLibraryIngester {
       // Likewise a number setting this device chose before display settings
       // travelled: the library's wins the first time the two meet.
       if (key.startsWith('display:') && b == null && l != null) b = d;
+      // And an alignment this device computed before alignments travelled:
+      // the library's wins, so two devices that disagree converge on one
+      // instead of each pull overwriting the other's.
+      if (key.startsWith('alignment:') && b == null && l != null) b = d;
       if (l == d) {
         if (l != null) nextBase[key] = l;
       } else if (d == b) {
@@ -180,6 +192,11 @@ class DevLibraryIngester {
         present
             ? await prefs.setString(prefKey, value as String)
             : await prefs.remove(prefKey);
+      } else if (key.startsWith('alignment:')) {
+        final prefKey = '$devLibraryAlignmentPrefix${key.substring(10)}';
+        present
+            ? await prefs.setString(prefKey, value as String)
+            : await prefs.remove(prefKey);
       } else if (key == _libraryKey) {
         present
             ? await prefs.setString(_libraryKey, jsonEncode(value))
@@ -216,7 +233,7 @@ class DevLibraryIngester {
 
   /// Fingerprints of every synced file under [root], plus the prefs-held
   /// [values] (already keyed `title:` / `media:` / `display:` /
-  /// `pieceLibrary`).
+  /// `alignment:` / `pieceLibrary`).
   ///
   /// [only], when given, limits the files to those paths: the staged library's
   /// manifest (see [_readManifest]).
@@ -283,8 +300,9 @@ class DevLibraryIngester {
       rel == 'scanned_pieces/index.json' ||
       rel.split('/').last.startsWith('.');
 
-  /// Library side: `state.json` is `{titles, pieceMedia, display,
-  /// pieceLibrary}`, `display` keyed `<name>.<pieceId>`.
+  /// Library side: `state.json` is `{titles, pieceMedia, display, alignments,
+  /// pieceLibrary}`, `display` keyed `<name>.<pieceId>`, `alignments` keyed by
+  /// alignment key with the pref's raw string as the value.
   static Map<String, Object?> _stateValues(Map<String, dynamic> state) => {
         for (final MapEntry(:key, :value)
             in ((state['titles'] as Map?) ?? {}).entries)
@@ -296,6 +314,9 @@ class DevLibraryIngester {
             in ((state['display'] as Map?) ?? {}).entries)
           if (_syncedDisplay(key as String) && value is String)
             'display:$key': value,
+        for (final MapEntry(:key, :value)
+            in ((state['alignments'] as Map?) ?? {}).entries)
+          if (value is String) 'alignment:$key': value,
         if (state['pieceLibrary'] != null) _libraryKey: state['pieceLibrary'],
       };
 
@@ -318,6 +339,14 @@ class DevLibraryIngester {
       final rest = key.substring(_displayPrefix.length);
       final value = prefs.get(key);
       if (_syncedDisplay(rest) && value is String) values['display:$rest'] = value;
+    }
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(devLibraryAlignmentPrefix)) continue;
+      final value = prefs.get(key);
+      if (value is String) {
+        values['alignment:${key.substring(devLibraryAlignmentPrefix.length)}'] =
+            value;
+      }
     }
     final library = prefs.getString(_libraryKey);
     if (library != null) {

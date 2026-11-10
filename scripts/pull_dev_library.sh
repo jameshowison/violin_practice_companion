@@ -7,7 +7,7 @@
 #   bash scripts/pull_dev_library.sh dev-iphone ../lib --dry-run # print the plan only
 #
 # Three-way merge per item (a file, a media row, a title, a piece's number
-# display setting, the library blob)
+# display setting, a cached alignment, the library blob)
 # between the library (L), the device (D) and the device's base (B, what it
 # held at its last sync — `devLibrary.base` in its prefs):
 #
@@ -139,6 +139,7 @@ state.setdefault("version", 2)
 state.setdefault("titles", {})
 state.setdefault("pieceMedia", {})
 state.setdefault("display", {})
+state.setdefault("alignments", {})
 state.setdefault("pieceLibrary", None)
 
 # Per-piece display settings that travel with the library — mirror of
@@ -156,6 +157,10 @@ def state_values(st):
     for k, val in st["display"].items():
         if synced_display(k) and isinstance(val, str):
             v[f"display:{k}"] = val
+    # Raw pref strings, never decoded — see devLibraryAlignmentPrefix.
+    for k, val in st["alignments"].items():
+        if isinstance(val, str):
+            v[f"alignment:{k}"] = val
     if st["pieceLibrary"] is not None:
         v["pieceLibrary"] = st["pieceLibrary"]
     return v
@@ -181,6 +186,8 @@ for k, raw in prefs.items():
         rest = k[len("flutter.display."):]
         if synced_display(rest):
             dev_values[f"display:{rest}"] = raw
+    elif k.startswith("flutter.mediaAlignment.") and isinstance(raw, str):
+        dev_values[f"alignment:{k[len('flutter.mediaAlignment.'):]}"] = raw
 if "flutter.pieceLibrary" in prefs:
     try:
         dev_values["pieceLibrary"] = json.loads(prefs["flutter.pieceLibrary"])
@@ -199,6 +206,8 @@ for key in sorted(set(L) | set(D) | set(base)):
         b = d  # a never-synced device's blob is only its first-launch seed
     if key.startswith("display:") and b is None and l is not None:
         b = d  # set before display settings travelled: the library's wins
+    if key.startswith("alignment:") and b is None and l is not None:
+        b = d  # aligned before alignments travelled: the library's wins
     if l == d or d == b:
         continue
     taken.append(key)
@@ -246,12 +255,18 @@ for key in taken:
             state["display"][key[8:]] = dev_values[key]
         else:
             state["display"].pop(key[8:], None)
+    elif key.startswith("alignment:"):
+        if present:
+            state["alignments"][key[10:]] = dev_values[key]
+        else:
+            state["alignments"].pop(key[10:], None)
     elif key == "pieceLibrary":
         state["pieceLibrary"] = dev_values.get(key)
 
 if not dry:
     state["titles"] = dict(sorted(state["titles"].items()))
     state["display"] = dict(sorted(state["display"].items()))
+    state["alignments"] = dict(sorted(state["alignments"].items()))
     json.dump(state, open(state_path, "w"), indent=2, ensure_ascii=False)
     open(state_path, "a").write("\n")
 print(f"pull: {len(taken)} taken from the device, {len(conflicts)} conflicts"

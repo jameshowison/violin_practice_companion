@@ -29,6 +29,7 @@ void main() {
     Map<String, String> titles = const {},
     Map<String, List<Map<String, Object?>>> media = const {},
     Map<String, String> display = const {},
+    Map<String, String> alignments = const {},
     Object? library,
   }) async {
     if (await stage().exists()) await stage().delete(recursive: true);
@@ -41,6 +42,7 @@ void main() {
       'titles': titles,
       'pieceMedia': media,
       'display': display,
+      'alignments': alignments,
       'pieceLibrary': library,
     }));
   }
@@ -303,6 +305,32 @@ void main() {
     expect(report.conflicts, isEmpty);
     expect((await SharedPreferences.getInstance())
         .getString('display.numbers.p'), 'violinFingering');
+  });
+
+  test('cached alignments travel, verbatim', () async {
+    const a = '{"generationBpm":70,"anchors":[{"scoreMs":0.0,"audioSec":1e-05}]}';
+    await stageLibrary(alignments: {'media:p:m1': a});
+    expect((await ingest()).conflicts, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('mediaAlignment.media:p:m1'), a);
+
+    // Realigned here afterwards: kept for the pull, not overwritten.
+    await prefs.setString('mediaAlignment.media:p:m1', '{"x":1}');
+    expect((await ingest()).kept, 1);
+    expect(prefs.getString('mediaAlignment.media:p:m1'), '{"x":1}');
+  });
+
+  test('the first time they meet, the library\'s alignment wins over one the '
+      'device computed before alignments travelled', () async {
+    SharedPreferences.setMockInitialValues(
+        {'mediaAlignment.media:p:m1': 'mine', 'mediaAlignment.media:p:m2': 'only'});
+    await stageLibrary(alignments: {'media:p:m1': 'library'});
+    final report = await ingest();
+    expect(report.conflicts, isEmpty);
+    expect(report.kept, 1); // m2, which the library has never seen
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('mediaAlignment.media:p:m1'), 'library');
+    expect(prefs.getString('mediaAlignment.media:p:m2'), 'only');
   });
 
   test('scan sources travel with the library', () async {

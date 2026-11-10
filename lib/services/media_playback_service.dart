@@ -367,6 +367,25 @@ class MediaPlaybackService extends PlaybackServiceBase {
     }
   }
 
+  /// Computes a fresh alignment for [media] and replaces the cached one,
+  /// without loading the file for playback — for realigning a whole library
+  /// at once (`lib/debug/realign_all.dart`). Null when it can't be aligned,
+  /// in which case the cached alignment is left as it was.
+  Future<MediaAlignment?> recomputeAlignment(
+      ParsedPiece piece, PieceMedia media) async {
+    if (media.analysis == null) return null;
+    await generator.init();
+    final result = await _runAlignment(piece, media);
+    if (result == null || result.anchors.length < 2) return null;
+    final alignment = MediaAlignment(
+      anchors: result.anchors,
+      generationBpm: result.generationBpm,
+      hasCompressedAnchors: result.hasCompressedAnchors,
+    );
+    await _store.save(media.alignmentKey, alignment);
+    return alignment;
+  }
+
   /// Clears this medium's cached alignment and runs it again — for when the
   /// score itself has changed since the alignment was computed.
   Future<MediaLoadResult> realign({

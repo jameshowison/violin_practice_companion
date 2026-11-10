@@ -424,6 +424,15 @@ What syncs: everything a user makes, with the same ids on every device — the
 `scanned_pieces/`, `editable_fixtures/`, `section_overrides/`, `media/` and
 `teacher_recordings/`, `scan_sources/` and `abc_sources/` folders of the app's Documents, plus the prefs-held titles,
 media rows and library (collections, hidden pieces, renames) in `state.json`.
+Cached recording alignments travel too (`alignments` in `state.json`): each
+device otherwise keeps whatever alignment its build first computed, forever.
+
+To realign every recording with the current build, run it once on a simulator
+and let the sync carry the result: connect Marionette, call the debug extension
+`realignAll` (optional `pieceId`), wait for `[realign] done` in
+`flutter_run.log`, then `sync_dev_library.sh` that simulator and each device.
+The first time a device's own alignment meets a different one in the library,
+the library's wins.
 
 How it decides: a three-way merge per item, against what that device held at its
 last sync. Whichever side changed since then wins; deletions propagate too. If
