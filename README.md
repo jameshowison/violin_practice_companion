@@ -539,7 +539,9 @@ dependency_overrides:
   xml: ^7.0.1   # repeats pubspec.yaml's override; this file replaces that section
 ```
 
-Delete it to build exactly what's pinned. **To upgrade**: in homr_flutter, bump
+Rename it to `pubspec_overrides.yaml.off` (also gitignored) and re-run
+`flutter pub get` to build exactly what's pinned. That's the normal state,
+and the one release builds need. **To upgrade**: in homr_flutter, bump
 the package `version` and `CHANGELOG.md`, commit, tag `vX.Y.Z` and push the tag;
 here, change `ref:` and run `flutter pub upgrade homr_flutter`. `pubspec.lock`
 records the commit the tag resolved to.

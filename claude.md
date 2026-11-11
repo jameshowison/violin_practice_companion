@@ -157,10 +157,16 @@ has no license step, and Gradle accepts what a build needs.
 ## homr_flutter dependency
 
 The OMR package is a git dependency pinned to a release tag (`ref:` in
-`pubspec.yaml`). The main checkout has a local `pubspec_overrides.yaml` pointing
-at `../homr_flutter/packages/homr_flutter`, so edits there take effect at once,
-and **what you build is not what's pinned** until you tag and bump. Before
-calling OMR work done, build once with the override moved aside.
+`pubspec.yaml`). **By default the main checkout builds what's pinned**: the local
+override is parked as `pubspec_overrides.yaml.off` (gitignored). That is the
+state for TestFlight builds, so leave it there unless you are actively editing
+homr_flutter.
+
+To work on both repos at once, `mv pubspec_overrides.yaml.off
+pubspec_overrides.yaml && flutter pub get`. It points at
+`../homr_flutter/packages/homr_flutter`, so edits there take effect at once,
+and **what you build is not what's pinned** until you tag and bump. When done,
+tag and bump, move it back to `.off`, and `flutter pub get` again.
 
 While the override is active, `pubspec.lock` shows as modified (it records the
 path instead of the tag). **Never commit `pubspec.lock` in that state**; a fresh

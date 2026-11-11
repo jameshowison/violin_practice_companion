@@ -68,7 +68,7 @@ runlog.txt
 assets/omr_models/*.onnx
 
 # Local-only: point homr_flutter at a sibling checkout while editing both repos
-pubspec_overrides.yaml
+pubspec_overrides.yaml*
 
 # Dev library packed for the web build (scripts/push_dev_library_web.sh)
 web/dev_library.json
