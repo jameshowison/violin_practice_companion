@@ -24,10 +24,10 @@ void main() {
     return c;
   }
 
-  test('defaults: fret numbers and underlined strings', () async {
+  test('defaults: violin fingering and underlined strings', () async {
     final c = await containerWith({});
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
+    expect(c.read(noteNumberModeProvider), NoteNumberMode.violinFingering);
     expect(c.read(stringColourStyleProvider), StringColourStyle.underline);
   });
 

@@ -13,9 +13,10 @@ is the default instrument, which pieces are bundled, and the store identity
 (name, icon, bundle id).
 
 Today a single app does both, with mandolin as a per-piece "Instrument" setting
-(`NoteNumberMode`, `lib/models/note_number_mode.dart`). Its default is
+(`NoteNumberMode`, `lib/models/note_number_mode.dart`). Its default was
 `mandolinFret` (`noteNumberModeProvider`, `lib/services/providers.dart`), which
-is wrong for a violin app.
+was wrong for a violin app; it is `violinFingering` since 2026-11-11. The
+mandolin flavor will need to set it back.
 
 ## Approach: Flutter flavors, not two codebases
 

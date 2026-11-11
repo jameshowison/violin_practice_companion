@@ -1151,7 +1151,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>(
 /// while the channel draws them in a Flutter overlay, so there it is a repaint.
 final noteNumberModeProvider = pieceDisplayEnumPref<NoteNumberMode>(
   'numbers',
-  NoteNumberMode.mandolinFret,
+  NoteNumberMode.violinFingering,
   NoteNumberMode.values,
 );
 
