@@ -101,6 +101,59 @@ work based on an unmerged branch must `git checkout -b <name> <sha>` first and c
 pinned git tag, not from `../homr_flutter`; nor does it have the models, so run
 `bash scripts/fetch_omr_models.sh` there before anything that scans.
 
+## Android emulator
+
+Two AVDs, named like the simulators, both Pixel 8a profiles (1080×2400, 4 cores):
+**`dev-android`** (8 GB, a 2024 mid-range phone) and **`dev-android-low`** (4 GB,
+the budget floor — check scanning here). Don't trust a smaller or single-core AVD:
+on 2 GB / 1 core an OMR scan swapped and sat on "Detecting staves…" forever with
+the CPU idle, which looks exactly like an app hang. A scan peaks at ~1.7 GB PSS.
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd dev-android &   # own window, not in Studio
+adb devices          # serial is emulator-5554 or -5556 by boot order — read it, don't assume
+```
+`avdmanager` needs Studio's JDK: `export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`.
+
+**Dev server:** the same fifo pattern, but on its **own** pipe and log so it can't
+collide with an iOS run — `/tmp/flutter_ctl_android`, `flutter_run_android.log`,
+`flutter run -d <serial>`. `scripts/dev_run.sh` is iOS-only. Quit with
+`echo q > /tmp/flutter_ctl_android`; never `pkill -f "sleep 86400"`, which also
+kills other sessions' iOS pipe holders.
+
+**Unlike iOS, an agent CAN drive native UI here** — the photo picker, the file
+browser, uCrop. `uiautomator` dumps native views *and* Flutter's semantics nodes
+with pixel bounds, and `adb shell input` taps them. `scripts/android_ui.sh` wraps
+it as tap-by-label (`ui_tap "Choose from Photos"`, `ui_wait "Crop"`); set
+`SERIAL` first. That makes the whole scan flow agent-testable on the emulator
+(camera excepted: the app refuses it on emulators). Photos for the picker:
+`adb push x.png /sdcard/Pictures/` then broadcast `MEDIA_SCANNER_SCAN_FILE`.
+
+Two uCrop traps: the frame resizes **only by its corners**, which sit inside the
+system back-gesture strip at the screen edge — drag them purely vertically (a
+horizontal inward swipe fires Back). And wait ~2s after the crop screen appears,
+or the drag lands before the image loads and is silently lost.
+
+**Muting:** `cmd media_session volume --set 0` silently does nothing right after
+boot. Use `adb shell cmd audio set-volume 3 0` and read it back with
+`cmd media_session volume --stream 3 --get`.
+
+**Integration tests on the emulator** can't read the host's disk, and `flutter test`
+reinstalls the app (wiping its own dirs), so push corpora to `/data/local/tmp/…`,
+`chmod -R a+rX` it, and pass that path (see `integration_test/title_recognition_test.dart`).
+
+**What's native on Android** (`android/app/src/main/kotlin/…`, registered by hand
+in `MainActivity.kt`): `AudioDecoderPlugin` (MediaCodec), `ContentResolverPlugin`
+(content:// scans), `TextRecognitionPlugin` (ML Kit, bundled Latin model — drops a
+leading boxed page number Vision never returns). **Still iOS-only**, and the Dart
+side degrades on `MissingPluginException`: `AudioRoutePlugin` and
+`AudioCalibrationPlugin` — both need a physical Android phone to build against.
+ML Kit also tries to send usage logs to `firebaselogging.googleapis.com` (no
+images); there's no official opt-out.
+
+`flutter doctor`'s "Android license status unknown" is stale: the new Android CLI
+has no license step, and Gradle accepts what a build needs.
+
 ## homr_flutter dependency
 
 The OMR package is a git dependency pinned to a release tag (`ref:` in
@@ -333,15 +386,19 @@ After each commit, **agents should run this quick checklist and flag anything th
 
 Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving to a conditional-import split (see `playback_service_web.dart` / `playback_service_io.dart` for the pattern)."*
 
-### Mobile build milestone (iOS done; Android/macOS outstanding)
+### Mobile build milestone (iOS done; Android on the emulator; macOS outstanding)
 
 **iOS is done.** `flutter build ios --release` succeeds and installs on a physical
 phone with no source changes (signed automatically, team `V8MB2893V6`), so the
 `ios/Podfile` and `ios/Flutter/*.xcconfig` files already in the repo are now backed
 by a verified build rather than being speculative pod-install side effects.
 
-Still outstanding before any "v1 / feature freeze" moment: `flutter build apk` and
-`flutter build macos`. The `macos/` pod files are committed but unverified — that
+**Android** builds (`flutter build apk --debug`) and runs on the emulator — see
+"Android emulator" above; the Gradle workarounds for old plugins are in
+`android/build.gradle.kts`. Not yet tried on a physical phone or as a release build.
+
+Still outstanding before any "v1 / feature freeze" moment: a physical-device Android
+build and `flutter build macos`. The `macos/` pod files are committed but unverified — that
 build is the thing that would confirm them.
 
 ### Installing on a physical device
