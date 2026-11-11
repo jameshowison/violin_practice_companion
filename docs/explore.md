@@ -55,7 +55,7 @@ scanning pipeline (§4) rather than added as a clean fixture.
 redistribution) was chosen over building a custom synth — no reason to
 reinvent sample playback for a violin patch.
 
-**Highlight architecture refactor** (commit `1b8020f`): playback highlighting
+**Highlight architecture refactor** (commit `05f6152`): playback highlighting
 moved to a `ValueNotifier<int?>`-based model (`notifierForMeasure`,
 `currentMeasureNotifier`) rather than rebuilding via Riverpod state on every
 note. This was needed for per-note highlight granularity without excessive
@@ -195,7 +195,7 @@ side-by-side. This was chosen over vendoring or a published package because
 the OMR pipeline is still under active co-development with VPC and a path dep
 keeps iteration fast; publishing can happen later if useful to others.
 
-**Mobile build milestone reached 2026-06-01** (commit `1fc21d1`,
+**Mobile build milestone reached 2026-06-01** (commit `63de7e9`,
 "First verified iOS device build"): `flutter build ios --no-codesign` and
 `flutter build macos` both succeed bundling ~147MB of ONNX models. This
 required bumping deployment targets to iOS 16.0 / macOS 14.0 (an
@@ -224,13 +224,13 @@ After testing on an iPhone SE 2022 (Dynamic Island, landscape), three tracks
 were identified and prioritized by payoff/dependency:
 
 - **Track A — auto-scroll to active measure** (jianpu/fingering views follow
-  playback). **Done** (commit `00d0650`): calculated row-offset scroll via
+  playback). **Done** (commit `ad4c840`): calculated row-offset scroll via
   `ScrollController` + `currentMeasureNotifier`, no `GlobalKey`s needed.
 - **Track B — compact layout for small phones**, in dependency order:
-  - B1: 36pt AppBar (commit `0955be9`) — done.
+  - B1: 36pt AppBar (commit `46468a7`) — done.
   - B3 before B2 (sheet structure had to settle first): pill-only rest state
     for the bottom sheet, mini-bar peeks on playback start (commit
-    `80c2f1c`) — done.
+    `f7c64a7`) — done.
   - B2: mode switcher moved into the bottom sheet (same commit) — done.
   - Net effect: chrome reduced from ~90pt to a ~16pt pill at rest, leaving far
     more vertical space for the score on small phones.
@@ -241,7 +241,7 @@ were identified and prioritized by payoff/dependency:
 
 Subsequent layout work (staff-default view, always-visible play bar,
 page-turn scroll, safe-area handling, build-hash display in debug AppBar —
-commits `bee32d8` through `2b64baa`) extended this same compact-layout effort
+commits `2ce3f70` through `04f83d5`) extended this same compact-layout effort
 but wasn't part of the original three-track plan; it responded to further
 device testing.
 
@@ -358,7 +358,7 @@ blank (documented in `CLAUDE.md`), and (b) selection was measure-only and
 highlight color/animation was awkward (fixed-opacity SVG `<rect>`s injected into
 `osmd_bridge.html`). A spike on throwaway branch `spike/verovio-rendering`
 evaluated replacing it with a native render path, and the result shipped (merged
-to `main`, commit `6dc720c`, behind a `staffRendererProvider` flag).
+to `main`, commit `a047cc4`, behind a `staffRendererProvider` flag).
 
 **Rejected first: the headless-OSMD + percentage-map blueprint.** An AI-generated
 design (former `replace_webview_plan_for_review.md`) proposed running OSMD

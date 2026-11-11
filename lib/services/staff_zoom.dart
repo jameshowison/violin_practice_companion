@@ -343,7 +343,7 @@ const int verovioSpacingSystemMax = 48;
 // ## Why this is not the reserve that failed
 //
 // A previous version of this file asked Verovio for lane room too, and it was
-// deleted (`faecd5c`). Three things were wrong with it, and none of them applies
+// deleted (`3e7796a`). Three things were wrong with it, and none of them applies
 // here:
 //
 // 1. **It was a fraction of a variable.** The appetite was expressed as a share

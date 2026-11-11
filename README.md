@@ -83,6 +83,7 @@ Association or any other method organisation.*
 
 ```bash
 flutter pub get
+bash scripts/gen_build_info.sh   # writes lib/build_info.dart (gitignored); needed before the first build or test
 flutter run                  # development
 flutter build apk            # Android
 flutter build ios --no-codesign  # iOS
