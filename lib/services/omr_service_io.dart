@@ -241,6 +241,16 @@ class OmrService implements OmrServiceBase {
           resetButtonHidden: true,
           aspectRatioLockEnabled: false,
         ),
+        // Without these Android runs uCrop's defaults: a fixed frame with no
+        // handles, the image panned underneath it. An unlocked ratio is what
+        // turns on free-style cropping (draggable corners and edges); the
+        // bottom tabs (ratio / rotate / scale) are hidden, as rotate is on iOS.
+        AndroidUiSettings(
+          toolbarTitle: title,
+          lockAspectRatio: false,
+          hideBottomControls: true,
+          showCropGrid: false,
+        ),
       ],
     );
     if (cropped == null) return null;
