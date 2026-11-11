@@ -48,7 +48,7 @@ class StaffView extends ConsumerStatefulWidget {
     super.key,
     required this.musicXml,
     required this.highlightNotifier,
-    this.bridgeAsset = 'assets/osmd/osmd_bridge.html',
+    this.bridgeAsset = 'assets/engine/osmd/osmd_bridge.html',
     this.selection,
     this.onMeasureTapped,
     this.flaggedMeasures = const {},

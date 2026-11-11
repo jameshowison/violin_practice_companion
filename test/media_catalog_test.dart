@@ -19,9 +19,9 @@ void main() {
 
       expect(media.map((m) => m.label), ['Mix', 'Melody', 'Chords']);
       expect(media.map((m) => m.audio!.path), [
-        'assets/audio/lightly_row/mix.mp3',
-        'assets/audio/lightly_row/melody.mp3',
-        'assets/audio/lightly_row/chords.mp3',
+        'assets/library/lightly_row/audio/mix.mp3',
+        'assets/library/lightly_row/audio/melody.mp3',
+        'assets/library/lightly_row/audio/chords.mp3',
       ]);
       expect(media.every((m) => m.audio!.isAsset), isTrue);
       expect(media.every((m) => m.kind == MediaKind.bundled), isTrue);
@@ -33,7 +33,7 @@ void main() {
       // best-conditioned DTW reference — not whichever track is being heard.
       final media = MediaCatalog.bundledMediaFor('lightly_row');
       for (final m in media) {
-        expect(m.analysis!.path, 'assets/audio/lightly_row/melody.wav');
+        expect(m.analysis!.path, 'assets/library/lightly_row/audio/melody.wav');
         expect(m.analysis!.isWav, isTrue);
       }
     });

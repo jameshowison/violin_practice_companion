@@ -1,3 +1,4 @@
+import 'piece_catalog.dart';
 /// The three independent play-along audio variants a piece can have — played
 /// one at a time, never mixed (see the audio-sync plan's "no simultaneous
 /// multi-track mixing" decision).
@@ -14,5 +15,5 @@ extension AudioTrackVariantX on AudioTrackVariant {
         AudioTrackVariant.chords => 'Chords',
       };
 
-  String assetPathIn(String audioFolder) => 'assets/audio/$audioFolder/$id.mp3';
+  String assetPathIn(String audioFolder) => '${bundledAudioDir(audioFolder)}/$id.mp3';
 }

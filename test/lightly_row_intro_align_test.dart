@@ -14,7 +14,7 @@
 // went unnoticed when the penalty was first raised because nothing covered
 // this recording. See docs/audio-sync-dtw-interior-gaps.md.
 //
-// `assets/audio/` is gitignored, so this skips gracefully where the recording
+// `assets/library/*/audio/` is gitignored, so this skips gracefully where the recording
 // is absent.
 import 'dart:io';
 
@@ -26,8 +26,8 @@ import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 void main() {
-  final xmlFile = File('assets/fixtures/lightly_row.xml');
-  final wavFile = File('assets/audio/lightly_row/melody.wav');
+  final xmlFile = File('assets/library/lightly_row/score.musicxml');
+  final wavFile = File('assets/library/lightly_row/audio/melody.wav');
   if (!xmlFile.existsSync() || !wavFile.existsSync()) {
     test('lightly row intro align (skipped: assets not present)', () {});
     return;

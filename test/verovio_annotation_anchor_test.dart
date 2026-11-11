@@ -161,7 +161,7 @@ void main() {
     });
 
     test('MusicXML <harmony> is engraved and capturable as class="harm"', () {
-      // 9 <harmony> elements in assets/fixtures/lightly_row.xml.
+      // 9 <harmony> elements in assets/library/lightly_row/score.musicxml.
       expect(of(map, 'harm'), hasLength(9));
     });
 

@@ -29,7 +29,7 @@ NoteEvent _n(int midi, NoteValue v) => NoteEvent(
     );
 
 void main() {
-  final wavFile = File('assets/audio/salt_creek/melody.wav');
+  final wavFile = File('assets/library/salt_creek/audio/melody.wav');
   if (!wavFile.existsSync()) {
     // Author-supplied asset, gitignored — skip gracefully where absent.
     test('salt creek auto-align (skipped: melody.wav not present)', () {});

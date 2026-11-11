@@ -6,7 +6,7 @@ class JianpuConverter {
   Map<String, dynamic>? _keyMap;
 
   Future<void> init() async {
-    final raw = await rootBundle.loadString('assets/lookup_tables/jianpu_key_map.json');
+    final raw = await rootBundle.loadString('assets/engine/lookup_tables/jianpu_key_map.json');
     _keyMap = json.decode(raw) as Map<String, dynamic>;
   }
 

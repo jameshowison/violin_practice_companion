@@ -52,20 +52,24 @@ node_modules/
 package-lock.json
 
 # Large binary assets (obtain separately — source: GeneralUser GS SF2)
-assets/soundfonts/*.sf2
-assets/soundfonts/*.sf3
+assets/engine/soundfonts/*.sf2
+assets/engine/soundfonts/*.sf3
 
-# Per-piece play-along backing tracks (author-supplied, not source-controlled)
-assets/audio/
+# Per-piece play-along backing tracks (author-supplied, not source-controlled).
+# The folders stay tracked (.gitkeep), because pubspec.yaml lists them and a
+# listed folder that is missing fails the build of a fresh clone.
+assets/library/*/audio/*
+!assets/library/*/audio/.gitkeep
 
-# Local-only reference material
+# Local-only reference material (more patterns can go in .git/info/exclude;
+# see CONTRIBUTING.md, "Content and copyright")
 docs/photos_no_share
 
 # Stray Flutter run log
 runlog.txt
 
 # homr's ONNX models (~150 MB) — fetch with scripts/fetch_omr_models.sh
-assets/omr_models/*.onnx
+assets/engine/omr_models/*.onnx
 
 # Local-only: point homr_flutter at a sibling checkout while editing both repos
 pubspec_overrides.yaml*

@@ -127,7 +127,9 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
     final loaded = await LaunchTiming.span('library store.load', store.load);
     final seeded = seedLibrary(
       loaded,
-      omrDemoIds: PieceRepository.omrDemoFixtureIds,
+      // No OMR demos ship any more (they are test data now), so seeding's
+      // step 1 has nothing to hide; it stays version-gated and harmless.
+      omrDemoIds: const [],
       nowMillis: DateTime.now().millisecondsSinceEpoch,
     );
     // Value equality, so this writes on the first launch only.
@@ -291,6 +293,7 @@ class LibraryActions {
   /// exists and surface as an error the next time the user navigated back.
   Future<void> deletePiece(String pieceId) async {
     final repo = _ref.read(pieceRepositoryProvider);
+    await repo.catalog(); // isBundled is answered from it
     if (repo.isBundled(pieceId)) {
       throw ArgumentError.value(
         pieceId,
@@ -640,10 +643,11 @@ final mediaCatalogProvider = Provider<MediaCatalog>(
 /// Everything [pieceId] can be played by, in picker order. Always at least
 /// one entry: [PieceMedia.synthesized].
 final pieceMediaProvider =
-    FutureProvider.family<List<PieceMedia>, String>((ref, pieceId) {
-  final audioFolder =
-      ref.watch(pieceRepositoryProvider).audioSyncFolderFor(pieceId);
-  return ref.watch(mediaCatalogProvider).mediaFor(pieceId, audioFolder: audioFolder);
+    FutureProvider.family<List<PieceMedia>, String>((ref, pieceId) async {
+  final repo = ref.watch(pieceRepositoryProvider);
+  final catalog = ref.watch(mediaCatalogProvider);
+  final audioFolder = await repo.audioSyncFolderFor(pieceId);
+  return catalog.mediaFor(pieceId, audioFolder: audioFolder);
 });
 
 /// The selected medium's id, per piece; null means the synthesized score.

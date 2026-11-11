@@ -114,7 +114,7 @@ class PlaybackService extends PlaybackServiceBase {
   Future<void> _initMidi() async {
     try {
       final j = jsonDecode(
-            await rootBundle.loadString('assets/lookup_tables/midi_patch.json'),
+            await rootBundle.loadString('assets/engine/lookup_tables/midi_patch.json'),
           ) as Map<String, dynamic>;
       _program = j['violin'] as int;
       _velocity = j['noteVelocity'] as int? ?? 90;

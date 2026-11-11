@@ -1,7 +1,7 @@
 // Synthetic robustness coverage for the alignment pipeline.
 //
 // Every other real-recording alignment test in this repo depends on a
-// gitignored asset (`assets/audio/`, `docs/photos_no_share/`), so on a fresh
+// gitignored asset (`assets/library/*/audio/`, `docs/photos_no_share/`), so on a fresh
 // clone none of them run. This one synthesizes its recordings from the score
 // itself, so it always runs, and its ground truth is exact by construction
 // rather than timed by ear.
@@ -169,7 +169,7 @@ typedef Note = ({int midiNote, double onsetSeconds, double offsetSeconds});
 void main() {
   test('anchor 0 lands on the first note across intro, outro and SNR '
       'conditions', () {
-    final xml = File('assets/fixtures/lightly_row.xml');
+    final xml = File('assets/library/lightly_row/score.musicxml');
     if (!xml.existsSync()) return;
     final piece = MusicXmlParser()
         .parse(MusicXmlNormalizer.toSoundingPitch(xml.readAsStringSync()));

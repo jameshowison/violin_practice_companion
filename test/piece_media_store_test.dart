@@ -26,7 +26,7 @@ void main() {
 
   group('MediaRef', () {
     test('round-trips through JSON keeping its storage kind', () {
-      const asset = MediaRef.asset('assets/audio/lightly_row/mix.mp3');
+      const asset = MediaRef.asset('assets/library/lightly_row/audio/mix.mp3');
       const file = MediaRef.appFile('media/p1/demo/audio.wav');
 
       expect(MediaRef.fromJson(asset.toJson()), asset);

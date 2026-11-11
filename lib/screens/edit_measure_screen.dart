@@ -434,7 +434,7 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
                         : StaffView(
                             musicXml: previewXml,
                             highlightNotifier: _noHighlight,
-                            bridgeAsset: 'assets/osmd/palette_bridge.html',
+                            bridgeAsset: 'assets/engine/osmd/palette_bridge.html',
                           ),
                   ),
                   // Repeat indicators, one per active toggle — driven directly

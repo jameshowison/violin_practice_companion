@@ -8,7 +8,7 @@ class FingeringMapper {
 
   Future<void> init() async {
     final rawFingering = await rootBundle
-        .loadString('assets/lookup_tables/fingering_first_position.json');
+        .loadString('assets/engine/lookup_tables/fingering_first_position.json');
     _fingeringTable = json.decode(rawFingering) as Map<String, dynamic>;
   }
 

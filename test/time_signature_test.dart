@@ -1,5 +1,5 @@
-import 'dart:io';
 
+import 'support/bundled_scores.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
@@ -142,10 +142,7 @@ void main() {
     test('keeps its own meter when relabelled to it', () {
       // A no-op relabel must be a no-op on the parse, whatever shape the file's
       // <attributes> happen to be in.
-      for (final file in Directory('assets/fixtures')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.xml'))) {
+      for (final file in allScoreFixtures()) {
         final xml = file.readAsStringSync();
         final before = parser.parse(xml);
         final after = parser.parse(MeasureXmlEditor.setTimeSignature(xml,

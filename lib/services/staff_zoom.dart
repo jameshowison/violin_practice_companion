@@ -371,7 +371,7 @@ const int verovioSpacingSystemMax = 48;
 // straight to [maxMeasuresPerLineFor]. That is what killed the old reserve's
 // credibility, so this one was measured against it before being chosen.
 //
-// Engraved every fixture in `assets/fixtures` at both dev-iphone viewports
+// Engraved every bundled piece in `assets/library` at both dev-iphone viewports
 // (358×686 portrait, 706×282 landscape) and re-ran the auto-fit on the resulting
 // probe geometry. At 3.5 spaces of reserve:
 //
@@ -407,7 +407,7 @@ const double spacesPerPageMarginTopUnit = 1 / 18;
 
 // The reserve is DERIVED, not chosen. It used to be a constant here — 3.5 staff
 // spaces, then 1.5 once the measurement was fixed — sized against the worst case
-// in `assets/fixtures`. See [annotationReserveFor], which measures the shortfall
+// in `assets/library`. See [annotationReserveFor], which measures the shortfall
 // off the calibration probe instead.
 //
 // Be honest about what that bought, because it is less than it sounds. The probe

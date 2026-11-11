@@ -246,7 +246,6 @@ void main() {
     final c = makeContainer();
     final lib = await c.read(libraryProvider.future);
 
-    expect(PieceRepository.omrDemoFixtureIds, isEmpty);
     expect(lib.hiddenIds, isEmpty);
     expect(lib.collections.where((x) => x.name == omrDemoCollectionName),
         isEmpty);

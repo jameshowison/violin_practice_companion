@@ -9,7 +9,7 @@ class GdaeTuning {
   GdaeTuning._();
 
   /// Open-string MIDI numbers. Must agree with
-  /// `assets/lookup_tables/fingering_first_position.json`, which is what
+  /// `assets/engine/lookup_tables/fingering_first_position.json`, which is what
   /// [FingeringMapper] keys the violin fingerings off.
   static const openMidi = {'E': 76, 'A': 69, 'D': 62, 'G': 55};
 

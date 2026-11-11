@@ -21,7 +21,7 @@ import 'package:violin_practice_companion/services/staff_zoom.dart';
 /// logged — the bars just weren't there. So the invariant is asserted rather than
 /// left to inspection.
 void main() {
-  const chordFixture = 'assets/fixtures/old_joe_clark.xml';
+  const chordFixture = 'assets/library/old_joe_clark/score.musicxml';
 
   late String sourceXml;
   late ParsedPiece parsed;

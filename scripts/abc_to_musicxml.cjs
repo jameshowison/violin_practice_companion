@@ -1,4 +1,4 @@
-// Runs the app's own ABC -> MusicXML converter (assets/abc/) under Node, the
+// Runs the app's own ABC -> MusicXML converter (assets/engine/abc/) under Node, the
 // way the app does: abcjs and abc_to_musicxml.js loaded as plain scripts into
 // one global scope, no DOM. Used to regenerate the golden fixtures in
 // test/fixtures/ after a converter change.
@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const abcDir = path.join(__dirname, '..', 'assets', 'abc');
+const abcDir = path.join(__dirname, '..', 'assets', 'engine', 'abc');
 const ctx = vm.createContext({});
 for (const f of ['abcjs-basic-min.js', 'abc_to_musicxml.js']) {
   vm.runInContext(fs.readFileSync(path.join(abcDir, f), 'utf8'), ctx, { filename: f });

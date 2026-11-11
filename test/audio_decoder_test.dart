@@ -17,10 +17,10 @@ import 'package:violin_practice_companion/services/musicxml_parser.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // `assets/audio/` is gitignored, so the two tests that need real audio skip
+  // `assets/library/*/audio/` is gitignored, so the two tests that need real audio skip
   // when it isn't present — the same pattern as lightly_row_intro_align_test.
-  final wavFile = File('assets/audio/lightly_row/melody.wav');
-  final xmlFile = File('assets/fixtures/lightly_row.xml');
+  final wavFile = File('assets/library/lightly_row/audio/melody.wav');
+  final xmlFile = File('assets/library/lightly_row/score.musicxml');
   final haveAudio = wavFile.existsSync() && xmlFile.existsSync();
 
   final messenger =
@@ -102,7 +102,7 @@ void main() {
       expect(pcm, isNotNull);
       expect(pcm!.sampleRate, greaterThan(0));
       expect(pcm.samples, isNotEmpty);
-    }, skip: haveAudio ? null : 'assets/audio not present');
+    }, skip: haveAudio ? null : 'bundled audio not present');
 
     test('a corrupt WAV is null, not a throw', () async {
       final pcm = await const AudioDecoder()
@@ -132,5 +132,5 @@ void main() {
       expect(fromPcm.anchors[i].audioSec, fromWav.anchors[i].audioSec);
       expect(fromPcm.anchors[i].scoreMs, fromWav.anchors[i].scoreMs);
     }
-  }, skip: haveAudio ? null : 'assets/audio not present');
+  }, skip: haveAudio ? null : 'bundled audio not present');
 }

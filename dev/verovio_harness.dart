@@ -47,9 +47,9 @@ const _kProbeSvg = '''
 </svg>''';
 
 const _fixtures = <String>[
-  'assets/fixtures/lightly_row.xml',
-  'assets/fixtures/happy_farmer.xml',
-  'assets/fixtures/gavotte_gossec.xml',
+  'assets/library/lightly_row/score.musicxml',
+  'assets/library/happy_farmer/score.musicxml',
+  'assets/library/gossec_gavotte/score.musicxml',
 ];
 
 class VerovioHarnessPage extends StatefulWidget {

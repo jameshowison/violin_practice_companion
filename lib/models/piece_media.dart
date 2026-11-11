@@ -20,7 +20,7 @@ library;
 
 /// Where a medium's bytes live, and hence how [MediaRef.path] is read.
 enum MediaStorage {
-  /// A `rootBundle` asset key, e.g. `assets/audio/lightly_row/mix.mp3`.
+  /// A `rootBundle` asset key, e.g. `assets/library/lightly_row/audio/mix.mp3`.
   /// Stable for the life of the build; never needs resolving.
   asset,
 
@@ -115,7 +115,7 @@ enum MediaKind {
   /// wrong once — the exclusivity was maintained by hand at each call site.
   synthesized,
 
-  /// A backing track shipped in `assets/audio/<folder>/`. Read-only.
+  /// A backing track shipped in `assets/library/<folder>/audio/`. Read-only.
   bundled,
 
   /// An audio or video file the user picked from the device.

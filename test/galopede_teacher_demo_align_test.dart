@@ -2,7 +2,7 @@
 // recording: docs/photos_no_share/galopede_video.MOV, a play-through of
 // Galopede on mandolin. Author-supplied, gitignored — skips gracefully where
 // absent. See docs/photos_no_share/galopede_converted.musicxml (produced by
-// running the app's real bundled abcjs converter over assets/abc/Galopede.abc
+// running the app's real bundled abcjs converter over test/fixtures/galopede_full.abc
 // via Node, headlessly — same JS the app runs on-device) and
 // galopede_audio.wav (audio track extracted from the .MOV via afconvert).
 //

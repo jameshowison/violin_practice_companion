@@ -2187,7 +2187,7 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
               : StaffView(
                   musicXml: paletteXml,
                   highlightNotifier: _noHighlight,
-                  bridgeAsset: 'assets/osmd/palette_bridge.html',
+                  bridgeAsset: 'assets/engine/osmd/palette_bridge.html',
                 ),
     );
   }

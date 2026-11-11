@@ -21,7 +21,7 @@ class OmrService implements OmrServiceBase {
   static const _contentResolverChannel = MethodChannel('dev.homr/content_resolver');
 
   /// homr's models, bundled with the app by scripts/fetch_omr_models.sh.
-  static final _models = OmrModels.inAssetDir('assets/omr_models');
+  static final _models = OmrModels.inAssetDir('assets/engine/omr_models');
 
   @override
   Future<OmrScanResult?> scan({

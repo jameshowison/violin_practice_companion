@@ -1,3 +1,4 @@
+import '../models/piece_catalog.dart';
 import '../models/audio_track_variant.dart';
 import '../models/piece_media.dart';
 import 'media_migration.dart';
@@ -20,7 +21,7 @@ class MediaCatalog {
   final PieceMediaStore _store;
   final MediaMigration _migration;
 
-  /// The bundled `mix`/`melody`/`chords` tracks in `assets/audio/<folder>/`.
+  /// The bundled `mix`/`melody`/`chords` tracks in `assets/library/<folder>/audio/`.
   ///
   /// All three share one [PieceMedia.alignmentKey], because they are three
   /// mixes of a single recording session and therefore one timeline — the
@@ -33,7 +34,7 @@ class MediaCatalog {
   /// constraint now that [AudioDecoder] exists, but is still the right choice.)
   static List<PieceMedia> bundledMediaFor(String audioFolder) {
     final analysis =
-        MediaRef.asset('assets/audio/$audioFolder/${AudioTrackVariant.melody.id}.wav');
+        MediaRef.asset('${bundledAudioDir(audioFolder)}/${AudioTrackVariant.melody.id}.wav');
     return [
       for (final variant in AudioTrackVariant.values)
         PieceMedia(
@@ -51,7 +52,7 @@ class MediaCatalog {
   /// the synthesized score first, then any bundled tracks, then the user's own
   /// media oldest-first.
   ///
-  /// [audioFolder] is the piece's `assets/audio/<folder>/`, or null if it has
+  /// [audioFolder] is the piece's `assets/library/<folder>/audio/`, or null if it has
   /// none — see `PieceRepository.audioSyncFolderFor`.
   ///
   /// Runs the legacy migrations on the way past. They are idempotent and cost

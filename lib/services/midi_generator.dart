@@ -90,7 +90,7 @@ class MidiGenerator {
   Future<void> init() async {
     if (_initialized) return;
     final j = jsonDecode(
-          await rootBundle.loadString('assets/lookup_tables/midi_patch.json'),
+          await rootBundle.loadString('assets/engine/lookup_tables/midi_patch.json'),
         ) as Map<String, dynamic>;
     _tpb = j['ticksPerQuarterNote'] as int;
     _initialized = true;

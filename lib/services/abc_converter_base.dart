@@ -28,7 +28,7 @@ class AbcConversionException implements Exception {
 }
 
 /// Converts ABC notation to MusicXML by running a bundled, DOM-free JavaScript
-/// converter (abcjs parser + `assets/abc/abc_to_musicxml.js` emitter).
+/// converter (abcjs parser + `assets/engine/abc/abc_to_musicxml.js` emitter).
 ///
 /// Two implementations share this interface via a conditional import (see
 /// `abc_converter.dart`): web runs the JS with `dart:js_interop`; mobile/desktop
@@ -43,8 +43,8 @@ abstract class AbcConverterBase {
 }
 
 /// Asset paths for the bundled JS. Loaded via `rootBundle` by both platforms.
-const String abcjsAsset = 'assets/abc/abcjs-basic-min.js';
-const String abcEmitterAsset = 'assets/abc/abc_to_musicxml.js';
+const String abcjsAsset = 'assets/engine/abc/abcjs-basic-min.js';
+const String abcEmitterAsset = 'assets/engine/abc/abc_to_musicxml.js';
 
 /// Decodes the JSON envelope returned by `globalThis.abcToMusicXml(...)`.
 /// Shared by both platform implementations.

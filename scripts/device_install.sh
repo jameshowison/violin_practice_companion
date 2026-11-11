@@ -107,8 +107,8 @@ else
 
 # Scanning loads homr's models from the app's own assets; a build without them
 # installs fine and then fails at the first scan. Refuse rather than ship that.
-if [[ $(ls assets/omr_models/*.onnx 2>/dev/null | wc -l) -lt 3 ]]; then
-  echo "assets/omr_models/ is missing homr's models — run: bash scripts/fetch_omr_models.sh" >&2
+if [[ $(ls assets/engine/omr_models/*.onnx 2>/dev/null | wc -l) -lt 3 ]]; then
+  echo "assets/engine/omr_models/ is missing homr's models — run: bash scripts/fetch_omr_models.sh" >&2
   exit 1
 fi
 

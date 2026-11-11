@@ -28,7 +28,7 @@ global.cancelAnimationFrame   = clearTimeout;
 const { OpenSheetMusicDisplay } = require('opensheetmusicdisplay');
 
 const xml = fs.readFileSync(
-  path.join(root, 'assets/fixtures/lightly_row.xml'), 'utf8'
+  path.join(root, 'assets/library/lightly_row/score.musicxml'), 'utf8'
 );
 
 async function renderOne(containerId, applyTight) {
@@ -94,7 +94,7 @@ async function renderOne(containerId, applyTight) {
 </body>
 </html>`;
 
-    const outPath = path.join(root, 'assets/osmd/spacing_comparison_rendered.html');
+    const outPath = path.join(root, 'dev/osmd/spacing_comparison_rendered.html');
     fs.writeFileSync(outPath, html);
     console.log('Written:', outPath);
   } catch (e) {

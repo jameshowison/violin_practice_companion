@@ -24,7 +24,7 @@ void main() {
   final parser = MusicXmlParser();
 
   ({int fifths, KeyMode mode, String name, Set<String> chords}) read(String f) {
-    final p = parser.parse(File('assets/fixtures/$f.xml').readAsStringSync());
+    final p = parser.parse(File('assets/library/$f/score.musicxml').readAsStringSync());
     return (
       fifths: p.keyFifths,
       mode: p.keyMode,
@@ -34,7 +34,7 @@ void main() {
   }
 
   List<Section> sections(String f) =>
-      ((json.decode(File('assets/fixtures/sections/${f}_sections.json')
+      ((json.decode(File('assets/library/$f/sections.json')
                   .readAsStringSync()) as Map<String, dynamic>)['sections']
               as List)
           .cast<Map<String, dynamic>>()

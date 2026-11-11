@@ -1,5 +1,5 @@
-import 'dart:io';
 
+import 'support/bundled_scores.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -143,12 +143,7 @@ void main() {
     test('every bundled fixture comes back byte-identical', () {
       // MuseScore and the OMR engine both state the sounding pitch already;
       // normalizing must never second-guess them.
-      final fixtures = Directory('assets/fixtures')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.xml'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+      final fixtures = allScoreFixtures();
       expect(fixtures, isNotEmpty);
       for (final f in fixtures) {
         final xml = f.readAsStringSync();

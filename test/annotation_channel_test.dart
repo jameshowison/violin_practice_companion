@@ -79,7 +79,7 @@ void main() {
     // spaces at the tightest system against the 6.03 the two rows want. That used
     // to be the normal case; with `annotationRoomSpaces` reserved it is the edge
     // one, reachable through the bottom of the staff-spacing slider or a score
-    // tighter than any in `assets/fixtures`.
+    // tighter than any bundled piece.
     final tight = space * 3.67;
 
     test('both rows shrink, in proportion — neither pays for the other', () {
@@ -169,7 +169,7 @@ void main() {
   group('annotationReserveFor', () {
     // Room from the previous system's ink to the annotation register, in staff
     // spaces, at Verovio's own default spacingSystem of 4 — measured on every
-    // fixture (assets/fixtures, plus the OMR set now in test/fixtures/omr)
+    // fixture (the bundled library, plus the OMR set in test/fixtures/omr)
     // from Verovio's OWN bounding boxes
     // (`VerovioEngraver.systemInkBoxes`), engraved headlessly with a
     // `<fingering>` placeholder on every non-rest note (Verovio 6.2.0, scale 40).

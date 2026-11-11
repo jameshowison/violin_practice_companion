@@ -36,7 +36,7 @@ dependencies:
   wakelock_plus: ^1.5.2
 
   # ABC-notation import: abcjs (MIT) parses ABC, a small bundled emitter
-  # (assets/abc/abc_to_musicxml.js) turns its tree into MusicXML. Runs DOM-free
+  # (assets/engine/abc/abc_to_musicxml.js) turns its tree into MusicXML. Runs DOM-free
   # via dart:js_interop on web and flutter_js (QuickJS/JavaScriptCore — NOT a
   # WebView) on mobile/desktop. See lib/services/abc_converter*.dart.
   flutter_js: ^0.8.2
@@ -125,17 +125,23 @@ flutter:
   generate: true
 
   assets:
-    - assets/abc/
-    - assets/fixtures/
-    - assets/fixtures/sections/
-    - assets/lookup_tables/
-    - assets/osmd/
-    - assets/soundfonts/
+    # The app's machinery, shared by every piece.
+    - assets/engine/abc/
+    - assets/engine/lookup_tables/
+    - assets/engine/osmd/
+    - assets/engine/soundfonts/
     # homr's ONNX models, bundled so scanning needs no network (gitignored;
     # scripts/fetch_omr_models.sh puts them here).
-    - assets/omr_models/
-    # Per-piece play-along audio (gitignored — see .gitignore). Flutter only
-    # bundles files it can enumerate at build time, so each piece's audio
-    # folder needs its own line here.
-    - assets/audio/salt_creek/
-    - assets/audio/lightly_row/
+    - assets/engine/omr_models/
+    # The bundled pieces: assets/library/catalog.json lists them, with where
+    # each comes from. Flutter does not bundle subfolders, so every piece
+    # folder (and its audio/, gitignored) needs its own line;
+    # test/release_content_test.dart checks this list against the catalog.
+    - assets/library/
+    - assets/library/lightly_row/
+    - assets/library/lightly_row/audio/
+    - assets/library/happy_farmer/
+    - assets/library/gossec_gavotte/
+    - assets/library/the_wellerman/
+    - assets/library/old_joe_clark/
+    - assets/library/salt_creek/audio/

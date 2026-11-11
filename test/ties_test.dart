@@ -284,8 +284,8 @@ $notes</measure></part></score-partwise>''';
       for (final f in [
         'test/fixtures/omr/homr_14_minuet_no_2.xml',
         'test/fixtures/omr/homr_15_minuet_no_3.xml',
-        'assets/fixtures/happy_farmer.xml',
-        'assets/fixtures/gavotte_gossec.xml',
+        'assets/library/happy_farmer/score.musicxml',
+        'assets/library/gossec_gavotte/score.musicxml',
       ]) {
         final xml = File(f).readAsStringSync();
         expect(MusicXmlNormalizer.slursToTies(xml), xml, reason: f);

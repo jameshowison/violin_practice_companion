@@ -1,18 +1,20 @@
 // Auto-alignment against a real recording of a tune with ties: Greg O'Leary's
 // "Along the Road to Gundagai" from the Australian Traditional Music Archive
 // (austradmusic.au/recordings/Along_the_Road_to_Gundagai.mp3 — the file the
-// ABC's own `F:` line names), converted to assets/audio/gundagai/melody.wav:
+// ABC's own `F:` line names), converted to WAV in the private companion repo
+// (fixtures/audio/gundagai/melody.wav):
 //
 //   afconvert -f WAVE -d LEI16@44100 -c 2 Along_the_Road_to_Gundagai.mp3 \
-//     assets/audio/gundagai/melody.wav
+//     melody.wav
 //
-// Gitignored like the other recordings (not ours to redistribute), so this
-// skips where it's absent. The score is the app's own import of the same ABC
+// Not ours to redistribute, so it lives outside this repo and this test skips
+// where it's absent (see test/support/restricted_fixtures.dart). The score is the app's own import of the same ABC
 // (test/fixtures/gundagai.musicxml), so it exercises the converter's ties end
 // to end: ties are folded into held notes by MidiGenerator, and the chroma
 // reference the aligner matches against is built from those held notes.
 import 'dart:io';
 
+import 'support/restricted_fixtures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
@@ -22,8 +24,8 @@ import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 void main() {
-  final wavFile = File('assets/audio/gundagai/melody.wav');
-  if (!wavFile.existsSync()) {
+  final wav = restrictedFile('fixtures/audio/gundagai/melody.wav');
+  if (wav == null) {
     test('gundagai auto-align (skipped: melody.wav not present)', () {});
     return;
   }
@@ -46,7 +48,7 @@ void main() {
   );
 
   test('auto-alignment against the real Gundagai recording, ties held', () {
-    final wavBytes = wavFile.readAsBytesSync();
+    final wavBytes = wav.readAsBytesSync();
     final aligner =
         AudioScoreAutoAligner(midiGenerator: MidiGenerator.forTest());
     final tiedResult = aligner.align(piece, wavBytes);

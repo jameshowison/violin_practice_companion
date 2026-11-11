@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Put homr's three ONNX models (~150 MB) into assets/omr_models/, where the app
+# Put homr's three ONNX models (~150 MB) into assets/engine/omr_models/, where the app
 # bundles them. Run once per checkout, before building:
 #
 #   bash scripts/fetch_omr_models.sh
@@ -38,4 +38,4 @@ if compgen -G "$SIBLING/*.onnx" >/dev/null; then
   FROM=(--from "$SIBLING")
 fi
 
-python3 "$PKG_ROOT/tool/fetch_models.py" assets/omr_models "${FROM[@]+"${FROM[@]}"}"
+python3 "$PKG_ROOT/tool/fetch_models.py" assets/engine/omr_models "${FROM[@]+"${FROM[@]}"}"

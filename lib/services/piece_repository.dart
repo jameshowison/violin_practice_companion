@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/piece.dart';
+import '../models/piece_catalog.dart';
 import '../models/section.dart';
 import 'musicxml_beamer.dart';
 import 'musicxml_normalizer.dart';
@@ -13,102 +14,78 @@ class PieceRepository {
   /// [storage] is injectable so the persistence layer can be exercised in tests
   /// against a temp directory (see `test/piece_storage_io_test.dart`); production
   /// takes the platform default via the `piece_storage.dart` conditional import.
-  PieceRepository({PieceStorage? storage})
-      : _storage = storage ?? PieceStorage();
+  PieceRepository({PieceStorage? storage, AssetBundle? bundle})
+      : _storage = storage ?? PieceStorage(),
+        _bundle = bundle ?? rootBundle;
 
   final PieceStorage _storage;
+  final AssetBundle _bundle;
 
-  static const _fixtures = [
-    (
-      id: 'lightly_row',
-      title: 'Lightly Row',
-      xml: 'assets/fixtures/lightly_row.xml',
-      sections: 'assets/fixtures/sections/lightly_row_sections.json',
-    ),
-    (
-      id: 'happy_farmer',
-      title: 'The Happy Farmer, Op.68 No.10',
-      xml: 'assets/fixtures/happy_farmer.xml',
-      sections: 'assets/fixtures/sections/happy_farmer_musescore_sections.json',
-    ),
-    (
-      id: 'gossec_gavotte',
-      title: 'Gavotte (Gossec)',
-      xml: 'assets/fixtures/gavotte_gossec.xml',
-      sections: 'assets/fixtures/sections/gossec_gavotte_sections.json',
-    ),
-    // Both converted from `docs/wellerman.abc` through the app's own ABC
-    // pipeline and then through [_repair], so they arrive in the same
-    // sounding-led, beamed form as the fixtures above — which is what keeps
-    // them byte-identical under the normalizer and beamer round-trip tests.
-    //
-    // Old Joe Clark is the only bundled piece carrying `<harmony>`, so it is
-    // the only one that exercises the chord lane and the "New chords" diagrams
-    // out of the box. It is also A MIXOLYDIAN, not D major: both spell two
-    // sharps, so a `<mode>` that goes missing still engraves correctly and
-    // surfaces only in the roman numerals, with A reading as V of D instead of
-    // I. That is a real bug this tune has already caught once — keep the mode.
-    //
-    // The Wellerman has no chords at all. It earns its place as the modal
-    // minor counterpart, and as the case where the phone's tray correctly
-    // declines to offer a drawer.
-    (
-      id: 'the_wellerman',
-      title: 'The Wellerman',
-      xml: 'assets/fixtures/the_wellerman.xml',
-      sections: 'assets/fixtures/sections/the_wellerman_sections.json',
-    ),
-    (
-      id: 'old_joe_clark',
-      title: 'Old Joe Clark',
-      xml: 'assets/fixtures/old_joe_clark.xml',
-      sections: 'assets/fixtures/sections/old_joe_clark_sections.json',
-    ),
-  ];
+  // What ships, and where it comes from, is assets/library/catalog.json — see
+  // [PieceCatalog]. Two of its pieces are there for what they exercise, not
+  // just as tunes:
+  //
+  // Old Joe Clark and The Wellerman were converted from `docs/wellerman.abc`
+  // through the app's own ABC pipeline and then through [_repair], so they
+  // arrive in the same sounding-led, beamed form as the others — which is what
+  // keeps them byte-identical under the normalizer and beamer round-trip tests.
+  //
+  // Old Joe Clark carries `<harmony>`, so it exercises the chord lane and the
+  // "New chords" diagrams out of the box. It is also A MIXOLYDIAN, not D major:
+  // both spell two sharps, so a `<mode>` that goes missing still engraves
+  // correctly and surfaces only in the roman numerals, with A reading as V of D
+  // instead of I. That is a real bug this tune has already caught once — keep
+  // the mode.
+  //
+  // The Wellerman has no chords at all. It earns its place as the modal minor
+  // counterpart, and as the case where the phone's tray correctly declines to
+  // offer a drawer.
 
-  /// The ids of the bundled fixtures.
+  PieceCatalog? _catalog;
+  Future<PieceCatalog>? _catalogLoad;
+
+  /// The bundled catalog, read once from [kCatalogAsset].
+  Future<PieceCatalog> catalog() => _catalogLoad ??= () async {
+        final raw = await _bundle.loadString(kCatalogAsset);
+        return _catalog =
+            PieceCatalog.fromJson(json.decode(raw) as Map<String, dynamic>);
+      }();
+
+  /// Whether [id] is a bundled piece.
   ///
   /// The ONLY reliable way to tell a bundled piece from a user-added one. It is
   /// tempting to test `musicXmlAssetPath != null` instead, and that is wrong:
-  /// once a fixture has been edited, [loadAll] re-points it at its writable copy
-  /// in `editable_fixtures/`, so an edited fixture is field-for-field
-  /// indistinguishable from a scan. Hide-vs-delete must branch on this.
-  static final Set<String> fixtureIds = {for (final f in _fixtures) f.id};
+  /// once a bundled piece has been edited, [loadAll] re-points it at its
+  /// writable copy in `editable_fixtures/`, so an edited piece is
+  /// field-for-field indistinguishable from a scan. Hide-vs-delete must branch
+  /// on this.
+  ///
+  /// Synchronous, so it needs the catalog already read — which it always is by
+  /// the time there is a piece to ask about, since [loadAll] reads it first.
+  bool isBundled(String id) {
+    final c = _catalog;
+    if (c == null) {
+      throw StateError('isBundled($id) before the catalog was loaded');
+    }
+    return c.ids.contains(id);
+  }
 
-  /// Bundled `abc_*`/`homr_*` OMR-comparison fixtures, seeded hidden on first
-  /// run (see `seedLibrary`). None ship any more — the comparison pairs are
-  /// test data now (`test/fixtures/omr/`) — so this is empty, and seeding's
-  /// version-gated step 1 does nothing on a fresh install.
-  static final List<String> omrDemoFixtureIds = [
-    for (final f in _fixtures)
-      if (f.id.startsWith('abc_') || f.id.startsWith('homr_')) f.id,
-  ];
-
-  bool isBundled(String id) => fixtureIds.contains(id);
-
-  /// Piece id → its `assets/audio/<folder>/` play-along tracks, for the pieces
-  /// that have any. A hardcoded lookup (not a [Piece] field) because the
-  /// audio files are bundled assets keyed by a human-readable folder name,
-  /// while scanned/imported pieces get opaque, generated ids; adding a new
-  /// piece's tracks already requires a pubspec edit and rebuild, so this is
-  /// just the one more line that ties the id to the folder.
-  static const Map<String, String> _audioSyncFolders = {
-    'untitled_2026_09_08t11_19_17_445148_1788884398656': 'salt_creek',
-    'lightly_row': 'lightly_row',
-  };
-
-  /// The `assets/audio/<folder>/` this piece's Play Along tracks live in, or
-  /// null if it has none. Non-null-ness alone is "does Play Along exist for
-  /// this piece" — per-track alignment state is separate, see
-  /// [AudioSyncAnchorsStore].
-  String? audioSyncFolderFor(String id) => _audioSyncFolders[id];
+  /// The audio folder (`assets/library/<folder>/audio/`, see
+  /// [bundledAudioDir]) holding this piece's Play Along tracks, or null if it
+  /// has none. Non-null-ness alone is "does Play Along exist for this piece" —
+  /// per-track alignment state is separate, see [AudioSyncAnchorsStore]. A
+  /// lookup rather than a [Piece] field because a dev-library piece can have
+  /// bundled tracks too (the catalog's `audioOnly`), keyed by its opaque id.
+  Future<String?> audioSyncFolderFor(String id) async =>
+      (await catalog()).audioFolders[id];
 
   /// Whether the current platform supports editing (writable file storage).
   bool get supportsEditing => storageSupportsEditing;
 
   Future<List<Piece>> loadAll() async {
     final pieces = <Piece>[];
-    for (final f in _fixtures) {
+    final bundled = (await catalog()).pieces;
+    for (final f in bundled) {
       // Prefer an edited section override (sidecar) over the bundled asset, so
       // section edits persist; un-edited fixtures track the bundled asset.
       final override = await _storage.loadSectionsOverride(f.id);
@@ -116,7 +93,7 @@ class PieceRepository {
       if (override != null) {
         sections = override.map(Section.fromJson).toList();
       } else {
-        final sectionsRaw = await rootBundle.loadString(f.sections);
+        final sectionsRaw = await _bundle.loadString(f.sectionsAsset);
         final sectionsJson = json.decode(sectionsRaw) as Map<String, dynamic>;
         sections = (sectionsJson['sections'] as List)
             .cast<Map<String, dynamic>>()
@@ -130,13 +107,13 @@ class PieceRepository {
       pieces.add(Piece(
         id: f.id,
         title: f.title,
-        musicXmlAssetPath: editedPath == null ? f.xml : null,
+        musicXmlAssetPath: editedPath == null ? f.scoreAsset : null,
         musicXmlFilePath: editedPath,
-        sectionsAssetPath: f.sections,
+        sectionsAssetPath: f.sectionsAsset,
         sections: sections,
       ));
     }
-    LaunchTiming.mark('  loadAll: ${_fixtures.length} fixtures');
+    LaunchTiming.mark('  loadAll: ${bundled.length} bundled');
     final scannedPieces = await _storage.loadScannedPieces();
     LaunchTiming.mark('  loadAll: scanned index (${scannedPieces.length})');
     for (final scanned in scannedPieces) {
@@ -175,7 +152,7 @@ class PieceRepository {
   Future<String> loadMusicXml(Piece piece) async {
     final assetPath = piece.musicXmlAssetPath;
     if (assetPath != null) {
-      return _repair(await rootBundle.loadString(assetPath));
+      return _repair(await _bundle.loadString(assetPath));
     }
     final filePath = piece.musicXmlFilePath!;
     final raw = await _storage.readScannedMusicXml(filePath);
