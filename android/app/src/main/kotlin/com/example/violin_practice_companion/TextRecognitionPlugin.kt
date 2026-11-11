@@ -8,6 +8,7 @@ import android.os.Looper
 import androidx.exifinterface.media.ExifInterface
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import io.flutter.plugin.common.BinaryMessenger
@@ -88,15 +89,30 @@ class TextRecognitionPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCa
         return text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
             val b = line.boundingBox ?: return@mapNotNull null
             mapOf(
-                // From the words, not line.text: ML Kit's line string can drop
-                // a word gap ("Go TellAunt Rhody") that its word split keeps.
-                "text" to line.elements.joinToString(" ") { it.text }.ifEmpty { line.text },
+                "text" to lineText(line),
                 "confidence" to line.confidence.toDouble(),
                 // Crop pixels → whole-image fractions, top-left origin.
                 "box" to listOf(
                     (px + b.left) / w, (py + b.top) / h, b.width() / w, b.height() / h),
             )
         }
+    }
+
+    /**
+     * The line from its words, not `line.text`: ML Kit's line string can drop
+     * a word gap ("Go TellAunt Rhody") that its word split keeps.
+     *
+     * Also drops one leading page number. The books box a number beside each
+     * title; Vision never returns it with the title, but ML Kit reads it as the
+     * line's first word ("10 Allegretto", "9] Perpetual Motion", the box's
+     * edge read as "]" or "J"). It can't be split off by spacing: on the dev-library
+     * scans its gap is 0.0-0.4 of the text height, the same as a word space.
+     */
+    private fun lineText(line: Text.Line): String {
+        val words = line.elements.map { it.text }
+        if (words.isEmpty()) return line.text
+        val kept = if (words.size > 1 && words[0].matches(PAGE_NUMBER)) words.drop(1) else words
+        return kept.joinToString(" ")
     }
 
     /** The image as Flutter decodes it: EXIF rotation and mirroring applied. */
@@ -119,5 +135,6 @@ class TextRecognitionPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCa
 
     companion object {
         const val CHANNEL_NAME = "violin_practice_companion/text_recognition"
+        private val PAGE_NUMBER = Regex("^[\\[(]?[0-9]{1,3}[\\])|.J]?$")
     }
 }
