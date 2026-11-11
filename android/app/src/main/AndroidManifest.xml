@@ -25,6 +25,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- image_cropper's Android side (uCrop): the scan pipeline's crop step
+             (lib/services/omr_service_io.dart) crashes without it. No
+             screenOrientation lock, so it also works on tablets. -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

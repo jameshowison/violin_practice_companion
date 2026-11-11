@@ -28,5 +28,7 @@ import UIKit
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioRoutePlugin")!)
     AudioCalibrationPlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioCalibrationPlugin")!)
+    TextRecognitionPlugin.register(
+      with: engineBridge.pluginRegistry.registrar(forPlugin: "TextRecognitionPlugin")!)
   }
 }

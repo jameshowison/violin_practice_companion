@@ -535,21 +535,44 @@ abstract class PlaybackServiceBase {
     // the highlight leaving the last note that much early.
     final end = _endSeconds(d);
     if (loopEnabled ? pt + strikeAheadSeconds >= end : pt >= end) {
-      if (loopEnabled) {
-        play(
-            fromMeasure: _fromMeasure,
-            fromNote: _fromNote,
-            toMeasure: _toMeasure,
-            toNote: _toNote,
-            fromIndex: _fromIndex,
-            toIndex: _toIndex);
-      } else {
-        _stopInternal();
-      }
+      endReached();
       return;
     }
 
     onTick(pt, d);
+  }
+
+  /// The play-through has reached its end: go round again with the same
+  /// bounds if [loopEnabled], otherwise stop. Called by the tick when the
+  /// clock gets there, and by a player that knows first — a recording clipped
+  /// at the selection's end reports its own completion.
+  @protected
+  void endReached() {
+    if (_state != PlaybackState.playing) return;
+    if (loopEnabled) {
+      play(
+          fromMeasure: _fromMeasure,
+          fromNote: _fromNote,
+          toMeasure: _toMeasure,
+          toNote: _toNote,
+          fromIndex: _fromIndex,
+          toIndex: _toIndex);
+    } else {
+      _stopInternal();
+    }
+  }
+
+  /// Where the current play-through ends, in score-seconds, when that is
+  /// BEFORE the piece's own end — a selection with music after it, which a
+  /// player that can be told an end in advance should be told. Null with no
+  /// selection, or one running to the last note: there the recording's own
+  /// ending (a ring-out, an outro) is part of what is wanted.
+  @protected
+  double? get selectionEndSeconds {
+    final d = _data;
+    if (d == null) return null;
+    final end = _end(d);
+    return end.beforePieceEnd ? end.seconds : null;
   }
 
   /// Where the current play-through stops (or loops), in score-seconds.
@@ -559,7 +582,10 @@ abstract class PlaybackServiceBase {
   /// occurrence of toMeasure at or after the play start, so a range inside a
   /// repeated strain stops after that pass (and, with loop on, repeats just
   /// the selection) instead of running on through every repeat pass.
-  double _endSeconds(MidiData d) {
+  double _endSeconds(MidiData d) => _end(d).seconds;
+
+  /// [_endSeconds], and whether that end has more of the piece after it.
+  ({double seconds, bool beforePieceEnd}) _end(MidiData d) {
     final onsets = d.measureOnsetSeconds;
     final int toIdx;
     if (_toMeasure == null) {
@@ -573,14 +599,16 @@ abstract class PlaybackServiceBase {
     }
     final endIdx = (toIdx >= 0 ? toIdx : onsets.length - 1) + 1;
     var endT = endIdx < onsets.length ? onsets[endIdx] : d.totalDurationSeconds;
+    var before = _toMeasure != null && endIdx < onsets.length;
     // A mid-bar end stops on the onset of the first note past it.
     if (_toMeasure != null &&
         toIdx >= 0 &&
         _toNote >= 0 &&
         _toNote < d.measureNoteTimings[toIdx].length) {
       endT = d.measureNoteTimings[toIdx][_toNote].$1;
+      before = true;
     }
-    return endT;
+    return (seconds: endT, beforePieceEnd: before);
   }
 
   /// The highlight-event stream actually driving the notifiers — every note,
