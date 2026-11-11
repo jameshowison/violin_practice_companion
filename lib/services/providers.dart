@@ -1327,7 +1327,14 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 void _followHighlightSettings(Ref ref, PlaybackServiceBase service) {
   _follow<bool>(ref, highlightEveryNoteProvider,
       (everyNote) => service.highlightDownbeatOnly = !everyNote);
+  _follow<bool>(ref, loopEnabledProvider, (on) => service.loopEnabled = on);
 }
+
+/// Whether Play repeats the selection (or the piece) until stopped. One
+/// setting for every source, so switching from the score to a recording keeps
+/// it — and so it survives the recording service being rebuilt each visit.
+/// Session-only.
+final loopEnabledProvider = StateProvider<bool>((_) => false);
 
 /// Applies [provider]'s value to a service now, and again whenever it changes.
 ///
@@ -1350,6 +1357,42 @@ void _follow<T>(Ref ref, ProviderListenable<T> provider, void Function(T) apply)
 
 final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
   return ref.watch(playbackServiceProvider).state;
+});
+
+/// Whatever is playing the selected piece: the recording picked in the tray,
+/// or the synthesized score. Every view's highlight and anything that reacts
+/// to "Play was pressed" should follow this, not [playbackServiceProvider],
+/// which during a recording is not the thing making the sound.
+///
+/// autoDispose because it may hold [mediaPlaybackServiceProvider], which is.
+final activePlaybackServiceProvider =
+    Provider.autoDispose<PlaybackServiceBase>((ref) {
+  final piece = ref.watch(selectedPieceProvider);
+  final synth = ref.watch(playbackServiceProvider);
+  if (piece == null) return synth;
+  // While the list is still loading the synthesized score stands in — it is
+  // what the list starts with anyway, so nothing flickers.
+  final media = ref.watch(pieceMediaProvider(piece.id)).valueOrNull ??
+      const [PieceMedia.synthesized];
+  final selected =
+      MediaCatalog.resolve(media, ref.watch(selectedMediaIdProvider(piece.id)));
+  return selected.isSynthesized
+      ? synth
+      : ref.watch(mediaPlaybackServiceProvider);
+});
+
+/// [PlaybackState] of [activePlaybackServiceProvider].
+final activePlaybackStateProvider =
+    StreamProvider.autoDispose<PlaybackState>((ref) {
+  final service = ref.watch(activePlaybackServiceProvider);
+  // A switch of source mid-play must not leave the old one's last state
+  // standing, so open on the new service's current state.
+  Stream<PlaybackState> states() async* {
+    yield service.playbackState;
+    yield* service.state;
+  }
+
+  return states();
 });
 
 // ── Count-in ──────────────────────────────────────────────────────────────────

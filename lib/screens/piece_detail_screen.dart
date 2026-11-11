@@ -168,8 +168,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // Play Along is not the thing making the sound — so they sat still, or
     // followed a clock nobody could hear. Passing the active service down
     // instead means every view follows whatever is actually playing, and the
-    // override is gone.
-    final PlaybackServiceBase activeService = mediaService ?? service;
+    // override is gone. The same choice as `mediaService ?? service`, from the
+    // provider that anything else needing "what is playing" also reads.
+    final PlaybackServiceBase activeService =
+        ref.watch(activePlaybackServiceProvider);
 
     // The synthesized tempo, from the tray's preset picker at this piece's
     // performance tempo. Checked against the service so an unchanged rebuild
@@ -1600,7 +1602,8 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     final theme = Theme.of(context);
     final safeBottom = MediaQuery.paddingOf(context).bottom;
 
-    ref.listen(playbackStateProvider, (_, next) {
+    // The ACTIVE source's state: a recording starting must close it too.
+    ref.listen(activePlaybackStateProvider, (_, next) {
       if (next.valueOrNull == PlaybackState.playing) _closeSheet();
     });
     // Anything newly selected — a bar (its Edit/Delete are in the section
@@ -1694,7 +1697,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                             // Tall on purpose, and that's fine: on a phone the
                             // diagrams are reference — read before playing, not
                             // while — and the drawer closes itself the moment Play is
-                            // pressed (the playbackStateProvider listener above). So
+                            // pressed (the activePlaybackStateProvider listener above). So
                             // the score it covers (about half the screen in portrait,
                             // all but one line in landscape on the SE) is not score
                             // anyone is trying to read. Don't shrink it to make room.

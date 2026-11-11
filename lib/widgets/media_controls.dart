@@ -606,6 +606,45 @@ class _PickerAction {
 
 // ── Transports ───────────────────────────────────────────────────────────────
 
+/// Play, from either transport: the practice selection's start and end — its
+/// mid-bar edges and its repeat pass included — and the resolved count-off.
+///
+/// One function because the two transports used to build this argument list
+/// each for themselves, and the recording's dropped the end: Play started at
+/// the selected bar and ran on to the end of the piece. The meter, minimum and
+/// pickup behind the count are resolved in the providers, which keeps this and
+/// the drawer's readout in agreement. Read at the tap, not watched.
+void _playSelection(WidgetRef ref, PlaybackServiceBase service) {
+  final selection = ref.read(measureSelectionProvider);
+  service.play(
+    fromMeasure: ref.read(playbackStartMeasureProvider),
+    fromNote: ref.read(playbackStartNoteProvider),
+    toMeasure: selection?.endMeasure,
+    toNote: selection?.endNote ?? -1,
+    fromIndex: selection?.startPerf ?? -1,
+    toIndex: selection?.endPerf ?? -1,
+    countIn: ref.read(resolvedCountInProvider),
+  );
+}
+
+/// Repeat the selection (or the piece) until stopped. One setting shared by
+/// every source — see [loopEnabledProvider].
+class _LoopButton extends ConsumerWidget {
+  const _LoopButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(loopEnabledProvider);
+    return IconButton(
+      icon: Icon(Icons.repeat,
+          color: on ? Theme.of(context).colorScheme.primary : null),
+      iconSize: 22,
+      tooltip: on ? 'Loop on' : 'Loop off',
+      onPressed: () => ref.read(loopEnabledProvider.notifier).state = !on,
+    );
+  }
+}
+
 /// The score played by the app's own soundfont engine: a tempo you set, a loop
 /// you can leave on, and a count-off.
 class _SynthesizedTransport extends ConsumerStatefulWidget {
@@ -622,26 +661,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
     final service = ref.watch(playbackServiceProvider);
     final playState =
         ref.watch(playbackStateProvider).valueOrNull ?? PlaybackState.stopped;
-    final selection = ref.watch(measureSelectionProvider);
     final isPlaying = playState == PlaybackState.playing;
-
-    // The service is handed a ready-made count-off and a plain measure number;
-    // the meter, the minimum and the pickup are all resolved in the providers,
-    // which is what keeps this button and the drawer's readout in agreement.
-    final countIn = ref.watch(resolvedCountInProvider);
-    final startMeasure = ref.watch(playbackStartMeasureProvider);
-
-    final startNote = ref.watch(playbackStartNoteProvider);
-
-    void start() => service.play(
-          fromMeasure: startMeasure,
-          fromNote: startNote,
-          toMeasure: selection?.endMeasure,
-          toNote: selection?.endNote ?? -1,
-          fromIndex: selection?.startPerf ?? -1,
-          toIndex: selection?.endPerf ?? -1,
-          countIn: countIn,
-        );
 
     return Row(
       children: [
@@ -655,7 +675,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
             } else {
               // Paused and stopped both resume with a fresh count-off: the
               // instrument has come down either way.
-              start();
+              _playSelection(ref, service);
             }
           },
         ),
@@ -665,18 +685,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
           tooltip: 'Stop',
           onPressed: service.stop,
         ),
-        IconButton(
-          icon: Icon(
-            Icons.repeat,
-            color: service.loopEnabled
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          iconSize: 22,
-          tooltip: service.loopEnabled ? 'Loop on' : 'Loop off',
-          onPressed: () =>
-              setState(() => service.loopEnabled = !service.loopEnabled),
-        ),
+        const _LoopButton(),
         IconButton(
           icon: Icon(
             service.muted ? Icons.volume_off : Icons.volume_up,
@@ -785,7 +794,6 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
 
   @override
   Widget build(BuildContext context) {
-    final startMeasure = ref.watch(playbackStartMeasureProvider);
     final service = ref.watch(mediaPlaybackServiceProvider);
     // A new preset (or new bpm behind one) re-rates the recording at once.
     // Safe mid-play: the highlight reads the player's file-time position.
@@ -846,14 +854,14 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                       : () {
                           service.leadInMode =
                               ref.read(recordingLeadInProvider);
-                          service.play(
-                              fromMeasure: startMeasure,
-                              fromNote: ref.read(playbackStartNoteProvider),
-                              countIn: ref.read(resolvedCountInProvider));
+                          _playSelection(ref, service);
                         },
                 );
               },
             ),
+            // Repeats the selection, as on the synthesized transport. An
+            // unaligned recording has no bars to loop and plays to its end.
+            const _LoopButton(),
             // The same tempo picker as the synthesized transport. A recording
             // can't be re-generated at a bpm, so the chosen bpm becomes a
             // playback rate against the recording's own measured tempo (see
