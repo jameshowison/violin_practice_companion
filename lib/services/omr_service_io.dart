@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
 import 'omr_service_base.dart';
+import 'title_recognizer.dart';
 
 /// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
 /// (document scanner, photo library, or file/PDF) → crop each page to the
@@ -23,11 +24,10 @@ class OmrService implements OmrServiceBase {
   static final _models = OmrModels.inAssetDir('assets/omr_models');
 
   @override
-  Future<String?> scan({
+  Future<OmrScanResult?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     void Function(List<ScanSourcePage> pages)? onSourcePages,
-    String title = '',
   }) async {
     onProgress?.call(OmrScanStage.capturing);
     final pages = await _acquire(source);
@@ -58,7 +58,13 @@ class OmrService implements OmrServiceBase {
         ScanSourcePage(original: pages[i], cropped: croppedPages[i]),
     ]);
 
-    return OmrOrchestrator(models: _models).recogniseMultiPage(
+    // The title is printed over the first page's music: read it from the
+    // page around the top of that crop. Never fails the scan.
+    onProgress?.call(OmrScanStage.readingTitle);
+    final read = await TitleRecognizer().recognise(original: pages[0], cropped: croppedPages[0]);
+    final title = (read == null || read.isEmpty) ? _defaultTitle(DateTime.now()) : read;
+
+    final musicXml = await OmrOrchestrator(models: _models).recogniseMultiPage(
       croppedPages,
       title: title,
       onProgress: (pageIndex, stage) => onProgress?.call(switch (stage) {
@@ -68,6 +74,16 @@ class OmrService implements OmrServiceBase {
         OmrStage.assembling => OmrScanStage.assembling,
       }),
     );
+    return OmrScanResult(musicXml: musicXml, title: title);
+  }
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  /// When no title can be read: "Scanned piece 10 Nov 2026 16:40". Rename it
+  /// in Manage pieces.
+  static String _defaultTitle(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'Scanned piece ${t.day} ${_months[t.month - 1]} ${t.year} ${two(t.hour)}:${two(t.minute)}';
   }
 
   /// Acquire the raw page-image bytes (JPEG or PNG), one entry per page, in

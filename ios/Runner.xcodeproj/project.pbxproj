@@ -16,6 +16,7 @@
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */; };
 		7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */; };
+		7884E8832EC3CC0700C636F3 /* TextRecognitionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */; };
 		A1CA11B12F10000100C0FFEE /* AudioCalibrationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
@@ -60,6 +61,7 @@
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDecoderPlugin.swift; sourceTree = "<group>"; };
 		7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRoutePlugin.swift; sourceTree = "<group>"; };
+		7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognitionPlugin.swift; sourceTree = "<group>"; };
 		A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCalibrationPlugin.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		8D7227A6AAFBDF6E85AEC1DF /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */,
 				7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */,
+				7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */,
 				A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
@@ -412,6 +415,7 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */,
 				7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */,
+				7884E8832EC3CC0700C636F3 /* TextRecognitionPlugin.swift in Sources */,
 				A1CA11B12F10000100C0FFEE /* AudioCalibrationPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

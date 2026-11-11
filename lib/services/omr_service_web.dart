@@ -7,11 +7,10 @@ import 'omr_service_base.dart';
 /// from a laptop camera capture — not yet built.
 class OmrService implements OmrServiceBase {
   @override
-  Future<String?> scan({
+  Future<OmrScanResult?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     void Function(List<ScanSourcePage> pages)? onSourcePages,
-    String title = '',
   }) {
     throw UnsupportedError(
       'Scan-to-MusicXML is not available on web yet. '

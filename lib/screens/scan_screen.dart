@@ -12,24 +12,10 @@ class ScanScreen extends ConsumerStatefulWidget {
 }
 
 class _ScanScreenState extends ConsumerState<ScanScreen> {
-  final _titleController = TextEditingController();
   OmrScanStage? _stage;
   bool _scanning = false;
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    super.dispose();
-  }
-
   Future<void> _scan(OmrImageSource source) async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a title first.')),
-      );
-      return;
-    }
     setState(() {
       _scanning = true;
       _stage = null;
@@ -37,23 +23,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     try {
       List<ScanSourcePage>? sources;
-      final musicXml = await OmrService().scan(
+      final result = await OmrService().scan(
         source: source,
         onSourcePages: (pages) => sources = pages,
-        title: title,
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);
         },
       );
 
       if (!mounted) return;
-      if (musicXml == null) {
+      if (result == null) {
         // User cancelled at scan or crop — return to the piece list.
         Navigator.of(context).pop();
         return;
       }
 
-      final piece = await ref.read(pieceRepositoryProvider).savePiece(title, musicXml);
+      final piece = await ref.read(pieceRepositoryProvider).savePiece(result.title, result.musicXml);
       // Best-effort: losing the diagnostics must never lose the piece.
       if (sources != null) {
         try {
@@ -98,6 +83,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         null => 'Starting…',
         OmrScanStage.capturing => 'Capturing page…',
         OmrScanStage.cropping => 'Crop to music…',
+        OmrScanStage.readingTitle => 'Reading title…',
         OmrScanStage.segmenting => 'Detecting staves…',
         OmrScanStage.detecting => 'Detecting symbols…',
         OmrScanStage.recognising => 'Recognising notes…',
@@ -113,16 +99,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              key: const ValueKey('scan_title_field'),
-              controller: _titleController,
-              enabled: !_scanning,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                hintText: 'Required',
-              ),
-            ),
-            const SizedBox(height: 12),
             const _NaturalAccidentalHint(),
             const SizedBox(height: 12),
             if (_scanning) ...[

@@ -11,6 +11,7 @@ enum OmrImageSource { camera, photoLibrary, file }
 enum OmrScanStage {
   capturing,
   cropping,
+  readingTitle,
   segmenting,
   detecting,
   recognising,
@@ -26,6 +27,14 @@ class ScanSourcePage {
   const ScanSourcePage({required this.original, required this.cropped});
 }
 
+/// A recognised piece: its MusicXML, and the title read off the first page
+/// (or a dated default when none could be read — see `title_recognizer.dart`).
+class OmrScanResult {
+  final String musicXml;
+  final String title;
+  const OmrScanResult({required this.musicXml, required this.title});
+}
+
 /// Scans one or more pages of printed sheet music and recognises them as a
 /// single MusicXML piece.
 ///
@@ -33,10 +42,10 @@ class ScanSourcePage {
 /// document scanner + on-device OMR pipeline. Web (`omr_service_web.dart`)
 /// is a stub pending a server-side `homr` backend.
 abstract class OmrServiceBase {
-  /// Returns the recognised MusicXML, or `null` if the user cancels at any
+  /// Returns the recognised piece, or `null` if the user cancels at any
   /// step (acquiring the pages or cropping any of them). [source] selects
-  /// where the pages come from. [title] is embedded as the MusicXML
-  /// work-title.
+  /// where the pages come from. The title is read from the first page, just
+  /// above and into its crop, and embedded as the MusicXML work-title.
   ///
   /// Multi-page sources — a scanned multi-page document, several
   /// photo-library selections, or a multi-page PDF — are all imported as one
@@ -46,10 +55,9 @@ abstract class OmrServiceBase {
   /// [onSourcePages] receives every page's source images once the last crop
   /// is done, before recognition starts, so the caller can keep what a
   /// nonsense result was recognised from.
-  Future<String?> scan({
+  Future<OmrScanResult?> scan({
     OmrImageSource source = OmrImageSource.camera,
     void Function(OmrScanStage stage)? onProgress,
     void Function(List<ScanSourcePage> pages)? onSourcePages,
-    String title = '',
   });
 }
