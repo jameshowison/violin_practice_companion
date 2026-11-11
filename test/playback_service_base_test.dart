@@ -38,6 +38,10 @@ class _FakeClockPlaybackService extends PlaybackServiceBase {
 
   @override
   void onMuteChanged(bool muted) => muteChanges.add(muted);
+
+  // The protected end hooks a clipping player (the recording one) uses.
+  double? get selectionEnd => selectionEndSeconds;
+  void reachEnd() => endReached();
 }
 
 /// A recording-like player whose playback begins before the count — an intro.
@@ -315,6 +319,53 @@ void main() {
       expect(service.playbackState, PlaybackState.playing);
       service.fakeSeconds = 11.0;
       await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.stopped);
+    });
+  });
+
+  group('an end the player is told in advance', () {
+    test('a selection with music after it ends on the next bar', () {
+      service.play(fromMeasure: 1, toMeasure: 2);
+      expect(service.selectionEnd, 6.0);
+      service.stop();
+    });
+
+    test('a mid-bar end is the first note past it', () {
+      service.play(fromMeasure: 1, toMeasure: 3, toNote: 1);
+      expect(service.selectionEnd, 7.0);
+      service.stop();
+    });
+
+    test('none to the last bar, or with nothing selected — the ending rings',
+        () {
+      service.play(fromMeasure: 2, toMeasure: 3);
+      expect(service.selectionEnd, isNull);
+      service.play(fromMeasure: 1);
+      expect(service.selectionEnd, isNull);
+      service.stop();
+    });
+
+    test('reaching it stops, without Loop', () {
+      service.play(fromMeasure: 1, toMeasure: 1);
+      service.reachEnd();
+      expect(service.playbackState, PlaybackState.stopped);
+    });
+
+    test('reaching it goes round again with the same bounds, with Loop', () {
+      service.loopEnabled = true;
+      service.play(fromMeasure: 2, fromNote: 1, toMeasure: 2);
+      service.reachEnd();
+      expect(service.playbackState, PlaybackState.playing);
+      expect(service.startOffsetSeconds, 4.0);
+      expect(service.selectionEnd, 6.0);
+      service.stop();
+    });
+
+    test('reaching it after a stop does nothing', () {
+      service.loopEnabled = true;
+      service.play(fromMeasure: 1, toMeasure: 1);
+      service.stop();
+      service.reachEnd();
       expect(service.playbackState, PlaybackState.stopped);
     });
   });

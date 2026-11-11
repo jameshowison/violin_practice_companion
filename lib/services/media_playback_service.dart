@@ -103,6 +103,28 @@ class MediaPlaybackService extends PlaybackServiceBase {
   String? _sourceAsset;
   String? _sourceFile;
 
+  /// Where the player itself stops, in audio seconds; null plays to the end of
+  /// the file. Set to the selection's end at each Play (see [onPlayStarted]):
+  /// the native player then stops on that exact sample (AVPlayerItem's
+  /// `forwardPlaybackEndTime`), where stopping it from the 40ms tick, after
+  /// the heard position had got there, let the next note's attack through.
+  double? _clipEndAudioSec;
+
+  /// The file, clipped at [_clipEndAudioSec]. The clip's start is never set,
+  /// so the player's position stays the file's own — every reader of it, the
+  /// seeks and the video included, is unaffected. Re-clipping the same file is
+  /// cheap: just_audio keeps the loaded item and only moves its end.
+  AudioSource _source() {
+    final UriAudioSource file = _sourceAsset != null
+        ? AudioSource.asset(_sourceAsset!)
+        : AudioSource.file(_sourceFile!);
+    final end = _clipEndAudioSec;
+    return end == null
+        ? file
+        : ClippingAudioSource(
+            child: file, end: Duration(microseconds: (end * 1e6).round()));
+  }
+
   /// After the mic calibration has switched the audio session and back, the
   /// player can stay bound to the old route and play silently (seen with an
   /// AirPlay speaker). Giving it its source again rebuilds the item on the
@@ -110,10 +132,8 @@ class MediaPlaybackService extends PlaybackServiceBase {
   @override
   Future<void> restartAudio() async {
     try {
-      if (_sourceAsset != null) {
-        await _player.setAsset(_sourceAsset!);
-      } else if (_sourceFile != null) {
-        await _player.setFilePath(_sourceFile!);
+      if (_sourceAsset != null || _sourceFile != null) {
+        await _player.setAudioSource(_source());
       }
       await _player.setSpeed(playbackSpeed.value);
       debugPrint('[sync_cal] recording player reloaded: '
@@ -319,15 +339,15 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
     try {
       if (audio.isAsset) {
-        await _player.setAsset(audio.path);
         _sourceAsset = audio.path;
         _sourceFile = null;
       } else {
-        final path = (await absolutePathOf(audio))!;
-        await _player.setFilePath(path);
-        _sourceFile = path;
+        _sourceFile = (await absolutePathOf(audio))!;
         _sourceAsset = null;
       }
+      // A new file starts unclipped; the first Play sets its end.
+      _clipEndAudioSec = null;
+      await _player.setAudioSource(_source());
     } catch (e) {
       debugPrint('MediaPlaybackService: player rejected ${media.id} — $e');
       return MediaLoadResult(
@@ -445,23 +465,49 @@ class MediaPlaybackService extends PlaybackServiceBase {
     return load(piece: piece, media: media);
   }
 
-  /// Emits a stop when the file runs out.
+  /// Ends the play-through when the player runs out — of the file, or of the
+  /// clip at the selection's end ([_clipEndAudioSec]): stop, or with Loop on
+  /// go round again ([endReached]).
   ///
-  /// Needed because [PlaybackServiceBase] ends playback by comparing SCORE
-  /// time against the piece's length, and an unaligned medium has no score
-  /// time — [currentPlaybackSeconds] returns null, the tick does nothing, and
-  /// without this the transport would sit on "playing" forever after the audio
-  /// finished. Harmless for aligned media, which normally reach the score's
-  /// end first.
+  /// The clip is what ends an aligned selection: the tick's own end check
+  /// can't get there first, since the HEARD position trails the player's by
+  /// the output delay and the clip holds the player at the end. So the end is
+  /// taken once that delay has passed — when the last of the selection has
+  /// actually been heard, rather than cut off in the speaker's buffer.
+  ///
+  /// Also needed for an unaligned medium, which has no score time: without
+  /// this the transport would sit on "playing" after the audio finished.
   Future<void> _watchForCompletion() async {
     await _playerStateSub?.cancel();
     _playerStateSub = _player.playerStateStream.listen((s) {
-      if (s.processingState == ProcessingState.completed &&
-          playbackState == PlaybackState.playing) {
-        stop();
+      if (s.processingState != ProcessingState.completed ||
+          playbackState != PlaybackState.playing) {
+        return;
       }
+      // No bars to loop: the end of the file is just the end.
+      if (!isAligned) {
+        stop();
+        return;
+      }
+      // Only a completion AT the end. Going round a loop, the seek back to the
+      // start is briefly still reported as "completed" (at the new position),
+      // and taking that for an end restarted each pass ~0.1s in. And one end
+      // at a time: an end already being waited out isn't re-armed.
+      final endSec = _clipEndAudioSec ??
+          (_player.duration?.inMicroseconds ?? 0) / 1e6;
+      if (_player.position.inMicroseconds / 1e6 < endSec - 0.05 ||
+          (_endTimer?.isActive ?? false)) {
+        return;
+      }
+      final generation = _playGeneration;
+      _endTimer = Timer(
+          Duration(microseconds: (_heardDelay() * 1e6).round()), () {
+        if (generation == _playGeneration) endReached();
+      });
     });
   }
+
+  Timer? _endTimer;
 
   Future<void> setPlaybackSpeed(double speed) async {
     playbackSpeed.value = speed;
@@ -749,23 +795,34 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// With a count-in, the seek and any silent wait come from the play-through's
   /// [LeadInPlan] (see [prepareStart]), and the audio starts only once the
   /// seek has landed — so the virtual clock never reads a stale position.
+  ///
+  /// The player is also told where this play-through ends ([_clipEndAudioSec]),
+  /// so it stops on that sample itself rather than being stopped late.
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
     final generation = ++_playGeneration;
+    _endTimer?.cancel();
     final lead = _leadIn;
     if (lead == null) {
       final audioSec = _seekTargetAudioSec(startOffsetSeconds);
-      _player.seek(Duration(microseconds: (audioSec * 1e6).round()));
-      unawaited(_player.play());
+      final seek = _seekClipped(audioSec);
+      if (!seek.reclipped) {
+        unawaited(_player.play());
+      } else {
+        unawaited(seek.done.then((_) {
+          if (generation == _playGeneration &&
+              playbackState == PlaybackState.playing) {
+            unawaited(_player.play());
+          }
+        }));
+      }
       return;
     }
     if (lead.waitRealSec > 0) {
       _leadInEndsAt = _wallNow() + lead.waitRealSec;
     }
     _seekPending = true;
-    final seek = _player
-        .seek(Duration(microseconds: (lead.seekAudioSec * 1e6).round()))
-        .whenComplete(() {
+    final seek = _seekClipped(lead.seekAudioSec).done.whenComplete(() {
       if (generation == _playGeneration) _seekPending = false;
     });
     void start() {
@@ -787,9 +844,41 @@ class MediaPlaybackService extends PlaybackServiceBase {
     }
   }
 
+  /// Seeks to [audioSec], first moving the player's end to this play-through's
+  /// ([selectionEndSeconds], through the anchors) if it has changed. `reclipped`
+  /// says the source was re-set, which the caller must wait for before
+  /// playing; a loop pass, or Play again on the same range, is a plain seek.
+  ///
+  /// The re-set is given [audioSec] as its initial position, so the position
+  /// the clock reads jumps straight there, as a seek's does, rather than
+  /// passing through 0 while the source is swapped.
+  ({Future<void> done, bool reclipped}) _seekClipped(double audioSec) {
+    final target = Duration(microseconds: (audioSec * 1e6).round());
+    final endScore = isAligned ? selectionEndSeconds : null;
+    final end = endScore == null ? null : _audioSecForScoreSec(endScore);
+    if (end == _clipEndAudioSec ||
+        (_sourceAsset == null && _sourceFile == null)) {
+      return (done: _player.seek(target), reclipped: false);
+    }
+    _clipEndAudioSec = end;
+    Future<void> reclip() async {
+      try {
+        await _player.setAudioSource(_source(), initialPosition: target);
+        // Not reliably kept across a new source (see _MediaTransport._load).
+        await _player.setSpeed(playbackSpeed.value);
+        await _player.seek(target);
+      } catch (e) {
+        debugPrint('MediaPlaybackService: re-clip failed — $e');
+      }
+    }
+
+    return (done: reclip(), reclipped: true);
+  }
+
   @override
   void onStopped() {
     _playGeneration++;
+    _endTimer?.cancel();
     _leadInTimer?.cancel();
     _leadInTimer = null;
     _leadInEndsAt = null;
@@ -805,6 +894,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   @override
   void dispose() {
     _leadInTimer?.cancel();
+    _endTimer?.cancel();
     super.dispose();
     unawaited(_playerStateSub?.cancel());
     _player.dispose();
