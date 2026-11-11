@@ -16,6 +16,7 @@ import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'support/restricted_fixtures.dart';
 
 /// Lyrics from ABC `w:` lines, end to end short of the engraver: the converter's
 /// `<lyric>` output (golden fixtures, regenerated with
@@ -107,10 +108,11 @@ void main() {
       expect(verseText(golden('circle'), 2), startsWith('by and by.'));
     });
 
-    test('Gundagai with words: syllables survive ties and long hyphen runs', () {
-      final xml = golden('gundagai_lyrics');
+    test('Gundagai with words: syllables survive ties and long hyphen runs',
+        skip: skipUnlessRestricted(kGundagaiLyrics), () {
+      final xml = readRestricted(kGundagaiLyrics);
       expect(verseText(xml, 1),
-          contains('<lyric removed>'));
+          contains(RegExp(r"\w+-\w+-\w+-\w+'s ")));
       final bars = parse(xml).measures;
       String? sung(int bar, int note) =>
           bars[bar - 1].notes[note].lyrics[1]?.text;
@@ -288,12 +290,13 @@ void main() {
             'font-family="Times New Roman, Times, serif">'));
   });
 
-  test('a system\'s ink reaches down past its lyrics', () {
+  test('a system\'s ink reaches down past its lyrics',
+      skip: skipUnlessRestricted(kVerovioVerseSvg), () {
     // Verovio emits the lyric boxes empty, so without the syllables added by
     // hand a system ended at its notes and the next system's chord bars were
     // drawn over the words. Real Verovio 6.2 output (scale 40, bounding boxes
     // on) of gundagai_lyrics.musicxml, every system of which carries words.
-    final svg = File('test/fixtures/verovio_verse.svg').readAsStringSync();
+    final svg = readRestricted(kVerovioVerseSvg);
     final withLyrics = VerovioEngraver.systemInkBoxes(svg)!;
     final notesOnly = VerovioEngraver.systemInkBoxes(
         svg.replaceAll('class="syl">', 'class="syl-ignored">'))!;
@@ -312,14 +315,15 @@ void main() {
         isNotEmpty);
   });
 
-  test('note boxes exclude their lyrics, so every note stays in its bar', () {
+  test('note boxes exclude their lyrics, so every note stays in its bar',
+      skip: skipUnlessRestricted(kVerovioVerseSvg) ?? skipUnlessRestricted(kGundagaiLyrics), () {
     // Verovio puts a note's lyric inside the note's group. With the words in,
     // "gai"'s extender — held over the tie into bars 8 and 9 — dragged its
     // note's box centre into bar 8, and every fingering chip after it in the
     // line moved one note along. The engraver reads its hit map from
     // [VerovioEngraver.withoutLyrics] instead. Real Verovio 6.2 output of the
     // tied gundagai_lyrics.musicxml.
-    final svg = File('test/fixtures/verovio_verse.svg').readAsStringSync();
+    final svg = readRestricted(kVerovioVerseSvg);
     List<int> notesPerBar(String s) {
       final map = HitMapParser.parseSync(s,
           config: const ParseConfig(captureClasses: {'note', 'rest', 'measure'}));
@@ -335,7 +339,7 @@ void main() {
     }
 
     final expected = [
-      for (final m in parse(golden('gundagai_lyrics')).measures) m.notes.length
+      for (final m in parse(readRestricted(kGundagaiLyrics)).measures) m.notes.length
     ];
     expect(notesPerBar(svg), isNot(expected),
         reason: 'the fixture should show the bug this guards against');

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
+import 'support/restricted_fixtures.dart';
 import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/section.dart';
@@ -40,11 +41,16 @@ void main() {
       'amazing_grace',
       'circle',
       'gundagai',
-      'gundagai_lyrics',
       'old_joe_clark',
     ]) {
       expect(moved(name), isEmpty, reason: name);
     }
+  });
+
+  test('none in Gundagai with words either',
+      skip: skipUnlessRestricted(kGundagaiLyrics), () {
+    final m = MusicXmlParser().parse(readRestricted(kGundagaiLyrics)).measures;
+    expect(movedRepeats(SectionDetector.detect(m), m), isEmpty);
   });
 
   test('a tail that differs from the lead-in moves nothing', () {

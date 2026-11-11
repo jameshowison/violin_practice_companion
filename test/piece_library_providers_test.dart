@@ -238,12 +238,18 @@ void main() {
     });
   });
 
-  test('seeding hides the OMR demo fixtures on first load', () async {
+  test('first load seeds nothing to hide: no OMR demos ship any more',
+      () async {
+    // The abc_/homr_ comparison pairs are test data now (test/fixtures/omr),
+    // so step 1 of seeding has no ids and creates no "OMR demos" collection.
+    // The step itself is covered with synthetic ids in piece_library_test.
     final c = makeContainer();
     final lib = await c.read(libraryProvider.future);
 
-    expect(lib.hiddenIds, PieceRepository.omrDemoFixtureIds.toSet());
-    expect(lib.collections.single.name, omrDemoCollectionName);
+    expect(PieceRepository.omrDemoFixtureIds, isEmpty);
+    expect(lib.hiddenIds, isEmpty);
+    expect(lib.collections.where((x) => x.name == omrDemoCollectionName),
+        isEmpty);
     expect(lib.seedVersion, currentSeedVersion);
   });
 }

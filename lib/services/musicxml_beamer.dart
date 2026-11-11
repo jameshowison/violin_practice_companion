@@ -33,7 +33,7 @@ class MusicXmlBeamer {
   ///
   /// Outside 3/4 this reproduces the scores almost exactly: **143 of 147
   /// measures**. The four misses are two over-long bars in
-  /// `abc_10_allegretto.xml`, where the beat grid is meaningless anyway, and
+  /// an OMR ground-truth fixture, where the beat grid is meaningless anyway, and
   /// one bar of each Gavotte whose twelve sixteenths the engraver grouped by
   /// quarter rather than by half. A one-beat span scores 29/72 on the same 4/4
   /// material — that is the difference this constant exists to make.
@@ -47,7 +47,8 @@ class MusicXmlBeamer {
   ///
   /// (A two-tier span — halves for eighths, quarters for sixteenths, which is
   /// what the Gavotte bars above want — was tried and is a wash: it fixes
-  /// `abc_17_gavotte.xml` and breaks `homr_17_gavotte.xml` by the same margin.
+  /// one OMR ground-truth fixture and breaks
+  /// `test/fixtures/omr/homr_17_gavotte.xml` by the same margin.
   /// The two engravings of that bar disagree with each other.)
   ///
   /// Deliberately *not* shared with `AbcExporter._beamUnits`, which answers a

@@ -85,7 +85,7 @@ A standard offline hyphenation dictionary may cover that without a model.
 
 ## How the spike works
 
-`docs/omr_evaluation/scripts/ocr.swift` and `lyrics_align_spike.py`.
+`scripts/omr_eval/ocr.swift` and `lyrics_align_spike.py`.
 
 1. **OCR: Apple Vision** (accurate, language correction off), on-device. The
    page is read **twice, whole and in overlapping horizontal strips**, and the
@@ -185,11 +185,11 @@ be discussed and keyed freely. The production feature is on-device by design.
 ## Reproducing
 
 ```bash
-swift docs/omr_evaluation/scripts/ocr.swift page.png > ocr.json
+swift scripts/omr_eval/ocr.swift page.png > ocr.json
 homr page.png > homr.log                      # writes page.musicxml
-python3 -I docs/omr_evaluation/scripts/lyrics_align_spike.py \
+python3 -I scripts/omr_eval/lyrics_align_spike.py \
     --template page.musicxml homr.log answer.gt.txt   # fill in, one row per note
-~/.local/share/uv/tools/homr/bin/python -I docs/omr_evaluation/scripts/lyrics_align_spike.py \
+~/.local/share/uv/tools/homr/bin/python -I scripts/omr_eval/lyrics_align_spike.py \
     ocr.json page.musicxml answer.gt.txt out.musicxml homr.log page.png
 bash lyrics_eval/score.sh [--ocr]             # every page, numbers only
 ```

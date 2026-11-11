@@ -93,14 +93,14 @@ void main() {
 
     setUp(() {
       map = HitMapParser.parseSync(
-        File('test/fixtures/verovio_fing.svg').readAsStringSync(),
+        File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync(),
         config: const ParseConfig(captureClasses: {'fing', 'note', 'measure'}),
       );
     });
 
     test('MusicXML <fingering> is engraved and capturable as class="fing"', () {
-      // 54 <fingering> elements in assets/fixtures/happy_farmer_musescore.xml.
-      expect(of(map, 'fing'), hasLength(54));
+      // A placeholder <fingering> on each of Old Joe Clark's 78 notes.
+      expect(of(map, 'fing'), hasLength(78));
     });
 
     test('every fingering is horizontally aligned with a notehead', () {
@@ -122,7 +122,7 @@ void main() {
       expect(populated, isNotEmpty, reason: 'no system carried fingerings');
       for (final ys in populated) {
         final spread = (ys.last - ys.first) / space;
-        // Measured 1.7–1.8 spaces on Happy Farmer. A drawn flat register is
+        // Measured 1.7–1.8 spaces on Happy Farmer, and well under 3 on Old Joe Clark. A drawn flat register is
         // viable at this spread; it would not be if fingerings tracked pitch
         // across the staff's whole range.
         expect(
@@ -161,7 +161,7 @@ void main() {
     });
 
     test('MusicXML <harmony> is engraved and capturable as class="harm"', () {
-      // 9 <harmony> elements in assets/fixtures/lightly_row_musescore.xml.
+      // 9 <harmony> elements in assets/fixtures/lightly_row.xml.
       expect(of(map, 'harm'), hasLength(9));
     });
 
@@ -393,7 +393,10 @@ void stripTests() {
   group('stripAnnotationGlyphs', () {
     test('removes every engraved fingering and chord symbol', () {
       for (final name in ['fing', 'harm']) {
-        final svg = File('test/fixtures/verovio_$name.svg').readAsStringSync();
+        final svg = File(name == 'fing'
+                ? 'test/fixtures/verovio_ojc_reserved.svg'
+                : 'test/fixtures/verovio_harm.svg')
+            .readAsStringSync();
         expect(
           tokens(svg, name),
           greaterThan(0),
@@ -405,7 +408,7 @@ void stripTests() {
     });
 
     test('leaves the music alone', () {
-      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final svg = File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync();
       final out = VerovioEngraver.stripAnnotationGlyphs(svg);
       for (final cls in ['note', 'staff', 'measure', 'system']) {
         expect(tokens(out, cls), tokens(svg, cls), reason: 'lost some $cls');
@@ -413,7 +416,7 @@ void stripTests() {
     });
 
     test('the page keeps its size — the reservation is not reclaimed', () {
-      final svg = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final svg = File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync();
       final out = VerovioEngraver.stripAnnotationGlyphs(svg);
       final vb = RegExp(r'viewBox="0 0 (\d+) (\d+)"');
       expect(vb.firstMatch(out)!.group(2), vb.firstMatch(svg)!.group(2));

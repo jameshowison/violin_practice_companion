@@ -3,7 +3,8 @@ import '../models/chord_shape.dart';
 /// Lookup from chord name (as produced by `MusicXmlParser`, e.g. `A`, `Em`) to a
 /// mandolin GDAE fingering.
 ///
-/// Source: the "Beginner Chord Index" (David Benedict) — `docs/beginner_chord_index.pdf`.
+/// Source: the "Beginner Chord Index" (David Benedict). Chord shapes are facts
+/// about the fretboard; the published page itself is not in this repo.
 /// Frets are `[G, D, A, E]` low→high; `0` = open, `null` = muted. The chart draws
 /// no finger numbers, so [ChordShape.fingers] is left null. Note the chart's A and
 /// E are deliberately open-fifth voicings (no 3rd) — beginner-friendly drones.

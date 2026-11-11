@@ -28,7 +28,7 @@ global.cancelAnimationFrame   = clearTimeout;
 const { OpenSheetMusicDisplay } = require('opensheetmusicdisplay');
 
 const xml = fs.readFileSync(
-  path.join(root, 'assets/fixtures/lightly_row_musescore.xml'), 'utf8'
+  path.join(root, 'assets/fixtures/lightly_row.xml'), 'utf8'
 );
 
 async function renderOne(containerId, applyTight) {

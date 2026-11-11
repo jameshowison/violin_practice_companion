@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'support/restricted_fixtures.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
@@ -116,11 +117,12 @@ void main() {
            (60, 5.0, 6.0)]);
     });
 
-    test('ties move no measure onset and no highlight time', () {
+    test('ties move no measure onset and no highlight time',
+        skip: skipUnlessRestricted(kGundagaiLyrics), () {
       // Audio alignment anchors are measure onsets at the generation bpm, and
       // the cursor runs off the highlight events, so both must be identical
       // with and without ties.
-      final xml = File('test/fixtures/gundagai_lyrics.musicxml').readAsStringSync();
+      final xml = readRestricted(kGundagaiLyrics);
       final tied = parser.parse(MusicXmlNormalizer.toSoundingPitch(xml));
       final untied = ParsedPiece(
         keySignature: tied.keySignature,
@@ -258,9 +260,9 @@ $notes</measure></part></score-partwise>''';
       expect('<accidental>sharp</accidental>'.allMatches(out).length, 1);
     });
 
-    test('the Gundagai scan gets its eight ties, and nothing else changes', () {
-      final raw = MusicXmlNormalizer.toSoundingPitch(
-          File('test/fixtures/gundagai_scan.musicxml').readAsStringSync());
+    test('the Gundagai scan gets its eight ties, and nothing else changes',
+        skip: skipUnlessRestricted(kGundagaiScan), () {
+      final raw = MusicXmlNormalizer.toSoundingPitch(readRestricted(kGundagaiScan));
       final out = MusicXmlNormalizer.slursToTies(raw);
       expect('<tie type="start"/>'.allMatches(out).length, 8);
       expect('<tied type="start"/>'.allMatches(out).length, 8);
@@ -280,10 +282,10 @@ $notes</measure></part></score-partwise>''';
 
     test('portato minuets and MuseScore files come back unchanged', () {
       for (final f in [
-        'assets/fixtures/homr_14_minuet_no_2.xml',
-        'assets/fixtures/homr_15_minuet_no_3.xml',
-        'assets/fixtures/happy_farmer_musescore.xml',
-        'assets/fixtures/gossec_gavotte.xml',
+        'test/fixtures/omr/homr_14_minuet_no_2.xml',
+        'test/fixtures/omr/homr_15_minuet_no_3.xml',
+        'assets/fixtures/happy_farmer.xml',
+        'assets/fixtures/gavotte_gossec.xml',
       ]) {
         final xml = File(f).readAsStringSync();
         expect(MusicXmlNormalizer.slursToTies(xml), xml, reason: f);

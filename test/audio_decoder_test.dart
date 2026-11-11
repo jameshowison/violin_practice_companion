@@ -20,7 +20,7 @@ void main() {
   // `assets/audio/` is gitignored, so the two tests that need real audio skip
   // when it isn't present — the same pattern as lightly_row_intro_align_test.
   final wavFile = File('assets/audio/lightly_row/melody.wav');
-  final xmlFile = File('assets/fixtures/lightly_row_musescore.xml');
+  final xmlFile = File('assets/fixtures/lightly_row.xml');
   final haveAudio = wavFile.existsSync() && xmlFile.existsSync();
 
   final messenger =

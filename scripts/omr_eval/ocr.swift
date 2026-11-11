@@ -1,6 +1,6 @@
 // Lyrics spike, step 1: what Apple Vision reads off a score page.
 //
-//   swift docs/omr_evaluation/scripts/ocr.swift page.png > ocr.json
+//   swift scripts/omr_eval/ocr.swift page.png > ocr.json
 //
 // Prints every text observation with its box in image pixels (origin top-left,
 // unlike Vision's bottom-left unit square), plus one box per character (in

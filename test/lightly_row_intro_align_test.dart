@@ -26,7 +26,7 @@ import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 void main() {
-  final xmlFile = File('assets/striped/lightly_row_musescore.xml');
+  final xmlFile = File('assets/fixtures/lightly_row.xml');
   final wavFile = File('assets/audio/lightly_row/melody.wav');
   if (!xmlFile.existsSync() || !wavFile.existsSync()) {
     test('lightly row intro align (skipped: assets not present)', () {});

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:io';
 
+import 'support/restricted_fixtures.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
@@ -451,7 +452,13 @@ void main() {
               if (m.lineStartNote != null) m.number: m.lineStartNote!,
           };
       expect(lines('amazing_grace'), {5: 1, 9: 1, 13: 1});
-      expect(lines('gundagai_lyrics'), {10: 0, 18: 0, 26: 0});
+      if (restrictedFile(kGundagaiLyrics) != null) {
+        final g = MusicXmlParser().parse(readRestricted(kGundagaiLyrics)).measures;
+        expect({
+          for (final m in g)
+            if (m.lineStartNote != null) m.number: m.lineStartNote!,
+        }, {10: 0, 18: 0, 26: 0});
+      }
       final c = MusicXmlParser()
           .parse(File('test/fixtures/galopede.musicxml').readAsStringSync())
           .measures
@@ -496,8 +503,12 @@ void main() {
     });
 
     test('Gundagai: the last chorus strain is the first with a new ending',
-        () {
-      expect(detect('gundagai_scan'),
+        skip: skipUnlessRestricted(kGundagaiScan), () {
+      expect(
+          SectionDetector.detect(
+                  MusicXmlParser().parse(readRestricted(kGundagaiScan)).measures)
+              .map((s) => '${s.label}@${s.startMeasure}:${s.startNote}')
+              .join(' '),
           'A@1:0 B@9:3 C@18:0 D@26:1 E@34:2 C@42:1');
     });
 

@@ -83,9 +83,9 @@ class SectionDetector {
   /// the bar before it that lead into the section the way the piece's opening
   /// pickup leads into the first. A strain that starts on an upbeat is found
   /// by bar-counting on its downbeat, but musically (and in the words, for a
-  /// song) it begins on the upbeat — Along the Road to Gundagai's lead-ins (lyric examples removed) is the opening
-  /// pickup. Starting the section there is what lets a section-aware staff
-  /// open the line with it.
+  /// song) it begins on the upbeat: a new strain's words usually start on the
+  /// last beat of the bar before, just as the opening pickup's do. Starting the
+  /// section there is what lets a section-aware staff open the line with it.
   ///
   /// Only a piece that HAS an opening pickup gets lead-ins. Within the
   /// previous bar a lead-in starts on the first sounding note after the

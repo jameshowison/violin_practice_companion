@@ -71,7 +71,7 @@ void main() {
 
     test('null when the SVG carries no boxes, so callers can fall back', () {
       // The fixtures recorded before `svgBoundingBoxes` was turned on.
-      final plain = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final plain = File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync();
       expect(plain.contains('bounding-box'), isFalse);
       expect(VerovioEngraver.systemInkBoxes(plain), isNull);
     });
@@ -203,7 +203,7 @@ void main() {
     });
 
     test('a no-op on an SVG that never had any', () {
-      final plain = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final plain = File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync();
       expect(VerovioEngraver.stripBoundingBoxes(plain), plain);
     });
   });

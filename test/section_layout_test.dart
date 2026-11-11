@@ -1,7 +1,7 @@
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
+import 'support/restricted_fixtures.dart';
 import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/section.dart';
@@ -17,7 +17,12 @@ import 'package:violin_practice_companion/services/system_break_injector.dart';
 /// lead-in at the end of the bar before): lead-in detection, the bar splits,
 /// the engraved measure map, the section breaks and the line planner.
 void main() {
-  final xml = File('test/fixtures/gundagai_lyrics.musicxml').readAsStringSync();
+  final skip = skipUnlessRestricted(kGundagaiLyrics);
+  if (skip != null) {
+    test('section layout on Gundagai', () {}, skip: skip);
+    return;
+  }
+  final xml = readRestricted(kGundagaiLyrics);
   final measures = MusicXmlParser().parse(xml).measures;
   // The detector's bar-counted sections, on downbeats — what the dev
   // library's sidecar holds for this tune.

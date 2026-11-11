@@ -261,7 +261,7 @@ void _noteheadColourTests() {
     });
 
     test('the real Verovio fixture: every requested notehead is tinted', () {
-      final real = File('test/fixtures/verovio_fing.svg').readAsStringSync();
+      final real = File('test/fixtures/verovio_ojc_reserved.svg').readAsStringSync();
       final ids = RegExp(r'<g id="([^"]+)" class="note"')
           .allMatches(real)
           .map((m) => m.group(1)!)

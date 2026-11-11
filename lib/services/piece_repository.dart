@@ -22,19 +22,19 @@ class PieceRepository {
     (
       id: 'lightly_row',
       title: 'Lightly Row',
-      xml: 'assets/fixtures/lightly_row_musescore.xml',
+      xml: 'assets/fixtures/lightly_row.xml',
       sections: 'assets/fixtures/sections/lightly_row_sections.json',
     ),
     (
       id: 'happy_farmer',
       title: 'The Happy Farmer, Op.68 No.10',
-      xml: 'assets/fixtures/happy_farmer_musescore.xml',
+      xml: 'assets/fixtures/happy_farmer.xml',
       sections: 'assets/fixtures/sections/happy_farmer_musescore_sections.json',
     ),
     (
       id: 'gossec_gavotte',
       title: 'Gavotte (Gossec)',
-      xml: 'assets/fixtures/gossec_gavotte.xml',
+      xml: 'assets/fixtures/gavotte_gossec.xml',
       sections: 'assets/fixtures/sections/gossec_gavotte_sections.json',
     ),
     // Both converted from `docs/wellerman.abc` through the app's own ABC
@@ -64,67 +64,6 @@ class PieceRepository {
       xml: 'assets/fixtures/old_joe_clark.xml',
       sections: 'assets/fixtures/sections/old_joe_clark_sections.json',
     ),
-    // OMR comparison pairs: abc (ground truth) then homr (engine output)
-    (
-      id: 'abc_05_o_come_little_children',
-      title: '05 O Come Little Children (abc)',
-      xml: 'assets/fixtures/abc_05_o_come_little_children.xml',
-      sections: 'assets/fixtures/sections/abc_05_sections.json',
-    ),
-    (
-      id: 'homr_05_o_come_little_children',
-      title: '05 O Come Little Children (homr)',
-      xml: 'assets/fixtures/homr_05_o_come_little_children.xml',
-      sections: 'assets/fixtures/sections/homr_05_sections.json',
-    ),
-    (
-      id: 'abc_10_allegretto',
-      title: '10 Allegretto (abc)',
-      xml: 'assets/fixtures/abc_10_allegretto.xml',
-      sections: 'assets/fixtures/sections/abc_10_sections.json',
-    ),
-    (
-      id: 'homr_10_allegretto',
-      title: '10 Allegretto (homr)',
-      xml: 'assets/fixtures/homr_10_allegretto.xml',
-      sections: 'assets/fixtures/sections/homr_10_sections.json',
-    ),
-    (
-      id: 'abc_14_minuet_no_2',
-      title: '14 Minuet No. 2 (abc)',
-      xml: 'assets/fixtures/abc_14_minuet_no_2.xml',
-      sections: 'assets/fixtures/sections/abc_14_sections.json',
-    ),
-    (
-      id: 'homr_14_minuet_no_2',
-      title: '14 Minuet No. 2 (homr)',
-      xml: 'assets/fixtures/homr_14_minuet_no_2.xml',
-      sections: 'assets/fixtures/sections/homr_14_sections.json',
-    ),
-    (
-      id: 'abc_15_minuet_no_3',
-      title: '15 Minuet No. 3 (abc)',
-      xml: 'assets/fixtures/abc_15_minuet_no_3.xml',
-      sections: 'assets/fixtures/sections/abc_15_sections.json',
-    ),
-    (
-      id: 'homr_15_minuet_no_3',
-      title: '15 Minuet No. 3 (homr)',
-      xml: 'assets/fixtures/homr_15_minuet_no_3.xml',
-      sections: 'assets/fixtures/sections/homr_15_sections.json',
-    ),
-    (
-      id: 'abc_17_gavotte',
-      title: '17 Gavotte (abc)',
-      xml: 'assets/fixtures/abc_17_gavotte.xml',
-      sections: 'assets/fixtures/sections/abc_17_sections.json',
-    ),
-    (
-      id: 'homr_17_gavotte',
-      title: '17 Gavotte (homr)',
-      xml: 'assets/fixtures/homr_17_gavotte.xml',
-      sections: 'assets/fixtures/sections/homr_17_sections.json',
-    ),
   ];
 
   /// The ids of the bundled fixtures.
@@ -136,10 +75,10 @@ class PieceRepository {
   /// indistinguishable from a scan. Hide-vs-delete must branch on this.
   static final Set<String> fixtureIds = {for (final f in _fixtures) f.id};
 
-  /// The `abc_*`/`homr_*` OMR-comparison fixtures — kept as a side-by-side
-  /// demonstration of scan quality, but 10 of the 13 bundled pieces and pure
-  /// noise for everyday practice. Seeded hidden on first run;
-  /// see `seedLibrary`.
+  /// Bundled `abc_*`/`homr_*` OMR-comparison fixtures, seeded hidden on first
+  /// run (see `seedLibrary`). None ship any more — the comparison pairs are
+  /// test data now (`test/fixtures/omr/`) — so this is empty, and seeding's
+  /// version-gated step 1 does nothing on a fresh install.
   static final List<String> omrDemoFixtureIds = [
     for (final f in _fixtures)
       if (f.id.startsWith('abc_') || f.id.startsWith('homr_')) f.id,

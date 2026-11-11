@@ -184,7 +184,7 @@ void main() {
 
   test('Gossec Gavotte plays its D.C. al Fine as the recording does', () {
     final p = MusicXmlParser()
-        .parse(File('assets/fixtures/gossec_gavotte.xml').readAsStringSync());
+        .parse(File('assets/fixtures/gavotte_gossec.xml').readAsStringSync());
     List<int> r(int a, int b) => [for (var n = a; n <= b; n++) n];
     expect(_played(p.measures), [
       ...r(1, 8), ...r(1, 8), ...r(9, 16),

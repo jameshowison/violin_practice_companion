@@ -13,8 +13,8 @@ import xml.etree.ElementTree as ET
 BASE = '/Users/jlh5498/Documents/git_root/violin_practice_companion'
 
 GOLD = {
-    'lr': f'{BASE}/assets/fixtures/lightly_row_musescore.xml',
-    'hf': f'{BASE}/assets/fixtures/happy_farmer_musescore.xml',
+    'lr': f'{BASE}/assets/fixtures/lightly_row.xml',
+    'hf': f'{BASE}/assets/fixtures/happy_farmer.xml',
 }
 
 

@@ -169,7 +169,8 @@ void main() {
   group('annotationReserveFor', () {
     // Room from the previous system's ink to the annotation register, in staff
     // spaces, at Verovio's own default spacingSystem of 4 — measured on every
-    // fixture in assets/fixtures from Verovio's OWN bounding boxes
+    // fixture (assets/fixtures, plus the OMR set now in test/fixtures/omr)
+    // from Verovio's OWN bounding boxes
     // (`VerovioEngraver.systemInkBoxes`), engraved headlessly with a
     // `<fingering>` placeholder on every non-rest note (Verovio 6.2.0, scale 40).
     //
@@ -177,23 +178,17 @@ void main() {
     // every other fixture draws the fingering row alone and wants 3.16, because
     // with no engraved `<harm>` there is no register and no bar is ever painted.
     const roomAtDefault = <String, double>{
-      'abc_05_o_come_little_children': 2.01,
-      'abc_10_allegretto': 1.96,
-      'abc_14_minuet_no_2': 1.96,
-      'abc_15_minuet_no_3': 1.96,
-      'abc_17_gavotte': 1.96,
-      'gossec_gavotte': 1.96,
-      'happy_farmer_musescore': 1.96,
+      'gavotte_gossec': 1.96,
+      'happy_farmer': 1.96,
       'homr_05_o_come_little_children': 3.32,
-      'homr_10_allegretto': 3.19,
       'homr_14_minuet_no_2': 1.96,
       'homr_15_minuet_no_3': 2.89,
       'homr_17_gavotte': 2.54,
       'the_wellerman': 3.57,
-      'lightly_row_musescore': 5.74, // + harmony
+      'lightly_row': 5.74, // + harmony
       'old_joe_clark': 4.56, // + harmony, and the worst shortfall at 1.47
     };
-    const withHarmony = {'lightly_row_musescore', 'old_joe_clark'};
+    const withHarmony = {'lightly_row', 'old_joe_clark'};
 
     test('is priced from the measured per-unit yields', () {
       // One spacingSystem unit = half a staff space, one pageMarginTop unit =

@@ -9,12 +9,7 @@ import 'services/app_audio_session.dart';
 import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
-import 'spike/verovio_harness.dart';
 import 'services/verovio_engraver.dart';
-
-// THROWAWAY: branch spike/verovio-rendering boots the Verovio harness instead
-// of the real app. Flip to false (or revert) to get the normal app back.
-const bool _kVerovioSpike = false;
 
 Future<void> main() async {
   LaunchTiming.clock.start();
@@ -22,10 +17,6 @@ Future<void> main() async {
     MarionetteBinding.ensureInitialized();
   } else {
     WidgetsFlutterBinding.ensureInitialized();
-  }
-  if (_kVerovioSpike) {
-    runApp(const VerovioHarnessApp());
-    return;
   }
   // Opened before the first frame so per-piece display settings read
   // synchronously — see [sharedPreferencesProvider]. A failure just means

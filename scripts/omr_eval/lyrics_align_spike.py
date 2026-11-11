@@ -1,6 +1,6 @@
 """Lyrics spike, steps 2-3: put OCR'd lyrics onto a scanned score's notes.
 
-    python3 -I docs/omr_evaluation/scripts/lyrics_align_spike.py \
+    python3 -I scripts/omr_eval/lyrics_align_spike.py \
         ocr.json scan.musicxml [answer_key] [out.musicxml] [homr.log] [page.png]
     python3 -I lyrics_align_spike.py --template scan.musicxml homr.log out.gt.txt
 

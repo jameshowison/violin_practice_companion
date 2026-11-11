@@ -6,7 +6,8 @@
 //   - bboxes:   renderPageWithHitMap -> tap a note -> native colored overlay
 //   - cursor:   renderToTimemap + getElementsAtTime dumped to logs
 //
-// Wired in as the app home by lib/main.dart ONLY on this spike branch.
+// Its own entrypoint, outside lib/ so it never ships:
+//   flutter run -t dev/verovio_harness.dart -d dev-iphone-se
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const VerovioHarnessApp());
+}
 
 class VerovioHarnessApp extends StatelessWidget {
   const VerovioHarnessApp({super.key});
@@ -41,11 +47,9 @@ const _kProbeSvg = '''
 </svg>''';
 
 const _fixtures = <String>[
-  'assets/fixtures/lightly_row_musescore.xml',
-  'assets/fixtures/happy_farmer_musescore.xml',
-  'assets/fixtures/gossec_gavotte.xml',
-  'assets/fixtures/abc_17_gavotte.xml',
-  'assets/fixtures/homr_17_gavotte.xml',
+  'assets/fixtures/lightly_row.xml',
+  'assets/fixtures/happy_farmer.xml',
+  'assets/fixtures/gavotte_gossec.xml',
 ];
 
 class VerovioHarnessPage extends StatefulWidget {

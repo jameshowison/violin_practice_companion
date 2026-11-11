@@ -169,7 +169,7 @@ typedef Note = ({int midiNote, double onsetSeconds, double offsetSeconds});
 void main() {
   test('anchor 0 lands on the first note across intro, outro and SNR '
       'conditions', () {
-    final xml = File('assets/striped/lightly_row_musescore.xml');
+    final xml = File('assets/fixtures/lightly_row.xml');
     if (!xml.existsSync()) return;
     final piece = MusicXmlParser()
         .parse(MusicXmlNormalizer.toSoundingPitch(xml.readAsStringSync()));
