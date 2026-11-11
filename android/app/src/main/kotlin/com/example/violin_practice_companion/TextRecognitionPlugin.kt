@@ -88,7 +88,9 @@ class TextRecognitionPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCa
         return text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
             val b = line.boundingBox ?: return@mapNotNull null
             mapOf(
-                "text" to line.text,
+                // From the words, not line.text: ML Kit's line string can drop
+                // a word gap ("Go TellAunt Rhody") that its word split keeps.
+                "text" to line.elements.joinToString(" ") { it.text }.ifEmpty { line.text },
                 "confidence" to line.confidence.toDouble(),
                 // Crop pixels → whole-image fractions, top-left origin.
                 "box" to listOf(
