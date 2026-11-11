@@ -6,6 +6,11 @@
 //   flutter test integration_test/title_recognition_test.dart -d dev-iphone-se \
 //     --dart-define=TITLE_CORPUS_DIR=$PWD/../violin_dev_library
 //
+// On the Android emulator the host's disk isn't visible: push the corpus to
+// /data/local/tmp (the app's own dirs are wiped when the test reinstalls),
+// e.g. state.json plus each scan_sources/<id>/page_1_{original,crop}.*, then
+// `chmod -R a+rX` it and pass TITLE_CORPUS_DIR=/data/local/tmp/title_corpus.
+//
 // Skipped without TITLE_CORPUS_DIR. It reports rather than asserts: the
 // stored titles are whatever was typed at scan time ("allegretto",
 // "book2 chorus"), so a mismatch is for reading, not for failing.

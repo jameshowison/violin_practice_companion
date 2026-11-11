@@ -43,3 +43,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Scan title reading (TextRecognitionPlugin.kt): ML Kit's Latin-script
+    // recogniser with the model bundled in the APK, so it works offline and on
+    // devices without Play services rather than downloading on first use.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+}

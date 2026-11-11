@@ -7,9 +7,10 @@ import 'title_recognizer_base.dart';
 import 'title_region.dart';
 
 /// Finds the crop in the page, then asks the native text recogniser to read
-/// the strip around its top edge. Only iOS has a handler
-/// (`ios/Runner/TextRecognitionPlugin.swift`); elsewhere the channel call
-/// fails with MissingPluginException and the result is null.
+/// the strip around its top edge. iOS (`ios/Runner/TextRecognitionPlugin.swift`,
+/// Apple Vision) and Android (`TextRecognitionPlugin.kt`, ML Kit) have a
+/// handler; elsewhere the channel call fails with MissingPluginException and
+/// the result is null.
 class TitleRecognizer implements TitleRecognizerBase {
   static const _channel = MethodChannel('violin_practice_companion/text_recognition');
 
