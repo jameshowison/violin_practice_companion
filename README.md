@@ -496,10 +496,33 @@ Contributions welcome. The most useful contributions right now:
 - Section (ABAA) annotations for beginner pieces
 - Verified first-position fingering lookup table corrections
 - Language translations (the UI targets English and Simplified Chinese)
-- Testing the OMR pipeline against real book photos
+- Testing the OMR pipeline against real book photos (report the results, not
+  the photos)
+
+**Before adding any music, image, recording or document, read
+[CONTRIBUTING.md](CONTRIBUTING.md), "Content and copyright".** The repo is
+public and GPL, and the editions beginners learn from are not. Two tests
+enforce the line on every `flutter test`.
 
 See `docs/explore.md` for the development history and decisions made so far,
 and `docs/plan.md` for the remaining roadmap.
+
+### Repository layout
+
+| Path | What | Ships in the app? |
+|---|---|---|
+| `lib/` | the app | yes |
+| `assets/engine/` | converters, OSMD, lookup tables, soundfont and OMR models (fetched) | yes |
+| `assets/library/` | bundled pieces, listed with source and licence in `catalog.json` | yes |
+| `test/`, `integration_test/` | tests and public test fixtures | no |
+| `dev/` | dev-only entrypoints (e.g. `flutter run -t dev/verovio_harness.dart`) | no |
+| `scripts/` | dev tooling: device install, dev-library sync, content cleanup, OMR evaluation | no |
+| `docs/` | design notes, plans, our own ABC sources | no |
+| `packages/` | vendored dependencies (`jovial_svg`) | yes, as code |
+
+Material that can't be public lives in a private companion checkout
+(`../violin_practice_restricted`); tests that use it skip without it. See
+CONTRIBUTING.md, "Restricted test material".
 
 ## OMR (Scan-to-MusicXML)
 
@@ -518,7 +541,7 @@ homr_flutter:
 
 A fresh clone needs nothing next to it: `flutter pub get` fetches the tag.
 **Models** come separately. They're homr's FP16 ONNX weights (~150 MB, AGPL via
-`liebharc/homr`), which the app bundles from `assets/omr_models/` (gitignored).
+`liebharc/homr`), which the app bundles from `assets/engine/omr_models/` (gitignored).
 Run this once per checkout:
 
 ```bash

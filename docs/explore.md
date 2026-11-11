@@ -63,7 +63,7 @@ widget rebuilds, and incidentally fixed a pickup-measure cursor bug (measure
 0 / anacrusis handling) — see also §7 for how pickup measures are handled in
 row layout.
 
-All MIDI timing/patch constants live in `assets/lookup_tables/midi_patch.json`
+All MIDI timing/patch constants live in `assets/engine/lookup_tables/midi_patch.json`
 per the same "no magic numbers in Dart" rule from Phase 1.
 
 ---

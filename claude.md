@@ -172,7 +172,7 @@ While the override is active, `pubspec.lock` shows as modified (it records the
 path instead of the tag). **Never commit `pubspec.lock` in that state**; a fresh
 clone would then look for `../homr_flutter`. Commit lock changes only with the
 override moved aside and `flutter pub get` re-run, as in the tag bump. The models
-live in this app (`assets/omr_models/`, gitignored, `scripts/fetch_omr_models.sh`),
+live in this app (`assets/engine/omr_models/`, gitignored, `scripts/fetch_omr_models.sh`),
 never in the package. README "OMR" has the release procedure.
 
 ## Marionette MCP — Live UI Inspection
@@ -330,7 +330,7 @@ description in the README, "Dev library". What an agent needs to know:
   `devLibrary.base` pref. The fingerprints in the Dart and Python halves must
   stay identical — `test/dev_library_test.dart` pins both.
 - **Ids are preserved**, so `piece_repository.dart`'s hardcoded piece ids (e.g.
-  the salt_creek mapping in `_audioSyncFolders`) hold on every synced device.
+  the salt_creek `audioOnly` entry in `assets/library/catalog.json`) hold on every synced device.
 - **Confirm convergence by the dry run, not by eye:**
   `bash scripts/pull_dev_library.sh <device> --dry-run` after the app has
   relaunched should print `0 taken`. The app also logs one `[dev_library] …` line
@@ -372,6 +372,33 @@ harm-to-fing separation). But the same `pageWidth` that gave six systems on the
 device gave three headless, and that discrepancy is unexplained — so confirm any
 LAYOUT conclusion on a real engrave.
 
+## Content and copyright (this repo is PUBLIC)
+
+The repo is public and GPL. The editions the app is used with are not. Full rule:
+CONTRIBUTING.md, "Content and copyright". For an agent:
+
+- **Never commit** scans or photos of printed pages, PDFs from books, recordings
+  that aren't ours, downloaded scores, in-copyright lyrics (including in test
+  assertions and code comments), or method/edition names and numbering in
+  bundled content. The no-copyrighted-lyrics memory applies to the repo too.
+- **What ships is `assets/` and nothing else:** `assets/engine/` (machinery) and
+  `assets/library/` (pieces, each listed in `assets/library/catalog.json` with
+  `source` and `license`). Add a piece with `scripts/clean_musicxml.py` + a
+  catalog entry + a pubspec line; `test/release_content_test.dart` checks all
+  three. `test/repo_content_policy_test.dart` refuses media and score files in
+  the wrong places. Don't widen a guard to get a file in; move the file out.
+- **Restricted material** lives in the private sibling checkout
+  `../violin_practice_restricted` (or `$VPC_RESTRICTED_DIR`). Tests read it via
+  `test/support/restricted_fixtures.dart` and skip without it. Run the suite both
+  ways after touching one: `VPC_RESTRICTED_DIR=/nonexistent flutter test`.
+- **Before a public release:** `VPC_PUBLIC_RELEASE=1 flutter test`. It refuses
+  anything licensed `internal-testing-only` (today: the play-along tracks).
+- `bash scripts/content_audit.sh` lists every path, in HEAD or anywhere in
+  history, that matches the private purge list. HEAD should always show 0.
+- Dev-only entrypoints go in `dev/` (`flutter run -t dev/verovio_harness.dart`),
+  never in `lib/`. Debug-only code that the normal app uses behind `kDebugMode`
+  (e.g. `lib/debug/realign_all.dart`) stays in `lib/`.
+
 ## Fingering Label Format
 
 Fingering labels are defined canonically in the piece asset files (e.g., `A1`, `A2L`, `E2H`). The L/H suffix indicates low/high finger position and is meaningful data — **never strip, transform, or replace it with ♭/♯ symbols**. Both the staff annotation view and the fingering view must render the full label verbatim as stored in `NoteEvent.fingerNumber`.
@@ -389,6 +416,7 @@ After each commit, **agents should run this quick checklist and flag anything th
 3. **New plugin dependencies must declare iOS, Android, macOS, and Web support** on pub.dev. If a plugin is web-only or mobile-only, it needs a conditional-import sibling, not a direct dependency in shared code.
 4. **No hard-coded desktop-browser pixel widths.** Layouts should be responsive / percentage-based so they survive a phone viewport.
 5. **No whole-file reformatting.** This repo is not `dart format`-clean, so running it on a file rewrites hundreds of unrelated lines. `git diff --shortstat` against `git diff -w --shortstat` is the tell — if they diverge a lot, a formatter has been through. It has twice turned a small change into a huge diff: 582 lines for a 304-line change, and ~180 lines of churn for a 3-line edit in `piece_detail_screen.dart`. Edit surgically; to undo, `git checkout HEAD -- <file>` and re-apply the real change by hand.
+6. **No content that can't be public.** `flutter test` must pass `release_content_test` and `repo_content_policy_test`, and `bash scripts/content_audit.sh` must report 0 paths in HEAD. Anything new under `assets/library/` needs a catalog entry with a real `source`.
 
 Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving to a conditional-import split (see `playback_service_web.dart` / `playback_service_io.dart` for the pattern)."*
 

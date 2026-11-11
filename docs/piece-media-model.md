@@ -133,7 +133,8 @@ item 4 of [audio-sync-next-steps.md](audio-sync-next-steps.md).
 
 ## Adding a bundled track
 
-Unchanged, and still two edits: a line in `PieceRepository._audioSyncFolders`
-tying the piece id to a folder name, and the folder in `pubspec.yaml`'s asset
-list. `MediaCatalog.bundledMediaFor` derives the three media from the folder
+Still two edits: an `audio` block (or an `audioOnly` entry, for a piece that
+isn't bundled) in `assets/library/catalog.json` tying the piece id to a folder
+name, and `assets/library/<folder>/audio/` in `pubspec.yaml`'s asset list.
+`test/release_content_test.dart` checks the two agree. `MediaCatalog.bundledMediaFor` derives the three media from the folder
 name; nothing is stored.
