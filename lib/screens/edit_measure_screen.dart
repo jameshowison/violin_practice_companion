@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/duration_step.dart';
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
+import '../models/note_number_mode.dart';
 import '../models/section.dart';
 import '../services/chord_editor.dart';
+import '../services/fingering_mapper.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/providers.dart';
@@ -146,6 +148,107 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
 
   NoteEvent? get _selected =>
       _selectedIndex != null ? _notes[_selectedIndex!] : null;
+
+  // ── Open string / 4th finger ───────────────────────────────────────────
+
+  /// Pins the selected note to the open string (0) or the 4th finger (4), or
+  /// with null hands it back to the piece's setting. Stored as the note's
+  /// `<fingering>` ([NoteEvent.scoreFinger]), which Save writes and
+  /// [FingeringMapper] obeys, so the choice reaches every view.
+  void _setStringChoice(int? finger) {
+    final i = _selectedIndex;
+    if (i == null || _notes[i].isRest) return;
+    final n = _notes[i];
+    if (!FingeringMapper.hasFourthFingerChoice(n.midiNumber)) return;
+    setState(() {
+      _notes = ChordEditor.replaceAt(
+        _notes,
+        i,
+        finger == null
+            ? n.copyWith(clearScoreFinger: true)
+            : n.copyWith(scoreFinger: finger),
+      );
+      _notes = _refingered(_notes);
+    });
+  }
+
+  /// [notes] fingered as they will be once saved: the whole piece with this
+  /// measure swapped in goes back through the mapper, so Auto sees the same
+  /// neighbours (across the barlines too) as the piece view will.
+  List<NoteEvent> _refingered(List<NoteEvent> notes) {
+    final parsed = ref.read(parsedPieceProvider).valueOrNull;
+    if (parsed == null) return notes;
+    final k = parsed.measures.indexWhere((m) => m.number == widget.measureNumber);
+    if (k < 0) return notes;
+    final measures = [...parsed.measures];
+    measures[k] = measures[k].copyWithNotes(notes);
+    final mapped = ref.read(fingeringMapperProvider).map(
+        parsed.copyWithMeasures(measures),
+        preference: ref.read(violinStringPreferenceProvider));
+    return mapped.measures[k].notes;
+  }
+
+  /// Open string / 4th finger for the selected note: `auto` (the piece's
+  /// setting decides), `0` or `4`. Only enabled on D4, A4 and E5.
+  Widget _stringChoice() {
+    final sel = _selected;
+    final enabled = sel != null &&
+        !sel.isRest &&
+        FingeringMapper.hasFourthFingerChoice(sel.midiNumber);
+    final pinned = enabled ? sel.scoreFinger : null;
+    final current = (pinned == 0 || pinned == 4) ? pinned : null;
+    Widget btn(int? value, Widget child, String caption, String tooltip) {
+      final shape =
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+      final active = enabled && current == value;
+      final onTap = enabled ? () => _setStringChoice(value) : null;
+      return Tooltip(
+        message: tooltip,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: active
+                  ? FilledButton(
+                      key: ValueKey('string_choice_$caption'),
+                      onPressed: onTap,
+                      style: FilledButton.styleFrom(
+                          padding: EdgeInsets.zero, shape: shape),
+                      child: child,
+                    )
+                  : OutlinedButton(
+                      key: ValueKey('string_choice_$caption'),
+                      onPressed: onTap,
+                      style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero, shape: shape),
+                      child: child,
+                    ),
+            ),
+            const SizedBox(height: 2),
+            Text(caption,
+                style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+          ],
+        ),
+      );
+    }
+
+    final why = enabled
+        ? ''
+        : ' Only D, A and E (open strings above G) have the choice.';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // An icon, not "A": a letter beside 0 and 4 reads as the A string.
+        btn(null, const Icon(Icons.autorenew, size: 18), 'auto', "Follow the piece's setting.$why"),
+        const SizedBox(width: 4),
+        btn(0, const Text('0', style: TextStyle(fontSize: 15)), 'open', 'Play on the open string.$why'),
+        const SizedBox(width: 4),
+        btn(4, const Text('4', style: TextStyle(fontSize: 15)), '4th', 'Play with the 4th finger on the string below.$why'),
+      ],
+    );
+  }
 
   // ── Pitch math ──────────────────────────────────────────────────────────
 
@@ -613,6 +716,13 @@ class _EditMeasureScreenState extends ConsumerState<EditMeasureScreen> {
             _accidentalBtn(const Text('♯', style: _accGlyph), 'sharp',
                 currentAcc, accEnabled),
           ]),
+          // Open string vs 4th finger. Violin only: in fret mode it has no
+          // fingering to show, as in the piece view's Instrument panel.
+          if (ref.watch(noteNumberModeProvider) ==
+              NoteNumberMode.violinFingering) ...[
+            _divider(),
+            _group('STRING', [_stringChoice()]),
+          ],
           _divider(),
           _group(
             'DURATION',

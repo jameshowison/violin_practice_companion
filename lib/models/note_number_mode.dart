@@ -39,9 +39,17 @@ enum FretStyle {
 /// Sets the fingering itself ([FingeringMapper]), so it reaches every view that
 /// shows one — and, through the string a note is on, fret positions under
 /// [FretStyle.matchFingering].
+///
+/// Whatever the setting, a single note can be pinned either way in the
+/// measure editor (stored as its `<fingering>`), and that wins.
 enum ViolinStringPreference {
-  /// The open string — what a beginner's tune expects. Default.
+  /// The open string — what a beginner's tune expects.
   openStrings,
+
+  /// Open strings, except a neighbour note on the string below (`D5 E5 D5`)
+  /// takes the 4th finger, so the figure stays on one string. Default. See
+  /// `FingeringMapper._fourthByContext`.
+  auto,
 
   /// The 4th finger on the lower string: richer tone, no change of string.
   fourthFinger,

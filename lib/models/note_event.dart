@@ -79,6 +79,10 @@ class NoteEvent {
   final NoteValue noteValue;
   final bool dotted;
   final bool isRest;
+  /// The note's own MusicXML `<fingering>` — printed in the score, or (0 or
+  /// 4 on D4/A4/E5) set in the measure editor to pin open string vs 4th
+  /// finger, which [FingeringMapper] then obeys. `copyWith` can only clear
+  /// it via `clearScoreFinger`.
   final int? scoreFinger;
 
   /// The visible accidental sign, as the raw MusicXML `<accidental>` value
@@ -173,6 +177,7 @@ class NoteEvent {
     Map<int, Lyric>? lyrics,
     bool? tieStart,
     bool? tieStop,
+    bool clearScoreFinger = false,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -181,7 +186,8 @@ class NoteEvent {
         noteValue: noteValue ?? this.noteValue,
         dotted: dotted ?? this.dotted,
         isRest: isRest ?? this.isRest,
-        scoreFinger: scoreFinger ?? this.scoreFinger,
+        scoreFinger:
+            clearScoreFinger ? null : (scoreFinger ?? this.scoreFinger),
         displayAccidental: displayAccidental ?? this.displayAccidental,
         jianpuNumber: jianpuNumber ?? this.jianpuNumber,
         jianpuOctaveDots: jianpuOctaveDots ?? this.jianpuOctaveDots,

@@ -103,42 +103,142 @@ void main() {
 void _realMapperTests() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  NoteEvent note(int midi) => NoteEvent(
+  NoteEvent note(int midi,
+          {int? finger,
+          bool rest = false,
+          bool chord = false,
+          bool tieStart = false,
+          bool tieStop = false}) =>
+      NoteEvent(
         pitch: 'A4',
         midiNumber: midi,
         octave: 4,
         noteValue: NoteValue.quarter,
         dotted: false,
-        isRest: false,
+        isRest: rest,
+        scoreFinger: finger,
+        isChord: chord,
+        tieStart: tieStart,
+        tieStop: tieStop,
       );
-  ParsedPiece piece(List<int> midis) => ParsedPiece(
+  ParsedPiece bars(List<List<NoteEvent>> measures) => ParsedPiece(
         keySignature: 'D',
         keyFifths: 2,
         keyMode: KeyMode.major,
-        measures: [Measure(number: 1, notes: [for (final m in midis) note(m)])],
+        measures: [
+          for (var i = 0; i < measures.length; i++)
+            Measure(number: i + 1, notes: measures[i])
+        ],
       );
+  ParsedPiece piece(List<int> midis) =>
+      bars([[for (final m in midis) note(m)]]);
   List<String> labels(ParsedPiece p) => [
-        for (final n in p.measures.single.notes)
-          '${n.fingerString}${n.fingerNumber}'
+        for (final n in p.measures.expand((m) => m.notes))
+          if (!n.isRest) '${n.fingerString}${n.fingerNumber}'
       ];
+
+  late FingeringMapper mapper;
+  setUpAll(() async {
+    mapper = FingeringMapper();
+    await mapper.init();
+  });
 
   group('FingeringMapper.map', () {
     // D4, A4, E5: each an open string or a 4th finger below. B4 has no choice.
     const midis = [62, 69, 76, 71];
 
-    test('open strings by default', () async {
-      final mapper = FingeringMapper();
-      await mapper.init();
+    test('open strings under Auto when nothing calls for the 4th', () {
       expect(labels(mapper.map(piece(midis))), ['D0', 'A0', 'E0', 'A1']);
     });
 
-    test('4th finger when the piece prefers it', () async {
-      final mapper = FingeringMapper();
-      await mapper.init();
+    test('open strings when the piece prefers them', () {
+      expect(
+          labels(mapper.map(piece(midis),
+              preference: ViolinStringPreference.openStrings)),
+          ['D0', 'A0', 'E0', 'A1']);
+    });
+
+    test('4th finger when the piece prefers it', () {
       expect(
           labels(mapper.map(piece(midis),
               preference: ViolinStringPreference.fourthFinger)),
           ['G4', 'D4', 'A4', 'A1']);
+    });
+
+    test('only D4, A4 and E5 have the choice', () {
+      expect([for (var m = 50; m < 90; m++) if (FingeringMapper.hasFourthFingerChoice(m)) m],
+          [62, 69, 76]);
+    });
+  });
+
+  group('Auto: 4th finger for a neighbour note on the string below', () {
+    test('D5 E5 D5 and G4 A4 G4 take the 4th', () {
+      expect(labels(mapper.map(piece([74, 76, 74]))), ['A3', 'A4', 'A3']);
+      expect(labels(mapper.map(piece([67, 69, 67]))), ['D3', 'D4', 'D3']);
+    });
+
+    test('a half step below counts too (D#5 E5 D#5)', () {
+      expect(labels(mapper.map(piece([75, 76, 75]))), ['A3H', 'A4', 'A3H']);
+    });
+
+    test('a beginner tune stays open: C#5 E5, and D5 E5 F#5', () {
+      expect(labels(mapper.map(piece([73, 76, 76, 73]))),
+          ['A2', 'E0', 'E0', 'A2']);
+      expect(labels(mapper.map(piece([74, 76, 78]))), ['A3', 'E0', 'E1']);
+    });
+
+    test('a repeated note is one run, fingered alike', () {
+      expect(labels(mapper.map(piece([74, 76, 76, 76, 74]))),
+          ['A3', 'A4', 'A4', 'A4', 'A3']);
+    });
+
+    test('the melody runs across a barline', () {
+      final p = bars([
+        [note(74)],
+        [note(76), note(74)],
+      ]);
+      expect(labels(mapper.map(p)), ['A3', 'A4', 'A3']);
+    });
+
+    test('a rest or a chord breaks it', () {
+      expect(labels(mapper.map(bars([[note(74), note(0, rest: true), note(76), note(74)]]))),
+          ['A3', 'E0', 'A3']);
+      expect(labels(mapper.map(bars([[note(74), note(76), note(66, chord: true), note(74)]]))),
+          ['A3', 'E0', 'D2', 'A3']);
+    });
+
+    test('the first and last notes of the piece have one side only', () {
+      expect(labels(mapper.map(piece([76, 74]))), ['E0', 'A3']);
+    });
+  });
+
+  group('A note\'s own fingering pins the choice', () {
+    test('4 beats open strings, 0 beats the 4th finger and Auto', () {
+      expect(
+          labels(mapper.map(bars([[note(76, finger: 4)]]),
+              preference: ViolinStringPreference.openStrings)),
+          ['A4']);
+      expect(
+          labels(mapper.map(bars([[note(76, finger: 0)]]),
+              preference: ViolinStringPreference.fourthFinger)),
+          ['E0']);
+      expect(
+          labels(mapper.map(bars([[note(74), note(76, finger: 0), note(74)]]))),
+          ['A3', 'E0', 'A3']);
+    });
+
+    test('any other number is ignored, and so is 4 off a choice note', () {
+      expect(labels(mapper.map(bars([[note(76, finger: 2)]]))), ['E0']);
+      expect(labels(mapper.map(bars([[note(71, finger: 4)]]))), ['A1']);
+    });
+
+    test('a tied continuation follows the note it holds over', () {
+      final p = bars([
+        [note(69, finger: 4, tieStart: true)],
+        [note(69, tieStop: true), note(69)],
+      ]);
+      expect(labels(mapper.map(p, preference: ViolinStringPreference.openStrings)),
+          ['D4', 'D4', 'A0']);
     });
   });
 }

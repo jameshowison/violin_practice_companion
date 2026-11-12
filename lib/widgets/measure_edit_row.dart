@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
+import '../services/fingering_mapper.dart';
 import '../services/fingering_annotation_builder.dart';
 
 /// Horizontal row of large, tappable note cards for the measure being edited.
@@ -177,13 +178,26 @@ class _NoteEditCard extends StatelessWidget {
               // so a fret stays a fret here too. In fingering mode this is
               // `note.fingerNumber` verbatim — the L/H suffix is meaningful
               // (see CLAUDE.md) — a fret needs no such suffix.
-              Text(
-                shownNumber(note, numberMode, fretStyle).number,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: theme.colorScheme.primary,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    shownNumber(note, numberMode, fretStyle).number,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  // Pinned open / 4th in the STRING group, rather than left
+                  // to the piece's setting — so a chosen fingering can be
+                  // told from a predicted one.
+                  if (_pinned(note))
+                    Icon(Icons.push_pin,
+                        key: const ValueKey('string_pinned'),
+                        size: 10,
+                        color: theme.colorScheme.primary),
+                ],
               ),
             ],
           ],
@@ -191,6 +205,11 @@ class _NoteEditCard extends StatelessWidget {
       ),
     );
   }
+
+  static bool _pinned(NoteEvent n) =>
+      !n.isRest &&
+      (n.scoreFinger == 0 || n.scoreFinger == 4) &&
+      FingeringMapper.hasFourthFingerChoice(n.midiNumber);
 
   // Pretty pitch: "F#5" → "F♯5", "Bb3" → "B♭3". (Pitch only — not the
   // fingering label, which must never be transformed.)

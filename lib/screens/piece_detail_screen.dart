@@ -1338,7 +1338,8 @@ class _NoteNumberPicker extends ConsumerWidget {
   }
 }
 
-/// Open string or 4th finger, for the notes that could be either. Only shown
+/// Open string or 4th finger, for the notes that could be either; Auto picks
+/// the 4th finger for neighbour notes (see [ViolinStringPreference]). Only shown
 /// for the violin; the mandolin's counterpart is [_FretStylePicker].
 class _ViolinStringPicker extends ConsumerWidget {
   const _ViolinStringPicker();
@@ -1356,7 +1357,9 @@ class _ViolinStringPicker extends ConsumerWidget {
           segments: const [
             ButtonSegment(
                 value: ViolinStringPreference.openStrings,
-                label: Text('Open strings')),
+                label: Text('Open')),
+            ButtonSegment(
+                value: ViolinStringPreference.auto, label: Text('Auto')),
             ButtonSegment(
                 value: ViolinStringPreference.fourthFinger,
                 label: Text('4th finger')),

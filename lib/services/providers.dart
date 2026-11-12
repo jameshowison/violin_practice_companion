@@ -1212,7 +1212,7 @@ final fretStyleProvider = pieceDisplayEnumPref<FretStyle>(
 final violinStringPreferenceProvider =
     pieceDisplayEnumPref<ViolinStringPreference>(
   'violinStrings',
-  ViolinStringPreference.openStrings,
+  ViolinStringPreference.auto,
   ViolinStringPreference.values,
 );
 
