@@ -82,6 +82,20 @@ class PieceMeta {
   int get hashCode => Object.hash(keyShort, keyName, signature, time, composer);
 }
 
+/// What a Playful card's key chip says: the signature and the key, the mode
+/// abbreviated (`3♯ A maj.`, `1♭ D min.`, `2♯ E dor.`); a key with no sharps
+/// or flats just by name (`C maj.`).
+String cardKeyLabel(PieceMeta m) {
+  final [tonic, mode] = m.keyName.split(' ');
+  final short = switch (mode) {
+    'major' => 'maj.',
+    'minor' => 'min.',
+    _ => '${mode.substring(0, 3)}.',
+  };
+  final key = '$tonic $short';
+  return m.signature.startsWith('no') ? key : '${m.signature} $key';
+}
+
 /// `3♯`, `1♭`, `no ♯/♭`.
 String signatureLabel(int fifths) => fifths == 0
     ? 'no ♯/♭'

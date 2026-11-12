@@ -16,6 +16,16 @@ String score({String key = '', String time = '', String creator = ''}) => '''
 </score-partwise>''';
 
 void main() {
+  test('a card names the key after its signature, the mode shortened', () {
+    PieceMeta m(String name, String sig) =>
+        PieceMeta(keyShort: '', keyName: name, signature: sig, time: '');
+    expect(cardKeyLabel(m('A major', '3♯')), '3♯ A maj.');
+    expect(cardKeyLabel(m('D minor', '1♭')), '1♭ D min.');
+    expect(cardKeyLabel(m('E dorian', '2♯')), '2♯ E dor.');
+    expect(cardKeyLabel(m('F♯ minor', '3♯')), '3♯ F♯ min.');
+    expect(cardKeyLabel(m('C major', 'no ♯/♭')), 'C maj.');
+  });
+
   test('key, time and composer come from the header', () {
     final m = PieceMeta.fromHeader(score(
       key: '<key><fifths>3</fifths><mode>major</mode></key>',

@@ -14,6 +14,7 @@ import 'package:violin_practice_companion/services/piece_list_providers.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 import 'package:violin_practice_companion/theme/skins.dart';
 import 'package:violin_practice_companion/widgets/piece_row.dart';
+import 'package:violin_practice_companion/widgets/search_token_field.dart';
 
 Piece piece(String id, String title) =>
     Piece(id: id, title: title, musicXmlAssetPath: 'a/$id.xml', sections: const []);
@@ -210,6 +211,59 @@ void main() {
     expect(find.byType(PieceListTile), findsNothing);
     expect(find.text('What shall we play?'), findsOneWidget);
     expect(find.text('All songs'), findsOneWidget);
+  });
+
+  // A RenderFlex overflow is a test failure, so pumping is the assertion.
+  // Four fixed columns beside the sidebar on a portrait iPad overflowed
+  // every card.
+  for (final (name, size) in [
+    ('SE', phone),
+    ('portrait iPad', Size(834, 1194)),
+    ('landscape iPad', ipad),
+  ]) {
+    testWidgets('Playful cards fit on a $name', (tester) async {
+      await pumpList(tester, size, theme: playfulTheme());
+      expect(find.byType(PieceCard), findsNWidgets(4));
+      expect(tester.getSize(find.byType(PieceCard).first).width,
+          greaterThanOrEqualTo(140));
+    });
+  }
+
+  testWidgets('Playful phone: Filters sits in the search field, and opens the drawer',
+      (tester) async {
+    await pumpList(tester, phone, theme: playfulTheme());
+
+    final button = find.byKey(const ValueKey('filters_button'));
+    expect(find.descendant(of: find.byType(SearchTokenField), matching: button),
+        findsOneWidget);
+    expect(find.text('Filters'), findsNothing); // no app-bar button
+    expect(find.text('2♯ A maj.'), findsNWidgets(2));
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('piece_filter_drawer')), findsOneWidget);
+  });
+
+  for (final (name, theme) in [('Classic', classicTheme()), ('Playful', playfulTheme())]) {
+    testWidgets('$name: a filter pill rides in the one-line search field',
+        (tester) async {
+      await pumpList(tester, phone, theme: theme);
+      final before = tester.getSize(find.byType(SearchTokenField)).height;
+
+      await tester.tap(find.byKey(const ValueKey('filters_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('filter_book_book')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('search_token_book')), findsOneWidget);
+      expect(tester.getSize(find.byType(SearchTokenField)).height, before);
+    });
+  }
+
+  testWidgets('Playful cards are wider than they are tall', (tester) async {
+    await pumpList(tester, phone, theme: playfulTheme());
+    final card = tester.getSize(find.byType(PieceCard).first);
+    expect(card.width, greaterThan(card.height));
   });
 
   testWidgets('Classic draws list rows', (tester) async {

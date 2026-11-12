@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:jovial_svg/jovial_svg.dart';
-
+import '../../theme/brand.dart';
+import '../stringlings/stringlings_tile.dart';
 import 'stringlings_art.g.dart';
 
 /// The cold-launch splash: the two stringlings blink, then the app fades in.
@@ -25,20 +25,16 @@ class LaunchSplash extends StatefulWidget {
 
 /// Timeline, in milliseconds from the first frame. The big stringling blinks,
 /// then the little one, a beat later.
-const _bigBlinkAt = 300.0;
-const _littleBlinkAt = 390.0;
+const _bigBlinkAt = 80.0;
+const _littleBlinkAt = 170.0;
 const _blinkLength = 170.0; // closed at the midpoint
-const _fadeAt = 850.0;
+const _fadeAt = 630.0;
 const _fadeLength = 300.0;
 const _total = _fadeAt + _fadeLength;
 
-const _paper = Color(0xFFFFF9EE);
 
 class _LaunchSplashState extends State<LaunchSplash>
     with SingleTickerProviderStateMixin {
-  static final ScalableImage _art =
-      ScalableImage.fromSvgString(kStringlingsIconSvg);
-
   late final AnimationController _clock = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: _total ~/ 1),
@@ -80,10 +76,11 @@ class _LaunchSplashState extends State<LaunchSplash>
               return Opacity(
                 opacity: 1 - Curves.easeOut.transform(fade),
                 child: ColoredBox(
-                  color: _paper,
+                  color: kIconPaper,
                   child: Center(
-                    child: _Tile(
-                      art: _art,
+                    child: StringlingsTile(
+                      size: kLaunchTileSize,
+                      shadow: true,
                       big: still ? 1 : _openness(t, _bigBlinkAt),
                       little: still ? 1 : _openness(t, _littleBlinkAt),
                     ),
@@ -104,66 +101,4 @@ double _openness(double t, double start) {
   final d = (t - start) / _blinkLength;
   if (d <= 0 || d >= 1) return 1;
   return Curves.easeInOut.transform((2 * d - 1).abs());
-}
-
-/// The icon tile as the native launch image draws it: 160 pt, the iOS corner
-/// radius, and the same soft shadow (CSS `0 6px 18px` in the .mjs).
-class _Tile extends StatelessWidget {
-  const _Tile({required this.art, required this.big, required this.little});
-
-  final ScalableImage art;
-  final double big, little;
-
-  @override
-  Widget build(BuildContext context) {
-    const size = kLaunchTileSize;
-    final radius = BorderRadius.circular(size * 0.2237);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        // CSS blur 18 is a Gaussian sigma of 9; Flutter's blurRadius 15 is
-        // sigma 15 × 0.577 + 0.5 ≈ 9.2.
-        boxShadow: const [
-          BoxShadow(color: Color(0x2E2B2340), offset: Offset(0, 6), blurRadius: 15),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: CustomPaint(
-          foregroundPainter: _EyesPainter(big: big, little: little),
-          child: ScalableImageWidget(si: art, fit: BoxFit.fill),
-        ),
-      ),
-    );
-  }
-}
-
-class _EyesPainter extends CustomPainter {
-  _EyesPainter({required this.big, required this.little});
-
-  final double big, little;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final k = size.width / 1024;
-    final white = Paint()..color = kStringlingsEyeWhite;
-    final pupil = Paint()..color = kStringlingsPupil;
-    for (var i = 0; i < kStringlingsEyes.length; i++) {
-      final open = i < 2 ? big : little;
-      if (open < 0.04) continue; // shut: the head shows through
-      final [cx, cy, rx, ry, px, py, pr] = kStringlingsEyes[i];
-      final eye = Rect.fromCenter(
-          center: Offset(cx * k, cy * k), width: 2 * rx * k, height: 2 * ry * k * open);
-      canvas.save();
-      canvas.clipPath(Path()..addOval(eye));
-      canvas.drawOval(eye, white);
-      canvas.drawCircle(Offset(px * k, py * k), pr * k, pupil);
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(_EyesPainter old) => old.big != big || old.little != little;
 }

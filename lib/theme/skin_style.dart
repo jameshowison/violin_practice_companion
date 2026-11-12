@@ -21,6 +21,8 @@ class SkinStyle extends ThemeExtension<SkinStyle> {
     required this.cardInk,
     required this.friendlyCopy,
     required this.groupRadius,
+    this.mascots = false,
+    this.filtersInSearch = false,
   });
 
   final PieceRowStyle rowStyle;
@@ -36,6 +38,13 @@ class SkinStyle extends ThemeExtension<SkinStyle> {
 
   /// Corner radius of grouped lists, panels and fields.
   final double groupRadius;
+
+  /// Stringlings peek over the piece screen's title.
+  final bool mascots;
+
+  /// On a phone, the Filters button sits at the end of the search field
+  /// rather than at the left of the app bar.
+  final bool filtersInSearch;
 
   static const classic = SkinStyle(
     rowStyle: PieceRowStyle.list,
@@ -68,6 +77,8 @@ class SkinStyle extends ThemeExtension<SkinStyle> {
     Color? cardInk,
     bool? friendlyCopy,
     double? groupRadius,
+    bool? mascots,
+    bool? filtersInSearch,
   }) =>
       SkinStyle(
         rowStyle: rowStyle ?? this.rowStyle,
@@ -75,6 +86,8 @@ class SkinStyle extends ThemeExtension<SkinStyle> {
         cardInk: cardInk ?? this.cardInk,
         friendlyCopy: friendlyCopy ?? this.friendlyCopy,
         groupRadius: groupRadius ?? this.groupRadius,
+        mascots: mascots ?? this.mascots,
+        filtersInSearch: filtersInSearch ?? this.filtersInSearch,
       );
 
   /// Skins switch whole, so there is nothing to interpolate.

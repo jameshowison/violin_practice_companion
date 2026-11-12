@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/piece_meta.dart';
 import '../models/piece_filter.dart';
 import '../theme/skin_style.dart';
 
@@ -169,7 +170,7 @@ class PieceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -177,20 +178,31 @@ class PieceCard extends StatelessWidget {
                 children: [
                   if (row.bookNumber case final n?) ...[
                     BookNumberBadge(number: n, inverse: true),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                   ],
-                  if (row.meta case final m?)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      child: Text(m.signature,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                              color: ink, fontWeight: FontWeight.w900)),
+                  // "3♯ A maj." beside a book number and the recording mark
+                  // just fits a portrait iPad's 156pt card; a longer key
+                  // ("3♯ F♯ min.") ellipsizes there rather than overflows.
+                  Expanded(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: row.meta != null
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Text(cardKeyLabel(row.meta!),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                      color: ink, fontWeight: FontWeight.w900)),
+                            )
+                          : const SizedBox.shrink(),
                     ),
-                  const Spacer(),
+                  ),
                   if (row.hasRecording)
                     Icon(Icons.graphic_eq,
                         size: 18, color: ink, semanticLabel: 'Has a recording'),

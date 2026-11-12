@@ -21,6 +21,7 @@ import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
 import '../services/launch_timing.dart';
+import '../ui/stringlings/stringlings_tile.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
@@ -88,20 +89,39 @@ class PieceListScreen extends ConsumerWidget {
         backgroundColor: grouped,
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
-        leadingWidth: wide ? 0 : 116,
+        // Top left, the app's icon: on a tablet with its name, the width of
+        // the sidebar beneath (the panel is already out, so no Filters button);
+        // on a phone beside Filters, or alone where Playful has put Filters in
+        // the search field.
+        leadingWidth: wide
+            ? sidebarWidth(width)
+            : skin.filtersInSearch
+                ? 56
+                // Icon and Filters icon: 96, the two actions' width, so the
+                // title stays on the true centre.
+                : 100,
         leading: wide
-            ? const SizedBox.shrink()
-            : Builder(
-                builder: (ctx) => TextButton.icon(
-                  key: const ValueKey('filters_button'),
-                  onPressed: () => Scaffold.of(ctx).openDrawer(),
-                  icon: Badge(
-                    isLabelVisible: activeCount > 0,
-                    label: Text('$activeCount'),
-                    child: const Icon(Icons.filter_list),
+            ? const _AppBadge()
+            : Row(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16, right: 4),
+                    child: StringlingsTile(size: 32),
                   ),
-                  label: const Text('Filters'),
-                ),
+                  if (!skin.filtersInSearch)
+                    Builder(
+                      builder: (ctx) => IconButton(
+                        key: const ValueKey('filters_button'),
+                        tooltip: 'Filters',
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+                        icon: Badge(
+                          isLabelVisible: activeCount > 0,
+                          label: Text('$activeCount'),
+                          child: const Icon(Icons.filter_list),
+                        ),
+                      ),
+                    ),
+                ],
               ),
         // The build stamp rides on the FIRST screen, not just the piece detail
         // one, so "is my change actually running?" can be answered before
@@ -159,6 +179,55 @@ class PieceListScreen extends ConsumerWidget {
           : const _PieceListBody(wide: false),
     );
   }
+}
+
+/// The icon and the app's name, top left of the tablet piece list.
+class _AppBadge extends StatelessWidget {
+  const _AppBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        children: [
+          const StringlingsTile(size: 36),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              'Stringlings',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Playful card grid, for pieces and books alike: as many columns as fit
+/// at 220pt or narrower (two on a phone, three beside the sidebar on a portrait
+/// iPad, four in landscape), each card only as tall as its content needs, so
+/// wider than it is tall.
+///
+/// Not a fixed count and aspect ratio: four columns beside the sidebar on a
+/// portrait iPad made 114×88pt cards, too short for the badge row, a two-line
+/// title and the subtitle, and every card overflowed.
+SliverGridDelegate _cardGrid(BuildContext context) {
+  // 12 + 12 padding, the 30pt badge (or 28pt book icon) row and a 6pt gap,
+  // then room for the two-line title, the gap and the subtitle, which scale
+  // with the text.
+  final textScale = MediaQuery.textScalerOf(context);
+  return SliverGridDelegateWithMaxCrossAxisExtent(
+    maxCrossAxisExtent: 220,
+    mainAxisSpacing: 12,
+    crossAxisSpacing: 12,
+    mainAxisExtent: 60 + textScale.scale(56),
+  );
 }
 
 class _PieceListBody extends ConsumerStatefulWidget {
@@ -236,7 +305,8 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(_gutter, 8, _gutter, 0),
-          child: const SearchTokenField(),
+          child: SearchTokenField(
+              showFilters: !widget.wide && skin.filtersInSearch),
         ),
         if (!widget.wide)
           Padding(
@@ -396,12 +466,7 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     if (skin.rowStyle == PieceRowStyle.cards) {
       return GridView.builder(
         padding: EdgeInsets.fromLTRB(_gutter, 14, _gutter, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: widget.wide ? 3 : 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: widget.wide ? 1.4 : 1.1,
-        ),
+        gridDelegate: _cardGrid(context),
         itemCount: books.length,
         itemBuilder: (_, i) => _BookCard(
           key: ValueKey('shelf_book_${books[i].id}'),
@@ -564,12 +629,7 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     if (skin.rowStyle == PieceRowStyle.cards) {
       return GridView.builder(
         padding: EdgeInsets.fromLTRB(_gutter, 14, _gutter, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: widget.wide ? 4 : 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: widget.wide ? 1.3 : 1.15,
-        ),
+        gridDelegate: _cardGrid(context),
         itemCount: result.rows.length + footer.length,
         itemBuilder: (_, i) {
           if (i >= result.rows.length) return footer[i - result.rows.length];
@@ -719,7 +779,7 @@ class _BookCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

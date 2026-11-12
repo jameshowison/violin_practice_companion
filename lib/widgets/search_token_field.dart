@@ -17,7 +17,11 @@ import '../ui/adaptive/adaptive.dart';
 /// Stateful only to own the controller, which is seeded from
 /// [pieceSearchProvider] so the query survives a trip into a piece and back.
 class SearchTokenField extends ConsumerStatefulWidget {
-  const SearchTokenField({super.key});
+  const SearchTokenField({super.key, this.showFilters = false});
+
+  /// A Filters button at the end of the field that opens the enclosing
+  /// Scaffold's drawer (Playful on a phone, where the app bar doesn't have one).
+  final bool showFilters;
 
   @override
   ConsumerState<SearchTokenField> createState() => _SearchTokenFieldState();
@@ -88,62 +92,77 @@ class _SearchTokenFieldState extends ConsumerState<SearchTokenField> {
         Material(
           color: scheme.surfaceContainerHighest,
           shape: RoundedRectangleBorder(borderRadius: radius),
+          // One line, the active filters as pills ahead of the text. They get
+          // at most half the width and scroll sideways past that, so there is
+          // always room to type.
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+            child: Row(
               children: [
+                Icon(Icons.search, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
                 if (tokens.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, right: 8),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final (key, label, remove) in tokens)
-                          InputChip(
-                            key: ValueKey('search_token_$key'),
-                            label: Text(label),
-                            onDeleted: remove,
-                            deleteButtonTooltipMessage: 'Remove $label',
-                            visualDensity: VisualDensity.compact,
-                            backgroundColor: scheme.primary,
-                            labelStyle: TextStyle(color: scheme.onPrimary),
-                            deleteIconColor: scheme.onPrimary,
-                            side: BorderSide.none,
-                          ),
-                      ],
-                    ),
-                  ),
-                Row(
-                  children: [
-                    Icon(Icons.search, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        key: const ValueKey('piece_search_field'),
-                        controller: _controller,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                          hintText: tokens.isEmpty ? skin.searchHint : null,
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                        onChanged: _setQuery,
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final (key, label, remove) in tokens)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: InputChip(
+                                key: ValueKey('search_token_$key'),
+                                label: Text(label),
+                                onDeleted: remove,
+                                deleteButtonTooltipMessage: 'Remove $label',
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: scheme.primary,
+                                labelStyle: TextStyle(color: scheme.onPrimary),
+                                deleteIconColor: scheme.onPrimary,
+                                side: BorderSide.none,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (query.isNotEmpty)
-                      IconButton(
-                        key: const ValueKey('piece_search_clear'),
-                        icon: const Icon(Icons.cancel),
-                        color: scheme.onSurfaceVariant,
-                        tooltip: 'Clear search',
-                        onPressed: () => _setQuery(''),
-                      )
-                    else
-                      const SizedBox(height: 48),
-                  ],
+                  ),
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey('piece_search_field'),
+                    controller: _controller,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: tokens.isEmpty ? skin.searchHint : null,
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                    onChanged: _setQuery,
+                  ),
                 ),
+                if (query.isNotEmpty)
+                  IconButton(
+                    key: const ValueKey('piece_search_clear'),
+                    icon: const Icon(Icons.cancel),
+                    color: scheme.onSurfaceVariant,
+                    tooltip: 'Clear search',
+                    onPressed: () => _setQuery(''),
+                  )
+                else if (!widget.showFilters)
+                  const SizedBox(height: 48),
+                if (widget.showFilters)
+                  IconButton(
+                    key: const ValueKey('filters_button'),
+                    tooltip: 'Filters',
+                    color: scheme.primary,
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                    icon: Badge(
+                      isLabelVisible: filter.activeCount > 0,
+                      label: Text('${filter.activeCount}'),
+                      child: const Icon(Icons.tune),
+                    ),
+                  ),
               ],
             ),
           ),

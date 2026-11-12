@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_skin.dart';
+import 'brand.dart';
 import 'skin_style.dart';
 
 /// The [ThemeData] for [skin]. Everything a skin changes on every screen is
@@ -40,7 +41,7 @@ ThemeData classicTheme() {
   );
 }
 
-const _cream = Color(0xFFFFF8EC);
+const _cream = kIconPaper;
 const _ink = Color(0xFF2B2340);
 const _purple = Color(0xFF5B3FD6);
 const _line = Color(0xFFD9CFBE);
@@ -179,4 +180,6 @@ const playfulSkinStyle = SkinStyle(
   cardInk: _ink,
   friendlyCopy: true,
   groupRadius: 20,
+  mascots: true,
+  filtersInSearch: true,
 );

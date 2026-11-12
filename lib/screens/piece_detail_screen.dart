@@ -50,6 +50,8 @@ import '../widgets/tempo_controls.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../widgets/time_signature_dialog.dart';
+import '../theme/skin_style.dart';
+import '../ui/stringlings/stringling_peekers.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -228,6 +230,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       }
     });
 
+    final mascots = SkinStyle.of(context).mascots;
     return Scaffold(
       // The count-off takes over the whole bar while it runs — back arrow,
       // title and icons alike — as one extra line of music above the score.
@@ -268,6 +271,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Playful: the icon's stringlings peek over the title. Above
+                  // it, not beside: the row has no width to spare, and beside
+                  // the title they squeezed it to "A…" on an iPad.
+                  if (mascots) const StringlingPeekers(height: 14),
                   Text(piece.title,
                       style: const TextStyle(fontSize: 14),
                       maxLines: 1,
