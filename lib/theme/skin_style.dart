@@ -50,6 +50,13 @@ class SkinStyle extends ThemeExtension<SkinStyle> {
 
   String get listTitle => friendlyCopy ? 'What shall we play?' : 'Pieces';
   String get recentsLabel => friendlyCopy ? 'Played lately' : 'Recents';
+  String get booksLabel => friendlyCopy ? 'My books' : 'Books';
+
+  /// The phone's three segments are ~114pt each on an SE, too narrow for
+  /// Playful's longer words in its heavy type; the sidebar keeps the long ones.
+  String get recentsTab => friendlyCopy ? 'Lately' : recentsLabel;
+  String get booksTab => friendlyCopy ? 'Books' : booksLabel;
+  String get allTab => friendlyCopy ? 'All songs' : allLabel;
   String get allLabel => friendlyCopy ? 'All my music' : 'All Pieces';
   String get searchHint =>
       friendlyCopy ? 'Find a song' : 'Title, composer or keyword';

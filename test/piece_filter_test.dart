@@ -182,7 +182,16 @@ void main() {
           .copyWith(hasRecording: true);
 
       expect(f.activeCount, 4);
-      expect(f.cleared(), const PieceFilter(tab: PieceTab.all));
+      // Picking the book moved it to Books; clearing keeps the tab (the shelf).
+      expect(f.cleared(), const PieceFilter(tab: PieceTab.books));
+    });
+
+    test('Books with no book is the shelf; a book counts as one tab entry', () {
+      expect(const PieceFilter(tab: PieceTab.books).onShelf, isTrue);
+      expect(const PieceFilter().toggleBook('book').onShelf, isFalse);
+      final r = run(const PieceFilter().toggleBook('book'));
+      expect(r.inBookOrder, isTrue);
+      expect(ids(r), ['tw', 'lr', 'ar', 'll', 'hf']);
     });
 
     test('toggling a selected book or key clears it', () {
@@ -209,7 +218,7 @@ void main() {
     test('tab counts apply all filters', () {
       final r = run(const PieceFilter(tab: PieceTab.all).toggleKey('D major'));
 
-      expect(r.tabCounts, {PieceTab.recent: 1, PieceTab.all: 3});
+      expect(r.tabCounts, {PieceTab.recent: 1, PieceTab.books: 1, PieceTab.all: 3});
     });
   });
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/piece.dart';
+import 'package:violin_practice_companion/models/piece_filter.dart';
 import 'package:violin_practice_companion/models/piece_library.dart';
 import 'package:violin_practice_companion/models/piece_meta.dart';
 import 'package:violin_practice_companion/screens/piece_list_screen.dart';
@@ -101,25 +102,25 @@ void main() {
     // Book order, numbered, and the book is a token in the search field.
     expect(badgeNumbers(tester), [1, 2, 3]);
     expect(find.byKey(const ValueKey('search_token_book')), findsOneWidget);
-    expect(find.text('In book order · 3 of 3'), findsOneWidget);
+    expect(find.text('3 pieces'), findsOneWidget);
 
     // Reverse turns it over; A–Z is its own toggle.
     await tester.tap(find.byKey(const ValueKey('book_reverse_button')));
     await tester.pumpAndSettle();
     expect(badgeNumbers(tester), [3, 2, 1]);
-    expect(find.text('In book order, reversed · 3 of 3'), findsOneWidget);
+    expect(find.text('Reversed · 3 pieces'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book_reverse_button')));
     await tester.tap(find.byKey(const ValueKey('book_sort_button')));
     await tester.pumpAndSettle();
-    expect(find.text('A–Z · 3 of 3'), findsOneWidget);
+    expect(find.text('A–Z · 3 pieces'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book_sort_button')));
     await tester.pumpAndSettle();
 
-    // Removing the token clears the filter.
+    // Removing the token clears the filter, back to the Books shelf.
     await tester.tap(find.byTooltip('Remove book 1'));
     await tester.pumpAndSettle();
     expect(badgeNumbers(tester), isEmpty);
-    expect(find.byKey(const ValueKey('piece_row_sj')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shelf_book_book')), findsOneWidget);
   });
 
   testWidgets('a key filter keeps book numbers, with gaps', (tester) async {
@@ -208,7 +209,7 @@ void main() {
     expect(find.byType(PieceCard), findsNWidgets(4));
     expect(find.byType(PieceListTile), findsNothing);
     expect(find.text('What shall we play?'), findsOneWidget);
-    expect(find.text('All my music'), findsOneWidget);
+    expect(find.text('All songs'), findsOneWidget);
   });
 
   testWidgets('Classic draws list rows', (tester) async {
@@ -235,6 +236,59 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CupertinoActionSheet), findsNothing);
     expect(find.byKey(const ValueKey('import_abc_fab')), findsOneWidget);
+  });
+
+  testWidgets('Books is a shelf; a book opens in order, and back', (tester) async {
+    await pumpList(tester, phone);
+    await tester.tap(find.byKey(const ValueKey('piece_tab_books')));
+    await tester.pumpAndSettle();
+
+    // Only ordered keywords are on the shelf.
+    expect(find.byKey(const ValueKey('shelf_book_book')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shelf_book_fiddle')), findsNothing);
+    expect(find.textContaining('3 pieces'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('shelf_book_book')));
+    await tester.pumpAndSettle();
+    expect(badgeNumbers(tester), [1, 2, 3]);
+    expect(find.text('3 pieces'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('book_shelf_button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('shelf_book_book')), findsOneWidget);
+    expect(badgeNumbers(tester), isEmpty);
+  });
+
+  testWidgets('a book picked in the drawer opens on Books', (tester) async {
+    await pumpList(tester, phone);
+    await tester.tap(find.byKey(const ValueKey('filters_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('filter_book_book')));
+    await tester.tap(find.byKey(const ValueKey('filter_show_button')));
+    await tester.pumpAndSettle();
+    final seg = tester.widget<SegmentedButton<PieceTab>>(
+        find.byKey(const ValueKey('piece_tab_switch')));
+    expect(seg.selected, {PieceTab.books});
+  });
+
+  for (final (name, theme) in [('Classic', classicTheme()), ('Playful', playfulTheme())]) {
+    testWidgets('$name: three tabs fit an SE without overflow', (tester) async {
+      await pumpList(tester, phone, theme: theme);
+      // The test font is wider than either real one, so actual fit is
+      // checked on the SE; here, just that three segments lay out cleanly.
+      expect(tester.takeException(), isNull);
+      for (final t in ['recent', 'books', 'all']) {
+        expect(find.byKey(ValueKey('piece_tab_$t')), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('the sidebar takes about a third of a landscape phone', (tester) async {
+    await pumpList(tester, const Size(890, 400));
+    final w = tester.getSize(find.byKey(const ValueKey('piece_filter_sidebar'))).width;
+    expect(w, closeTo(890 * 0.35, 1));
+    expect(find.byKey(const ValueKey('filter_view_books')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a narrow wide layout drops columns before squeezing titles',

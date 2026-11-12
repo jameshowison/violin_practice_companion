@@ -75,6 +75,7 @@ class PieceFilterPanel extends ConsumerWidget {
                   if (!dismissible)
                     for (final (tab, label, icon) in [
                       (PieceTab.recent, skin.recentsLabel, Icons.schedule),
+                      (PieceTab.books, skin.booksLabel, Icons.menu_book_outlined),
                       (PieceTab.all, skin.allLabel, Icons.library_music_outlined),
                     ])
                       _ViewTile(

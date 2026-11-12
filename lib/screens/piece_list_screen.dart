@@ -146,14 +146,14 @@ class PieceListScreen extends ConsumerWidget {
       body: wide
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: const [
+              children: [
                 SizedBox(
-                  key: ValueKey('piece_filter_sidebar'),
-                  width: 320,
-                  child: PieceFilterPanel(dismissible: false),
+                  key: const ValueKey('piece_filter_sidebar'),
+                  width: sidebarWidth(width),
+                  child: const PieceFilterPanel(dismissible: false),
                 ),
-                VerticalDivider(width: 1),
-                Expanded(child: _PieceListBody(wide: true)),
+                const VerticalDivider(width: 1),
+                const Expanded(child: _PieceListBody(wide: true)),
               ],
             )
           : const _PieceListBody(wide: false),
@@ -247,11 +247,15 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
               segments: [
                 ButtonSegment(
                     value: PieceTab.recent,
-                    label: Text(skin.recentsLabel,
+                    label: Text(skin.recentsTab,
                         key: const ValueKey('piece_tab_recent'))),
                 ButtonSegment(
+                    value: PieceTab.books,
+                    label: Text(skin.booksTab,
+                        key: const ValueKey('piece_tab_books'))),
+                ButtonSegment(
                     value: PieceTab.all,
-                    label: Text(skin.allLabel,
+                    label: Text(skin.allTab,
                         key: const ValueKey('piece_tab_all'))),
               ],
               selected: {filter.tab},
@@ -262,7 +266,12 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
             ),
           ),
         if (book != null) _bookStrip(result, filter, book, editing),
-        Expanded(child: editing ? _editList(book) : _list(result, filter)),
+        Expanded(
+            child: editing
+                ? _editList(book)
+                : filter.onShelf
+                    ? _shelf(result)
+                    : _list(result, filter)),
       ],
     );
   }
@@ -272,9 +281,7 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     final theme = Theme.of(context);
     final line = filter.tab == PieceTab.recent
         ? 'Recently played from ${book.name}'
-        : '${result.inBookOrder ? 'In book order' : 'A–Z'}'
-            '${filter.reversed ? ', reversed' : ''} · '
-            '${result.rows.length} of ${result.bookLength}';
+        : _orderLine(result, filter);
     // One line even on a 375pt phone, so the two orderings are icons, each a
     // toggle that shows when it is on: A–Z (versus book order) and reverse.
     // Separate on purpose — one up/down arrow that meant "switch to A–Z"
@@ -283,6 +290,13 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
       padding: EdgeInsets.fromLTRB(_gutter, 6, _gutter - 8, 0),
       child: Row(
         children: [
+          if (filter.tab == PieceTab.books && !editing)
+            IconButton(
+              key: const ValueKey('book_shelf_button'),
+              icon: const Icon(Icons.chevron_left),
+              tooltip: 'All books',
+              onPressed: () => _update((f) => f.copyWith(clearBook: true)),
+            ),
           Expanded(
             child: Text(editing ? 'Drag to change the book order' : line,
                 maxLines: 2,
@@ -290,7 +304,7 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           ),
-          if (filter.tab == PieceTab.all && !editing)
+          if (filter.tab != PieceTab.recent && !editing)
             IconButton(
               key: const ValueKey('book_sort_button'),
               isSelected: filter.bookSort == BookSort.az,
@@ -319,13 +333,139 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
                 _editing = !_editing;
                 _pendingOrder = null;
               });
-              if (_editing) _update((f) => f.copyWith(tab: PieceTab.all));
+              if (_editing && filter.tab == PieceTab.recent) {
+                _update((f) => f.copyWith(tab: PieceTab.books));
+              }
             },
             child: Text(editing ? 'Done' : 'Edit order'),
           ),
         ],
       ),
     );
+  }
+
+  /// Books with no book picked: every book as a row (or a card, in Playful)
+  /// with its size and first few titles. Narrowing by search or a filter
+  /// leaves out the books with nothing left in them.
+  Widget _shelf(PieceListResult result) {
+    final skin = SkinStyle.of(context);
+    final theme = Theme.of(context);
+    final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+    final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
+    final filter = ref.watch(pieceFilterProvider);
+    final narrowed =
+        ref.watch(pieceSearchProvider).trim().isNotEmpty || filter.activeCount > 0;
+    final titles = {for (final p in applyLibrary(library, pieces)) p.id: p.title};
+    final books = [
+      for (final c in library.collections)
+        if (c.ordered && (!narrowed || (result.bookCounts[c.id] ?? 0) > 0)) c
+    ];
+
+    if (books.isEmpty) {
+      return narrowed
+          ? _EmptyState(
+              message: 'No books match.',
+              action: (
+                key: 'empty_state_clear_button',
+                label: 'Clear filters',
+                onPressed: () {
+                  ref.read(pieceSearchProvider.notifier).state = '';
+                  _update((f) => f.cleared());
+                },
+              ),
+            )
+          : const _EmptyState(
+              message: 'No books yet. In Manage, turn on "Book: keeps its own '
+                  'order" for a keyword to shelve it here.',
+              offerManage: true,
+            );
+    }
+
+    String countOf(Collection b) {
+      final n = result.bookCounts[b.id] ?? 0;
+      return '$n ${n == 1 ? 'piece' : 'pieces'}';
+    }
+
+    String firstTitles(Collection b) => [
+          for (final id in b.pieceIds)
+            if (titles[id] case final t?) t
+        ].take(3).join(', ');
+
+    void open(Collection b) => _update((f) => f.toggleBook(b.id));
+
+    if (skin.rowStyle == PieceRowStyle.cards) {
+      return GridView.builder(
+        padding: EdgeInsets.fromLTRB(_gutter, 14, _gutter, 24),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: widget.wide ? 3 : 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: widget.wide ? 1.4 : 1.1,
+        ),
+        itemCount: books.length,
+        itemBuilder: (_, i) => _BookCard(
+          key: ValueKey('shelf_book_${books[i].id}'),
+          name: books[i].name,
+          detail: countOf(books[i]),
+          color: skin.cardColors[i % skin.cardColors.length],
+          onTap: () => open(books[i]),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(_gutter, 4, _gutter, 24),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+          child: Text(
+              '${books.length} ${books.length == 1 ? 'BOOK' : 'BOOKS'}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.6)),
+        ),
+        Material(
+          color: theme.colorScheme.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(skin.groupRadius)),
+          child: Column(children: [
+            for (var i = 0; i < books.length; i++) ...[
+              if (i > 0) const Divider(height: 1, indent: 58),
+              ListTile(
+                key: ValueKey('shelf_book_${books[i].id}'),
+                leading: Icon(Icons.menu_book_outlined,
+                    color: theme.colorScheme.primary),
+                title: Text(books[i].name),
+                subtitle: Text(
+                  [countOf(books[i]), firstTitles(books[i])]
+                      .where((s) => s.isNotEmpty)
+                      .join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => open(books[i]),
+              ),
+            ],
+          ]),
+        ),
+      ],
+    );
+  }
+
+  /// Short enough for the ~116pt the strip's buttons leave on an SE. Book
+  /// order goes unsaid (the numbers show it); only a departure from it does.
+  static String _orderLine(PieceListResult result, PieceFilter filter) {
+    final n = result.rows.length;
+    final count = n == result.bookLength
+        ? '$n ${n == 1 ? 'piece' : 'pieces'}'
+        : '$n of ${result.bookLength}';
+    final how = [
+      if (!result.inBookOrder) 'A–Z',
+      if (filter.reversed) result.inBookOrder ? 'Reversed' : 'reversed',
+    ].join(', ');
+    return how.isEmpty ? count : '$how · $count';
   }
 
   Widget _editList(Collection book) {
@@ -460,6 +600,9 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
         ];
         if (rows.isNotEmpty) groups.add((label, rows));
       }
+    } else if (result.book != null && !recents) {
+      // The book strip above already says the order and the count.
+      groups.add(('', result.rows));
     } else {
       final n = result.rows.length;
       final order = result.inBookOrder
@@ -476,6 +619,9 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
       padding: EdgeInsets.fromLTRB(_gutter, 4, _gutter, 24),
       children: [
         for (final (label, rows) in groups) ...[
+          if (label.isEmpty)
+            const SizedBox(height: 14)
+          else
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
             child: Text(label.toUpperCase(),
@@ -542,6 +688,54 @@ class _HiddenFooter extends StatelessWidget {
       ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const ManagePiecesScreen()),
+      ),
+    );
+  }
+}
+
+/// A book on the Playful shelf: a coloured card like the piece cards.
+class _BookCard extends StatelessWidget {
+  const _BookCard({
+    super.key,
+    required this.name,
+    required this.detail,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String name;
+  final String detail;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = SkinStyle.of(context).cardInk;
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.menu_book, color: ink, size: 28),
+              const Spacer(),
+              Text(name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      color: ink, fontWeight: FontWeight.w900, height: 1.15)),
+              const SizedBox(height: 4),
+              Text(detail,
+                  style: theme.textTheme.bodySmall?.copyWith(color: ink)),
+            ],
+          ),
+        ),
       ),
     );
   }

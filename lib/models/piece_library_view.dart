@@ -141,3 +141,8 @@ bool manageRowUsesLabeledActions(double widthPx) => isWideLayout(widthPx);
 /// width breakpoint, shared with [manageRowUsesLabeledActions] and
 /// `measuresPerRowForWidth`.
 bool isWideLayout(double widthPx) => widthPx >= 600;
+
+/// The always-out filter sidebar on a wide layout: about a third of the
+/// window, so a landscape phone keeps most of it for titles, and never wider
+/// than an iPad needs.
+double sidebarWidth(double widthPx) => (widthPx * 0.35).clamp(240.0, 320.0);

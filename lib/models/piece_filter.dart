@@ -13,7 +13,9 @@ import 'piece_library_view.dart' show matchesSearch;
 import 'piece_meta.dart';
 import '../services/piece_activity_store.dart' show PieceActivity;
 
-enum PieceTab { recent, all }
+/// The list's three views. [books] is the shelf of ordered keywords until
+/// one is picked, then that book in its own order; [all] is every piece.
+enum PieceTab { recent, books, all }
 
 /// How a selected book is ordered on the All tab.
 enum BookSort { book, az }
@@ -71,12 +73,15 @@ class PieceFilter {
         reversed: reversed ?? this.reversed,
       );
 
-  /// Picking a book jumps to All, where its order can show, and starts in
-  /// book order. Picking the selected one again clears it.
+  /// Picking a book opens it on Books, in book order. Picking the selected
+  /// one again clears it (back to the shelf, if on Books).
   PieceFilter toggleBook(String id) => bookId == id
       ? copyWith(clearBook: true)
       : copyWith(
-          bookId: id, tab: PieceTab.all, bookSort: BookSort.book, reversed: false);
+          bookId: id, tab: PieceTab.books, bookSort: BookSort.book, reversed: false);
+
+  /// On Books with no book picked: the screen shows the shelf, not rows.
+  bool get onShelf => tab == PieceTab.books && bookId == null;
 
   PieceFilter toggleTag(String id) => copyWith(
         tagIds: tagIds.contains(id)
@@ -218,7 +223,7 @@ PieceListResult filterPieces({
   }
 
   bool inTab(Piece p, PieceTab tab) =>
-      tab == PieceTab.all || activity.containsKey(p.id);
+      tab != PieceTab.recent || activity.containsKey(p.id);
 
   bool matchesQuery(Piece p) {
     if (query.trim().isEmpty) return true;
@@ -246,7 +251,7 @@ PieceListResult filterPieces({
 
   final rowsSrc = [for (final p in inThisTab) if (passes(p)) p];
   final inBookOrder = book != null &&
-      filter.tab == PieceTab.all &&
+      filter.tab != PieceTab.recent &&
       filter.bookSort == BookSort.book;
   if (filter.tab == PieceTab.recent) {
     rowsSrc.sort((a, b) =>
@@ -286,9 +291,12 @@ PieceListResult filterPieces({
     for (final k in keyNames)
       k: countWhere(_Facet.key, (p) => meta[p.id]?.keyName == k),
   };
+  // Books counts books, not pieces: what the shelf would show.
   final tabCounts = {
     for (final t in PieceTab.values)
-      t: visible.where((p) => inTab(p, t) && passes(p)).length,
+      t: t == PieceTab.books
+          ? bookCounts.length
+          : visible.where((p) => inTab(p, t) && passes(p)).length,
   };
 
   return PieceListResult(
