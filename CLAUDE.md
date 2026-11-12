@@ -454,9 +454,9 @@ exists to avoid — full reasoning in the README, "Installing on a physical devi
 
 Two further facts worth not re-deriving: a **release** build does not render
 `kBuildRef` (debug-only), so the stamp trick doesn't work on a device — confirm by
-the feature instead. And this is a **free** Apple ID team (`TimeToLive = 7` on the
-provisioning profile), so an installed build stops launching a week after it is
-signed.
+the feature instead. The team is now a paid Developer Program membership (needed for
+TestFlight); a development-signed build installed before that, under the free team's
+`TimeToLive = 7` profile, stops launching a week after it was signed.
 
 **Watch it, don't wait on it.** The script copies everything to
 `device_install.log` with a `▶` line per phase and a heartbeat every 30s while a

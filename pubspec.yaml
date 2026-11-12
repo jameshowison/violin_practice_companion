@@ -150,6 +150,9 @@ flutter:
     # The font licence, read by LicenseRegistry; the .ttf files are under
     # the fonts: block above and need no assets line.
     - assets/engine/fonts/OFL.txt
+    # Licences for the bundled JS, soundfont and homr models — the parts no pub
+    # package carries a LICENSE for. Registered in lib/services/bundled_licenses.dart.
+    - assets/engine/licenses/
     # homr's ONNX models, bundled so scanning needs no network (gitignored;
     # scripts/fetch_omr_models.sh puts them here).
     - assets/engine/omr_models/

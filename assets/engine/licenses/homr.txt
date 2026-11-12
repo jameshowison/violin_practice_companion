@@ -1,0 +1,13 @@
+homr — optical music recognition
+
+https://github.com/liebharc/homr
+
+Stringlings reads printed sheet music with homr_flutter, a Dart port of homr's
+pipeline, and with homr's own trained models (staff segmentation and the
+transformer that reads notes), bundled unchanged.
+
+homr, its models and homr_flutter are licensed under the GNU Affero General
+Public License, version 3 or (at your option) any later version. The full text
+of that licence appears in this list under homr_flutter.
+
+Source for homr_flutter: https://github.com/jameshowison/homr_flutter

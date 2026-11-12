@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/instrument_setting.dart';
 import '../theme/app_skin.dart';
 import '../theme/skins.dart';
+import 'thanks_screen.dart';
 
 /// App-wide settings, from the gear on the piece list. Per-piece choices (view,
 /// spacing, fingering detail) stay in the piece's own drawer; this is for facts
@@ -21,6 +22,18 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          ListTile(
+            key: const ValueKey('thanks_entry'),
+            leading: const Icon(Icons.favorite_outline),
+            title: const Text('Thanks and how to contribute'),
+            subtitle: const Text(
+                'Free and open source on GitHub: credits and licences'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ThanksScreen()),
+            ),
+          ),
+          const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text('Appearance', style: theme.textTheme.titleSmall),
