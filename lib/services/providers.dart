@@ -34,6 +34,7 @@ import 'lyric_xml_injector.dart';
 import 'count_in_store.dart';
 import 'tempo_store.dart';
 import 'piece_display_prefs.dart';
+import 'instrument_setting.dart';
 import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
@@ -605,13 +606,25 @@ final sectionRunGroupsProvider = FutureProvider<List<RunGroup>>((ref) async {
 // ── Display mode ──────────────────────────────────────────────────────────────
 
 // Remembered per piece, like the other display preferences — see
-// [pieceDisplayPref].
-final displayModeProvider = pieceDisplayEnumPref<DisplayMode>(
+// [pieceDisplayPref]. This is the STORED choice; read [displayModeProvider].
+final displayModePrefProvider = pieceDisplayEnumPref<DisplayMode>(
   'view',
   // Annotated (staff plus fingering) is where a new piece opens.
   DisplayMode.staffFingering,
   DisplayMode.values,
 );
+
+/// The view in effect: [displayModePrefProvider], except that a saved tab view
+/// opens annotated when the instrument setting has no tab view. The saved
+/// choice is kept, so it comes back if the setting does.
+final displayModeProvider = Provider<DisplayMode>((ref) {
+  final stored = ref.watch(displayModePrefProvider);
+  if (stored == DisplayMode.tab &&
+      !ref.watch(instrumentFeaturesProvider).tabView) {
+    return DisplayMode.staffFingering;
+  }
+  return stored;
+});
 
 // ── Piece media (what plays the piece) ───────────────────────────────────────
 // One list per piece covering everything it can be played by — the synthesized
@@ -793,12 +806,21 @@ class StringLabelStyleNotifier extends StateNotifier<StringLabelStyle> {
 // ── Chord-symbol display preference ───────────────────────────────────────────
 // Chord symbols are shown above the staff in the staff, annotation & tab views;
 // toggling off hides them (and the "New chords" footer).
-// Remembered per piece — see [pieceDisplayPref].
-final showChordsProvider = pieceDisplayPref<bool>(
+// Remembered per piece — see [pieceDisplayPref]. This is the STORED choice;
+// read [showChordsProvider].
+final showChordsPrefProvider = pieceDisplayPref<bool>(
   'chords',
   true,
   encode: (v) => '$v',
   decode: bool.parse,
+);
+
+/// Whether chord symbols show: [showChordsPrefProvider], but never when the
+/// instrument setting has no chords. The saved choice is kept for when it does.
+final showChordsProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(instrumentFeaturesProvider).chords &&
+      ref.watch(showChordsPrefProvider),
 );
 
 // ── Note names & string-coloured noteheads ───────────────────────────────────
@@ -885,6 +907,8 @@ final pieceVerseCountProvider = Provider<int>(
 /// Silently drops chords with no known shape — the library is ten triads and no
 /// sevenths, so a tune in D7/A7 legitimately yields an empty list.
 final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
+  // No chords in this instrument setting: no diagrams, and so no tray either.
+  if (!ref.watch(instrumentFeaturesProvider).chords) return const [];
   final parsed = ref.watch(parsedPieceProvider).valueOrNull;
   if (parsed == null) return const [];
 
@@ -928,9 +952,16 @@ final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
 ///
 /// Under OSMD the engraved symbols ARE the display — there is no lane — so there
 /// the toggle genuinely does belong in the xml.
-bool _stripHarmonyFor(Ref ref) =>
-    ref.watch(staffRendererProvider) == StaffRenderer.osmd &&
-    !ref.watch(showChordsProvider);
+///
+/// The exception is the instrument setting: with no chords at all there is no
+/// row to keep, so `<harmony>` goes under either renderer — otherwise Verovio
+/// would reserve an empty band above every staff. That setting is changed on
+/// the Settings page, away from any engraved piece, so its re-engrave is fine.
+bool _stripHarmonyFor(Ref ref) {
+  if (!ref.watch(instrumentFeaturesProvider).chords) return true;
+  return ref.watch(staffRendererProvider) == StaffRenderer.osmd &&
+      !ref.watch(showChordsProvider);
+}
 
 // ── Fingering-annotation display preferences ──────────────────────────────────
 // All three apply to the annotation view only, and none of them changes what is
@@ -1149,10 +1180,22 @@ final staffFingeringXmlProvider = FutureProvider<String?>(
 /// Note the asymmetry in what a change costs: the tab staff carries its numbers
 /// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
 /// while the channel draws them in a Flutter overlay, so there it is a repaint.
-final noteNumberModeProvider = pieceDisplayEnumPref<NoteNumberMode>(
+///
+/// This is the STORED choice; read [noteNumberModeProvider].
+final noteNumberModePrefProvider = pieceDisplayEnumPref<NoteNumberMode>(
   'numbers',
   NoteNumberMode.violinFingering,
   NoteNumberMode.values,
+);
+
+/// The numbers in effect: [noteNumberModePrefProvider], but always the violin
+/// fingering when the instrument setting has no fret numbers — a piece saved in
+/// fret mode would otherwise open in frets with no picker to leave them. The
+/// saved choice is kept, so it comes back if the setting does.
+final noteNumberModeProvider = Provider<NoteNumberMode>(
+  (ref) => ref.watch(instrumentFeaturesProvider).fretNumbers
+      ? ref.watch(noteNumberModePrefProvider)
+      : NoteNumberMode.violinFingering,
 );
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the

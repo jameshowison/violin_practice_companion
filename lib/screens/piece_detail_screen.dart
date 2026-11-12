@@ -29,6 +29,7 @@ import '../services/musicxml_parser.dart';
 import '../services/nonstandard_fingerings.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/instrument_setting.dart';
 import '../services/media_catalog.dart';
 import '../services/media_playback_service.dart';
 import '../services/staff_overlays.dart';
@@ -119,6 +120,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final piece = ref.watch(selectedPieceProvider);
     final layoutAsync = ref.watch(pieceLayoutProvider);
     final displayMode = ref.watch(displayModeProvider);
+    final features = ref.watch(instrumentFeaturesProvider);
     final selection = ref.watch(measureSelectionProvider);
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
     final service = ref.watch(playbackServiceProvider);
@@ -323,17 +325,21 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   const _DrawerLabel('View'),
                   NotationSwitcher(
                     current: displayMode,
+                    showTab: features.tabView,
                     onChanged: (mode) =>
-                        ref.read(displayModeProvider.notifier).state = mode,
+                        ref.read(displayModePrefProvider.notifier).state = mode,
                   ),
                   // Second because it is the other question that decides what
                   // everything else says: which instrument the numbers are
                   // for. Shown in every view — the title line and the
                   // vocabulary follow it whatever the view. See
-                  // [NoteNumberMode].
+                  // [NoteNumberMode]. Only when the instrument setting has
+                  // mandolin frets; otherwise the numbers are violin fingering.
                   const SizedBox(height: 12),
-                  const _NoteNumberPicker(),
-                  const SizedBox(height: 12),
+                  if (features.fretNumbers) ...[
+                    const _NoteNumberPicker(),
+                    const SizedBox(height: 12),
+                  ],
                   if (ref.watch(noteNumberModeProvider) ==
                       NoteNumberMode.mandolinFret)
                     const _FretStylePicker()
@@ -469,14 +475,15 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         !ref.watch(staffBySectionProvider) &&
                         !ref.watch(staffByPrintedLinesProvider))
                       const _MeasuresPerLineLockToggle(),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: const Text('Chord symbols'),
-                      value: ref.watch(showChordsProvider),
-                      onChanged: (v) =>
-                          ref.read(showChordsProvider.notifier).state = v,
-                    ),
+                    if (features.chords)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Chord symbols'),
+                        value: ref.watch(showChordsProvider),
+                        onChanged: (v) =>
+                            ref.read(showChordsPrefProvider.notifier).state = v,
+                      ),
                     if (displayMode != DisplayMode.tab)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -1320,7 +1327,7 @@ class _NoteNumberPicker extends ConsumerWidget {
           ],
           selected: {mode},
           onSelectionChanged: (s) =>
-              ref.read(noteNumberModeProvider.notifier).state = s.first,
+              ref.read(noteNumberModePrefProvider.notifier).state = s.first,
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,

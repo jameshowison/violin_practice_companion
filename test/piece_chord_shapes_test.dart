@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 
 /// What the "New chords" block will draw, decided before it is built.
@@ -39,6 +40,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(overrides: [
       parsedPieceProvider.overrideWith((ref) async => piece),
+      // Chords are a violin-and-mandolin feature; violin mode has none.
+      instrumentSetProvider.overrideWith((_) => InstrumentSet.violinAndMandolin),
     ]);
     addTearDown(container.dispose);
     await container.read(parsedPieceProvider.future);

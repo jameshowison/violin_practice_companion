@@ -48,14 +48,14 @@ void main() {
   test('a change is saved for that piece and restored for it alone', () async {
     final c = await containerWith({});
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    c.read(displayModeProvider.notifier).state = DisplayMode.tab;
-    c.read(showChordsProvider.notifier).state = false;
+    c.read(displayModePrefProvider.notifier).state = DisplayMode.tab;
+    c.read(showChordsPrefProvider.notifier).state = false;
     c.read(staffSpacingProvider.notifier).state = 0.1;
     c.read(lyricVerseProvider.notifier).state = null;
 
     c.read(selectedPieceProvider.notifier).state = _piece('b');
-    expect(c.read(displayModeProvider), DisplayMode.staffFingering);
-    expect(c.read(showChordsProvider), isTrue);
+    expect(c.read(displayModePrefProvider), DisplayMode.staffFingering);
+    expect(c.read(showChordsPrefProvider), isTrue);
     expect(c.read(staffSpacingProvider), staffSpacingDefault);
     expect(c.read(lyricVerseProvider), 1);
 
@@ -65,8 +65,8 @@ void main() {
     );
     addTearDown(relaunch.dispose);
     relaunch.read(selectedPieceProvider.notifier).state = _piece('a');
-    expect(relaunch.read(displayModeProvider), DisplayMode.tab);
-    expect(relaunch.read(showChordsProvider), isFalse);
+    expect(relaunch.read(displayModePrefProvider), DisplayMode.tab);
+    expect(relaunch.read(showChordsPrefProvider), isFalse);
     expect(relaunch.read(staffSpacingProvider), 0.1);
     expect(relaunch.read(lyricVerseProvider), isNull);
   });
@@ -74,7 +74,7 @@ void main() {
   test('opening a piece writes nothing', () async {
     final c = await containerWith({});
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    c.read(displayModeProvider);
+    c.read(displayModePrefProvider);
     c.read(stringColourStyleProvider);
     expect(prefs.getKeys().where((k) => k.startsWith('display.')), isEmpty);
   });
@@ -82,22 +82,22 @@ void main() {
   test('changing back to the default overwrites the saved value', () async {
     final c = await containerWith({'display.view.a': 'tab'});
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    expect(c.read(displayModeProvider), DisplayMode.tab);
-    c.read(displayModeProvider.notifier).state = DisplayMode.staffFingering;
+    expect(c.read(displayModePrefProvider), DisplayMode.tab);
+    c.read(displayModePrefProvider.notifier).state = DisplayMode.staffFingering;
     expect(prefs.getString('display.view.a'), 'staffFingering');
   });
 
   test('an unreadable saved value falls back to the default', () async {
     final c = await containerWith({'display.view.a': 'noSuchView'});
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    expect(c.read(displayModeProvider), DisplayMode.staffFingering);
+    expect(c.read(displayModePrefProvider), DisplayMode.staffFingering);
   });
 
   test('without preferences the settings still work for the session', () {
     final c = ProviderContainer();
     addTearDown(c.dispose);
     c.read(selectedPieceProvider.notifier).state = _piece('a');
-    c.read(showChordsProvider.notifier).state = false;
-    expect(c.read(showChordsProvider), isFalse);
+    c.read(showChordsPrefProvider.notifier).state = false;
+    expect(c.read(showChordsPrefProvider), isFalse);
   });
 }

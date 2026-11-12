@@ -81,9 +81,9 @@ void main() {
       // to a spinner and reflow the page. Both settings must give the same answer
       // under the native renderer.
       final c = containerFor();
-      final before = c.read(showChordsProvider);
-      c.read(showChordsProvider.notifier).state = !before;
-      expect(c.read(showChordsProvider), !before);
+      final before = c.read(showChordsPrefProvider);
+      c.read(showChordsPrefProvider.notifier).state = !before;
+      expect(c.read(showChordsPrefProvider), !before);
       // The predicate is private; assert the property it exists to protect —
       // nothing about the xml depends on this toggle. `scoreReservesAnnotationRoom`
       // is a pure function of the xml, so if the toggle could reach the xml the

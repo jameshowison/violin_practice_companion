@@ -12,10 +12,15 @@ class NotationSwitcher extends StatelessWidget {
   final DisplayMode current;
   final ValueChanged<DisplayMode> onChanged;
 
+  /// Whether to offer the tab view — off when the instrument setting has no
+  /// mandolin ([InstrumentFeatures.tabView]).
+  final bool showTab;
+
   const NotationSwitcher({
     super.key,
     required this.current,
     required this.onChanged,
+    this.showTab = true,
   });
 
   static const _modes = [
@@ -34,6 +39,7 @@ class NotationSwitcher extends StatelessWidget {
       runSpacing: 4,
       children: [
         for (final (mode, icon, label) in _modes)
+          if (showTab || mode != DisplayMode.tab)
           ChoiceChip(
             avatar: Icon(icon, size: 16),
             // The avatar carries the identity; the tick would displace it.

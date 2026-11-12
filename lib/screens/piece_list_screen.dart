@@ -13,13 +13,15 @@ import 'abc_import_screen.dart';
 import 'manage_pieces_screen.dart';
 import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
+import 'settings_screen.dart';
 import '../services/launch_timing.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
 /// Read-only apart from the collection filter: renaming, hiding, deleting and
-/// reordering all live behind the Manage button, so the surface a kid taps to
-/// pick a piece can't accidentally lose one.
+/// reordering all live behind the Manage button (beside the search box), so the
+/// surface a kid taps to pick a piece can't accidentally lose one. The gear in
+/// the AppBar opens the app-wide [SettingsScreen].
 class PieceListScreen extends ConsumerWidget {
   const PieceListScreen({super.key});
 
@@ -56,12 +58,11 @@ class PieceListScreen extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            key: const ValueKey('manage_pieces_button'),
-            icon: const Icon(Icons.edit_note),
-            tooltip: 'Manage pieces',
+            key: const ValueKey('app_settings_button'),
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                  builder: (_) => const ManagePiecesScreen()),
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             ),
           ),
         ],
@@ -235,9 +236,29 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
 
   @override
   Widget build(BuildContext context) {
+    // Manage sits beside the search because both are about the list itself;
+    // the AppBar's gear is for the app.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: TextField(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      child: Row(
+        children: [
+          Expanded(child: _field()),
+          IconButton(
+            key: const ValueKey('manage_pieces_button'),
+            icon: const Icon(Icons.edit_note),
+            tooltip: 'Manage pieces',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                  builder: (_) => const ManagePiecesScreen()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field() {
+    return TextField(
         key: const ValueKey('piece_search_field'),
         controller: _controller,
         textInputAction: TextInputAction.search,
@@ -262,7 +283,6 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
           border: const OutlineInputBorder(),
         ),
         onChanged: (v) => ref.read(pieceSearchProvider.notifier).state = v,
-      ),
     );
   }
 }
