@@ -103,6 +103,18 @@ void main() {
     expect(find.byKey(const ValueKey('search_token_book')), findsOneWidget);
     expect(find.text('In book order · 3 of 3'), findsOneWidget);
 
+    // Reverse turns it over; A–Z is its own toggle.
+    await tester.tap(find.byKey(const ValueKey('book_reverse_button')));
+    await tester.pumpAndSettle();
+    expect(badgeNumbers(tester), [3, 2, 1]);
+    expect(find.text('In book order, reversed · 3 of 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('book_reverse_button')));
+    await tester.tap(find.byKey(const ValueKey('book_sort_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('A–Z · 3 of 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('book_sort_button')));
+    await tester.pumpAndSettle();
+
     // Removing the token clears the filter.
     await tester.tap(find.byTooltip('Remove book 1'));
     await tester.pumpAndSettle();
@@ -223,5 +235,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CupertinoActionSheet), findsNothing);
     expect(find.byKey(const ValueKey('import_abc_fab')), findsOneWidget);
+  });
+
+  testWidgets('a narrow wide layout drops columns before squeezing titles',
+      (tester) async {
+    // A landscape phone: wide enough for the sidebar, not for every column.
+    await pumpList(tester, const Size(890, 400));
+
+    final title = tester.getSize(find.text('Lightly Row'));
+    expect(title.width, greaterThan(60)); // not "Li…"
+    expect(find.text('#book 1'), findsNothing); // keywords column dropped
   });
 }

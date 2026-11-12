@@ -89,6 +89,28 @@ void main() {
       expect(r.rows.first.bookNumber, 3);
     });
 
+    test('reverse turns the order over without changing the sort', () {
+      final f = const PieceFilter().toggleBook('book').copyWith(reversed: true);
+      final r = run(f);
+
+      expect(r.inBookOrder, isTrue);
+      expect(ids(r), ['hf', 'll', 'ar', 'lr', 'tw']);
+      expect([for (final row in r.rows) row.bookNumber], [5, 4, 3, 2, 1]);
+
+      expect(ids(run(f.copyWith(bookSort: BookSort.az))),
+          ['tw', 'll', 'lr', 'hf', 'ar']);
+    });
+
+    test('picking another book starts unreversed, in book order', () {
+      final f = const PieceFilter()
+          .toggleBook('book')
+          .copyWith(reversed: true, bookSort: BookSort.az)
+          .toggleBook('book')
+          .toggleBook('book');
+      expect(f.reversed, isFalse);
+      expect(f.bookSort, BookSort.book);
+    });
+
     test('other filters leave gaps in the numbering, not renumber', () {
       final r = run(const PieceFilter().toggleBook('book').toggleKey('D major'));
 

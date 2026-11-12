@@ -46,7 +46,15 @@ class PieceListTile extends StatelessWidget {
     final small = theme.textTheme.bodyMedium?.copyWith(color: muted);
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      child: LayoutBuilder(builder: (context, c) {
+        final rowWidth = c.maxWidth;
+        // The subtitle leaves the key out when wide; put it back if even the
+        // Key column doesn't fit.
+        final keyInColumn = rowWidth >= _chrome + _minTitle + 96;
+        final line = wide && !keyInColumn && row.meta != null
+            ? [if (subtitle.isNotEmpty) subtitle, row.meta!.keyName].join(' · ')
+            : subtitle;
+        return Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
         child: Row(
           children: [
@@ -62,28 +70,27 @@ class PieceListTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge),
-                  if (subtitle.isNotEmpty)
-                    Text(subtitle,
+                  if (line.isNotEmpty)
+                    Text(line,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(color: muted)),
                 ],
               ),
             ),
-            if (wide) ...[
-              SizedBox(width: 96, child: Text(row.meta?.keyName ?? '', style: small)),
-              SizedBox(width: 44, child: Text(row.meta?.time ?? '', style: small)),
-              SizedBox(
-                width: 200,
-                child: Text(
+            if (wide)
+              ..._columns(
+                rowWidth,
+                key: Text(row.meta?.keyName ?? '', style: small),
+                time: Text(row.meta?.time ?? '', style: small),
+                keywords: Text(
                   row.keywordNames.map((k) => '#$k').join('  '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: small,
                 ),
+                lastPlayed: Text(lastPlayed ?? '—', style: small),
               ),
-              SizedBox(width: 96, child: Text(lastPlayed ?? '—', style: small)),
-            ],
             SizedBox(
               width: 24,
               child: row.hasRecording
@@ -94,8 +101,44 @@ class PieceListTile extends StatelessWidget {
             Icon(Icons.chevron_right, color: theme.colorScheme.outline),
           ],
         ),
-      ),
+      );
+      }),
     );
+  }
+
+  /// The wide row's extra columns, as many as fit while the title keeps at
+  /// least [_minTitle]: a landscape phone beside the 320pt sidebar has ~545pt,
+  /// and all four fixed columns there squeezed titles to "Ga…". Dropped in
+  /// order of least use: keywords, then time, then last played; key stays.
+  static const _minTitle = 220.0;
+
+  /// Padding, number badge, recording mark and chevron.
+  static const _chrome = 16 + 12 + 42 + 24 + 24.0;
+
+  static List<Widget> _columns(
+    double rowWidth, {
+    required Widget key,
+    required Widget time,
+    required Widget keywords,
+    required Widget lastPlayed,
+  }) {
+    var room = rowWidth - _chrome - _minTitle;
+    final out = <Widget>[];
+    bool take(double w) {
+      if (room < w) return false;
+      room -= w;
+      return true;
+    }
+
+    final showKey = take(96);
+    final showLast = take(96);
+    final showTime = take(44);
+    final showKeywords = take(200);
+    if (showKey) out.add(SizedBox(width: 96, child: key));
+    if (showTime) out.add(SizedBox(width: 44, child: time));
+    if (showKeywords) out.add(SizedBox(width: 200, child: keywords));
+    if (showLast) out.add(SizedBox(width: 96, child: lastPlayed));
+    return out;
   }
 }
 

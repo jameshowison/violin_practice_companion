@@ -272,10 +272,13 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     final theme = Theme.of(context);
     final line = filter.tab == PieceTab.recent
         ? 'Recently played from ${book.name}'
-        : '${result.inBookOrder ? 'In book order' : 'Sorted A–Z'} · '
+        : '${result.inBookOrder ? 'In book order' : 'A–Z'}'
+            '${filter.reversed ? ', reversed' : ''} · '
             '${result.rows.length} of ${result.bookLength}';
-    // One line even on a 375pt phone: the text already says which order is
-    // showing, so the sort toggle can be an icon.
+    // One line even on a 375pt phone, so the two orderings are icons, each a
+    // toggle that shows when it is on: A–Z (versus book order) and reverse.
+    // Separate on purpose — one up/down arrow that meant "switch to A–Z"
+    // read as "reverse" and confused.
     return Padding(
       padding: EdgeInsets.fromLTRB(_gutter, 6, _gutter - 8, 0),
       child: Row(
@@ -290,14 +293,24 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
           if (filter.tab == PieceTab.all && !editing)
             IconButton(
               key: const ValueKey('book_sort_button'),
-              icon: const Icon(Icons.swap_vert),
-              tooltip: filter.bookSort == BookSort.book
-                  ? 'Sort A–Z'
-                  : 'Back to book order',
+              isSelected: filter.bookSort == BookSort.az,
+              icon: const Icon(Icons.sort_by_alpha),
+              tooltip: filter.bookSort == BookSort.az
+                  ? 'Back to book order'
+                  : 'Sort A–Z',
               onPressed: () => _update((f) => f.copyWith(
                   bookSort: f.bookSort == BookSort.book
                       ? BookSort.az
                       : BookSort.book)),
+            ),
+          if (!editing)
+            IconButton(
+              key: const ValueKey('book_reverse_button'),
+              isSelected: filter.reversed,
+              icon: const Icon(Icons.swap_vert),
+              tooltip: filter.reversed ? 'Undo reverse' : 'Reverse order',
+              onPressed: () =>
+                  _update((f) => f.copyWith(reversed: !f.reversed)),
             ),
           TextButton(
             key: const ValueKey('book_edit_order_button'),
@@ -454,7 +467,8 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
           : recents
               ? 'most recent first'
               : 'A–Z';
-      groups.add(('$n ${n == 1 ? 'piece' : 'pieces'} · $order', result.rows));
+      final rev = filter.reversed ? ', reversed' : '';
+      groups.add(('$n ${n == 1 ? 'piece' : 'pieces'} · $order$rev', result.rows));
     }
 
     final theme = Theme.of(context);

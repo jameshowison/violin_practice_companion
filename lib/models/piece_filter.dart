@@ -35,6 +35,11 @@ class PieceFilter {
 
   final BookSort bookSort;
 
+  /// The list turned upside down: last book number first, Z–A, or oldest
+  /// first on Recents. Independent of [bookSort], so "reverse" never also
+  /// means "switch to A–Z".
+  final bool reversed;
+
   const PieceFilter({
     this.tab = PieceTab.recent,
     this.bookId,
@@ -42,6 +47,7 @@ class PieceFilter {
     this.keyName,
     this.hasRecording = false,
     this.bookSort = BookSort.book,
+    this.reversed = false,
   });
 
   PieceFilter copyWith({
@@ -53,6 +59,7 @@ class PieceFilter {
     bool clearKey = false,
     bool? hasRecording,
     BookSort? bookSort,
+    bool? reversed,
   }) =>
       PieceFilter(
         tab: tab ?? this.tab,
@@ -61,13 +68,15 @@ class PieceFilter {
         keyName: clearKey ? null : (keyName ?? this.keyName),
         hasRecording: hasRecording ?? this.hasRecording,
         bookSort: bookSort ?? this.bookSort,
+        reversed: reversed ?? this.reversed,
       );
 
   /// Picking a book jumps to All, where its order can show, and starts in
   /// book order. Picking the selected one again clears it.
   PieceFilter toggleBook(String id) => bookId == id
       ? copyWith(clearBook: true)
-      : copyWith(bookId: id, tab: PieceTab.all, bookSort: BookSort.book);
+      : copyWith(
+          bookId: id, tab: PieceTab.all, bookSort: BookSort.book, reversed: false);
 
   PieceFilter toggleTag(String id) => copyWith(
         tagIds: tagIds.contains(id)
@@ -96,11 +105,12 @@ class PieceFilter {
       other.keyName == keyName &&
       other.hasRecording == hasRecording &&
       other.bookSort == bookSort &&
+      other.reversed == reversed &&
       other.tagIds.length == tagIds.length &&
       other.tagIds.containsAll(tagIds);
 
   @override
-  int get hashCode => Object.hash(tab, bookId, keyName, hasRecording, bookSort,
+  int get hashCode => Object.hash(tab, bookId, keyName, hasRecording, bookSort, reversed,
       Object.hashAllUnordered(tagIds));
 }
 
@@ -247,8 +257,9 @@ PieceListResult filterPieces({
     rowsSrc.sort((a, b) => sortTitle(a.title).compareTo(sortTitle(b.title)));
   }
 
+  final ordered = filter.reversed ? rowsSrc.reversed : rowsSrc;
   final rows = [
-    for (final p in rowsSrc)
+    for (final p in ordered)
       PieceListRow(
         piece: p,
         bookNumber: book == null ? null : bookIndex[p.id]! + 1,

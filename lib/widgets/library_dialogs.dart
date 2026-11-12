@@ -67,6 +67,9 @@ class _TextEntryDialogState extends State<_TextEntryDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        // A landscape phone with the keyboard up leaves ~150pt; without this
+        // the field was clipped away ("bottom overflowed by 54 pixels").
+        scrollable: true,
         title: Text(widget.title),
         content: TextField(
           key: const ValueKey('text_entry_field'),
