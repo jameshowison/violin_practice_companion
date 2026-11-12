@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The icon's paper colour (scripts/app_icon/stringlings_icon.mjs, bg1). -->
+    <color name="launch_paper">#FFF9EE</color>
+</resources>

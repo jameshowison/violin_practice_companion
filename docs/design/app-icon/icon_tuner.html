@@ -1,0 +1,264 @@
+<title>Stringlings Icon Tuner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a control strip on top, then every iOS icon size at once on light and dark wallpaper, then a big preview. */
+:root {
+  --bg: #F7F5F2; --surface: #FFFFFF; --fg: #1E1B22; --muted: #6B6570; --line: #E4DFE0;
+  --accent: #C62828; --accent-soft: #FBEAEA;
+  --display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17151A; --surface: #211E25; --fg: #F1EEF3; --muted: #A49DAA; --line: #34303A;
+  --accent: #F07A7A; --accent-soft: #3A2326; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17151A; --surface: #211E25; --fg: #F1EEF3; --muted: #A49DAA; --line: #34303A;
+  --accent: #F07A7A; --accent-soft: #3A2326; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 3.5vw, 32px); margin: 0; letter-spacing: -0.01em; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 17px; margin: 0; }
+p { margin: 0; max-width: 65ch; }
+.lede { color: var(--muted); }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+.controls { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 28px; }
+.ctl { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.val { font-family: var(--mono); font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 6px 7px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 13px var(--body); cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.chip:focus-visible, input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw { width: 18px; height: 18px; border-radius: 5px; display: inline-block; border: 1px solid rgba(0,0,0,.15); }
+
+.sizes { border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.wall { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 22px 26px; padding: 22px 20px; }
+.wall.light { background: linear-gradient(160deg, #DDE6EF, #C9D5E3); }
+.wall.dark { background: linear-gradient(160deg, #1C2331, #0E121A); }
+.wall figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.wall figcaption { font-size: 11px; text-align: center; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.wall.light figcaption { color: #3B4656; }
+.wall.dark figcaption { color: #A7B1C2; }
+.ic { display: block; border-radius: 22.37%; overflow: hidden; flex: none; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.ic svg { display: block; width: 100%; height: 100%; }
+
+.big { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.readout { flex: 1 1 260px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.readout pre { margin: 0; font-family: var(--mono); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 6px 12px;
+  font: 500 13px var(--body); cursor: pointer; }
+.status { font-size: 13px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:8px">
+    <span class="label">Stringlings · icon tuner</span>
+    <h1>Two peeking, big notes on the staff</h1>
+    <p class="lede">Adjust the note size, the staff weight and the colours. Every icon size iOS uses updates at once, shown at its real point size on light and dark wallpaper. When it looks right, copy the settings line and paste it to me.</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl">
+      <div class="ctl-head"><label class="label" for="size">Note size</label><span class="val" id="size-v"></span></div>
+      <input type="range" id="size" min="40" max="84" step="1">
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label class="label" for="firm">Staff line firmness</label><span class="val" id="firm-v"></span></div>
+      <input type="range" id="firm" min="0" max="100" step="1">
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label class="label" for="nudge">Stem position, left ↔ right</label><span class="val" id="nudge-v"></span></div>
+      <input type="range" id="nudge" min="-10" max="24" step="0.5">
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label class="label" for="top">Stem start, into the head</label><span class="val" id="top-v"></span></div>
+      <input type="range" id="top" min="-40" max="40" step="1">
+    </div>
+    <div class="ctl">
+      <span class="label">Background</span>
+      <div class="seg" id="bg"></div>
+    </div>
+    <div class="ctl">
+      <span class="label">Notes and stringlings</span>
+      <div class="seg" id="ink"></div>
+    </div>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2>Every size at once</h2>
+    <div class="sizes">
+      <div class="wall light" id="wall-light"></div>
+      <div class="wall dark" id="wall-dark"></div>
+    </div>
+  </section>
+
+  <section class="big">
+    <div id="hero" style="display:flex;flex-wrap:wrap;gap:24px"></div>
+    <div class="readout">
+      <span class="label">Settings</span>
+      <pre id="settings"></pre>
+      <div class="row">
+        <button class="btn" id="copy">Copy settings</button>
+        <button class="btn" id="reset">Reset to base</button>
+      </div>
+      <span class="status" id="status" aria-live="polite"></span>
+    </div>
+  </section>
+</div>
+
+<script>
+const STR = { A: '#C62828', E: '#FBC02D' };
+const E_RULE_ON_LIGHT = '#C9961C';
+const BGS = [
+  { id: 'paper', name: 'Paper', bg1: '#FFF9EE', bg2: '#F2E5CE', dark: false },
+  { id: 'white', name: 'White', bg1: '#FFFFFF', bg2: '#EEF0F4', dark: false },
+  { id: 'sky',   name: 'Sky',   bg1: '#EEF5FD', bg2: '#D6E4F5', dark: false },
+  { id: 'ink',   name: 'Ink',   bg1: '#33295A', bg2: '#1B1631', dark: true },
+  { id: 'plum',  name: 'Plum',  bg1: '#6B4DE2', bg2: '#4429B0', dark: true },
+  { id: 'night', name: 'Night', bg1: '#24282F', bg2: '#121418', dark: true },
+];
+// "Auto" picks navy ink on light backgrounds and cream on dark ones.
+const INKS = [
+  { id: 'auto',  name: 'Auto' },
+  { id: 'navy',  name: 'Navy',  c: '#2B2340' },
+  { id: 'black', name: 'Black', c: '#1A1A1A' },
+  { id: 'plum',  name: 'Plum',  c: '#4A2FB8' },
+  { id: 'cream', name: 'Cream', c: '#FFF8EC' },
+  { id: 'white', name: 'White', c: '#FFFFFF' },
+];
+const BASE = { size: 73, firm: 59, bg: 'paper', ink: 'auto', nudge: 6.5, top: 20 };
+
+// Staff from round 5, unchanged: D5 on the 4th line, C5 in the space below, F#5 on the top line.
+const STAFF = [500, 596, 692, 788, 884];
+const HEADS = [[235, 596], [505, 644], [790, 500]];
+
+let uid = 0;
+const isLight = (hex) => { const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 150; };
+const rule = (x1, x2, y, h, c) => `<rect x="${x1}" y="${y - h / 2}" width="${x2 - x1}" height="${h}" rx="${h / 2}" fill="${c}"/>`;
+// nudge: stem shift right, in 1024-artwork units. top: where the stem starts, in
+// head radii below the head's centre (smaller = starts higher, further inside the head).
+function note(x, y, r, color, stemLen, nudge, top) {
+  const rx = r * 1.32, sw = Math.max(10, r * 0.27), sx = x - rx * 0.9 + nudge;
+  const y0 = y + r * top;
+  return `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${r}" transform="rotate(-20 ${x} ${y})" fill="${color}"/>
+    <rect x="${sx - sw / 2}" y="${y0}" width="${sw}" height="${stemLen + (y + r * 0.2 - y0)}" rx="${sw / 2}" fill="${color}"/>`;
+}
+function peeker(cx, ruleY, h, rx, ry, ink, eyeWhite, pupil, ruleC, x1, x2) {
+  const id = 'c' + (uid++), top = ruleY - h / 2, cy = ruleY - ry * 0.45;
+  const ey = cy - ry * 0.22, dx = rx * 0.34, ew = rx * 0.22, eh = ry * 0.3, pr = rx * 0.12;
+  const fw = Math.max(14, rx * 0.12), fingers = [];
+  for (const hx of [cx - rx * 0.78, cx + rx * 0.78])
+    for (const k of [-1, 0, 1])
+      fingers.push(`<rect x="${hx + k * fw * 1.15 - fw / 2}" y="${top - fw * 0.55}" width="${fw}" height="${h * 0.75 + fw * 0.55}" rx="${fw / 2}" fill="${ink}"/>`);
+  return `<clipPath id="${id}"><rect x="0" y="-100" width="1024" height="${top + 101}"/></clipPath>
+    <g clip-path="url(#${id})"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${ink}"/>
+      <ellipse cx="${cx - dx}" cy="${ey}" rx="${ew}" ry="${eh}" fill="${eyeWhite}"/><ellipse cx="${cx + dx}" cy="${ey}" rx="${ew}" ry="${eh}" fill="${eyeWhite}"/>
+      <circle cx="${cx - dx + rx * 0.03}" cy="${ey + eh * 0.42}" r="${pr}" fill="${pupil}"/><circle cx="${cx + dx + rx * 0.03}" cy="${ey + eh * 0.42}" r="${pr}" fill="${pupil}"/></g>
+    ${rule(x1, x2, ruleY, h, ruleC)}${fingers.join('')}`;
+}
+
+function iconSVG(s, viewBox = '0 0 1024 1024') {
+  const bg = BGS.find(b => b.id === s.bg), inkOpt = INKS.find(i => i.id === s.ink);
+  const ink = inkOpt.c || (bg.dark ? '#FFF8EC' : '#2B2340');
+  const inkIsLight = isLight(ink);
+  // Eyes: whites contrast with the head, pupils contrast with the whites.
+  const eyeWhite = inkIsLight ? '#1B1631' : '#FFFFFF';
+  const pupil = inkIsLight ? '#FFF8EC' : ink;
+  const eRule = bg.dark ? STR.E : E_RULE_ON_LIGHT;
+  // Firmness 0–100 → line opacity 0.05–0.87 and width 8–22; 28 matches round 5 (0.28, 12).
+  const op = 0.05 + s.firm / 100 * 0.82, lw = 8 + s.firm / 100 * 14;
+  const stem = Math.round(240 * s.size / 64);
+  const gid = 'g' + (uid++);
+  return `<svg viewBox="${viewBox}" aria-hidden="true">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bg.bg1}"/><stop offset="1" stop-color="${bg.bg2}"/></linearGradient></defs>
+    <rect width="1024" height="1024" fill="url(#${gid})"/>
+    <g stroke="${ink}" stroke-width="${lw.toFixed(1)}" opacity="${op.toFixed(2)}">${STAFF.map(y => `<line x1="-10" y1="${y}" x2="1034" y2="${y}"/>`).join('')}</g>
+    ${peeker(370, 400, 40, 140, 122, ink, eyeWhite, pupil, STR.A, 130, 610)}
+    ${peeker(795, 318, 34, 92, 80, ink, eyeWhite, pupil, eRule, 680, 910)}
+    ${HEADS.map(([x, y]) => note(x, y, s.size, ink, stem, s.nudge, s.top / 100)).join('')}
+  </svg>`;
+}
+
+// iOS sizes in points, with where each one appears.
+const SIZES = [
+  [20, 'Notification'], [29, 'Settings'], [40, 'Spotlight'],
+  [60, 'iPhone home'], [64, 'iPhone large'], [76, 'iPad home'], [83.5, 'iPad Pro home'],
+];
+
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem('sl.tuner') || 'null'); } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem('sl.tuner', JSON.stringify(v)); } catch (e) {} },
+};
+let state = Object.assign({}, BASE, store.get() || {});
+if (typeof state.nudge !== 'number') state.nudge = BASE.nudge;
+if (typeof state.top !== 'number') state.top = BASE.top;
+if (!BGS.some(b => b.id === state.bg)) state.bg = BASE.bg;
+if (!INKS.some(i => i.id === state.ink)) state.ink = BASE.ink;
+
+const $ = (id) => document.getElementById(id);
+function chips(el, list, key) {
+  el.innerHTML = list.map(o => {
+    const sw = o.bg1 ? `linear-gradient(${o.bg1},${o.bg2})` : (o.c || 'conic-gradient(#2B2340 0 50%, #FFF8EC 0)');
+    return `<button class="chip" id="${key}-${o.id}" data-${key}="${o.id}" aria-pressed="${state[key] === o.id}"><span class="sw" style="background:${sw}"></span>${o.name}</button>`;
+  }).join('');
+}
+function settingsText() {
+  return `note size ${state.size} · staff firmness ${state.firm} · stem nudge ${state.nudge} · stem start ${state.top} · background ${state.bg} · ink ${state.ink}`;
+}
+function render() {
+  uid = 0;
+  $('size').value = state.size; $('firm').value = state.firm; $('nudge').value = state.nudge; $('top').value = state.top;
+  $('nudge-v').textContent = `${state.nudge} (was 6.5)`;
+  $('top-v').textContent = `${state.top} (was 20)`;
+  $('size-v').textContent = `${state.size} (chosen 73)`;
+  $('firm-v').textContent = `${state.firm} (chosen 59)`;
+  chips($('bg'), BGS, 'bg'); chips($('ink'), INKS, 'ink');
+  const fig = (pt, where) => `<figure><span class="ic" style="width:${pt}px;height:${pt}px">${iconSVG(state)}</span><figcaption>${pt} pt<br>${where}</figcaption></figure>`;
+  const row = SIZES.map(([pt, w]) => fig(pt, w)).join('');
+  $('wall-light').innerHTML = row;
+  $('wall-dark').innerHTML = row;
+  $('hero').innerHTML = `<figure style="margin:0;display:flex;flex-direction:column;gap:8px;align-items:center">
+    <span class="ic" style="width:min(320px, calc(100vw - 32px));height:min(320px, calc(100vw - 32px))">${iconSVG(state)}</span>
+    <figcaption class="status">1024 px App Store artwork, scaled</figcaption></figure>
+    <figure style="margin:0;display:flex;flex-direction:column;gap:8px;align-items:center">
+    <span class="ic" style="border-radius:12px;width:min(320px, calc(100vw - 32px));height:min(320px, calc(100vw - 32px))">${iconSVG(state, '120 530 200 200')}</span>
+    <figcaption class="status">Where the first stem meets its note, magnified 5×</figcaption></figure>`;
+  $('settings').textContent = settingsText();
+  store.set(state);
+}
+
+$('size').addEventListener('input', e => { state.size = +e.target.value; render(); });
+$('firm').addEventListener('input', e => { state.firm = +e.target.value; render(); });
+$('nudge').addEventListener('input', e => { state.nudge = +e.target.value; render(); });
+$('top').addEventListener('input', e => { state.top = +e.target.value; render(); });
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bg]');
+  if (b) { state.bg = b.dataset.bg; render(); $('bg-' + state.bg).focus(); return; }
+  const i = e.target.closest('[data-ink]');
+  if (i) { state.ink = i.dataset.ink; render(); $('ink-' + state.ink).focus(); }
+});
+$('reset').addEventListener('click', () => { state = Object.assign({}, BASE); render(); $('status').textContent = 'Back to the base settings.'; });
+$('copy').addEventListener('click', () => {
+  const t = settingsText();
+  const done = () => { $('status').textContent = 'Copied. Paste it into the chat.'; };
+  const fallback = () => {
+    const r = document.createRange(); r.selectNodeContents($('settings'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    $('status').textContent = 'Selected. Press Cmd-C (or Ctrl-C) to copy.';
+  };
+  try { navigator.clipboard.writeText(t).then(done, fallback); } catch (err) { fallback(); }
+});
+render();
+</script>

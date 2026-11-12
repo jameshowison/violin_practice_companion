@@ -1,0 +1,328 @@
+<title>Stringlings Icons</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&family=Nunito:wght@800;900&family=Fredoka:wght@600&family=Baloo+2:wght@800&display=swap">
+<style>
+/* Layout: working board — background rail, six annotation-style concepts, then wordmark lockups and the icons in situ. */
+:root {
+  --bg: #F7F5F2; --surface: #FFFFFF; --fg: #1E1B22; --muted: #6B6570; --line: #E4DFE0;
+  --accent: #C62828; --accent-soft: #FBEAEA;
+  --display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17151A; --surface: #211E25; --fg: #F1EEF3; --muted: #A49DAA; --line: #34303A;
+  --accent: #F07A7A; --accent-soft: #3A2326; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17151A; --surface: #211E25; --fg: #F1EEF3; --muted: #A49DAA; --line: #34303A;
+  --accent: #F07A7A; --accent-soft: #3A2326; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 40px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(26px, 4vw, 36px); font-weight: 800; }
+h2 { font-size: 20px; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+.lede { color: var(--muted); }
+header { display: flex; flex-direction: column; gap: 10px; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+.rail { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 8px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 14px var(--body); cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.chip:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw { width: 22px; height: 22px; border-radius: 6px; display: inline-block; border: 1px solid rgba(0,0,0,.12); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px;
+  display: flex; flex-direction: column; gap: 14px; cursor: pointer; text-align: left; color: inherit; font: inherit; min-width: 0; }
+.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card-top { display: flex; gap: 18px; align-items: center; }
+.card h3 { font-family: var(--display); font-size: 17px; margin: 0 0 4px; }
+.card p { color: var(--muted); font-size: 14px; }
+.ic { display: block; border-radius: 22.37%; overflow: hidden; flex: none; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.ic svg { display: block; width: 100%; height: 100%; }
+.sizes { display: grid; grid-template-columns: 1fr 1fr; border-radius: 10px; overflow: hidden; }
+.wall { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 14px 8px; }
+.wall.light { background: linear-gradient(160deg, #DDE6EF, #C9D5E3); }
+.wall.dark { background: linear-gradient(160deg, #1C2331, #0E121A); }
+
+.marks { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.mark { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px;
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lockup { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.word { font-size: 40px; line-height: 1; color: var(--fg); white-space: nowrap; }
+.word svg { display: block; overflow: visible; }
+.mark small { color: var(--muted); font-size: 13px; }
+
+.lineup { display: flex; flex-wrap: wrap; gap: 20px; }
+.lineup figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.lineup .wall { border-radius: 10px; gap: 14px; padding: 12px 14px; }
+
+.phones { display: flex; flex-wrap: wrap; gap: 24px; }
+.phone { width: 300px; max-width: 100%; border-radius: 40px; padding: 44px 18px 30px; display: grid;
+  grid-template-columns: repeat(4, 1fr); row-gap: 18px; column-gap: 8px; border: 6px solid #0B0B0D; }
+.phone.light { background: linear-gradient(170deg, #E7C9B8, #B9C7E4 70%); }
+.phone.dark { background: linear-gradient(170deg, #2A2140, #0D1424 70%); }
+.app { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.app .ph { width: 56px; height: 56px; border-radius: 22.37%; }
+.app span { font-size: 10.5px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); max-width: 64px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: -apple-system, "SF Pro Text", var(--body); }
+section { display: flex; flex-direction: column; gap: 14px; }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.note strong { font-family: var(--display); }
+@media (max-width: 420px) { .card-top { flex-direction: column; align-items: flex-start; } .word { font-size: 32px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="label">Stringlings · app icon, round 6</span>
+    <h1>Big notes on the staff, with or without faces</h1>
+    <p class="lede">The phrase on the staff (D, C, then F sharp on the top line) under the red A-string and yellow E-string fingering rules. The first three keep round 5's staff exactly and put the bigger notes on it. The next four widen the staff to fit the big notes properly, and three more add faces to the notes. The last card is round 5, for comparison.</p>
+  </header>
+
+  <section>
+    <span class="label">Background</span>
+    <div class="rail" id="bgs"></div>
+  </section>
+
+  <section><div class="grid" id="cards"></div></section>
+
+  <section>
+    <h2>With the name</h2>
+    <p class="lede">Three rounded typefaces that suit "playful but for grown-ups", plus one where the word carries the string colours itself.</p>
+    <div class="marks" id="marks"></div>
+  </section>
+
+  <section>
+    <h2>On a home screen</h2>
+    <p class="lede" id="selname"></p>
+    <div class="phones" id="phones"></div>
+    <div class="note">
+      <strong>"Stringlings" fits under the icon</strong>
+      <p>At 11 characters it shows in full on the home screen, where "Violin Practice Companion" was cut to "Violin Practi…". The App Store listing can still add a subtitle such as "Violin practice with fingerings".</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>All eleven at Settings size</h2>
+    <p class="lede">At 29 pt what's left is the coloured rules, the eyes and the notes.</p>
+    <div class="lineup" id="lineup"></div>
+  </section>
+</div>
+
+<script>
+const STR = { G: '#1B5E20', D: '#1565C0', A: '#C62828', E: '#FBC02D' };
+const E_RULE_ON_LIGHT = '#C9961C';
+
+const BGS = [
+  { id: 'paper', name: 'Paper', bg1: '#FFF9EE', bg2: '#F2E5CE', ink: '#2B2340', faint: '#2B2340', dark: false },
+  { id: 'white', name: 'White', bg1: '#FFFFFF', bg2: '#EEF0F4', ink: '#1A1A1A', faint: '#1A1A1A', dark: false },
+  { id: 'ink',   name: 'Ink',   bg1: '#33295A', bg2: '#1B1631', ink: '#FFF8EC', faint: '#FFF8EC', dark: true },
+  { id: 'plum',  name: 'Plum',  bg1: '#6B4DE2', bg2: '#4429B0', ink: '#FFFFFF', faint: '#FFFFFF', dark: true },
+];
+
+let uid = 0;
+const ruleColor = (s, b) => (s === 'E' && !b.dark) ? E_RULE_ON_LIGHT : STR[s];
+const chipInk = (s) => s === 'E' ? '#1A1A1A' : '#FFFFFF';
+
+// Quarter note, stem down on the left (as on or above the middle line).
+function note(x, y, r, color, stemLen, extra = '') {
+  const rx = r * 1.32, sw = Math.max(10, r * 0.27), sx = x - rx * 0.9;
+  return `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${r}" transform="rotate(-20 ${x} ${y})" fill="${color}"/>
+    <rect x="${sx - sw / 2}" y="${y + r * 0.2}" width="${sw}" height="${stemLen}" rx="${sw / 2}" fill="${color}"/>${extra}`;
+}
+const staff = (b, ys, op, w) => `<g stroke="${b.faint}" stroke-width="${w}" opacity="${op}">${ys.map(y => `<line x1="-10" y1="${y}" x2="1034" y2="${y}"/>`).join('')}</g>`;
+const label = (t, x, y, size, fill, extra = '') =>
+  `<text x="${x}" y="${y}" font-family="Nunito, ui-rounded, system-ui, sans-serif" font-weight="900" font-size="${size}" text-anchor="middle" fill="${fill}" ${extra}>${t}</text>`;
+const rule = (x1, x2, y, h, c) => `<rect x="${x1}" y="${y - h / 2}" width="${x2 - x1}" height="${h}" rx="${h / 2}" fill="${c}"/>`;
+
+// Eyes for a note head at (x, y) of radius r, looking up towards the label.
+function eyes(x, y, r, b) {
+  const white = b.dark ? '#1B1631' : '#FFFFFF', pupil = b.dark ? '#FFF8EC' : b.ink;
+  const dx = r * 0.36, ex = r * 0.25, ey = r * 0.33, pr = r * 0.14;
+  return `<g transform="rotate(-20 ${x} ${y})">
+    <ellipse cx="${x - dx}" cy="${y - r * 0.05}" rx="${ex}" ry="${ey}" fill="${white}"/>
+    <ellipse cx="${x + dx}" cy="${y - r * 0.05}" rx="${ex}" ry="${ey}" fill="${white}"/>
+    <circle cx="${x - dx + r * 0.06}" cy="${y - r * 0.16}" r="${pr}" fill="${pupil}"/>
+    <circle cx="${x + dx + r * 0.06}" cy="${y - r * 0.16}" r="${pr}" fill="${pupil}"/></g>`;
+}
+const blurDef = (id, sd) => `<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${sd}"/></filter>`;
+
+// The phrase 3 · 2L · 1: two notes on the A string, then up onto the E string.
+function phrase(b, { blur = false, faces = false, staffLines = false } = {}) {
+  const id = 'f' + (uid++), r = 64;
+  const heads = [[235, 640], [505, 700], [790, 560]];
+  const f = blur ? `filter="url(#${id})"` : '';
+  return `${blur ? blurDef(id, 18) : ''}
+    ${staffLines ? staff(b, [560, 640, 720, 800, 880], 0.14, 12) : ''}
+    ${heads.map(([x, y]) => note(x, y, r, b.ink, 230, faces ? eyes(x, y, r, b) : '')).join('')}
+    ${rule(140, 600, 400, 38, ruleColor('A', b))}${rule(690, 900, 322, 38, ruleColor('E', b))}
+    <g ${f}>${label('3', 235, 350, 190, b.ink)}${label('2L', 505, 350, 190, b.ink)}${label('1', 795, 272, 190, b.ink)}</g>`;
+}
+
+// A stringling peeking over a fingering rule: head hidden below the rule's top
+// edge, eyes looking down at the notes, fingers curled over the rule.
+function peeker(cx, ruleY, h, rx, ry, color, b, x1, x2) {
+  const id = 'c' + (uid++), top = ruleY - h / 2, cy = ruleY - ry * 0.45;
+  const white = b.dark ? '#1B1631' : '#FFFFFF', pupil = b.dark ? '#FFF8EC' : b.ink;
+  const ey = cy - ry * 0.22, dx = rx * 0.34, ew = rx * 0.22, eh = ry * 0.3, pr = rx * 0.12;
+  const fw = Math.max(14, rx * 0.12), fingers = [];
+  for (const hx of [cx - rx * 0.78, cx + rx * 0.78])
+    for (const k of [-1, 0, 1])
+      fingers.push(`<rect x="${hx + k * fw * 1.15 - fw / 2}" y="${top - fw * 0.55}" width="${fw}" height="${h * 0.75 + fw * 0.55}" rx="${fw / 2}" fill="${color}"/>`);
+  return `<clipPath id="${id}"><rect x="0" y="-100" width="1024" height="${top + 100 + 1}"/></clipPath>
+    <g clip-path="url(#${id})"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}"/>
+      <ellipse cx="${cx - dx}" cy="${ey}" rx="${ew}" ry="${eh}" fill="${white}"/><ellipse cx="${cx + dx}" cy="${ey}" rx="${ew}" ry="${eh}" fill="${white}"/>
+      <circle cx="${cx - dx + rx * 0.03}" cy="${ey + eh * 0.42}" r="${pr}" fill="${pupil}"/><circle cx="${cx + dx + rx * 0.03}" cy="${ey + eh * 0.42}" r="${pr}" fill="${pupil}"/></g>
+    ${rule(x1, x2, ruleY, h, ruleColor(b._s, b))}${fingers.join('')}`;
+}
+const onString = (b, s) => Object.assign({}, b, { _s: s });
+const plainPhrase = (b) => [[235, 660], [505, 720], [790, 580]].map(([x, y]) => note(x, y, 64, b.ink, 220)).join('');
+
+// Two peeking, with optional staff lines under the notes.
+const LOOSE = { heads: [[235, 660], [505, 720], [790, 580]], r: 64, stem: 220 };
+// On a real treble staff: D5 (4th line), C5 (3rd space), then F#5 (top line).
+const TRUE_STAFF = [500, 596, 692, 788, 884];
+const ON_STAFF = { heads: [[235, 596], [505, 644], [790, 500]], r: 48, stem: 250 };
+// Lower, roomier staff that runs nearly to the bottom edge (from the other session's round 6).
+const LOW_STAFF = [520, 620, 720, 820, 920];
+const ON_LOW = { heads: [[235, 620], [505, 670], [790, 520]], r: 52, stem: 280 };
+function twoPeeking(b, { lines = null, op = 0, w = 12, notes = LOOSE, aY = 420, eY = 330, faces = false, peek = true } = {}) {
+  const heads = notes.heads.map(([x, y]) => note(x, y, notes.r, b.ink, notes.stem, faces ? eyes(x, y, notes.r, b) : '')).join('');
+  const rules = peek
+    ? `${peeker(370, aY, 40, 140, 122, b.ink, onString(b, 'A'), 130, 610)}${peeker(795, eY, 34, 92, 80, b.ink, onString(b, 'E'), 680, 910)}`
+    : `${rule(130, 610, aY, 40, ruleColor('A', b))}${rule(680, 910, eY, 34, ruleColor('E', b))}`;
+  return `${lines ? staff(b, lines, op, w) : ''}${rules}${heads}`;
+}
+
+// Big notes on a true staff: the staff spacing grows to fit the heads (a head
+// is about one space tall), so the staff runs further down the icon.
+function bigStaff(top, gap, r, stem) {
+  const lines = [0, 1, 2, 3, 4].map(i => top + i * gap);
+  // D5 = 4th line from the bottom, C5 = the space below it, F#5 = top line.
+  return { lines, notes: { heads: [[235, top + gap], [505, top + gap * 1.5], [790, top]], r, stem } };
+}
+const BIG = bigStaff(480, 120, 60, 330);
+const LOW = bigStaff(540, 112, 56, 300);
+// Round 5's staff spacing kept exactly, with the bigger heads on it.
+const BIG_ON_STAFF = { heads: ON_STAFF.heads, r: 64, stem: 240 };
+
+const CONCEPTS = [
+  { id: 'pair-true-big', name: 'Big notes, same staff',
+    why: 'Round 5\'s staff left exactly as it was, with the bigger note heads on its lines and spaces. The heads are taller than a staff space, so it is looser than real notation, but it reads better small.',
+    draw: b => twoPeeking(b, { lines: TRUE_STAFF, op: 0.28, w: 12, notes: BIG_ON_STAFF, aY: 400, eY: 318 }) },
+  { id: 'pair-true-big-faint', name: 'Big notes, same staff, lighter',
+    why: 'The same, with the staff lines lighter so the bigger heads stand out more against them.',
+    draw: b => twoPeeking(b, { lines: TRUE_STAFF, op: 0.16, w: 12, notes: BIG_ON_STAFF, aY: 400, eY: 318 }) },
+  { id: 'pair-true-big-firm', name: 'Big notes, same staff, firmer',
+    why: 'The same, with slightly heavier lines, closer to a printed page.',
+    draw: b => twoPeeking(b, { lines: TRUE_STAFF, op: 0.36, w: 14, notes: BIG_ON_STAFF, aY: 400, eY: 318 }) },
+  { id: 'big', name: 'Big notes, wider staff',
+    why: 'Round 4\'s note size, still written correctly. The staff widens to fit the heads, so it now fills the lower half and the stems run off the bottom edge.',
+    draw: b => twoPeeking(b, { lines: BIG.lines, op: 0.28, notes: BIG.notes }) },
+  { id: 'big-faint', name: 'Big notes, wider staff, lighter',
+    why: 'The same layout with the staff lines lighter, so the notes and the stringlings stand out more.',
+    draw: b => twoPeeking(b, { lines: BIG.lines, op: 0.16, notes: BIG.notes }) },
+  { id: 'big-low', name: 'Big notes, staff lower',
+    why: 'Slightly smaller spacing and the whole staff moved down, with the bottom line near the edge. More room above for the two stringlings.',
+    draw: b => twoPeeking(b, { lines: LOW.lines, op: 0.26, notes: LOW.notes, aY: 470, eY: 384 }) },
+  { id: 'big-bleed', name: 'Big notes, ruled page',
+    why: 'The wider staff, with two faint lines continuing the ruling up behind the stringlings, as if the icon were cut from a page of manuscript paper.',
+    draw: b => `${staff(b, [240, 360], 0.09, 12)}${twoPeeking(b, { lines: BIG.lines, op: 0.28, notes: BIG.notes })}` },
+  { id: 'big-faces', name: 'Big notes, faces on the notes too',
+    why: 'The wider staff, with faces on the notes as well, looking up at the stringlings peeking over their fingerings.',
+    draw: b => twoPeeking(b, { lines: BIG.lines, op: 0.28, notes: BIG.notes, faces: true }) },
+  { id: 'low-faces', name: 'Lower staff, faces on the notes',
+    why: 'The staff moved down to run nearly to the bottom edge, with a little more room between the lines. The notes have faces and look up at the stringlings peeking over their fingerings.',
+    draw: b => twoPeeking(b, { lines: LOW_STAFF, op: 0.28, notes: ON_LOW, aY: 420, eY: 340, faces: true }) },
+  { id: 'low-faces-only', name: 'Lower staff, faces only on the notes',
+    why: 'The same, but without the peekers: the notes are the stringlings, looking up at their own red and yellow fingering rules. Simpler, and the faces are larger in proportion.',
+    draw: b => twoPeeking(b, { lines: LOW_STAFF, op: 0.28, notes: ON_LOW, aY: 420, eY: 340, faces: true, peek: false }) },
+  { id: 'pair-true', name: 'Notes on the staff (round 5)',
+    why: 'Round 5\'s version with the smaller notes, for comparison.',
+    draw: b => twoPeeking(b, { lines: TRUE_STAFF, op: 0.28, w: 12, notes: ON_STAFF, aY: 400, eY: 318 }) },
+];
+
+function icon(c, b, size) {
+  const gid = 'g' + (uid++);
+  return `<span class="ic" style="width:${size}px;height:${size}px"><svg viewBox="0 0 1024 1024" aria-hidden="true">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${b.bg1}"/><stop offset="1" stop-color="${b.bg2}"/></linearGradient></defs>
+    <rect width="1024" height="1024" fill="url(#${gid})"/>${c.draw(b)}</svg></span>`;
+}
+
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+let bgId = store.get('sl.bg', 'paper');
+let selId = store.get('sl.sel', 'pair-true-big');
+if (!BGS.some(b => b.id === bgId)) bgId = 'paper';
+if (!CONCEPTS.some(c => c.id === selId)) selId = 'pair-true-big';
+
+const PLACEHOLDERS = [
+  ['#9AA5B1','#6E7A88','Tuner'], ['#C7B9A6','#9C8B75','Metronome'], ['#8FB3A6','#5E8476','Music'], ['#B7A3C9','#8A74A2','Photos'],
+  ['#A9B9CF','#7489A8','Files'], ['#CDAFA4','#A1837A','Calendar'], ['#A4B6A0','#76896F','Clock'],
+];
+
+function steppedWord() {
+  // "Stringlings" with the four string colours as stepped rules beneath it.
+  const segs = [['G', 0, 46], ['D', 50, 96], ['A', 100, 146], ['E', 150, 196]];
+  return `<svg viewBox="0 0 200 62" width="300" height="93" aria-label="Stringlings">
+    <text x="100" y="36" text-anchor="middle" font-family="Nunito, ui-rounded, sans-serif" font-weight="900" font-size="34" fill="currentColor">Stringlings</text>
+    ${segs.map(([s, a, z], i) => `<rect x="${a + 2}" y="${56 - i * 4}" width="${z - a}" height="4" rx="2" fill="${s === 'E' ? E_RULE_ON_LIGHT : STR[s]}"/>`).join('')}
+  </svg>`;
+}
+
+function render() {
+  uid = 0;
+  const b = BGS.find(x => x.id === bgId), sel = CONCEPTS.find(c => c.id === selId);
+  document.getElementById('bgs').innerHTML = BGS.map(x =>
+    `<button class="chip" id="bg-${x.id}" data-bg="${x.id}" aria-pressed="${x.id === bgId}">
+      <span class="sw" style="background:linear-gradient(${x.bg1},${x.bg2})"></span>${x.name}</button>`).join('');
+
+  document.getElementById('cards').innerHTML = CONCEPTS.map(c =>
+    `<button class="card" id="card-${c.id}" data-sel="${c.id}" aria-pressed="${c.id === selId}">
+      <div class="card-top">${icon(c, b, 132)}<div><h3>${c.name}</h3><p>${c.why}</p></div></div>
+      <div class="sizes">
+        <div class="wall light">${icon(c, b, 60)}${icon(c, b, 29)}</div>
+        <div class="wall dark">${icon(c, b, 60)}${icon(c, b, 29)}</div>
+      </div></button>`).join('');
+
+  const fonts = [
+    ['Nunito', "'Nunito', ui-rounded, sans-serif", 900],
+    ['Fredoka', "'Fredoka', ui-rounded, sans-serif", 600],
+    ['Baloo 2', "'Baloo 2', ui-rounded, sans-serif", 800],
+  ];
+  document.getElementById('marks').innerHTML =
+    fonts.map(([n, fam, w]) => `<div class="mark"><div class="lockup">${icon(sel, b, 64)}
+      <span class="word" style="font-family:${fam};font-weight:${w}">Stringlings</span></div><small>${n}</small></div>`).join('') +
+    `<div class="mark"><div class="lockup word">${steppedWord()}</div><small>Nunito, with the string rules stepping G–D–A–E beneath</small></div>`;
+
+  document.getElementById('selname').textContent = `${sel.name}, on ${b.name}, among other apps at real size.`;
+  const apps = () => {
+    const out = [], ours = `<div class="app">${icon(sel, b, 56)}<span>Stringlings</span></div>`;
+    PLACEHOLDERS.forEach(([c1, c2, name], i) => {
+      if (i === 5) out.push(ours);
+      out.push(`<div class="app"><span class="ph" style="background:linear-gradient(${c1},${c2})"></span><span>${name}</span></div>`);
+    });
+    return out.join('');
+  };
+  document.getElementById('phones').innerHTML = `<div class="phone light">${apps()}</div><div class="phone dark">${apps()}</div>`;
+
+  document.getElementById('lineup').innerHTML = CONCEPTS.map(c =>
+    `<figure><div class="wall light">${icon(c, b, 29)}</div><div class="wall dark">${icon(c, b, 29)}</div><figcaption>${c.name}</figcaption></figure>`).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const x = e.target.closest('[data-bg]');
+  if (x) { bgId = x.dataset.bg; store.set('sl.bg', bgId); render(); document.getElementById('bg-' + bgId).focus(); return; }
+  const s = e.target.closest('[data-sel]');
+  if (s) { selId = s.dataset.sel; store.set('sl.sel', selId); render(); document.getElementById('card-' + selId).focus(); }
+});
+render();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+</script>
