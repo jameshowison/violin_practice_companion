@@ -2,13 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
-import '../models/collection_palette.dart';
+import '../models/piece.dart';
+import '../models/piece_filter.dart';
 import '../models/piece_library.dart';
 import '../models/piece_library_view.dart';
 import '../models/piece_layout.dart';
+import '../services/piece_list_providers.dart';
 import '../services/providers.dart';
 import '../services/verovio_engraver.dart';
-import '../widgets/collection_filter_bar.dart';
+import '../theme/skin_style.dart';
+import '../ui/adaptive/adaptive.dart';
+import '../widgets/piece_filter_panel.dart';
+import '../widgets/piece_row.dart';
+import '../widgets/search_token_field.dart';
 import 'abc_import_screen.dart';
 import 'manage_pieces_screen.dart';
 import 'piece_detail_screen.dart';
@@ -18,33 +24,87 @@ import '../services/launch_timing.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
-/// Read-only apart from the collection filter: renaming, hiding, deleting and
-/// reordering all live behind the Manage button (beside the search box), so the
-/// surface a kid taps to pick a piece can't accidentally lose one. The gear in
-/// the AppBar opens the app-wide [SettingsScreen].
+/// One screen, two layouts. A phone keeps the filters (books, keywords, key,
+/// recording) in a drawer that slides in over most of the screen; a tablet
+/// keeps the same panel out as a sidebar. Either way the active filters show
+/// as tokens in the search field, and the list is Recents or All.
+///
+/// Read-only apart from the filters and a book's order: renaming, hiding,
+/// deleting and keywording live behind Manage (in the filter panel), so the
+/// surface a kid taps to pick a piece can't accidentally lose one. The gear
+/// opens the app-wide [SettingsScreen].
 class PieceListScreen extends ConsumerWidget {
   const PieceListScreen({super.key});
 
+  Future<void> _addPiece(BuildContext context) async {
+    final choice = await showAppActionSheet<String>(
+      context,
+      title: 'Add a piece',
+      actions: const [
+        AppSheetAction(
+          key: ValueKey('scan_page_fab'),
+          value: 'scan',
+          label: 'Scan a page',
+          icon: Icons.document_scanner,
+        ),
+        AppSheetAction(
+          key: ValueKey('import_abc_fab'),
+          value: 'abc',
+          label: 'Import from ABC',
+          icon: Icons.library_music,
+        ),
+      ],
+    );
+    if (!context.mounted || choice == null) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) =>
+          choice == 'scan' ? const ScanScreen() : const AbcImportScreen(),
+    ));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collections = ref.watch(collectionsProvider);
-    final active =
-        resolveActiveCollection(ref.watch(activeCollectionProvider), collections);
-    final piecesAsync = ref.watch(visiblePiecesProvider);
-    final hiddenCount = ref.watch(hiddenPieceCountProvider);
-    final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
-    final colors = CollectionPalette.colorsFor(collections);
-    final query = ref.watch(pieceSearchProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final wide = isWideLayout(width);
+    final skin = SkinStyle.of(context);
+    final activeCount =
+        ref.watch(pieceFilterProvider.select((f) => f.activeCount));
+    final book = ref.watch(pieceListProvider).valueOrNull?.book;
 
     return Scaffold(
+      drawer: wide
+          ? null
+          : Drawer(
+              key: const ValueKey('piece_filter_drawer'),
+              width: width * 0.86,
+              shape: const RoundedRectangleBorder(),
+              child: const PieceFilterPanel(dismissible: true),
+            ),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: wide ? 0 : 116,
+        leading: wide
+            ? const SizedBox.shrink()
+            : Builder(
+                builder: (ctx) => TextButton.icon(
+                  key: const ValueKey('filters_button'),
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                  icon: Badge(
+                    isLabelVisible: activeCount > 0,
+                    label: Text('$activeCount'),
+                    child: const Icon(Icons.filter_list),
+                  ),
+                  label: const Text('Filters'),
+                ),
+              ),
         // The build stamp rides on the FIRST screen, not just the piece detail
         // one, so "is my change actually running?" can be answered before
         // navigating anywhere. See CLAUDE.md "Verify the build is live".
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Violin Practice Companion'),
+            Text(book?.name ?? skin.listTitle,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
             if (kDebugMode)
               Text(kBuildRef,
                   style: TextStyle(
@@ -58,6 +118,12 @@ class PieceListScreen extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
+            key: const ValueKey('add_piece_button'),
+            icon: const Icon(Icons.add),
+            tooltip: 'Add a piece',
+            onPressed: () => _addPiece(context),
+          ),
+          IconButton(
             key: const ValueKey('app_settings_button'),
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
@@ -67,222 +133,359 @@ class PieceListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: piecesAsync.when(
-        data: (all) {
-          LaunchTiming.markOnce('piece list built with data');
-          if (LaunchTiming.enabled) {
-            WidgetsBinding.instance.addPostFrameCallback(
-                (_) => LaunchTiming.markOnce('list painted'));
-          }
-          final pieces = [
-            for (final p in all)
-              if (matchesSearch(p.title, query)) p,
-          ];
-          final searching = query.trim().isNotEmpty;
-          return Column(
-          children: [
-            const _SearchField(),
-            // Omitted entirely until a collection exists — which is the
-            // day-one state, and the reason this is a body band rather than
-            // AppBar.bottom (that would need a PreferredSize height fixed
-            // before the library resolved, and jump when it did).
-            if (collections.isNotEmpty) ...[
-              CollectionFilterBar(
-                collections: collections,
-                colors: colors,
-                activeId: active,
-                keyPrefix: 'collection_chip',
-                onSelect: (id) =>
-                    ref.read(activeCollectionProvider.notifier).state = id,
-              ),
-              const Divider(height: 1),
-            ],
-            Expanded(
-              child: pieces.isEmpty
-                  ? _EmptyState(
-                      state: searching && all.isNotEmpty
-                          ? (
-                              message: active == null
-                                  ? 'No pieces match "${query.trim()}".'
-                                  : 'No pieces in "${library.collectionById(active)?.name}" '
-                                      'match "${query.trim()}".',
-                              offerManage: false,
-                            )
-                          : libraryEmptyState(
-                        hasAnyPieces:
-                            (ref.watch(piecesProvider).valueOrNull ?? const [])
-                                .isNotEmpty,
-                        collectionName: active == null
-                            ? null
-                            : library.collectionById(active)?.name,
-                        hiddenCount: hiddenCount,
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: pieces.length +
-                          (hiddenCount > 0 && !searching ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == pieces.length) {
-                          return _HiddenFooter(count: hiddenCount);
-                        }
-                        final piece = pieces[index];
-                        return ListTile(
-                          key: ValueKey('piece_row_${piece.id}'),
-                          title: Text(piece.title),
-                          subtitle: Text(
-                            pieceSubtitle(
-                              piece,
-                              [
-                                for (final c in collections)
-                                  if (c.pieceIds.contains(piece.id)) c.name
-                              ],
-                              includeCollections: active == null,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
-                            VerovioEngraver.openClock..reset()..start();
-                            // Seed the rows the detail screen would otherwise
-                            // push after its first frame: that push reloads the
-                            // layout, and the reload blanks the body and throws
-                            // away the staff's first engrave.
-                            ref.read(measuresPerRowProvider.notifier).state =
-                                measuresPerRowForWidth(
-                                    MediaQuery.sizeOf(context).width -
-                                        MediaQuery.paddingOf(context)
-                                            .horizontal);
-                            ref.read(selectedPieceProvider.notifier).state =
-                                piece;
-                            ref.read(measureSelectionProvider.notifier).state =
-                                null;
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const PieceDetailScreen(),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-            ),
-            // The footer is a list item when there IS a list, but an empty
-            // filtered list would otherwise be a dead end: "all 10 pieces in
-            // OMR demos are hidden" with no way through to change that. So it
-            // also renders below the empty state.
-            if (pieces.isEmpty && hiddenCount > 0 && !searching)
-              _HiddenFooter(count: hiddenCount),
-          ],
-        );
-        },
-        loading: () {
-          LaunchTiming.markOnce('spinner shown');
-          return const Center(child: CircularProgressIndicator());
-        },
-        error: (e, st) => Center(child: Text('Error loading pieces: $e')),
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            key: const ValueKey('scan_page_fab'),
-            heroTag: 'scan_page_fab',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ScanScreen()),
-              );
-            },
-            icon: const Icon(Icons.document_scanner),
-            label: const Text('Scan a page'),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            key: const ValueKey('import_abc_fab'),
-            heroTag: 'import_abc_fab',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AbcImportScreen()),
-              );
-            },
-            icon: const Icon(Icons.library_music),
-            label: const Text('Import from ABC'),
-          ),
-        ],
-      ),
+      body: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                SizedBox(
+                  key: ValueKey('piece_filter_sidebar'),
+                  width: 320,
+                  child: PieceFilterPanel(dismissible: false),
+                ),
+                VerticalDivider(width: 1),
+                Expanded(child: _PieceListBody(wide: true)),
+              ],
+            )
+          : const _PieceListBody(wide: false),
     );
   }
 }
 
-/// Search by title. Stateful only to own the controller, which is seeded from
-/// [pieceSearchProvider] so the query survives a trip into a piece and back.
-class _SearchField extends ConsumerStatefulWidget {
-  const _SearchField();
+class _PieceListBody extends ConsumerStatefulWidget {
+  const _PieceListBody({required this.wide});
+
+  final bool wide;
 
   @override
-  ConsumerState<_SearchField> createState() => _SearchFieldState();
+  ConsumerState<_PieceListBody> createState() => _PieceListBodyState();
 }
 
-class _SearchFieldState extends ConsumerState<_SearchField> {
-  late final _controller =
-      TextEditingController(text: ref.read(pieceSearchProvider));
+class _PieceListBodyState extends ConsumerState<_PieceListBody> {
+  /// Rearranging the selected book.
+  bool _editing = false;
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  /// The order just dragged to, shown until the library catches up — the same
+  /// optimism as Manage's reorderable list.
+  List<String>? _pendingOrder;
+
+  double get _gutter => widget.wide ? 24 : 16;
+
+  void _update(PieceFilter Function(PieceFilter) f) {
+    appSelectionHaptic();
+    final n = ref.read(pieceFilterProvider.notifier);
+    n.state = f(n.state);
+  }
+
+  Future<void> _open(Piece piece) async {
+    VerovioEngraver.openClock..reset()..start();
+    // Seed the rows the detail screen would otherwise push after its first
+    // frame: that push reloads the layout, and the reload blanks the body and
+    // throws away the staff's first engrave. The detail screen is full width
+    // even beside the sidebar, so measure the whole window.
+    ref.read(measuresPerRowProvider.notifier).state = measuresPerRowForWidth(
+        MediaQuery.sizeOf(context).width -
+            MediaQuery.paddingOf(context).horizontal);
+    ref.read(selectedPieceProvider.notifier).state = piece;
+    ref.read(measureSelectionProvider.notifier).state = null;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PieceDetailScreen()),
+    );
+    // Media is added and removed inside a piece; refresh the recording marks.
+    if (mounted) ref.invalidate(recordedPiecesProvider);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Manage sits beside the search because both are about the list itself;
-    // the AppBar's gear is for the app.
+    final async = ref.watch(pieceListProvider);
+    return async.when(
+      data: (result) {
+        LaunchTiming.markOnce('piece list built with data');
+        if (LaunchTiming.enabled) {
+          WidgetsBinding.instance.addPostFrameCallback(
+              (_) => LaunchTiming.markOnce('list painted'));
+        }
+        return _content(result);
+      },
+      loading: () {
+        LaunchTiming.markOnce('spinner shown');
+        return Center(child: CircularProgressIndicator.adaptive());
+      },
+      error: (e, st) => Center(child: Text('Error loading pieces: $e')),
+    );
+  }
+
+  Widget _content(PieceListResult result) {
+    final filter = ref.watch(pieceFilterProvider);
+    final skin = SkinStyle.of(context);
+    final book = result.book;
+    final editing = _editing && book != null;
+    if (book == null && _editing) _editing = false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(_gutter, 8, _gutter, 0),
+          child: const SearchTokenField(),
+        ),
+        if (!widget.wide)
+          Padding(
+            padding: EdgeInsets.fromLTRB(_gutter, 12, _gutter, 0),
+            child: SegmentedButton<PieceTab>(
+              key: const ValueKey('piece_tab_switch'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                    value: PieceTab.recent,
+                    label: Text(skin.recentsLabel,
+                        key: const ValueKey('piece_tab_recent'))),
+                ButtonSegment(
+                    value: PieceTab.all,
+                    label: Text(skin.allLabel,
+                        key: const ValueKey('piece_tab_all'))),
+              ],
+              selected: {filter.tab},
+              onSelectionChanged: (s) {
+                setState(() => _editing = false);
+                _update((f) => f.copyWith(tab: s.single));
+              },
+            ),
+          ),
+        if (book != null) _bookStrip(result, filter, book, editing),
+        Expanded(child: editing ? _editList(book) : _list(result, filter)),
+      ],
+    );
+  }
+
+  Widget _bookStrip(
+      PieceListResult result, PieceFilter filter, Collection book, bool editing) {
+    final theme = Theme.of(context);
+    final line = filter.tab == PieceTab.recent
+        ? 'Recently played from ${book.name}'
+        : '${result.inBookOrder ? 'In book order' : 'Sorted A–Z'} · '
+            '${result.rows.length} of ${result.bookLength}';
+    // One line even on a 375pt phone: the text already says which order is
+    // showing, so the sort toggle can be an icon.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      padding: EdgeInsets.fromLTRB(_gutter, 6, _gutter - 8, 0),
       child: Row(
         children: [
-          Expanded(child: _field()),
-          IconButton(
-            key: const ValueKey('manage_pieces_button'),
-            icon: const Icon(Icons.edit_note),
-            tooltip: 'Manage pieces',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                  builder: (_) => const ManagePiecesScreen()),
+          Expanded(
+            child: Text(editing ? 'Drag to change the book order' : line,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+          if (filter.tab == PieceTab.all && !editing)
+            IconButton(
+              key: const ValueKey('book_sort_button'),
+              icon: const Icon(Icons.swap_vert),
+              tooltip: filter.bookSort == BookSort.book
+                  ? 'Sort A–Z'
+                  : 'Back to book order',
+              onPressed: () => _update((f) => f.copyWith(
+                  bookSort: f.bookSort == BookSort.book
+                      ? BookSort.az
+                      : BookSort.book)),
             ),
+          TextButton(
+            key: const ValueKey('book_edit_order_button'),
+            onPressed: () {
+              setState(() {
+                _editing = !_editing;
+                _pendingOrder = null;
+              });
+              if (_editing) _update((f) => f.copyWith(tab: PieceTab.all));
+            },
+            child: Text(editing ? 'Done' : 'Edit order'),
           ),
         ],
       ),
     );
   }
 
-  Widget _field() {
-    return TextField(
-        key: const ValueKey('piece_search_field'),
-        controller: _controller,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Search pieces',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: ValueListenableBuilder(
-            valueListenable: _controller,
-            builder: (_, value, _) => value.text.isEmpty
-                ? const SizedBox.shrink()
-                : IconButton(
-                    key: const ValueKey('piece_search_clear'),
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Clear search',
-                    onPressed: () {
-                      _controller.clear();
-                      ref.read(pieceSearchProvider.notifier).state = '';
-                    },
-                  ),
+  Widget _editList(Collection book) {
+    final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+    final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
+    var members =
+        applyLibrary(library, pieces, collectionId: book.id, showHidden: true);
+    final pending = _pendingOrder;
+    if (pending != null && pending.length == members.length) {
+      final byId = {for (final p in members) p.id: p};
+      if (pending.every(byId.containsKey)) {
+        members = [for (final id in pending) byId[id]!];
+      }
+    }
+    final ids = [for (final p in members) p.id];
+    final theme = Theme.of(context);
+    return ReorderableListView.builder(
+      key: const ValueKey('book_order_list'),
+      buildDefaultDragHandles: false,
+      padding: EdgeInsets.fromLTRB(_gutter, 12, _gutter, 24),
+      itemCount: members.length,
+      itemBuilder: (context, i) => Material(
+        key: ValueKey('book_order_row_${members[i].id}'),
+        color: theme.colorScheme.surface,
+        child: ListTile(
+          leading: BookNumberBadge(number: i + 1),
+          title: Text(members[i].title),
+          trailing: ReorderableDragStartListener(
+            index: i,
+            child: const Icon(Icons.drag_handle),
           ),
-          isDense: true,
-          border: const OutlineInputBorder(),
         ),
-        onChanged: (v) => ref.read(pieceSearchProvider.notifier).state = v,
+      ),
+      onReorderItem: (oldIndex, newIndex) {
+        setState(() => _pendingOrder = reorderedIds(ids, oldIndex, newIndex));
+        ref
+            .read(libraryProvider.notifier)
+            .reorderInCollection(book.id, ids, oldIndex, newIndex);
+      },
+    );
+  }
+
+  Widget _list(PieceListResult result, PieceFilter filter) {
+    final skin = SkinStyle.of(context);
+    final query = ref.watch(pieceSearchProvider);
+    final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+    final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
+    final hidden = hiddenCount(library, pieces, collectionId: result.book?.id);
+    final narrowed = query.trim().isNotEmpty || filter.activeCount > 0;
+    final recents = filter.tab == PieceTab.recent;
+
+    if (result.rows.isEmpty) {
+      if (narrowed) {
+        return _EmptyState(
+          message: 'No pieces match.',
+          action: (
+            key: 'empty_state_clear_button',
+            label: 'Clear filters',
+            onPressed: () {
+              ref.read(pieceSearchProvider.notifier).state = '';
+              _update((f) => f.cleared());
+            },
+          ),
+        );
+      }
+      if (recents) {
+        return _EmptyState(
+          message: 'Pieces you open will show up here.',
+          action: (
+            key: 'empty_state_all_button',
+            label: 'See all pieces',
+            onPressed: () => _update((f) => f.copyWith(tab: PieceTab.all)),
+          ),
+        );
+      }
+      final state = libraryEmptyState(
+        hasAnyPieces: pieces.isNotEmpty,
+        collectionName: null,
+        hiddenCount: hidden,
+      );
+      return Column(children: [
+        Expanded(
+            child: _EmptyState(message: state.message, offerManage: state.offerManage)),
+        if (hidden > 0) _HiddenFooter(count: hidden),
+      ]);
+    }
+
+    final now = DateTime.now();
+    String subtitleOf(PieceListRow r) =>
+        pieceRowSubtitle(r, recents: recents, wide: widget.wide);
+
+    final footer = [
+      if (hidden > 0 && !narrowed) _HiddenFooter(count: hidden),
+    ];
+
+    if (skin.rowStyle == PieceRowStyle.cards) {
+      return GridView.builder(
+        padding: EdgeInsets.fromLTRB(_gutter, 14, _gutter, 24),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: widget.wide ? 4 : 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: widget.wide ? 1.3 : 1.15,
+        ),
+        itemCount: result.rows.length + footer.length,
+        itemBuilder: (_, i) {
+          if (i >= result.rows.length) return footer[i - result.rows.length];
+          final r = result.rows[i];
+          return PieceCard(
+            key: ValueKey('piece_row_${r.piece.id}'),
+            row: r,
+            subtitle: recents
+                ? [
+                    lastPlayedLabel(r.activity!.openedAt, now),
+                    ?r.activity?.lastSection,
+                  ].join(' · ')
+                : (r.meta?.composer ?? ''),
+            color: skin.cardColors[i % skin.cardColors.length],
+            onTap: () => _open(r.piece),
+          );
+        },
+      );
+    }
+
+    // Classic: inset groups. Recents (with no book) by day; otherwise one group.
+    final groups = <(String, List<PieceListRow>)>[];
+    if (recents && result.book == null) {
+      for (final label in const ['Today', 'Yesterday', 'Earlier']) {
+        final rows = [
+          for (final r in result.rows)
+            if (recentBucket(r.activity!.openedAt, now) == label) r
+        ];
+        if (rows.isNotEmpty) groups.add((label, rows));
+      }
+    } else {
+      final n = result.rows.length;
+      final order = result.inBookOrder
+          ? 'book order'
+          : recents
+              ? 'most recent first'
+              : 'A–Z';
+      groups.add(('$n ${n == 1 ? 'piece' : 'pieces'} · $order', result.rows));
+    }
+
+    final theme = Theme.of(context);
+    return ListView(
+      padding: EdgeInsets.fromLTRB(_gutter, 4, _gutter, 24),
+      children: [
+        for (final (label, rows) in groups) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+            child: Text(label.toUpperCase(),
+                style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.6)),
+          ),
+          Material(
+            color: theme.colorScheme.surface,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(skin.groupRadius)),
+            child: Column(children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                      height: 1,
+                      indent: rows[i].bookNumber == null ? 16 : 58),
+                PieceListTile(
+                  key: ValueKey('piece_row_${rows[i].piece.id}'),
+                  row: rows[i],
+                  subtitle: subtitleOf(rows[i]),
+                  wide: widget.wide,
+                  lastPlayed: rows[i].activity == null
+                      ? null
+                      : lastPlayedLabel(rows[i].activity!.openedAt, now),
+                  onTap: () => _open(rows[i].piece),
+                ),
+              ],
+            ]),
+          ),
+        ],
+        ...footer,
+      ],
     );
   }
 }
@@ -295,10 +498,6 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
 /// this footer at the bottom of a long list) hiding silently stopped applying on
 /// the child's screen, which is the whole point of hiding. Hidden pieces are
 /// always visible and editable on Manage, so this list needs no mode of its own.
-///
-/// Deliberately a list footer rather than a chip: it costs no horizontal budget,
-/// so it can't scroll out of reach on a phone, and it reads as a footnote rather
-/// than a control competing with the collections.
 class _HiddenFooter extends StatelessWidget {
   const _HiddenFooter({required this.count});
 
@@ -325,9 +524,15 @@ class _HiddenFooter extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.state});
+  const _EmptyState({
+    required this.message,
+    this.offerManage = false,
+    this.action,
+  });
 
-  final LibraryEmptyState state;
+  final String message;
+  final bool offerManage;
+  final ({String key, String label, VoidCallback onPressed})? action;
 
   @override
   Widget build(BuildContext context) {
@@ -341,12 +546,20 @@ class _EmptyState extends StatelessWidget {
             Icon(Icons.music_note, size: 48, color: theme.hintColor),
             const SizedBox(height: 12),
             Text(
-              state.message,
+              message,
               textAlign: TextAlign.center,
               style:
                   theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
             ),
-            if (state.offerManage) ...[
+            if (action case final a?) ...[
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                key: ValueKey(a.key),
+                onPressed: a.onPressed,
+                child: Text(a.label),
+              ),
+            ],
+            if (offerManage) ...[
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 key: const ValueKey('empty_state_manage_button'),

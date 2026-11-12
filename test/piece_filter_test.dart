@@ -211,6 +211,21 @@ void main() {
     });
   });
 
+  test('lastPlayedLabel', () {
+    final noon = DateTime(2026, 11, 12, 12);
+    expect(lastPlayedLabel(DateTime(2026, 11, 12, 1), noon), 'Today');
+    expect(lastPlayedLabel(DateTime(2026, 11, 11, 23), noon), 'Yesterday');
+    expect(lastPlayedLabel(DateTime(2026, 11, 9), noon), '3 days ago');
+    expect(lastPlayedLabel(DateTime(2026, 10, 29), noon), '2 weeks ago');
+    expect(lastPlayedLabel(DateTime(2026, 8, 1), noon), '3 months ago');
+  });
+
+  test('a book reports its full length, however filtered', () {
+    final r = run(const PieceFilter().toggleBook('book').toggleKey('D major'));
+    expect(r.bookLength, 5);
+    expect(r.rows.length, 2);
+  });
+
   test('recentBucket goes by calendar day', () {
     final noon = DateTime(2026, 11, 12, 12);
     expect(recentBucket(DateTime(2026, 11, 12, 0, 5), noon), 'Today');

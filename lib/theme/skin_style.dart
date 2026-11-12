@@ -1,0 +1,77 @@
+import 'package:flutter/material.dart';
+
+/// How the piece list draws a row.
+enum PieceRowStyle {
+  /// Inset grouped list rows (Classic).
+  list,
+
+  /// Colourful cards in a grid (Playful).
+  cards,
+}
+
+/// What a skin changes beyond [ThemeData]'s colours, type and shapes: the
+/// piece list's row style, the card colours, and the friendlier wording.
+///
+/// Read with [SkinStyle.of]; a theme without the extension is Classic.
+@immutable
+class SkinStyle extends ThemeExtension<SkinStyle> {
+  const SkinStyle({
+    required this.rowStyle,
+    required this.cardColors,
+    required this.cardInk,
+    required this.friendlyCopy,
+    required this.groupRadius,
+  });
+
+  final PieceRowStyle rowStyle;
+
+  /// Card backgrounds, cycled down the grid.
+  final List<Color> cardColors;
+
+  /// Text on a card; dark enough on every [cardColors] entry.
+  final Color cardInk;
+
+  /// "What shall we play?" rather than "Pieces", and so on.
+  final bool friendlyCopy;
+
+  /// Corner radius of grouped lists, panels and fields.
+  final double groupRadius;
+
+  static const classic = SkinStyle(
+    rowStyle: PieceRowStyle.list,
+    cardColors: [Color(0xFFE8EAF6)],
+    cardInk: Color(0xFF1C1B1F),
+    friendlyCopy: false,
+    groupRadius: 10,
+  );
+
+  static SkinStyle of(BuildContext context) =>
+      Theme.of(context).extension<SkinStyle>() ?? classic;
+
+  String get listTitle => friendlyCopy ? 'What shall we play?' : 'Pieces';
+  String get recentsLabel => friendlyCopy ? 'Played lately' : 'Recents';
+  String get allLabel => friendlyCopy ? 'All my music' : 'All Pieces';
+  String get searchHint =>
+      friendlyCopy ? 'Find a song' : 'Title, composer or keyword';
+
+  @override
+  SkinStyle copyWith({
+    PieceRowStyle? rowStyle,
+    List<Color>? cardColors,
+    Color? cardInk,
+    bool? friendlyCopy,
+    double? groupRadius,
+  }) =>
+      SkinStyle(
+        rowStyle: rowStyle ?? this.rowStyle,
+        cardColors: cardColors ?? this.cardColors,
+        cardInk: cardInk ?? this.cardInk,
+        friendlyCopy: friendlyCopy ?? this.friendlyCopy,
+        groupRadius: groupRadius ?? this.groupRadius,
+      );
+
+  /// Skins switch whole, so there is nothing to interpolate.
+  @override
+  SkinStyle lerp(SkinStyle? other, double t) =>
+      t < 0.5 || other == null ? this : other;
+}

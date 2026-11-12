@@ -141,6 +141,10 @@ class PieceListResult {
   /// longer exists.
   final Collection? book;
 
+  /// How many pieces the selected book holds, counting only pieces that
+  /// exist (hidden ones included). 0 with no book.
+  final int bookLength;
+
   /// Facet counts. Each applies every filter EXCEPT its own facet, within the
   /// current tab, so a count always says how many rows picking it would give.
   final Map<String, int> bookCounts;
@@ -154,6 +158,7 @@ class PieceListResult {
     required this.rows,
     required this.inBookOrder,
     required this.book,
+    this.bookLength = 0,
     required this.bookCounts,
     required this.tagCounts,
     required this.keyCounts,
@@ -279,6 +284,7 @@ PieceListResult filterPieces({
     rows: rows,
     inBookOrder: inBookOrder,
     book: book,
+    bookLength: bookOrder.length,
     bookCounts: bookCounts,
     tagCounts: tagCounts,
     keyCounts: keyCounts,
@@ -295,6 +301,19 @@ String recentBucket(DateTime openedAt, DateTime now) {
   if (days <= 0) return 'Today';
   if (days == 1) return 'Yesterday';
   return 'Earlier';
+}
+
+/// The wide list's "Last played" column: "Today", "Yesterday", "3 days ago",
+/// "2 weeks ago", by calendar day.
+String lastPlayedLabel(DateTime openedAt, DateTime now) {
+  final day = DateTime(now.year, now.month, now.day);
+  final opened = DateTime(openedAt.year, openedAt.month, openedAt.day);
+  final days = day.difference(opened).inDays;
+  if (days <= 0) return 'Today';
+  if (days == 1) return 'Yesterday';
+  if (days < 14) return '$days days ago';
+  if (days < 60) return '${days ~/ 7} weeks ago';
+  return '${days ~/ 30} months ago';
 }
 
 enum SuggestionKind { book, keyword, key }

@@ -9,7 +9,14 @@ import 'providers.dart';
 
 /// The piece list's filters: tab, book, keywords, key, recording. Session
 /// state, like the search box.
-final pieceFilterProvider = StateProvider<PieceFilter>((_) => const PieceFilter());
+///
+/// Opens on Recents once something has been played on this device, and on
+/// All before that, so a fresh install never starts on an empty tab.
+final pieceFilterProvider = StateProvider<PieceFilter>((ref) => PieceFilter(
+      tab: ref.read(pieceActivityProvider).isEmpty
+          ? PieceTab.all
+          : PieceTab.recent,
+    ));
 
 /// Key, time and composer for every piece, read from each score's header.
 ///

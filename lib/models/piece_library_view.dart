@@ -134,4 +134,10 @@ String? resolveActiveCollection(String? requested, List<Collection> collections)
 /// 192pt on chrome, leaving ~200pt for the title — enough for icons only. The
 /// same 600pt breakpoint as `measuresPerRowForWidth`; see
 /// `piece_detail_screen.dart`'s compact-layout switch for the precedent.
-bool manageRowUsesLabeledActions(double widthPx) => widthPx >= 600;
+bool manageRowUsesLabeledActions(double widthPx) => isWideLayout(widthPx);
+
+/// Tablet-class width: the piece list keeps its filter panel out as a
+/// sidebar, where narrower screens slide it in as a drawer. The app's one
+/// width breakpoint, shared with [manageRowUsesLabeledActions] and
+/// `measuresPerRowForWidth`.
+bool isWideLayout(double widthPx) => widthPx >= 600;
