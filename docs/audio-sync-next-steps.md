@@ -266,7 +266,7 @@ Make it optional and additive, so absent input changes nothing:
 
 **Component:** `AudioDecoder`
 **Files:** `ios/Runner/AudioDecoderPlugin.swift`,
-`android/app/src/main/kotlin/com/example/violin_practice_companion/AudioDecoderPlugin.kt`
+`android/app/src/main/kotlin/name/howison/violinPracticeCompanion/AudioDecoderPlugin.kt`
 
 The Dart side's contract is pinned by `test/audio_decoder_test.dart` (Float32 →
 Float64 widening, every malformed-reply shape, failure-is-null rather than

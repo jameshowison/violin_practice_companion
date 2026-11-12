@@ -1,4 +1,4 @@
-package com.example.violin_practice_companion
+package name.howison.violinPracticeCompanion
 
 import android.media.MediaCodec
 import android.media.MediaExtractor

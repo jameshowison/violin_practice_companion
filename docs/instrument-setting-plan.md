@@ -82,8 +82,8 @@ tray.
   `instruments: [...]` and have `PieceRepository.loadAll` or
   `visiblePiecesProvider` filter on it. Not needed while every piece is
   playable on the violin.
-- **Android `applicationId`** is still `com.example.violin_practice_companion`.
-  Change it before any Play upload; it can never change after publishing.
+- **Android `applicationId`** is `name.howison.violinPracticeCompanion`, matching
+  the iOS bundle id (changed 2026-11-12, before any Play upload).
 
 ## Later: store flavors
 

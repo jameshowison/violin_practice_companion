@@ -1,4 +1,4 @@
-package com.example.violin_practice_companion
+package name.howison.violinPracticeCompanion
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

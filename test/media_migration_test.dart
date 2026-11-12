@@ -39,7 +39,7 @@ void main() {
         () {
       // The reason the anchor is the recordings folder and not "/Documents/":
       // Android's documents directory is `.../app_flutter`.
-      const stored = '/data/user/0/com.example.violin_practice_companion/'
+      const stored = '/data/user/0/name.howison.violinPracticeCompanion/'
           'app_flutter/teacher_recordings/galopede/audio.wav';
       expect(MediaMigration.relativizeLegacyPath(stored),
           'teacher_recordings/galopede/audio.wav');

@@ -1,4 +1,4 @@
-package com.example.violin_practice_companion
+package name.howison.violinPracticeCompanion
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
