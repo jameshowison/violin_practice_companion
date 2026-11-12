@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoActionSheet;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:violin_practice_companion/services/piece_activity_store.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/piece_list_providers.dart';
 import 'package:violin_practice_companion/services/providers.dart';
+import 'package:violin_practice_companion/theme/skins.dart';
 import 'package:violin_practice_companion/widgets/piece_row.dart';
 
 Piece piece(String id, String title) =>
@@ -36,7 +38,7 @@ class _FixedLibrary extends PieceLibraryNotifier {
 }
 
 Future<void> pumpList(WidgetTester tester, Size size,
-    {Map<String, Object> prefs = const {}}) async {
+    {Map<String, Object> prefs = const {}, ThemeData? theme}) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -55,7 +57,7 @@ Future<void> pumpList(WidgetTester tester, Size size,
           }),
       recordedPiecesProvider.overrideWith((ref) async => {'lr'}),
     ],
-    child: const MaterialApp(home: PieceListScreen()),
+    child: MaterialApp(theme: theme, home: const PieceListScreen()),
   ));
   await tester.pumpAndSettle();
 }
@@ -186,5 +188,40 @@ void main() {
 
     expect(find.byKey(const ValueKey('book_order_list')), findsOneWidget);
     expect(find.byIcon(Icons.drag_handle), findsNWidgets(3));
+  });
+
+  testWidgets('the Playful skin draws cards and says it kindly', (tester) async {
+    await pumpList(tester, phone, theme: playfulTheme());
+
+    expect(find.byType(PieceCard), findsNWidgets(4));
+    expect(find.byType(PieceListTile), findsNothing);
+    expect(find.text('What shall we play?'), findsOneWidget);
+    expect(find.text('All my music'), findsOneWidget);
+  });
+
+  testWidgets('Classic draws list rows', (tester) async {
+    await pumpList(tester, phone, theme: classicTheme());
+
+    expect(find.byType(PieceListTile), findsNWidgets(4));
+    expect(find.byType(PieceCard), findsNothing);
+    expect(find.text('Pieces'), findsOneWidget);
+  });
+
+  testWidgets('the add menu is a Cupertino action sheet on iOS', (tester) async {
+    await pumpList(tester, phone,
+        theme: classicTheme().copyWith(platform: TargetPlatform.iOS));
+    await tester.tap(find.byKey(const ValueKey('add_piece_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsOneWidget);
+    expect(find.byKey(const ValueKey('scan_page_fab')), findsOneWidget);
+  });
+
+  testWidgets('and a bottom sheet on Android', (tester) async {
+    await pumpList(tester, phone,
+        theme: classicTheme().copyWith(platform: TargetPlatform.android));
+    await tester.tap(find.byKey(const ValueKey('add_piece_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(find.byKey(const ValueKey('import_abc_fab')), findsOneWidget);
   });
 }

@@ -124,12 +124,32 @@ flutter:
   uses-material-design: true
   generate: true
 
+  # The Playful skin's typeface (SIL OFL 1.1, assets/engine/fonts/OFL.txt,
+  # registered with LicenseRegistry in main()). Under assets/engine/ because
+  # test/release_content_test.dart allows only engine/ and library/ at the top
+  # of assets/. Static instances from Google Fonts, one per weight used.
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/engine/fonts/Nunito-Regular.ttf
+        - asset: assets/engine/fonts/Nunito-SemiBold.ttf
+          weight: 600
+        - asset: assets/engine/fonts/Nunito-Bold.ttf
+          weight: 700
+        - asset: assets/engine/fonts/Nunito-ExtraBold.ttf
+          weight: 800
+        - asset: assets/engine/fonts/Nunito-Black.ttf
+          weight: 900
+
   assets:
     # The app's machinery, shared by every piece.
     - assets/engine/abc/
     - assets/engine/lookup_tables/
     - assets/engine/osmd/
     - assets/engine/soundfonts/
+    # The font licence, read by LicenseRegistry; the .ttf files are under
+    # the fonts: block above and need no assets line.
+    - assets/engine/fonts/OFL.txt
     # homr's ONNX models, bundled so scanning needs no network (gitignored;
     # scripts/fetch_omr_models.sh puts them here).
     - assets/engine/omr_models/

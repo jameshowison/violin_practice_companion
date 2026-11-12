@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marionette_flutter/marionette_flutter.dart';
@@ -24,6 +25,12 @@ Future<void> main() async {
   // Before any player exists, or just_audio's first play() switches the iOS
   // session to .playback — see configureAppAudioSession.
   await configureAppAudioSession();
+  // The Playful skin's Nunito is SIL OFL 1.1, which asks for its licence to
+  // travel with it; this puts it on Flutter's licence page.
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(
+        const ['Nunito'], await rootBundle.loadString('assets/engine/fonts/OFL.txt'));
+  });
   SharedPreferences? prefs;
   try {
     prefs = await SharedPreferences.getInstance();

@@ -71,7 +71,11 @@ class PieceListScreen extends ConsumerWidget {
         ref.watch(pieceFilterProvider.select((f) => f.activeCount));
     final book = ref.watch(pieceListProvider).valueOrNull?.book;
 
+    final grouped = Theme.of(context).colorScheme.surfaceContainerLow;
     return Scaffold(
+      // The grouped background the white rows and panel groups sit on. Set
+      // here, not app-wide, so the piece screen keeps a plain page.
+      backgroundColor: grouped,
       drawer: wide
           ? null
           : Drawer(
@@ -81,6 +85,8 @@ class PieceListScreen extends ConsumerWidget {
               child: const PieceFilterPanel(dismissible: true),
             ),
       appBar: AppBar(
+        backgroundColor: grouped,
+        scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         leadingWidth: wide ? 0 : 116,
         leading: wide
@@ -103,8 +109,12 @@ class PieceListScreen extends ConsumerWidget {
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(book?.name ?? skin.listTitle,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            // Shrinks rather than truncates: "What shall we play?" beside
+            // the Filters button and two icons is a tight fit at 375pt.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(book?.name ?? skin.listTitle, maxLines: 1),
+            ),
             if (kDebugMode)
               Text(kBuildRef,
                   style: TextStyle(

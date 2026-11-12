@@ -1822,7 +1822,9 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                                           width: 40,
                                           height: 4,
                                           decoration: BoxDecoration(
-                                            color: Colors.grey.shade400,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline,
                                             borderRadius: BorderRadius.circular(2),
                                           ),
                                         ),
@@ -2212,8 +2214,11 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+        // White paper under the staff in every skin; the rule follows it.
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+            bottom: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant)),
       ),
       child: paletteXml == null || (native && palette == null)
           ? const Center(child: CircularProgressIndicator())
