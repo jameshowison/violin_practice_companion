@@ -61,13 +61,13 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
   Future<Collection?> _createCollection() async {
     final name = await showTextEntryDialog(
       context,
-      title: 'New collection',
+      title: 'New keyword',
       label: 'Name',
       saveLabel: 'Create',
     );
     if (name == null) return null;
     await _run(() => _library.createCollection(name),
-        failure: 'Could not create collection');
+        failure: 'Could not create keyword');
     final collections = ref.read(collectionsProvider);
     return collections.isEmpty ? null : collections.last;
   }
@@ -75,13 +75,13 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
   Future<void> _renameCollection(Collection collection) async {
     final name = await showTextEntryDialog(
       context,
-      title: 'Rename collection',
+      title: 'Rename keyword',
       label: 'Name',
       initial: collection.name,
     );
     if (name == null) return;
     await _run(() => _library.renameCollection(collection.id, name),
-        failure: 'Could not rename collection');
+        failure: 'Could not rename keyword');
   }
 
   Future<void> _deleteCollection(Collection collection) async {
@@ -95,7 +95,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
     );
     if (!confirmed) return;
     await _run(() => _library.deleteCollection(collection.id),
-        failure: 'Could not delete collection');
+        failure: 'Could not delete keyword');
     if (mounted) ref.read(activeCollectionProvider.notifier).state = null;
   }
 
@@ -124,7 +124,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
           shouldHave ? {...tags, collection.id} : (tags..remove(collection.id)),
         );
       }
-    }, failure: 'Could not update collection');
+    }, failure: 'Could not update keyword');
   }
 
   // ── Piece actions ─────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
     final colors = CollectionPalette.colorsFor(collections);
     final chosen = await showCheckboxPicker(
       context,
-      title: 'Collections',
+      title: 'Keywords',
       subtitle: piece.title,
       items: [
         for (final c in collections)
@@ -142,8 +142,8 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
       ],
       initiallySelected: ref.read(pieceCollectionsProvider(piece.id)),
       keyPrefix: 'collection_checkbox',
-      createLabel: 'New collection…',
-      emptyMessage: 'No collections yet.',
+      createLabel: 'New keyword…',
+      emptyMessage: 'No keywords yet.',
       onCreate: () async {
         final created = await _createCollection();
         return created == null
@@ -158,7 +158,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
     );
     if (chosen == null) return;
     await _run(() => _library.setTags(piece.id, chosen),
-        failure: 'Could not update collections');
+        failure: 'Could not update keywords');
   }
 
   Future<void> _rename(Piece piece) async {
@@ -372,7 +372,21 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
 
   Widget _collectionActions(Collection collection, List<Piece> all) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // A book is shown numbered and in this order on the everyday list;
+          // a plain keyword sorts A–Z there. The order is kept either way.
+          SwitchListTile.adaptive(
+            key: const ValueKey('manage_collection_ordered_switch'),
+            dense: true,
+            title: const Text('Book: keeps its own order'),
+            subtitle: const Text('Numbered on the list, in the order below'),
+            value: collection.ordered,
+            onChanged: (v) => _run(
+              () => _library.setOrdered(collection.id, v),
+              failure: 'Could not update keyword',
+            ),
+          ),
+          Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             TextButton.icon(
@@ -397,6 +411,7 @@ class _ManagePiecesScreenState extends ConsumerState<ManagePiecesScreen> {
             ),
           ],
         ),
+        ]),
       );
 }
 
@@ -415,7 +430,7 @@ class _ReorderHint extends StatelessWidget {
       dense: true,
       leading: Icon(Icons.info_outline, size: 18, color: theme.hintColor),
       title: Text(
-        'Sorted automatically. Pick a collection to arrange its own order.',
+        'Sorted automatically. Pick a keyword to arrange its own order.',
         style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
       ),
     );

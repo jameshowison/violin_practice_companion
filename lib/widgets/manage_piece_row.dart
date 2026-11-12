@@ -78,7 +78,7 @@ class ManagePieceRow extends StatelessWidget {
     // separate because the compact layout has room for an icon's worth of text
     // and its hover text can afford to be a full sentence.
     final actions = <(IconData, Color?, String, String, String, VoidCallback)>[
-      (Icons.sell_outlined, null, 'Collections', 'Collections',
+      (Icons.sell_outlined, null, 'Keywords', 'Keywords',
           'manage_tags_button_$id', onTags),
       (Icons.edit_outlined, null, 'Rename', 'Rename', 'manage_rename_button_$id',
           onRename),

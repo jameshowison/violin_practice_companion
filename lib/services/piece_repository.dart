@@ -79,6 +79,15 @@ class PieceRepository {
   Future<String?> audioSyncFolderFor(String id) async =>
       (await catalog()).audioFolders[id];
 
+  /// The catalog's composer for a bundled piece, or null (user pieces, or a
+  /// blank entry). The piece list's fallback when the score names none.
+  Future<String?> composerFor(String id) async {
+    for (final p in (await catalog()).pieces) {
+      if (p.id == id) return p.composer.isEmpty ? null : p.composer;
+    }
+    return null;
+  }
+
   /// Whether the current platform supports editing (writable file storage).
   bool get supportsEditing => storageSupportsEditing;
 

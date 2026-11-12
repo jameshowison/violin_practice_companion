@@ -23,6 +23,11 @@ import '../services/piece_storage_base.dart' show slugifyTitle;
 /// membership (an ordered ID that is not a member, a member with no slot), and
 /// every read would have to reconcile them. Here a piece is in the collection
 /// iff it is in this list, and its position is where it is.
+///
+/// In the UI a collection is a **keyword** (a piece can carry many), and an
+/// [ordered] one is a **book**: listed under "Books and sets", numbered, and
+/// shown in its hand-set order rather than A–Z. The type keeps its original
+/// name so the stored `pieceLibrary` blob and its sync stay unchanged.
 class Collection {
   /// Stable across renames, so a selected filter (and any persisted reference)
   /// survives one, and two collections may share a name without colliding.
@@ -33,10 +38,19 @@ class Collection {
 
   final List<String> pieceIds;
 
+  /// A book: its [pieceIds] order is the reading order and is shown as
+  /// numbers. Plain keywords ignore their order and sort A–Z.
+  ///
+  /// Defaults to true because every collection stored before this flag
+  /// existed was shown in its hand-set order; [addCollection] creates new
+  /// keywords unordered.
+  final bool ordered;
+
   const Collection({
     required this.id,
     required this.name,
     this.pieceIds = const [],
+    this.ordered = true,
   });
 
   /// Null when [json] isn't a usable collection row, so a corrupt library
@@ -47,10 +61,13 @@ class Collection {
     final name = json['name'];
     if (id is! String || id.isEmpty || name is! String) return null;
     final ids = json['pieceIds'];
+    final ordered = json['ordered'];
     return Collection(
       id: id,
       name: name,
       pieceIds: ids is List ? [for (final e in ids) if (e is String) e] : const [],
+      // Missing (a schema-1 row) means ordered: see [ordered].
+      ordered: ordered is bool ? ordered : true,
     );
   }
 
@@ -58,12 +75,17 @@ class Collection {
         'id': id,
         'name': name,
         'pieceIds': pieceIds,
+        // Only the non-default is written, so a library with no plain
+        // keywords serialises exactly as it did under schema 1.
+        if (!ordered) 'ordered': false,
       };
 
-  Collection copyWith({String? name, List<String>? pieceIds}) => Collection(
+  Collection copyWith({String? name, List<String>? pieceIds, bool? ordered}) =>
+      Collection(
         id: id,
         name: name ?? this.name,
         pieceIds: pieceIds ?? this.pieceIds,
+        ordered: ordered ?? this.ordered,
       );
 
   @override
@@ -71,10 +93,11 @@ class Collection {
       other is Collection &&
       other.id == id &&
       other.name == name &&
+      other.ordered == ordered &&
       _listEq(other.pieceIds, pieceIds);
 
   @override
-  int get hashCode => Object.hash(id, name, Object.hashAll(pieceIds));
+  int get hashCode => Object.hash(id, name, ordered, Object.hashAll(pieceIds));
 }
 
 /// A collection's stable identity: a slug of the name it was created with plus
@@ -86,7 +109,9 @@ String collectionId(String name, {required int createdAtMillis}) =>
 /// The whole library, as one immutable value. Every helper below takes one and
 /// returns a new one; nothing mutates in place.
 class PieceLibrary {
-  static const schemaVersion = 1;
+  /// 2 added [Collection.ordered]. Informational: [PieceLibrary.fromJson]
+  /// decodes any version.
+  static const schemaVersion = 2;
 
   /// Chip-row display order.
   final List<Collection> collections;
@@ -211,7 +236,7 @@ PieceLibrary addCollection(
   }
   return lib.copyWith(collections: [
     ...lib.collections,
-    Collection(id: id, name: trimmed),
+    Collection(id: id, name: trimmed, ordered: false),
   ]);
 }
 
@@ -224,6 +249,15 @@ PieceLibrary renameCollection(PieceLibrary lib, String id, String name) {
     for (final c in lib.collections) c.id == id ? c.copyWith(name: trimmed) : c,
   ]);
 }
+
+/// Marks a collection as a book ([ordered]) or a plain keyword. Membership
+/// and the stored order are untouched either way, so turning a book back on
+/// restores the order it had.
+PieceLibrary setCollectionOrdered(PieceLibrary lib, String id, bool ordered) =>
+    lib.copyWith(collections: [
+      for (final c in lib.collections)
+        c.id == id ? c.copyWith(ordered: ordered) : c,
+    ]);
 
 /// Drops a collection. The pieces themselves are untouched — this removes a
 /// label, never a song.

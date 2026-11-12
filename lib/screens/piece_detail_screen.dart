@@ -28,6 +28,7 @@ import '../services/midi_generator.dart';
 import '../services/musicxml_parser.dart';
 import '../services/nonstandard_fingerings.dart';
 import '../services/playback_service_base.dart';
+import '../services/piece_activity_store.dart';
 import '../services/providers.dart';
 import '../services/instrument_setting.dart';
 import '../services/media_catalog.dart';
@@ -99,16 +100,39 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
   // Outlives the compact layout, which a rotation rebuilds from scratch.
   final _drawers = _CompactDrawerMemo();
 
+  // Recents: captured here, because `ref` is off limits in dispose.
+  late final PieceActivityNotifier _activity;
+  String? _pieceId;
+  String? _lastSection;
+
   @override
   void initState() {
     super.initState();
     KeepAwake.enable();
+    _activity = ref.read(pieceActivityProvider.notifier);
+    _pieceId = ref.read(selectedPieceProvider)?.id;
+    final id = _pieceId;
+    // Deferred: a provider must not change while the tree is building.
+    if (id != null) Future.microtask(() => _activity.opened(id, DateTime.now()));
   }
 
   @override
   void dispose() {
     KeepAwake.disable();
+    final id = _pieceId;
+    final section = _lastSection;
+    if (id != null) Future.microtask(() => _activity.left(id, section));
     super.dispose();
+  }
+
+  /// Keeps [_lastSection] current, for [dispose] to hand to Recents.
+  void _trackSelection(Piece? piece, MeasureSelection? selection) {
+    if (piece == null || selection == null) return;
+    _lastSection = selectionLabel(
+      [for (final s in piece.sections) (s.label, s.startMeasure)],
+      selection.startMeasure,
+      selection.endMeasure,
+    );
   }
 
   Map<int, String> _sectionLabels(Piece piece) {
@@ -122,6 +146,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final displayMode = ref.watch(displayModeProvider);
     final features = ref.watch(instrumentFeaturesProvider);
     final selection = ref.watch(measureSelectionProvider);
+    _trackSelection(piece, selection);
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
     final service = ref.watch(playbackServiceProvider);
 

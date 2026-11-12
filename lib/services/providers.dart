@@ -38,6 +38,7 @@ import 'instrument_setting.dart';
 import 'palette_xml_generator.dart';
 import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
+import 'piece_activity_store.dart';
 import 'piece_repository.dart';
 import 'dev_library.dart';
 import 'scan_source_store.dart';
@@ -166,6 +167,10 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
 
   Future<void> deleteCollection(String id) =>
       _mutate((l) => removeCollection(l, id));
+
+  /// Book (numbered, hand-set order) or plain keyword (A–Z).
+  Future<void> setOrdered(String id, bool ordered) =>
+      _mutate((l) => setCollectionOrdered(l, id, ordered));
 
   Future<void> setTags(String pieceId, Set<String> collectionIds) => _mutate(
     (l) => setPieceTags(l, pieceId: pieceId, collectionIds: collectionIds),
@@ -312,6 +317,7 @@ class LibraryActions {
     await _ref.read(scanSourceStoreProvider).delete(pieceId);
     await _ref.read(abcSourceStoreProvider).delete(pieceId);
     await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
+    _ref.read(pieceActivityProvider.notifier).forget(pieceId);
     if (_ref.read(selectedPieceProvider)?.id == pieceId) {
       _ref.read(selectedPieceProvider.notifier).state = null;
       _ref.read(measureSelectionProvider.notifier).state = null;

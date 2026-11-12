@@ -76,6 +76,48 @@ void main() {
     });
   });
 
+  group('books are ordered keywords', () {
+    test('a new keyword is unordered and says so in its json', () {
+      final c = withCollection(['a']);
+      final row = c.lib.collections.single;
+
+      expect(row.ordered, isFalse);
+      expect(row.toJson()['ordered'], false);
+      expect(PieceLibrary.fromJson(c.lib.toJson()), c.lib);
+    });
+
+    test('a schema-1 row with no flag decodes as a book', () {
+      // Every collection stored before the flag was shown in hand-set order.
+      final restored = PieceLibrary.fromJson(<String, dynamic>{
+        'version': 1,
+        'collections': <dynamic>[
+          {'id': 'old_1', 'name': 'Old', 'pieceIds': ['b', 'a']},
+        ],
+      });
+
+      expect(restored.collections.single.ordered, isTrue);
+      expect(restored.collections.single.pieceIds, ['b', 'a']);
+    });
+
+    test('a book omits the flag, so it serialises as schema 1 did', () {
+      final c = withCollection(['a']);
+      final book = setCollectionOrdered(c.lib, c.id, true);
+
+      expect(book.collections.single.toJson().containsKey('ordered'), isFalse);
+      expect(PieceLibrary.fromJson(book.toJson()), book);
+    });
+
+    test('toggling keeps membership and order, and is a value change', () {
+      final c = withCollection(['c', 'a', 'b']);
+      final book = setCollectionOrdered(c.lib, c.id, true);
+      final back = setCollectionOrdered(book, c.id, false);
+
+      expect(book, isNot(c.lib));
+      expect(book.collectionById(c.id)!.pieceIds, ['c', 'a', 'b']);
+      expect(back, c.lib);
+    });
+  });
+
   group('membership and order are one structure', () {
     test('tagging appends at the end and is idempotent', () {
       final c = withCollection(['a', 'b']);
