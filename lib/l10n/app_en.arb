@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "Violin Practice Companion",
+  "appTitle": "Stringlings",
   "@appTitle": { "description": "App title" },
   "piecesTitle": "Pieces",
   "@piecesTitle": { "description": "Piece list screen title" },

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/piece_list_screen.dart';
 import 'theme/app_skin.dart';
 import 'theme/skins.dart';
+import 'ui/splash/launch_splash.dart';
 
 class ViolinPracticeApp extends ConsumerWidget {
   const ViolinPracticeApp({super.key});
@@ -11,7 +12,7 @@ class ViolinPracticeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Violin Practice Companion',
+      title: 'Stringlings',
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -25,6 +26,8 @@ class ViolinPracticeApp extends ConsumerWidget {
       // screen's state (filters, the open piece) survives it.
       theme: themeFor(ref.watch(appSkinProvider)),
       home: const PieceListScreen(),
+      // Above the Navigator, so the blink covers the whole first screen.
+      builder: (context, child) => LaunchSplash(child: child!),
     );
   }
 }

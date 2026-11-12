@@ -1,4 +1,4 @@
-# Violin Practice Companion
+# Stringlings
 
 A free, open-source practice companion for children learning violin — built for
 the non-music-reading parent trying to help a frustrated six-year-old.

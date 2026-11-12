@@ -85,7 +85,7 @@ const double printDpi = 300;
 /// SVG, so a raster of the composed canvas is what keeps them.
 Future<Uint8List> buildScorePdf(PrintJob job, PdfPageFormat format) async {
   final layout = await layoutScoreForPrint(job, format);
-  final doc = pw.Document(title: job.title, creator: 'Violin Practice Companion');
+  final doc = pw.Document(title: job.title, creator: 'Stringlings');
   for (var i = 0; i < layout.pages.length; i++) {
     final png = await _renderPage(layout, i);
     doc.addPage(

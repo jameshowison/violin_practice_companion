@@ -1,6 +1,6 @@
 # How this app was built: notes on agentic coding
 
-Violin Practice Companion was built between May and October 2026 by one person
+Stringlings (first called Violin Practice Companion) was built between May and October 2026 by one person
 working almost entirely through coding agents. There are 203 commits, about 170
 of them co-authored by six successive Claude models, from Sonnet 4.6 to Opus 5.5.
 The repo holds no PR process, CI or reviewer, so the history in
