@@ -29,8 +29,9 @@ class ClimberRung {
 /// hand. [cents] null is idle: resting, blinking, listening.
 ///
 /// With [fineTuners], a turning arrow just above the string's rule shows
-/// which way to turn its fine tuner: clockwise raises the pitch, so flat
-/// shows clockwise and sharp anti-clockwise. Hidden when in tune, idle or
+/// which way to turn its fine tuner, on the screw head as the player sees it
+/// from behind the violin (flattened, the far side up): clockwise raises the
+/// pitch, so flat shows clockwise and sharp anti-clockwise. Hidden when in tune, idle or
 /// climbing.
 ///
 /// Ported from the approved design prototype (the "Stringling Tuner"
@@ -44,6 +45,7 @@ class StringlingClimber extends StatefulWidget {
     required this.cents,
     this.doubled = false,
     this.fineTuners = false,
+    this.falls = 0,
   });
 
   final List<ClimberRung> rungs;
@@ -57,16 +59,27 @@ class StringlingClimber extends StatefulWidget {
   /// ways on the two sides of the head, so one arrow would be wrong).
   final bool fineTuners;
 
+  /// Bumped (with [target] one rung lower) to make it FALL there instead of
+  /// climbing: it lets go, drops, catches the lower string with one hand,
+  /// swings, and gets the other hand back on. The squirm slider's easter egg.
+  final int falls;
+
   @override
   State<StringlingClimber> createState() => _StringlingClimberState();
 }
 
 class _Climb {
-  _Climb(this.from, this.to, this.lead);
+  _Climb(this.from, this.to, this.lead, {this.fall = false});
   final int from, to;
-  final bool lead; // which hand reaches first
+  final bool lead; // which hand reaches first (or, falling, catches)
+  final bool fall;
   double t = 0;
 }
+
+/// A fall's timeline, in seconds: panic (one hand off, flailing, legs
+/// kicking), the other hand slips, the drop, then a swing on one arm.
+const _panic = 0.7, _letGo = 0.1, _drop = 0.38, _fallTime = 1.85;
+const _caught = _panic + _letGo + _drop;
 
 class _StringlingClimberState extends State<StringlingClimber>
     with SingleTickerProviderStateMixin {
@@ -89,6 +102,15 @@ class _StringlingClimberState extends State<StringlingClimber>
     rung = widget.target;
     shown = widget.cents ?? 0;
     _ticker.start();
+  }
+
+  @override
+  void didUpdateWidget(StringlingClimber old) {
+    super.didUpdateWidget(old);
+    // With reduced motion it just climbs down, quickly, as for any change.
+    if (widget.falls != old.falls && climb == null && !still && widget.target == rung - 1) {
+      climb = _Climb(rung, rung - 1, _flip = !_flip, fall: true);
+    }
   }
 
   @override
@@ -118,7 +140,7 @@ class _StringlingClimberState extends State<StringlingClimber>
     }
     final c = climb;
     if (c != null) {
-      c.t += dt / (still ? 0.18 : 0.62);
+      c.t += dt / (c.fall ? _fallTime : still ? 0.18 : 0.62);
       if (c.t >= 1) {
         rung = c.to;
         climb = null;
@@ -163,7 +185,7 @@ class _ClimberPainter extends CustomPainter {
     final n = w.rungs.length;
     if (n == 0) return;
     final h = size.height, width = size.width;
-    // Room above the top rule for a sharp stringling and the "Ready to tune?"
+    // Room above the top rule for a sharp stringling and the Squirm | Tune
     // pill the screen lays over the card.
     final top = h * 0.28, bottom = h - h * 0.15;
     final gap = n > 1 ? (bottom - top) / (n - 1) : 0.0;
@@ -176,7 +198,10 @@ class _ClimberPainter extends CustomPainter {
     final cx0 = x1 + (x2 - x1) * 0.55;
 
     final climbing = s.climb != null;
-    final target = w.target.clamp(0, n - 1);
+    final fc = s.climb;
+    final target = fc != null && fc.fall && fc.t * _fallTime < _caught
+        ? fc.from // don't give the fall away before it lands
+        : w.target.clamp(0, n - 1);
     final idle = w.cents == null;
     final inTune = !climbing && !idle && s.shown.abs() <= 3;
 
@@ -197,8 +222,69 @@ class _ClimberPainter extends CustomPainter {
 
     // Pose.
     double handL, handR, anchor, p, dir, offset = 0;
+    final handDx = rx * 1.12;
+    List<Offset>? hands; // set by a fall, which moves the hands apart
+    double bodyDx = 0;
     final c = s.climb;
-    if (c != null) {
+    final sway = s.still ? 0.0 : math.sin(s.t * 1.6) * 2;
+    double panic = 0;
+    if (c != null && c.fall) {
+      final ya = rungY(c.from), yb = rungY(c.to);
+      final flat = -s.shown.clamp(-55.0, 55.0) * (gap * 0.44) / 50;
+      final d = flat - ry * 0.3; // the body's centre, below its hands
+      final over = ry * 0.55; // how far the caught arm stretches
+      final sc = c.lead ? -1.0 : 1.0; // the side of the hand that holds on
+      final secs = c.t * _fallTime;
+      // The free arm flails at its own length from the shoulder, out to the
+      // side, never back up as high as the rule (it would look like a grip).
+      Offset flail(double cy, double bodyDx) {
+        final shoulder = Offset(cx0 + sway + bodyDx - sc * rx * 0.8, cy - ry * 0.05);
+        final wave = s.still ? 0.0 : math.sin(s.t * 15) * 0.5 + math.sin(s.t * 37) * 0.12;
+        final a = -math.pi / 2 - sc * (1.4 + wave);
+        return shoulder + Offset(math.cos(a), math.sin(a)) * rx * 1.05 - Offset(0, thick / 2);
+      }
+      double cy, catchY;
+      Offset free;
+      if (secs < _panic) {
+        // Hanging by one hand: wide eyes, legs going, the other arm waving.
+        final f = secs / _panic;
+        cy = ya + d;
+        catchY = ya;
+        bodyDx = sc * handDx * 0.3 * _ease(f * 2);
+        free = flail(cy, bodyDx);
+      } else if (secs < _panic + _letGo) {
+        // The last hand slips off.
+        cy = ya + d;
+        catchY = ya - ry * 0.25 * (secs - _panic) / _letGo;
+        bodyDx = sc * handDx * 0.3;
+        free = flail(cy, bodyDx);
+      } else if (secs < _caught) {
+        final f = (secs - _panic - _letGo) / _drop;
+        cy = ya + d + (yb - ya + over) * f * f; // gravity
+        catchY = math.min(cy - d - ry * 0.25 * (1 - f), yb);
+        bodyDx = sc * handDx * (0.3 + 0.25 * f);
+        free = flail(cy, bodyDx);
+      } else {
+        // Caught by one hand: bounce on the arm and swing, then the other
+        // hand reaches the rule and it settles, really flat.
+        final s2 = secs - _caught;
+        final k = s2 / (_fallTime - _caught);
+        final settle = 1 - _ease(k);
+        cy = yb + d + over * math.exp(-5 * s2) * math.cos(11 * s2) * settle;
+        catchY = yb;
+        bodyDx = sc * handDx * 0.55 * settle + math.sin(s2 * 8) * 4 * settle;
+        final g = _ease((k - 0.35) / 0.45);
+        final rest = Offset(cx0 - sc * handDx, yb);
+        free = Offset.lerp(flail(cy, bodyDx), rest, g)!;
+      }
+      panic = secs < _caught + 0.2 ? 1 : 0;
+      final holding = Offset(cx0 + sc * handDx, catchY);
+      hands = c.lead ? [holding, free] : [free, holding];
+      anchor = handL = handR = cy + ry * 0.3 - flat; // so the body sits at cy
+      offset = flat;
+      p = math.max(math.min(1.0, s.shown.abs() / 50), 0.9);
+      dir = -1; // looks down, where it is going
+    } else if (c != null) {
       final ya = rungY(c.from), yb = rungY(c.to);
       final lead = ya + (yb - ya) * _ease(c.t / 0.42);
       final trail = ya + (yb - ya) * _ease((c.t - 0.45) / 0.42);
@@ -220,28 +306,27 @@ class _ClimberPainter extends CustomPainter {
         dir = s.shown < 0 ? -1 : 1;
       }
     }
-    final sway = s.still ? 0.0 : math.sin(s.t * 1.6) * 2;
-    final cx = cx0 + sway + (c != null ? math.sin(c.t * math.pi * 2) * 5 : 0);
-    final handDx = rx * 1.12;
+    final cx = cx0 + sway + bodyDx + (c != null && !c.fall ? math.sin(c.t * math.pi * 2) * 5 : 0);
     StringlingFace(
       cx: cx,
       cy: anchor - ry * 0.3 + offset,
       rx: rx,
       ry: ry,
       thick: thick,
-      hands: [Offset(cx0 - handDx, handL), Offset(cx0 + handDx, handR)],
+      hands: hands ?? [Offset(cx0 - handDx, handL), Offset(cx0 + handDx, handR)],
       pain: p,
       dir: dir,
       t: s.t,
       held: s.held,
       idle: idle && c == null,
       still: s.still,
+      panic: panic,
       accent: w.rungs[target].color,
     ).paint(canvas);
 
     if (w.fineTuners && !climbing && !idle && !inTune) {
-      final r = math.max(9.0, math.min(13.0, gap * 0.16));
-      _turnArrow(canvas, Offset(x2 - r - 10, rungY(s.rung) - r - 9), r,
+      final r = math.max(11.0, math.min(16.0, gap * 0.2));
+      _turnArrow(canvas, Offset(x2 - r - 10, rungY(s.rung) - r * _dialTilt - 10), r,
           clockwise: s.shown < 0, t: s.still ? 0 : s.t);
     }
 
@@ -255,22 +340,56 @@ class _ClimberPainter extends CustomPainter {
     }
   }
 
-  /// A circular arrow, turning slowly the way it points.
+  /// How round a fine tuner's screw head looks to the player: the violin is
+  /// under the chin and the eye looks down and forward at the tailpiece, so
+  /// the head is seen from above at a slant, about 35° above its plane. The
+  /// same for every string.
+  static const _dialTilt = 0.55;
+
+  /// The fine tuner's screw head as the player sees it, a flattened disc,
+  /// with an arrow running round it the way to turn. The far side of the
+  /// head is up the screen, so the arrow's sense on screen is its sense seen
+  /// from above, which is how "clockwise" on a fine tuner is meant.
   void _turnArrow(Canvas canvas, Offset c, double r, {required bool clockwise, required double t}) {
+    final k = _dialTilt;
+    Offset at(double a, [double rad = 1]) =>
+        c + Offset(math.cos(a) * r * rad, math.sin(a) * r * k * rad);
+
+    // The screw head under the arrow, and its rim.
+    final head = Rect.fromCenter(center: c, width: r * 1.3, height: r * 1.3 * k);
+    canvas.drawOval(head.shift(Offset(0, r * 0.14)), Paint()..color = const Color(0x332B2340));
+    canvas.drawOval(head, Paint()..color = const Color(0xFFD9CDB6));
+    canvas.drawOval(
+        head,
+        Paint()
+          ..color = _inkSoft
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2);
+
     final dir = clockwise ? 1.0 : -1.0;
     const sweep = math.pi * 1.45;
+    // Rotating in the disc's own angle is the head turning, seen at a slant.
     final start = -math.pi / 2 + dir * t * 1.8 - dir * sweep / 2;
-    final paint = Paint()
-      ..color = _ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = r * 0.26
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(Rect.fromCircle(center: c, radius: r), start, dir * sweep, false, paint);
-    // Arrowhead at the leading end, along the direction of travel.
+    const steps = 36;
+    final arc = Path();
+    for (var i = 0; i <= steps; i++) {
+      final p = at(start + dir * sweep * i / steps);
+      i == 0 ? arc.moveTo(p.dx, p.dy) : arc.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+        arc,
+        Paint()
+          ..color = _ink
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * 0.24
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round);
+    // Arrowhead at the leading end, along the flattened path.
     final end = start + dir * sweep;
-    final tip = c + Offset(math.cos(end), math.sin(end)) * r;
-    final along = Offset(-math.sin(end), math.cos(end)) * dir; // tangent
-    final out = Offset(math.cos(end), math.sin(end));
+    final tip = at(end);
+    final d = Offset(-math.sin(end) * r, math.cos(end) * r * k) * dir;
+    final along = d / d.distance;
+    final out = Offset(-along.dy, along.dx);
     final h = r * 0.62;
     canvas.drawPath(
         Path()
@@ -341,10 +460,16 @@ class StringlingFace {
     this.held = 0,
     this.idle = false,
     this.still = false,
+    this.panic = 0,
     required this.accent,
   });
 
   final double cx, cy, rx, ry, thick, pain, dir, t, held;
+
+  /// Over 0.5: the falling face, wide eyes and an open mouth, legs going
+  /// hard, in place of [pain]'s.
+  final double panic;
+  bool get _panicked => panic > 0.5;
   final List<Offset> hands;
   final bool idle, still;
   final Color accent;
@@ -377,10 +502,14 @@ class StringlingFace {
 
     // Feet, kicking harder the more it hurts.
     for (final k in [-1.0, 1.0]) {
-      final kick = still ? 0.0 : math.sin(t * (6 + p * 10) + k * 1.7) * (1.5 + p * 7) * u;
+      final kick = still
+          ? 0.0
+          : math.sin(t * (6 + p * 10 + panic * 18) + k * 1.7) * (1.5 + p * 7 + panic * 12) * u;
+      // Panicking, the legs splay and scissor out from under the body.
+      final splay = rx * (0.36 + panic * 0.2) + (still ? 0.0 : panic * math.sin(t * 24 + k) * 5 * u);
       canvas.drawOval(
           Rect.fromCenter(
-              center: Offset(x + k * rx * 0.36, cy + ry * 0.9 + kick),
+              center: Offset(x + k * splay, cy + ry * (0.9 + panic * 0.12) + kick),
               width: rx * 0.44,
               height: ry * 0.3),
           ink);
@@ -401,6 +530,19 @@ class StringlingFace {
     final blink = idle && !still ? _blink(t) : 1.0;
     for (final side in [-1.0, 1.0]) {
       final ex = x + side * edx;
+      if (_panicked) {
+        // Wide open, tiny pupils darting.
+        final eye = Rect.fromCenter(center: Offset(ex, ey), width: 2.5 * ew, height: 2.7 * eh);
+        canvas.drawOval(eye, white);
+        final dart = still ? 0.0 : math.sin(t * 9) * ew * 0.35;
+        canvas.drawCircle(Offset(ex + dart, ey + eh * 0.15), pr * 0.7, ink);
+        // Brows shot up, inner ends highest.
+        final bl = ew * 1.25, by = ey - eh * 1.45 - ry * 0.08;
+        canvas.drawLine(Offset(ex + side * bl * 0.5, by + bl * 0.12),
+            Offset(ex - side * bl * 0.5, by - bl * 0.18), wStroke..strokeWidth = 3.2 * u);
+        wStroke.strokeWidth = 3.4 * u;
+        continue;
+      }
       if (!idle && p < 0.08) {
         canvas.drawArc(
             Rect.fromCircle(center: Offset(ex, ey + eh * 0.35), radius: ew * 0.95),
@@ -438,7 +580,7 @@ class StringlingFace {
     }
 
     // Cheeks, in tune.
-    if (!idle && p < 0.08) {
+    if (!idle && p < 0.08 && !_panicked) {
       final blush = Paint()..color = _blush.withValues(alpha: 0.75);
       for (final side in [-1.0, 1.0]) {
         canvas.drawOval(
@@ -451,7 +593,12 @@ class StringlingFace {
     // Mouth.
     final mx = x, my = cy + ry * 0.2, mw = rx * 0.32, mh = ry * 0.18;
     wStroke.strokeWidth = 3.2 * u;
-    if (idle) {
+    if (_panicked) {
+      // An "oh no" O.
+      final o = Rect.fromCenter(center: Offset(mx, my + mh * 0.5), width: mw * 0.85, height: mh * 1.9);
+      canvas.drawOval(o, white);
+      canvas.drawOval(o.deflate(2.2 * u), Paint()..color = const Color(0xFF8E2A3C));
+    } else if (idle) {
       canvas.drawPath(
           Path()
             ..moveTo(mx - mw * 0.55, my)
@@ -512,7 +659,7 @@ class StringlingFace {
       final slide = still ? 0.0 : ((t * 0.6 + 0.5) % 1) * ry * 0.35;
       _drop(canvas, x - rx * 0.86, cy - ry * 0.55 + slide, 3.6 * u);
     }
-    if (p > 0.86) {
+    if (p > 0.86 && !_panicked) {
       for (final side in [-1.0, 1.0]) {
         _drop(canvas, x + side * edx, ey + eh * 1.25, 2.8 * u);
       }

@@ -11,6 +11,7 @@ import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';
+import 'package:violin_practice_companion/ui/stringlings/stringling_climber.dart';
 
 /// Frames every ~10.7 ms (a 512-sample hop at 48 kHz), from [ms] onwards.
 TunerFrame frame(int i, double? hz, {double clarity = 0.97, int startMs = 0}) =>
@@ -146,7 +147,7 @@ void main() {
     }
 
     Future<void> listen(WidgetTester tester) async {
-      await tester.tap(find.byKey(const ValueKey('tuner_ready')));
+      await tester.tap(find.byKey(const ValueKey('tuner_mode_tune')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
     }
@@ -164,13 +165,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400)); // the sheet slides up
     }
 
-    String status(WidgetTester tester) =>
-        tester.widget<Text>(find.byKey(const ValueKey('tuner_status'))).data!;
+    // Empty when Squirm's hint stands in for the status line.
+    String status(WidgetTester tester) {
+      final f = find.byKey(const ValueKey('tuner_status'));
+      return f.evaluate().isEmpty ? '' : tester.widget<Text>(f).data!;
+    }
 
     testWidgets('opens in play mode with the microphone off', (tester) async {
       final fake = await pumpTuner(tester);
       expect(fake.starts, 0);
-      expect(find.byKey(const ValueKey('tuner_ready')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_mode_tune')), findsOneWidget);
       expect(find.text('flat'), findsOneWidget);
       expect(find.text('sharp'), findsOneWidget);
       expect(find.text('Slide the dot to make it squirm'), findsOneWidget);
@@ -213,11 +217,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('Ready to tune? starts listening; a flat G says turn clockwise', (tester) async {
+    testWidgets('held at the flat end, it falls a string (and only down)', (tester) async {
+      await pumpTuner(tester);
+      int target() => tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber'))).target;
+      final box = tester.getRect(find.byKey(const ValueKey('tuner_slider')));
+      Offset at(double f) => Offset(box.left + box.width * f, box.center.dy);
+      expect(target(), 2, reason: 'opens on A');
+
+      // Held at the sharp end: nothing.
+      var g = await tester.startGesture(at(0.5));
+      await g.moveTo(at(1.0));
+      await tester.pump(const Duration(seconds: 5));
+      expect(target(), 2);
+      await g.up();
+      await tester.pump(const Duration(seconds: 1));
+
+      // Briefly at the flat end: not yet.
+      g = await tester.startGesture(at(0.5));
+      await g.moveTo(at(0.0));
+      await tester.pump(const Duration(seconds: 1));
+      expect(target(), 2);
+      await tester.pump(const Duration(seconds: 1));
+      expect(target(), 1, reason: 'fell to D');
+      expect(find.text('−50¢'), findsOneWidget, reason: 'really flat on D');
+      await tester.pump(const Duration(seconds: 6));
+      expect(target(), 0, reason: 'kept holding: fell to G, and stops there');
+      await g.up();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(target(), 0, reason: 'it stays on the string it fell to');
+      expect(find.text('±0¢'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Tune starts listening; a flat G says turn clockwise', (tester) async {
       final fake = await pumpTuner(tester);
       await listen(tester);
       expect(fake.starts, 1);
-      expect(find.byKey(const ValueKey('tuner_stop')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_mode_squirm')), findsOneWidget);
       expect(find.text('Slide the dot to make it squirm'), findsNothing);
       expect(status(tester), 'Play a string');
       expect(fake.range!.minHz, closeTo(195.56 / 1.5, 0.01));
@@ -229,15 +266,15 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('in tune, then stop goes back to playing', (tester) async {
+    testWidgets('in tune, then Squirm stops listening', (tester) async {
       final fake = await pumpTuner(tester);
       await listen(tester);
       await play(tester, fake, 440.5);
       expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 2)); // sparkles
-      await tester.tap(find.byKey(const ValueKey('tuner_stop')));
+      await tester.tap(find.byKey(const ValueKey('tuner_mode_squirm')));
       await tester.pump();
-      expect(find.byKey(const ValueKey('tuner_ready')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
       expect(fake.ctl, isNull, reason: 'the microphone stopped');
     });
 
@@ -291,7 +328,7 @@ void main() {
       expect(find.byKey(const ValueKey('tuner_mic_denied')), findsOneWidget);
       await tester.tap(find.text('Back to playing'));
       await tester.pump();
-      expect(find.byKey(const ValueKey('tuner_ready')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
     });
   });
 }

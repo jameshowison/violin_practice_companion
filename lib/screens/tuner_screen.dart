@@ -27,11 +27,11 @@ const tunerInstrumentKey = 'tuner.instrument';
 /// The tuner: a stringling climbs to the string being played and shows by
 /// its height and face how far out of tune it is (see [StringlingClimber]).
 ///
-/// It opens in PLAY mode, with the microphone off: the pitch slider under the
-/// note is a toy, and dragging it makes the stringling squirm, so a child
-/// learns what flat and sharp look like before tuning anything. "Ready to
-/// tune?" at the top of the card starts listening (and is where the
-/// microphone permission is asked, in context); the slider then shows the
+/// It opens in SQUIRM mode, with the microphone off: the pitch slider under
+/// the note is a toy, and dragging it makes the stringling squirm, so a child
+/// learns what flat and sharp look like before tuning anything. The Squirm |
+/// Tune pill at the top of the card switches to listening (and Tune is where
+/// the microphone permission is asked, in context); the slider then shows the
 /// string's pitch instead. For violin, an arrow above the string's rule shows
 /// which way to turn the fine tuner.
 ///
@@ -67,13 +67,46 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   late final AnimationController _spring; // made in initState, like _input
   double _springFrom = 0;
 
+  /// The easter egg: hold the dot at the flat end and the stringling loses
+  /// its grip and falls to the next string down (never up), catching it
+  /// one-handed. Keep holding and it falls again, down to the lowest string.
+  Timer? _fallTimer;
+  int _falls = 0;
+  static const _fallHold = Duration(milliseconds: 1800);
+  static const _fallCatch = Duration(milliseconds: 1180); // see the climber
+
+  void _armFall(Duration after) {
+    _fallTimer?.cancel();
+    _fallTimer = Timer(after, _fall);
+  }
+
+  void _fall() {
+    _fallTimer = null;
+    if (!mounted || _listening || _rung <= 0 || _play.value > -49.5) return;
+    setState(() {
+      _rung--;
+      _falls++;
+      if (_model.pinned != null) _model.pinned = _model.tuning.strings[_rung].name;
+    });
+    Future.delayed(_fallCatch, HapticFeedback.heavyImpact);
+    _armFall(_fallHold + const Duration(milliseconds: 1850));
+  }
+
   void _dragTo(double c) {
     _spring.stop();
+    if (c <= -49.5) {
+      if (_fallTimer == null) _armFall(_fallHold);
+    } else {
+      _fallTimer?.cancel();
+      _fallTimer = null;
+    }
     if ((c / 10).round() != (_play.value / 10).round()) HapticFeedback.selectionClick();
     _play.value = c;
   }
 
   void _springBack() {
+    _fallTimer?.cancel();
+    _fallTimer = null;
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
       _play.value = 0;
       return;
@@ -108,6 +141,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     KeepAwake.disable();
     _sub?.cancel();
     _input.dispose();
+    _fallTimer?.cancel();
     _spring.dispose();
     _reading.dispose();
     _play.dispose();
@@ -367,6 +401,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                   cents: current()?.cents,
                                   doubled: _mandolin,
                                   fineTuners: !_mandolin,
+                                  falls: _falls,
                                 ),
                               ),
                             ),
@@ -374,23 +409,12 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                               top: 10,
                               left: 0,
                               right: 0,
-                              child: Column(
-                                children: [
-                                  _ListenPill(
-                                    listening: _listening,
-                                    onTap: _listening ? _stop : _start,
-                                  ),
-                                  if (!_listening)
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 6),
-                                      child: Text('Slide the dot to make it squirm',
-                                          key: ValueKey('tuner_play_hint'),
-                                          style: TextStyle(
-                                              color: Color(0xFF6A6180),
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w700)),
-                                    ),
-                                ],
+                              child: Center(
+                                child: _ModePill(
+                                  tuning: _listening,
+                                  onSquirm: _listening ? _stop : null,
+                                  onTune: _listening ? null : _start,
+                                ),
                               ),
                             ),
                           ],
@@ -449,42 +473,76 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 }
 
-/// "Ready to tune?" / "Listening · tap to stop".
-class _ListenPill extends StatelessWidget {
-  const _ListenPill({required this.listening, required this.onTap});
-  final bool listening;
-  final VoidCallback onTap;
+/// Squirm | Tune: the slider as a toy, or the microphone listening. Opens in
+/// Squirm; Tune is where the microphone permission is asked.
+class _ModePill extends StatelessWidget {
+  const _ModePill({required this.tuning, required this.onSquirm, required this.onTune});
+  final bool tuning;
+  final VoidCallback? onSquirm, onTune;
+
+  static const ink = Color(0xFF2B2340);
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF2B2340);
-    return Material(
-      color: listening ? Colors.white : ink,
-      shape: StadiumBorder(
-          side: listening ? const BorderSide(color: ink, width: 1.5) : BorderSide.none),
-      elevation: listening ? 0 : 2,
-      child: InkWell(
-        key: ValueKey(listening ? 'tuner_stop' : 'tuner_ready'),
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(listening ? Icons.mic : Icons.mic_none,
-                  size: 18, color: listening ? const Color(0xFFC62828) : Colors.white),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(listening ? 'Listening · tap to stop' : 'Ready to tune?',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: listening ? ink : Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15)),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: ShapeDecoration(
+        color: Colors.white,
+        shape: const StadiumBorder(side: BorderSide(color: ink, width: 1.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _segment(
+            key: 'tuner_mode_squirm',
+            label: 'Squirm',
+            icon: Icons.swipe,
+            selected: !tuning,
+            onTap: onSquirm,
+          ),
+          _segment(
+            key: 'tuner_mode_tune',
+            label: 'Tune',
+            icon: tuning ? Icons.mic : Icons.mic_none,
+            selected: tuning,
+            onTap: onTune,
+            iconColor: tuning ? const Color(0xFFFF8A80) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment({
+    required String key,
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback? onTap,
+    Color? iconColor,
+  }) {
+    final fg = selected ? Colors.white : ink;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? ink : Colors.transparent,
+        shape: const StadiumBorder(),
+        child: InkWell(
+          key: ValueKey(key),
+          customBorder: const StadiumBorder(),
+          onTap: onTap ?? () {},
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: iconColor ?? fg),
+                const SizedBox(width: 5),
+                Text(label,
+                    style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15)),
+              ],
+            ),
           ),
         ),
       ),
@@ -547,11 +605,20 @@ class _Readout extends StatelessWidget {
           const SizedBox(height: 6),
           _PitchSlider(cents: r?.cents, onChanged: onDrag, onEnd: onLetGo),
           const SizedBox(height: 4),
-          Text(_status(r),
-              key: const ValueKey('tuner_status'),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          // In Squirm, the hint sits here until there is advice to give.
+          if (_playing && _status(r).isEmpty)
+            Text('Slide the dot to make it squirm',
+                key: const ValueKey('tuner_play_hint'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF6A6180)))
+          else
+            Text(_status(r),
+                key: const ValueKey('tuner_status'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
         ],
       ),
     );
