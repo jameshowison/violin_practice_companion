@@ -20,7 +20,7 @@ library;
 
 /// Where a medium's bytes live, and hence how [MediaRef.path] is read.
 enum MediaStorage {
-  /// A `rootBundle` asset key, e.g. `assets/library/lightly_row/audio/mix.mp3`.
+  /// A `rootBundle` asset key, e.g. `assets/library/lightly_row/audio/melody.mp3`.
   /// Stable for the life of the build; never needs resolving.
   asset,
 
@@ -142,9 +142,9 @@ class PieceMedia {
   final MediaRef? audio;
 
   /// What DTW reads to align this medium to the score. Usually the same file
-  /// as [audio]; for bundled tracks it is deliberately different — always
-  /// `melody.wav`, the closest match to the score's own notes and so the
-  /// best-conditioned reference, regardless of which mix is being listened to.
+  /// as [audio]; for bundled tracks it is always `melody.mp3`, the closest
+  /// match to the score's own notes and so the best-conditioned reference,
+  /// whichever track is being listened to.
   ///
   /// Null means this medium cannot be aligned, and so plays without driving
   /// the score highlight. [MediaKind.synthesized] is the ordinary case;

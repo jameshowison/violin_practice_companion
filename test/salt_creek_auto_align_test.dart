@@ -15,6 +15,8 @@ import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 
+import 'support/restricted_fixtures.dart';
+
 // Pitch classes under K:Amix (2 sharps: F#, C#), single canonical octave —
 // octave never matters for chroma (pitch-class only).
 const int _a = 69, _b = 71, _cSharp = 61, _d = 62, _e = 64, _fSharp = 66, _g = 67;
@@ -29,7 +31,7 @@ NoteEvent _n(int midi, NoteValue v) => NoteEvent(
     );
 
 void main() {
-  final wavFile = File('assets/library/salt_creek/audio/melody.wav');
+  final wavFile = restrictedFile(kSaltCreekMelodyWav) ?? File('kSaltCreekMelodyWav-missing');
   if (!wavFile.existsSync()) {
     // Author-supplied asset, gitignored — skip gracefully where absent.
     test('salt creek auto-align (skipped: melody.wav not present)', () {});

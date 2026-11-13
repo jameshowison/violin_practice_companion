@@ -14,12 +14,11 @@ void main() {
   }
 
   group('bundledMediaFor', () {
-    test('offers the three mixes, playing the mp3 the user chose', () {
+    test('offers each track, playing the mp3 the user chose', () {
       final media = MediaCatalog.bundledMediaFor('lightly_row');
 
-      expect(media.map((m) => m.label), ['Mix', 'Melody', 'Chords']);
+      expect(media.map((m) => m.label), ['Melody', 'Chords']);
       expect(media.map((m) => m.audio!.path), [
-        'assets/library/lightly_row/audio/mix.mp3',
         'assets/library/lightly_row/audio/melody.mp3',
         'assets/library/lightly_row/audio/chords.mp3',
       ]);
@@ -28,17 +27,17 @@ void main() {
       expect(media.every((m) => m.isRemovable), isFalse);
     });
 
-    test('analyses melody.wav whichever mix is playing', () {
+    test('analyses melody.mp3 whichever track is playing', () {
       // The closest match to the score's own notes, and so the
       // best-conditioned DTW reference — not whichever track is being heard.
       final media = MediaCatalog.bundledMediaFor('lightly_row');
       for (final m in media) {
-        expect(m.analysis!.path, 'assets/library/lightly_row/audio/melody.wav');
-        expect(m.analysis!.isWav, isTrue);
+        expect(m.analysis!.path, 'assets/library/lightly_row/audio/melody.mp3');
+        expect(m.analysis!.isWav, isFalse);
       }
     });
 
-    test('all three share one alignment key, so alignment runs once', () {
+    test('every track shares one alignment key, so alignment runs once', () {
       final keys =
           MediaCatalog.bundledMediaFor('salt_creek').map((m) => m.alignmentKey);
       expect(keys.toSet(), hasLength(1));
@@ -68,7 +67,7 @@ void main() {
 
       expect(media.first, PieceMedia.synthesized);
       expect(media.map((m) => m.label),
-          ['Simulated', 'Mix', 'Melody', 'Chords']);
+          ['Simulated', 'Melody', 'Chords']);
     });
 
     test('user media come after the bundled ones', () async {
@@ -89,7 +88,7 @@ void main() {
           await MediaCatalog().mediaFor('lightly_row', audioFolder: 'lightly_row');
 
       expect(media.map((m) => m.label),
-          ['Simulated', 'Mix', 'Melody', 'Chords', 'Lesson 3']);
+          ['Simulated', 'Melody', 'Chords', 'Lesson 3']);
       expect(media.last.isRemovable, isTrue);
     });
 

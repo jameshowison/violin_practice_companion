@@ -8,6 +8,8 @@ import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
+import 'support/restricted_fixtures.dart';
+
 /// Exercises the Dart half of the decoder — the contract with the native
 /// plugins, and the WAV short-circuit that never reaches them.
 ///
@@ -19,7 +21,7 @@ void main() {
 
   // `assets/library/*/audio/` is gitignored, so the two tests that need real audio skip
   // when it isn't present — the same pattern as lightly_row_intro_align_test.
-  final wavFile = File('assets/library/lightly_row/audio/melody.wav');
+  final wavFile = restrictedFile(kLightlyRowMelodyWav) ?? File('kLightlyRowMelodyWav-missing');
   final xmlFile = File('assets/library/lightly_row/score.musicxml');
   final haveAudio = wavFile.existsSync() && xmlFile.existsSync();
 

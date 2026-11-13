@@ -1,10 +1,9 @@
-import '../models/piece_catalog.dart';
 import '../models/audio_track_variant.dart';
 import '../models/piece_media.dart';
 import 'media_migration.dart';
 import 'piece_media_store.dart';
 
-/// Assembles the full list of media a piece can be played by, from the three
+/// Assembles the full list of media a piece can be played by, from the
 /// places they come from: the score itself, the asset bundle, and whatever the
 /// user has added.
 ///
@@ -21,20 +20,20 @@ class MediaCatalog {
   final PieceMediaStore _store;
   final MediaMigration _migration;
 
-  /// The bundled `mix`/`melody`/`chords` tracks in `assets/library/<folder>/audio/`.
+  /// The bundled `melody`/`chords` tracks in `assets/library/<folder>/audio/`.
   ///
-  /// All three share one [PieceMedia.alignmentKey], because they are three
-  /// mixes of a single recording session and therefore one timeline — the
-  /// alignment runs once and serves whichever the user listens to.
+  /// They share one [PieceMedia.alignmentKey], because they are takes from a
+  /// single recording session and therefore one timeline — the alignment runs
+  /// once and serves whichever the user listens to.
   ///
-  /// All three also share one ANALYSIS source, and it is always `melody.wav`
-  /// regardless of which is playing: it is the closest match to the score's
-  /// own notes and so the best-conditioned DTW reference. (It is also the only
-  /// WAV in the folder — the others ship as mp3 — which is no longer a
-  /// constraint now that [AudioDecoder] exists, but is still the right choice.)
+  /// All of them also share one ANALYSIS source, and it is always
+  /// `melody.mp3` regardless of which is playing: it is the closest match to
+  /// the score's own notes and so the best-conditioned DTW reference. It used
+  /// to be a separate `melody.wav`, from before [AudioDecoder] existed; the mp3
+  /// decodes to identical anchors (Salt Creek, all 32 to the millisecond).
   static List<PieceMedia> bundledMediaFor(String audioFolder) {
     final analysis =
-        MediaRef.asset('${bundledAudioDir(audioFolder)}/${AudioTrackVariant.melody.id}.wav');
+        MediaRef.asset(AudioTrackVariant.melody.assetPathIn(audioFolder));
     return [
       for (final variant in AudioTrackVariant.values)
         PieceMedia(

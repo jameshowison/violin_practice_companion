@@ -41,3 +41,7 @@ String readRestricted(String relativePath) {
 const kGundagaiLyrics = 'fixtures/lyrics/gundagai_lyrics.musicxml';
 const kGundagaiScan = 'fixtures/lyrics/gundagai_scan.musicxml';
 const kVerovioVerseSvg = 'fixtures/svg/verovio_verse.svg';
+// The original WAVs of the bundled play-along melodies; the app ships only the
+// mp3s, which it decodes natively (audio_decoder_*.dart) to align.
+const kLightlyRowMelodyWav = 'fixtures/audio/lightly_row/melody.wav';
+const kSaltCreekMelodyWav = 'fixtures/audio/salt_creek/melody.wav';

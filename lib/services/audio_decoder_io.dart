@@ -60,7 +60,7 @@ class AudioDecoder implements AudioDecoderBase {
     // The native decoders read files, not buffers: both APIs want a URL, and
     // handing them one avoids copying the whole compressed file across the
     // channel only for the platform to need it on disk anyway. Asset-backed
-    // media are the only callers, and in practice they are already WAV.
+    // media are the only callers: the bundled tracks' `melody.mp3`.
     final temporary = File('${(await getTemporaryDirectory()).path}/'
         'decode_${DateTime.now().microsecondsSinceEpoch}.$extension');
     try {

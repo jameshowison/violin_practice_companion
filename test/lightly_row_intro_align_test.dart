@@ -25,9 +25,11 @@ import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
+import 'support/restricted_fixtures.dart';
+
 void main() {
   final xmlFile = File('assets/library/lightly_row/score.musicxml');
-  final wavFile = File('assets/library/lightly_row/audio/melody.wav');
+  final wavFile = restrictedFile(kLightlyRowMelodyWav) ?? File('kLightlyRowMelodyWav-missing');
   if (!xmlFile.existsSync() || !wavFile.existsSync()) {
     test('lightly row intro align (skipped: assets not present)', () {});
     return;
