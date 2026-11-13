@@ -1,0 +1,13 @@
+name: string_tuner
+description: >-
+  Pitch detection and string tuning in pure Dart. A range-limited YIN pitch
+  estimator, a streaming tracker for microphone audio, and open-string targets
+  for violin, viola, cello and mandolin, in pure fifths or equal temperament.
+version: 0.1.0
+publish_to: none  # not yet; see README, "Status"
+
+environment:
+  sdk: ^3.5.0
+
+dev_dependencies:
+  test: ^1.25.0
