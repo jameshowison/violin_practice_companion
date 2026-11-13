@@ -72,6 +72,10 @@ dependencies:
   # upstream fixes `_doWithPainter`.
   jovial_svg:
     path: packages/jovial_svg
+  # The tuner's pitch detection and string targets. Pure Dart, written to be
+  # shared: see packages/string_tuner/README.md.
+  string_tuner:
+    path: packages/string_tuner
 
   # Play-along audio/score sync: `just_audio` drives backing-track playback,
   # `wav` decodes the analysis track to PCM (pure Dart, zero native deps — see

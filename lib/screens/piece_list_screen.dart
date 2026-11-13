@@ -20,6 +20,7 @@ import 'manage_pieces_screen.dart';
 import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
+import 'tuner_screen.dart';
 import '../services/launch_timing.dart';
 import '../ui/stringlings/stringlings_tile.dart';
 
@@ -152,6 +153,14 @@ class PieceListScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             tooltip: 'Add a piece',
             onPressed: () => _addPiece(context),
+          ),
+          IconButton(
+            key: const ValueKey('tuner_button'),
+            icon: const Icon(Icons.graphic_eq),
+            tooltip: 'Tuner',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const TunerScreen()),
+            ),
           ),
           IconButton(
             key: const ValueKey('app_settings_button'),
