@@ -52,7 +52,7 @@
       "composer": "Traditional",
       "score": "old_joe_clark/score.musicxml",
       "sections": "old_joe_clark/sections.json",
-      "source": "American fiddle tune. Converted from docs/wellerman.abc by the app's ABC import.",
+      "source": "American fiddle tune. Converted from docs/wellerman.abc (tune X:2, which shares the file with The Wellerman) by the app's ABC import.",
       "license": "public-domain",
       "fingerings": "app"
     }
