@@ -171,6 +171,33 @@ void main() {
     expect(find.byKey(const ValueKey('piece_row_lr')), findsOneWidget);
   });
 
+  testWidgets('the app icon puts the list back where it started', (tester) async {
+    final now = DateTime.now();
+    await pumpList(tester, phone, prefs: {
+      'flutter.$pieceActivityKey': '{"tw":{"openedAt":${now.millisecondsSinceEpoch}}}',
+    });
+    // Away from the start: another tab, a token, and a half-typed query.
+    await tester.tap(find.byKey(const ValueKey('piece_tab_all')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('piece_search_field')), 'fid');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('search_suggestion_keyword_fiddle')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('piece_search_field')), 'zzz');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('search_token_tag_fiddle')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('app_home_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('search_token_tag_fiddle')), findsNothing);
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('piece_search_field')));
+    expect(field.controller!.text, isEmpty);
+    // Back on Recents, where it opened: only the piece played.
+    expect(find.byKey(const ValueKey('piece_row_tw')), findsOneWidget);
+    expect(find.byKey(const ValueKey('piece_row_lr')), findsNothing);
+  });
+
   testWidgets('iPad: the panel is a sidebar, always out', (tester) async {
     await pumpList(tester, ipad);
 

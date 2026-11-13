@@ -107,8 +107,8 @@ class PieceListScreen extends ConsumerWidget {
             : Row(
                 children: [
                   const Padding(
-                    padding: EdgeInsets.only(left: 16, right: 4),
-                    child: StringlingsTile(size: 32),
+                    padding: EdgeInsets.only(left: 12),
+                    child: _HomeButton(size: 32),
                   ),
                   if (!skin.filtersInSearch)
                     Builder(
@@ -192,6 +192,45 @@ class PieceListScreen extends ConsumerWidget {
 }
 
 /// The icon and the app's name, top left of the tablet piece list.
+/// The app icon in the AppBar's corner. Tapping it puts the list back where
+/// it starts at launch: no search, no filters, the launch tab, scrolled to
+/// the top.
+class _HomeButton extends ConsumerWidget {
+  const _HomeButton({required this.size});
+
+  final double size;
+
+  void _reset(BuildContext context, WidgetRef ref) {
+    appSelectionHaptic();
+    FocusManager.instance.primaryFocus?.unfocus(); // the search field's cursor
+    ref.read(pieceSearchProvider.notifier).state = '';
+    // Re-runs the provider's own initialiser, so "the launch tab" stays
+    // defined in one place.
+    ref.invalidate(pieceFilterProvider);
+    final scroll = PrimaryScrollController.maybeOf(context);
+    if (scroll != null && scroll.positions.length == 1) {
+      scroll.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Tooltip(
+      message: 'Start over',
+      child: InkResponse(
+        key: const ValueKey('app_home_button'),
+        onTap: () => _reset(context, ref),
+        radius: size * 0.75,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: StringlingsTile(size: size),
+        ),
+      ),
+    );
+  }
+}
+
 class _AppBadge extends StatelessWidget {
   const _AppBadge();
 
@@ -199,10 +238,10 @@ class _AppBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(left: 16),
+      padding: const EdgeInsets.only(left: 12),
       child: Row(
         children: [
-          const StringlingsTile(size: 36),
+          const _HomeButton(size: 36),
           const SizedBox(width: 10),
           Flexible(
             child: Text(

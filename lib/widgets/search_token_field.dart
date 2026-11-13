@@ -55,6 +55,10 @@ class _SearchTokenFieldState extends ConsumerState<SearchTokenField> {
     final skin = SkinStyle.of(context);
     final filter = ref.watch(pieceFilterProvider);
     final query = ref.watch(pieceSearchProvider);
+    // Follow a query changed from outside the field (the app icon's reset).
+    ref.listen(pieceSearchProvider, (_, q) {
+      if (_controller.text != q) _controller.text = q;
+    });
     final library = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
     final metas = ref.watch(allPieceMetaProvider).valueOrNull ?? const {};
 
