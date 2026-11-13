@@ -325,20 +325,26 @@ xcrun devicectl device install app --device <udid> build/ios/iphoneos/Runner.app
 Trust once, and it should then persist across installs. When you do need it:
 **Settings → General → VPN & Device Management → Developer App → Trust**.
 
-**Separately, the build expires after 7 days.** This is a free (personal) Apple
-ID team, not the paid Developer Program. The tell is in the provisioning profile:
+**Builds expire with their provisioning profile.** Check one with:
 
 ```bash
 security cms -D -i build/ios/iphoneos/Runner.app/embedded.mobileprovision \
   | plutil -p - | grep -E "TimeToLive|ExpirationDate"
-#   "ExpirationDate" => 2026-08-22 18:08:52 +0000
-#   "TimeToLive" => 7
 ```
 
-`TimeToLive = 7` is the free-team signature; a paid membership gives 365. So the
-app stops launching a week after each profile is minted and has to be rebuilt and
-reinstalled. Only a paid Apple Developer Program membership changes that — no
-amount of local configuration will.
+`TimeToLive = 7` is a free (personal) team's profile: the app stops launching a
+week after it was minted. The team has been on the paid Developer Program since
+November 2026, which gives 365 — the App Store profile shows `364`. But Xcode
+keeps using a cached development profile until it expires, so the first device
+builds after the upgrade still carried a 7-day one. To get a year-long one
+straight away, delete the stale profile and build again; Xcode mints a new one:
+
+```bash
+ls ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/
+# delete the "iOS Team Provisioning Profile: name.howison.violinPracticeCompanion"
+# file whose TimeToLive is 7 (not the "Team Store" one), then:
+scripts/device_install.sh
+```
 
 ### `flutter install` does not rebuild
 
@@ -400,6 +406,58 @@ stuck (it needs sudo):
 ```bash
 sudo log show --last 30m --predicate 'process == "remotepairingd" OR process == "CoreDeviceService"'
 ```
+
+## TestFlight and the dev loop
+
+TestFlight adds a route; it doesn't replace the others.
+
+| Route | For | When |
+|---|---|---|
+| Simulator, debug (`scripts/dev_run.sh`) | everyday work: hot reload, Marionette | constantly |
+| Phone, release (`scripts/device_install.sh`) | real audio, camera, performance; the smoke test | when a change touches the device, and before every upload |
+| TestFlight | what testers (and you, as a user) run | when there's something worth handing out |
+
+**You can't install the App Store `.ipa` yourself.** `flutter build ipa` signs it
+for App Store distribution, which only TestFlight or the App Store can install.
+`device_install.sh` builds the same commit signed for development; that is the
+local equivalent, and the smoke test before an upload.
+
+**A dev build and the TestFlight build are the same app on the device.** They
+share the bundle id, so installing one replaces the other, keeping the data. A
+dev install on Jamz takes the TestFlight copy away until you reinstall it from
+TestFlight. (A separate `.dev` bundle id would let them sit side by side, at the
+cost of updating every script that names the bundle id; worth it once there are
+outside testers.)
+
+**What a tester sees is not your library.** A fresh install has only the bundled
+pieces (`assets/library/catalog.json`). The dev library reaches a device only as
+`Documents/dev_library/`, staged over the cable by `sync_dev_library.sh`, so a
+TestFlight install never merges it. But a TestFlight build installed *over* a dev
+build is an update and keeps everything already there. To see the tester's first
+launch: sync the device, delete the app, install from TestFlight — or use a device
+that has never had a dev build. Deleting the last app signed by the development
+certificate drops the developer trust, so the next `device_install.sh` will need
+a re-trust (see above).
+
+**Each upload:**
+
+1. Bump the build number in `pubspec.yaml` (`1.0.0+3` → `+4`). Every upload
+   needs a new one; the version (`1.0.0`) changes only when the user-facing
+   feature set does.
+2. `flutter test` (and `VPC_PUBLIC_RELEASE=1 flutter test` before any
+   *external* testers — it refuses the `internal-testing-only` play-along tracks).
+3. Smoke-test on the phone: `scripts/device_install.sh`, then play a piece (the
+   synth), calibrate once (the claves), a bundled track, a scan.
+4. `flutter build ipa --release`, then drag `build/ios/ipa/Stringlings.ipa` into
+   Transporter. Processing takes 10–30 minutes; encryption compliance is already
+   answered in `Info.plist`.
+5. Tag the commit it was built from with the full version: `git tag -a v1.0.0+4`,
+   and push the tag.
+
+Internal testers (people on the App Store Connect team) need no review; external
+testers need Beta App Review and the test information (description, feedback
+email). TestFlight builds expire after 90 days. Upload when there's something to
+test, not on a schedule.
 
 ## Dev library (the same pieces and media on every dev device)
 
@@ -486,9 +544,9 @@ armed-burst pattern and for widening the window instead.
 
 - **Android**: F-Droid (pending submission) or direct APK
 - **Web**: self-host the `build/web` output; works as an installable PWA
-- **iOS**: build from source with your own developer account, or use AltStore.
-  With a free account the build expires after 7 days — see [Installing on a
-  physical device](#installing-on-a-physical-device)
+- **iOS**: TestFlight (internal testing; App Store to follow), or build from
+  source with your own developer account. With a free account a build expires
+  after 7 days — see [Installing on a physical device](#installing-on-a-physical-device)
 
 ## Contributing
 

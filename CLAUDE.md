@@ -455,8 +455,11 @@ exists to avoid — full reasoning in the README, "Installing on a physical devi
 Two further facts worth not re-deriving: a **release** build does not render
 `kBuildRef` (debug-only), so the stamp trick doesn't work on a device — confirm by
 the feature instead. The team is now a paid Developer Program membership (needed for
-TestFlight); a development-signed build installed before that, under the free team's
-`TimeToLive = 7` profile, stops launching a week after it was signed.
+TestFlight), but Xcode reuses a cached development profile until it expires, so a
+device build can still carry the free team's `TimeToLive = 7` and stop launching a
+week later. Check the profile, not the membership (README, "Builds expire with their
+provisioning profile"). For TestFlight vs. dev builds and the upload steps, see README
+"TestFlight and the dev loop".
 
 **Watch it, don't wait on it.** The script copies everything to
 `device_install.log` with a `▶` line per phase and a heartbeat every 30s while a
