@@ -542,7 +542,7 @@ Piece _titled(PieceLibrary lib, Piece piece) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The seeding steps this build knows about. Bump when adding one.
-const currentSeedVersion = 1;
+const currentSeedVersion = 2;
 
 /// The name of the collection [seedLibrary] files the OMR comparison fixtures
 /// under.
@@ -560,6 +560,13 @@ const omrDemoCollectionName = 'OMR demos';
 /// practice. Hidden rather than removed: the comparison is
 /// one toggle away.
 ///
+/// Step 2 takes step 1 back out. The demos stopped shipping (they are test
+/// data now), so an install seeded while they did is left with an "OMR demos"
+/// chip over nothing. It drops that collection by name — a label, never a
+/// song. Its leftover hidden ids name pieces that no longer exist, which
+/// [hiddenCount] never counts, so they stay rather than risk un-hiding a
+/// user's piece whose id happens to share the `abc_` prefix.
+///
 /// [omrDemoIds] is a parameter so this file stays free of `PieceRepository`.
 PieceLibrary seedLibrary(
   PieceLibrary library, {
@@ -573,6 +580,13 @@ PieceLibrary seedLibrary(
     for (final pieceId in omrDemoIds) {
       lib = tagPiece(lib, pieceId: pieceId, collectionId: id);
       lib = setHidden(lib, pieceId, true);
+    }
+  }
+  // Only for libraries step 1 ran on in an earlier build: a fresh install
+  // that is handed demo ids keeps the collection step 1 just made.
+  if (library.seedVersion == 1) {
+    for (final c in [...lib.collections]) {
+      if (c.name == omrDemoCollectionName) lib = removeCollection(lib, c.id);
     }
   }
   return lib.seedVersion >= currentSeedVersion

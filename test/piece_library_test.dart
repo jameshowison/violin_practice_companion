@@ -397,6 +397,20 @@ void main() {
       expect(lib.hiddenIds, {'abc_01', 'abc_02'});
     });
 
+    test('an install seeded by step 1 loses the OMR demos collection', () {
+      var lib =
+          seedLibrary(PieceLibrary.empty, omrDemoIds: demos, nowMillis: 500)
+              .copyWith(seedVersion: 1); // as an older build left it
+      lib = addCollection(lib, name: 'Suzuki 1', nowMillis: 600);
+
+      lib = seedLibrary(lib, omrDemoIds: const [], nowMillis: 900);
+
+      expect(lib.collections.map((c) => c.name), ['Suzuki 1']);
+      expect(lib.seedVersion, currentSeedVersion);
+      // A collection is a label: nothing else about the pieces changes.
+      expect(lib.hiddenIds, demos.toSet());
+    });
+
     test('a library with no demos to seed still records the version', () {
       final lib = seedLibrary(PieceLibrary.empty,
           omrDemoIds: const [], nowMillis: 500);

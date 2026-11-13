@@ -84,8 +84,8 @@ String _searchText(String s) => s
 ///
 /// [hiddenCount] is scoped to the active collection by the caller, which is what
 /// makes the all-hidden case distinguishable from the genuinely-empty one. A
-/// seeded install opens with "OMR demos" holding ten hidden pieces; saying "No
-/// pieces in OMR demos yet" there would be a plain lie.
+/// collection of nothing but hidden pieces (as the retired "OMR demos" seed
+/// was) must not be told "No pieces in … yet"; that would be a plain lie.
 typedef LibraryEmptyState = ({String message, bool offerManage});
 
 LibraryEmptyState libraryEmptyState({
