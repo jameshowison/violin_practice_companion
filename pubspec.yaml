@@ -166,9 +166,7 @@ flutter:
     # test/release_content_test.dart checks this list against the catalog.
     - assets/library/
     - assets/library/lightly_row/
-    - assets/library/lightly_row/audio/
     - assets/library/happy_farmer/
     - assets/library/gossec_gavotte/
     - assets/library/the_wellerman/
     - assets/library/old_joe_clark/
-    - assets/library/salt_creek/audio/

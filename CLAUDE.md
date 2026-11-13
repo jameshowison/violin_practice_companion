@@ -329,8 +329,8 @@ description in the README, "Dev library". What an agent needs to know:
   `piecesProvider` and `libraryProvider`) and records its base in the
   `devLibrary.base` pref. The fingerprints in the Dart and Python halves must
   stay identical — `test/dev_library_test.dart` pins both.
-- **Ids are preserved**, so `piece_repository.dart`'s hardcoded piece ids (e.g.
-  the salt_creek `audioOnly` entry in `assets/library/catalog.json`) hold on every synced device.
+- **Ids are preserved**, so ids the catalog keys on (e.g. an `audioOnly`
+  entry in `assets/library/catalog.json`) hold on every synced device.
 - **Confirm convergence by the dry run, not by eye:**
   `bash scripts/pull_dev_library.sh <device> --dry-run` after the app has
   relaunched should print `0 taken`. The app also logs one `[dev_library] …` line

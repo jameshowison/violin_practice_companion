@@ -447,7 +447,7 @@ a re-trust (see above).
 2. `flutter test` (and `VPC_PUBLIC_RELEASE=1 flutter test` before any
    *external* testers — it refuses the `internal-testing-only` play-along tracks).
 3. Smoke-test on the phone: `scripts/device_install.sh`, then play a piece (the
-   synth), calibrate once (the claves), a bundled track, a scan.
+   synth), calibrate once (the claves), a scan.
 4. `flutter build ipa --release`, then drag `build/ios/ipa/Stringlings.ipa` into
    Transporter. Processing takes 10–30 minutes; encryption compliance is already
    answered in `Info.plist`.

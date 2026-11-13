@@ -74,9 +74,11 @@ Everything under `assets/` is bundled into the app. Nothing else is.
 
 Play-along tracks go in `assets/library/<folder>/audio/` (gitignored: they are
 supplied, not committed), with an `audio` block in the catalog entry and their
-own pubspec line. Tracks licensed `internal-testing-only` may go into test
-builds for known testers. `VPC_PUBLIC_RELEASE=1 flutter test` refuses them, so
-run that before any public release.
+own pubspec line. Tracks licensed `internal-testing-only` may go only into
+builds for internal testers. External TestFlight testers count as a public
+release, so run `VPC_PUBLIC_RELEASE=1 flutter test`, which refuses them, before
+that too. None ship today: the maintainer's play-along tracks were taken out
+for external testing (backed up in the restricted repo, `reference/audio_bundled/`).
 
 ### The two guards
 

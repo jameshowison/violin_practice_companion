@@ -9,12 +9,7 @@
       "sections": "lightly_row/sections.json",
       "source": "German folk song. Notes-only encoding with chord symbols (scripts/clean_musicxml.py).",
       "license": "public-domain",
-      "fingerings": "app",
-      "audio": {
-        "folder": "lightly_row",
-        "source": "Play-along recordings supplied by the maintainer.",
-        "license": "internal-testing-only"
-      }
+      "fingerings": "app"
     },
     {
       "id": "happy_farmer",
@@ -55,15 +50,6 @@
       "source": "American fiddle tune. Converted from docs/wellerman.abc (tune X:2, which shares the file with The Wellerman) by the app's ABC import.",
       "license": "public-domain",
       "fingerings": "app"
-    }
-  ],
-  "audioOnly": [
-    {
-      "folder": "salt_creek",
-      "pieceId": "untitled_2026_09_08t11_19_17_445148_1788884398656",
-      "note": "Play-along tracks for the maintainer's scanned Salt Creek (a dev-library piece, not bundled).",
-      "source": "Play-along recordings supplied by the maintainer.",
-      "license": "internal-testing-only"
     }
   ]
 }
