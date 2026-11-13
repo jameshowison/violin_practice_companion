@@ -162,7 +162,7 @@ flutter:
     - assets/engine/omr_models/
     # The bundled pieces: assets/library/catalog.json lists them, with where
     # each comes from. Flutter does not bundle subfolders, so every piece
-    # folder (and its audio/, gitignored) needs its own line;
+    # folder (and any audio/, gitignored) needs its own line;
     # test/release_content_test.dart checks this list against the catalog.
     - assets/library/
     - assets/library/lightly_row/
@@ -170,3 +170,7 @@ flutter:
     - assets/library/gossec_gavotte/
     - assets/library/the_wellerman/
     - assets/library/old_joe_clark/
+    - assets/library/song_of_the_wind/
+    - assets/library/may_song/
+    - assets/library/long_long_ago/
+    - assets/library/minuet_in_g/

@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/piece.dart';
+import 'package:violin_practice_companion/models/piece_catalog.dart';
 import 'package:violin_practice_companion/models/piece_library.dart';
 
 Piece piece(String id, [String? title]) =>
@@ -373,9 +377,10 @@ void main() {
       final lib =
           seedLibrary(PieceLibrary.empty, omrDemoIds: demos, nowMillis: 500);
 
+      final omr =
+          lib.collections.singleWhere((c) => c.name == omrDemoCollectionName);
       expect(lib.hiddenIds, demos.toSet());
-      expect(lib.collections.single.name, omrDemoCollectionName);
-      expect(lib.collections.single.pieceIds, demos);
+      expect(omr.pieceIds, demos);
       expect(lib.seedVersion, currentSeedVersion);
     });
 
@@ -398,14 +403,20 @@ void main() {
     });
 
     test('an install seeded by step 1 loses the OMR demos collection', () {
-      var lib =
-          seedLibrary(PieceLibrary.empty, omrDemoIds: demos, nowMillis: 500)
-              .copyWith(seedVersion: 1); // as an older build left it
+      // As a version-1 build left it: step 1 only.
+      var lib = addCollection(PieceLibrary.empty,
+          name: omrDemoCollectionName, nowMillis: 500);
+      for (final d in demos) {
+        lib = tagPiece(lib, pieceId: d, collectionId: lib.collections.single.id);
+        lib = setHidden(lib, d, true);
+      }
+      lib = lib.copyWith(seedVersion: 1);
       lib = addCollection(lib, name: 'Suzuki 1', nowMillis: 600);
 
       lib = seedLibrary(lib, omrDemoIds: const [], nowMillis: 900);
 
-      expect(lib.collections.map((c) => c.name), ['Suzuki 1']);
+      expect(lib.collections.map((c) => c.name),
+          ['Suzuki 1', firstPiecesCollectionName]);
       expect(lib.seedVersion, currentSeedVersion);
       // A collection is a label: nothing else about the pieces changes.
       expect(lib.hiddenIds, demos.toSet());
@@ -415,8 +426,49 @@ void main() {
       final lib = seedLibrary(PieceLibrary.empty,
           omrDemoIds: const [], nowMillis: 500);
 
-      expect(lib.collections, isEmpty);
+      expect(lib.collections.map((c) => c.name), [firstPiecesCollectionName]);
       expect(lib.seedVersion, currentSeedVersion);
+    });
+
+    test('step 3 files First Pieces as a book, in learning order', () {
+      final lib = seedLibrary(PieceLibrary.empty,
+          omrDemoIds: const [], nowMillis: 500);
+
+      final book = lib.collections.single;
+      expect(book.name, firstPiecesCollectionName);
+      expect(book.ordered, isTrue);
+      expect(book.pieceIds, firstPiecesIds);
+      expect(lib.hiddenIds, isEmpty);
+    });
+
+    test('step 3 reaches existing installs, once', () {
+      var lib = PieceLibrary.empty.copyWith(seedVersion: 2);
+      lib = seedLibrary(lib, omrDemoIds: const [], nowMillis: 500);
+      expect(lib.collections.map((c) => c.name), [firstPiecesCollectionName]);
+
+      // Deleting it sticks: a later launch does not bring it back.
+      lib = removeCollection(lib, lib.collections.single.id);
+      expect(seedLibrary(lib, omrDemoIds: const [], nowMillis: 900).collections,
+          isEmpty);
+    });
+
+    test('step 3 leaves a "First Pieces" the user already has', () {
+      var lib = addCollection(PieceLibrary.empty.copyWith(seedVersion: 2),
+          name: firstPiecesCollectionName, nowMillis: 100);
+      lib = tagPiece(lib,
+          pieceId: 'my_scan', collectionId: lib.collections.single.id);
+
+      lib = seedLibrary(lib, omrDemoIds: const [], nowMillis: 500);
+
+      expect(lib.collections.single.pieceIds, ['my_scan']);
+    });
+
+    test('every First Pieces id is a bundled piece', () {
+      final catalog = PieceCatalog.fromJson(
+          json.decode(File(kCatalogAsset).readAsStringSync())
+              as Map<String, dynamic>);
+      expect(catalog.ids.containsAll(firstPiecesIds), isTrue,
+          reason: '${firstPiecesIds.toSet().difference(catalog.ids)}');
     });
   });
 }

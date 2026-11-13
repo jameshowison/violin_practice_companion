@@ -50,6 +50,46 @@
       "source": "American fiddle tune. Converted from docs/wellerman.abc (tune X:2, which shares the file with The Wellerman) by the app's ABC import.",
       "license": "public-domain",
       "fingerings": "app"
+    },
+    {
+      "id": "song_of_the_wind",
+      "title": "Song of the Wind",
+      "composer": "Traditional",
+      "score": "song_of_the_wind/score.musicxml",
+      "sections": "song_of_the_wind/sections.json",
+      "source": "German folk song (\"Fuchs, du hast die Gans gestohlen\"). Notes-only encoding (scripts/clean_musicxml.py).",
+      "license": "public-domain",
+      "fingerings": "app"
+    },
+    {
+      "id": "may_song",
+      "title": "May Song",
+      "composer": "Traditional",
+      "score": "may_song/score.musicxml",
+      "sections": "may_song/sections.json",
+      "source": "German folk song (\"Alle Vögel sind schon da\"). Notes-only encoding (scripts/clean_musicxml.py).",
+      "license": "public-domain",
+      "fingerings": "app"
+    },
+    {
+      "id": "long_long_ago",
+      "title": "Long, Long Ago",
+      "composer": "Thomas Haynes Bayly",
+      "score": "long_long_ago/score.musicxml",
+      "sections": "long_long_ago/sections.json",
+      "source": "Bayly, song \"Long, Long Ago\" (1833). Notes-only encoding (scripts/clean_musicxml.py).",
+      "license": "public-domain",
+      "fingerings": "app"
+    },
+    {
+      "id": "minuet_in_g",
+      "title": "Minuet in G (Petzold)",
+      "composer": "Christian Petzold",
+      "score": "minuet_in_g/score.musicxml",
+      "sections": "minuet_in_g/sections.json",
+      "source": "Minuet in G major, BWV Anh. 114, from the 1725 Notebook for Anna Magdalena Bach; now attributed to Petzold. Notes-only encoding (scripts/clean_musicxml.py).",
+      "license": "public-domain",
+      "fingerings": "app"
     }
   ]
 }

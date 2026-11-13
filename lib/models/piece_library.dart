@@ -542,11 +542,28 @@ Piece _titled(PieceLibrary lib, Piece piece) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The seeding steps this build knows about. Bump when adding one.
-const currentSeedVersion = 2;
+const currentSeedVersion = 3;
 
 /// The name of the collection [seedLibrary] files the OMR comparison fixtures
 /// under.
 const omrDemoCollectionName = 'OMR demos';
+
+/// The starter collection [seedLibrary] step 3 creates.
+const firstPiecesCollectionName = 'First Pieces';
+
+/// [firstPiecesCollectionName]'s bundled pieces, in learning order: the order
+/// the common beginner method books teach them in, which is a natural
+/// progression. Hand-ordered, so the list shows them this way. Every id must
+/// be in `assets/library/catalog.json` (test/piece_library_test.dart).
+const firstPiecesIds = [
+  'lightly_row',
+  'song_of_the_wind',
+  'may_song',
+  'long_long_ago',
+  'minuet_in_g',
+  'happy_farmer',
+  'gossec_gavotte',
+];
 
 /// [library] with any seeding step newer than its `seedVersion` applied.
 ///
@@ -566,6 +583,11 @@ const omrDemoCollectionName = 'OMR demos';
 /// song. Its leftover hidden ids name pieces that no longer exist, which
 /// [hiddenCount] never counts, so they stay rather than risk un-hiding a
 /// user's piece whose id happens to share the `abc_` prefix.
+///
+/// Step 3 files the bundled beginner pieces under [firstPiecesCollectionName],
+/// hand-ordered as [firstPiecesIds]. It runs once, on new and existing
+/// installs alike, and leaves alone a library that already has a collection
+/// of that name — the user's own, or one they deleted and remade.
 ///
 /// [omrDemoIds] is a parameter so this file stays free of `PieceRepository`.
 PieceLibrary seedLibrary(
@@ -588,6 +610,16 @@ PieceLibrary seedLibrary(
     for (final c in [...lib.collections]) {
       if (c.name == omrDemoCollectionName) lib = removeCollection(lib, c.id);
     }
+  }
+  if (library.seedVersion < 3 &&
+      !lib.collections.any((c) => c.name == firstPiecesCollectionName)) {
+    lib = addCollection(lib,
+        name: firstPiecesCollectionName, nowMillis: nowMillis);
+    final id = lib.collections.last.id;
+    for (final pieceId in firstPiecesIds) {
+      lib = tagPiece(lib, pieceId: pieceId, collectionId: id);
+    }
+    lib = setCollectionOrdered(lib, id, true);
   }
   return lib.seedVersion >= currentSeedVersion
       ? lib
