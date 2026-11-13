@@ -75,6 +75,15 @@ class StringlingClimber extends StatefulWidget {
   /// Called with a rung's index when it is tapped.
   final ValueChanged<int>? onPick;
 
+  /// The resting stringling's head top and feet bottom on [rung] at
+  /// [cents], in a box of [size]: for tests that check it stays in view.
+  @visibleForTesting
+  static (double, double) extentAt(Size size, int n, int rung, double cents) {
+    final l = _Layout(size, n);
+    final cy = l.rungY(rung) - l.ry * 0.3 + l.offset(cents);
+    return (cy - l.ry, cy + l.ry * 1.05);
+  }
+
   @override
   State<StringlingClimber> createState() => _StringlingClimberState();
 }
@@ -206,16 +215,35 @@ class _StringlingClimberState extends State<StringlingClimber>
 
 /// Where the rungs and the stringling go in a box of a given size: shared
 /// by the painter and the rungs' tap targets, so the two always agree.
+///
+/// The rules are spaced so that the stringling at its furthest reach stays
+/// in the box: a sharp one on the top string keeps its head below the mode
+/// pill the screen lays over the card, a flat one on the bottom string its
+/// feet above the card's edge. In between it may overlap the next string.
 class _Layout {
   _Layout(Size size, this.n) : width = size.width {
     final h = size.height;
-    // Room above the top rule for a sharp stringling and the mode pill the
-    // screen lays over the card.
-    top = h * 0.28;
-    bottom = h - h * 0.15;
-    gap = n > 1 ? (bottom - top) / (n - 1) : 0.0;
-    rx = math.max(20.0, math.min(48.0, math.min(width * 0.075, gap * 0.42)));
+    var g = n > 1 ? h * 0.5 / (n - 1) : 0.0;
+    double radius(double g) => math.max(20.0, math.min(48.0, math.min(width * 0.075, g * 0.42)));
+    // The reach scales with the gap, which is what is left after the
+    // reach: a few rounds settle it.
+    for (var k = 0; k < 6 && n > 1; k++) {
+      final r = radius(g) * 0.87;
+      g = (h - pillRoom - _headRoom * r - _feetRoom * r - 2 * reach * g) / (n - 1);
+    }
+    rx = radius(g);
     ry = rx * 0.87;
+    // A short card (a phone on its side) can't afford the full reach: keep
+    // the rules from bunching, and give the reach what room is left.
+    if (n > 1 && g < minGap) {
+      g = math.min(minGap, (h - pillRoom - (_headRoom + _feetRoom) * ry) / (n - 1));
+      g = math.max(g, 0.0);
+    }
+    gap = g;
+    final spare = h - pillRoom - (_headRoom + _feetRoom) * ry - (n - 1) * gap;
+    reachPx = n > 1 ? math.max(0.0, math.min(reach * gap, spare / 2)) : 0.0;
+    top = pillRoom + reachPx + _headRoom * ry;
+    bottom = top + (n - 1) * gap;
     thick = math.max(8.0, rx * 0.26);
     x2 = width - 18;
     cx0 = x1 + (x2 - x1) * 0.55;
@@ -224,9 +252,38 @@ class _Layout {
   final int n;
   final double width;
   late final double top, bottom, gap, rx, ry, thick, x2, cx0;
+
+  /// How far the body moves off its rule at ±50 cents, in points.
+  late final double reachPx;
   static const x1 = 58.0;
 
+  /// The mode pill's bottom edge, two lines tall, and a little air.
+  static const pillRoom = 66.0;
+
+  /// The stringling's reach at ±50 cents, as a fraction of the gap between
+  /// rules. Over half, a flat one hangs down among the string below's.
+  static const reach = 0.95;
+
+  /// How soon it gets there: the exponent on how far out of tune it is.
+  /// Under 1 it leaves the string quickly (at 0.5: 45% of its reach at
+  /// ±10 cents) so a small mistune is plain to see; 1 is a straight line.
+  static const soon = 0.5;
+
+  /// Below this the rules bunch up and the reach gives way instead.
+  static const minGap = 52.0;
+
+  // The head's top above its rule (the body hangs 0.3 ry above it, plus
+  // its own ry), and the feet's bottom below.
+  static const _headRoom = 1.38, _feetRoom = 0.95;
+
   double rungY(int i) => bottom - i * gap;
+
+  /// The body's offset from its rest pose for [cents]: down when flat, up
+  /// when sharp, on the [soon] curve.
+  double offset(double cents) {
+    final a = math.min(1.0, cents.abs() / 50);
+    return a == 0 ? 0 : -cents.sign * reachPx * math.pow(a, soon);
+  }
 }
 
 const _ink = kStringlingsPupil;
@@ -297,7 +354,7 @@ class _ClimberPainter extends CustomPainter {
     double panic = 0;
     if (c != null && c.fall) {
       final ya = rungY(c.from), yb = rungY(c.to);
-      final flat = -s.shown.clamp(-55.0, 55.0) * (gap * 0.44) / 50;
+      final flat = l.offset(s.shown);
       final d = flat - ry * 0.3; // the body's centre, below its hands
       final over = ry * 0.55; // how far the caught arm stretches
       final sc = c.lead ? -1.0 : 1.0; // the side of the hand that holds on
@@ -367,8 +424,7 @@ class _ClimberPainter extends CustomPainter {
         p = 0;
         dir = 0;
       } else {
-        final cents = s.shown.clamp(-55.0, 55.0);
-        offset = -cents * (gap * 0.44) / 50;
+        offset = l.offset(s.shown);
         p = math.min(1.0, s.shown.abs() / 50);
         dir = s.shown < 0 ? -1 : 1;
       }
@@ -553,12 +609,13 @@ class StringlingFace {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // Arms, behind the body.
-    stroke.strokeWidth = 9 * u;
+    // Arms, behind the body, thinning as they stretch.
     for (var i = 0; i < hands.length; i++) {
       final side = i == 0 ? -1.0 : 1.0;
       final h = hands[i];
       final sx = x + side * rx * 0.8, sy = cy - ry * 0.05;
+      final length = (Offset(sx, sy) - h).distance;
+      stroke.strokeWidth = 9 * u * (rx * 1.6 / math.max(length, 1)).clamp(0.6, 1.0);
       final mx = (sx + h.dx) / 2 + side * 5 * u, my = (sy + h.dy + thick / 2) / 2;
       canvas.drawPath(
           Path()

@@ -360,6 +360,21 @@ void main() {
       expect(status(tester), 'In tune!');
     });
 
+    testWidgets('sharp on E its head stays below the pill; flat on G its feet stay in', (tester) async {
+      await pumpTuner(tester);
+      final card = tester.getRect(find.byKey(const ValueKey('tuner_climber')));
+      final pill = tester.getRect(find.byKey(const ValueKey('tuner_mode_tune')));
+      final (head, _) = StringlingClimber.extentAt(card.size, 4, 3, 50);
+      expect(card.top + head, greaterThan(pill.bottom));
+      final (_, feet) = StringlingClimber.extentAt(card.size, 4, 0, -50);
+      expect(feet, lessThan(card.height));
+      // Out of tune a little, it is already well off the string.
+      final (rest, _) = StringlingClimber.extentAt(card.size, 4, 2, 0);
+      final (tenFlat, _) = StringlingClimber.extentAt(card.size, 4, 2, -10);
+      final (fiftyFlat, _) = StringlingClimber.extentAt(card.size, 4, 2, -50);
+      expect((tenFlat - rest) / (fiftyFlat - rest), greaterThan(0.4));
+    });
+
     testWidgets('microphone refused, then back to playing', (tester) async {
       await pumpTuner(tester, deny: true);
       await listen(tester);
