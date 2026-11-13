@@ -293,6 +293,12 @@ const _blush = Color(0xFFF48FB1);
 const _gold = Color(0xFFE8B21C);
 const _inkSoft = Color(0xFF6A6180);
 const _tuned = Color(0xFF2E7D32);
+const _coral = Color(0xFFFF8A80);
+const _lilac = Color(0xFFB388FF);
+
+/// The in-tune celebration: how many sparkles, how big (over the old 9
+/// point star), and how high it hops when it lands (in body heights, about).
+const _sparkles = 16, _sparkleSize = 1.9, _hop = 0.6;
 
 double _ease(double x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 
@@ -430,11 +436,36 @@ class _ClimberPainter extends CustomPainter {
       }
     }
     final cx = cx0 + sway + bodyDx + (c != null && !c.fall ? math.sin(c.t * math.pi * 2) * 5 : 0);
+    // Landing in tune: a hop with a few dwindling bounces, then a happy
+    // little jig, and it swells a touch.
+    var hop = 0.0, grow = 1.0;
+    if (inTune && s.held > 0) {
+      final k = s.held;
+      grow = 1 + 0.22 * _hop * math.min(1.0, k * 3);
+      if (!s.still) {
+        hop = (math.max(0.0, math.sin(k * 7)) * math.exp(-k * 0.6) * 0.55 +
+                (math.sin(k * 4.2)).abs() * 0.12 * math.min(1.0, k)) *
+            ry *
+            _hop;
+      }
+    }
+    final bodyY = anchor - ry * 0.3 + offset - hop;
+    if (inTune && !s.still && s.held < 0.9) {
+      // A gold ring bursting out as it lands.
+      final k = s.held / 0.9;
+      canvas.drawCircle(
+          Offset(cx, bodyY),
+          rx * (1 + k * 4),
+          Paint()
+            ..color = _gold.withValues(alpha: (1 - k) * 0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 6 * (1 - k) + 1);
+    }
     StringlingFace(
       cx: cx,
-      cy: anchor - ry * 0.3 + offset,
-      rx: rx,
-      ry: ry,
+      cy: bodyY,
+      rx: rx * grow,
+      ry: ry * grow,
       thick: thick,
       hands: hands ?? [Offset(cx0 - handDx, handL), Offset(cx0 + handDx, handR)],
       pain: p,
@@ -729,15 +760,17 @@ class StringlingFace {
             ..quadraticBezierTo(mx, my + mh * 0.9, mx + mw * 0.55, my),
           wStroke);
     } else if (p < 0.08) {
+      // Wider the longer it has been in tune.
+      final g = 1 + 0.25 * math.min(1.0, held * 3);
       final mouth = Path()
-        ..moveTo(mx - mw, my - mh * 0.2)
-        ..quadraticBezierTo(mx, my + mh * 2.3, mx + mw, my - mh * 0.2)
+        ..moveTo(mx - mw * g, my - mh * 0.2)
+        ..quadraticBezierTo(mx, my + mh * 2.3 * g, mx + mw * g, my - mh * 0.2)
         ..close();
       canvas.drawPath(mouth, white);
       canvas.save();
       canvas.clipPath(mouth);
       canvas.drawOval(
-          Rect.fromCenter(center: Offset(mx, my + mh * 1.05), width: mw, height: mh),
+          Rect.fromCenter(center: Offset(mx, my + mh * 1.05 * g), width: mw * g, height: mh * g),
           Paint()..color = const Color(0xFFE57373));
       canvas.restore();
     } else if (p < 0.4) {
@@ -800,16 +833,21 @@ class StringlingFace {
       }
     }
 
-    // Sparkles once it has settled in tune.
-    if (held > 0.35) {
-      final a = math.min(1.0, (held - 0.35) / 0.4);
-      const spots = [
-        [-1.35, -0.9, 1.0], [1.4, -1.05, 0.8], [-1.1, -1.55, 0.6], [1.0, -1.7, 0.9], [0.0, -1.85, 0.7]
-      ];
-      for (var k = 0; k < spots.length; k++) {
-        final tw = still ? 1.0 : 0.6 + 0.4 * math.sin(t * 5 + k * 1.9);
-        _star(canvas, Offset(x + spots[k][0] * rx, cy + spots[k][1] * ry), 9 * u * spots[k][2] * tw,
-            (k.isOdd ? _gold : accent).withValues(alpha: a));
+    // Sparkles once it has settled in tune: a ring of them at golden-angle
+    // spacing, twinkling, turning and drifting up and out.
+    if (held > 0.25) {
+      final a = math.min(1.0, (held - 0.25) / 0.35);
+      final colors = [_gold, accent, _coral, _sweat, _lilac];
+      for (var k = 0; k < _sparkles; k++) {
+        final ang = k * 2.399 + 0.3, ring = 1.35 + (k * 0.37) % 1 * 1.4;
+        final drift = still ? 0.0 : math.sin(t * 1.3 + k) * 0.15;
+        final rise = still ? 0.0 : (t * 0.25 + k * 0.13) % 1 * ry * 0.4;
+        final at = Offset(x + math.cos(ang) * rx * ring * (1 + drift),
+            cy + math.sin(ang) * ry * ring * 0.95 - rise);
+        final tw = still ? 1.0 : 0.55 + 0.45 * math.sin(t * 5 + k * 1.9);
+        final size = 9 * u * _sparkleSize * tw * (0.6 + (k * 0.61) % 1 * 0.6);
+        _star(canvas, at, size, colors[k % colors.length].withValues(alpha: a),
+            still ? 0.0 : t * (k.isOdd ? 1 : -1));
       }
     }
   }
@@ -832,10 +870,10 @@ class StringlingFace {
         Paint()..color = const Color(0xBFFFFFFF));
   }
 
-  static void _star(Canvas canvas, Offset c, double r, Color color) {
+  static void _star(Canvas canvas, Offset c, double r, Color color, [double turn = 0]) {
     final path = Path();
     for (var k = 0; k < 8; k++) {
-      final a = k * math.pi / 4, rad = k.isOdd ? r * 0.32 : r;
+      final a = k * math.pi / 4 + turn, rad = k.isOdd ? r * 0.32 : r;
       final pt = c + Offset(math.cos(a) * rad, math.sin(a) * rad);
       k == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
     }
