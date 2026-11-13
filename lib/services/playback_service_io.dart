@@ -127,7 +127,9 @@ class PlaybackService extends PlaybackServiceBase {
       _resetsAtLoad = await _engineResets();
       _builtFor = _routeKey(await AudioOutput.fetchRoute());
     } catch (e) {
-      // Soundfont not yet installed; playback silently disabled on mobile
+      // Playback stays disabled, but say so: a wrong soundfontAsset path once
+      // made the synth silent for a day with nothing in the log.
+      debugPrint('[midi] soundfont failed to load — playback disabled: $e');
     }
   }
 

@@ -521,6 +521,17 @@ and `docs/plan.md` for the remaining roadmap.
 | `docs/` | design notes, plans, our own ABC sources | no |
 | `packages/` | vendored dependencies (`jovial_svg`) | yes, as code |
 
+**The soundfont** is not committed. Download GeneralUser GS (S. Christian
+Collins, schristiancollins.com) and cut it down to the two sounds the app plays,
+the violin and the calibration claves (31 MB → 0.9 MB):
+
+```bash
+python3 scripts/subset_soundfont.py path/to/GeneralUser-GS.sf2 \
+    assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75
+```
+
+If the app starts playing another instrument, add its `--keep` and rerun.
+
 Material that can't be public lives in a private companion checkout
 (`../violin_practice_restricted`); tests that use it skip without it. See
 CONTRIBUTING.md, "Restricted test material".

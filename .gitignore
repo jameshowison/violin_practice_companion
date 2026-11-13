@@ -51,7 +51,7 @@ app.*.map.json
 node_modules/
 package-lock.json
 
-# Large binary assets (obtain separately — source: GeneralUser GS SF2)
+# Large binary assets (GeneralUser GS, cut down by scripts/subset_soundfont.py — see README)
 assets/engine/soundfonts/*.sf2
 assets/engine/soundfonts/*.sf3
 
