@@ -24,6 +24,10 @@ const tunerA4Key = 'tuner.a4';
 /// the app's Instruments setting includes it.
 const tunerInstrumentKey = 'tuner.instrument';
 
+/// `tuner.autoString`: follow whichever string is played rather than the one
+/// tapped. Off by default; Auto as a chip beside the strings confused testers.
+const tunerAutoStringKey = 'tuner.autoString';
+
 /// The tuner: a stringling climbs to the string being played and shows by
 /// its height and face how far out of tune it is (see [StringlingClimber]).
 ///
@@ -35,7 +39,8 @@ const tunerInstrumentKey = 'tuner.instrument';
 /// string's pitch instead. For violin, an arrow above the string's rule shows
 /// which way to turn the fine tuner.
 ///
-/// Follows whichever string is played, or the one picked in the chips.
+/// Tapping a string picks it; the tuner always opens on A. Following
+/// whichever string is played instead is a switch in the settings sheet.
 /// Violin targets are pure fifths from A, mandolin's equal-tempered
 /// (`string_tuner`'s [InstrumentTuning]). The reference A and the instrument
 /// are in the settings sheet (the cog).
@@ -60,6 +65,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   int _rung = 2; // the A string until something is heard or picked
   double _a4 = 440;
   bool _mandolin = false;
+  bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
 
   /// Lets the play slider go back to in tune, with a little overshoot, when
@@ -130,7 +136,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _a4 = (prefs?.getInt(tunerA4Key) ?? 440) == 442 ? 442 : 440;
     _mandolin = prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
         ref.read(instrumentFeaturesProvider).fretNumbers;
+    _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
     _model = TunerModel(_tuning());
+    if (!_auto) _model.pinned = _model.tuning.strings[_rung].name;
     WidgetsBinding.instance.addObserver(this);
     KeepAwake.enable();
   }
@@ -239,10 +247,21 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
   }
 
-  void _pin(String? name) {
+  /// A tapped string. Following what is played, it only moves the
+  /// stringling there (until something else is heard).
+  void _pick(int i) {
     setState(() {
-      _model.pinned = name;
-      if (name != null) _rung = _model.tuning.strings.indexWhere((s) => s.name == name);
+      _rung = i;
+      if (!_auto) _model.pinned = _model.tuning.strings[i].name;
+    });
+    _reading.value = null;
+  }
+
+  void _setAuto(bool on) {
+    ref.read(sharedPreferencesProvider)?.setBool(tunerAutoStringKey, on);
+    setState(() {
+      _auto = on;
+      _model.pinned = on ? null : _model.tuning.strings[_rung].name;
     });
     _reading.value = null;
   }
@@ -252,6 +271,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true, // taller than the default 9/16 on an SE
       builder: (context) => StatefulBuilder(
         builder: (context, setSheet) {
           final theme = Theme.of(context);
@@ -282,6 +302,18 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                   const SizedBox(height: 4),
                   Text('Most teachers use 440. Some orchestras tune a little higher, to 442.',
                       style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    key: const ValueKey('tuner_auto_string'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Follow the string I play'),
+                    subtitle: const Text('Instead of the string you tap.'),
+                    value: _auto,
+                    onChanged: (v) {
+                      _setAuto(v);
+                      setSheet(() {});
+                    },
+                  ),
                   if (features.fretNumbers) ...[
                     const SizedBox(height: 18),
                     Text('Instrument', style: theme.textTheme.titleSmall),
@@ -402,6 +434,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                   doubled: _mandolin,
                                   fineTuners: !_mandolin,
                                   falls: _falls,
+                                  picked: _auto ? null : _rung,
+                                  onPick: _pick,
                                 ),
                               ),
                             ),
@@ -436,34 +470,6 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                     onLetGo: _springBack,
                   );
                 },
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                alignment: WrapAlignment.center,
-                children: [
-                  ChoiceChip(
-                    key: const ValueKey('tuner_string_auto'),
-                    label: const Text('Auto'),
-                    showCheckmark: false,
-                    visualDensity: VisualDensity.compact,
-                    selected: _model.pinned == null,
-                    onSelected: (_) => _pin(null),
-                  ),
-                  for (final s in tuning.strings)
-                    ChoiceChip(
-                      key: ValueKey('tuner_string_${s.name[0]}'),
-                      avatar: CircleAvatar(backgroundColor: _colorOf(s.name[0]), radius: 6),
-                      label: Text(s.name[0]),
-                      // No checkmark: it widens the chip, and the E chip
-                      // wrapped onto a row of its own on an iPhone SE.
-                      showCheckmark: false,
-                      visualDensity: VisualDensity.compact,
-                      selected: _model.pinned == s.name,
-                      onSelected: (on) => _pin(on ? s.name : null),
-                    ),
-                ],
               ),
             ],
           ),

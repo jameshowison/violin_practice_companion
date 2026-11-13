@@ -34,6 +34,9 @@ class ClimberRung {
 /// pitch, so flat shows clockwise and sharp anti-clockwise. Hidden when in tune, idle or
 /// climbing.
 ///
+/// With [onPick], each rung is a tap target (and a button to screen readers)
+/// for picking that string; [picked] gets a ring round its letter.
+///
 /// Ported from the approved design prototype (the "Stringling Tuner"
 /// artifact). The body is the icon's stringling (scripts/app_icon/
 /// stringlings_icon.mjs): same ink, eyes and curled fingers.
@@ -46,6 +49,8 @@ class StringlingClimber extends StatefulWidget {
     this.doubled = false,
     this.fineTuners = false,
     this.falls = 0,
+    this.picked,
+    this.onPick,
   });
 
   final List<ClimberRung> rungs;
@@ -63,6 +68,12 @@ class StringlingClimber extends StatefulWidget {
   /// climbing: it lets go, drops, catches the lower string with one hand,
   /// swings, and gets the other hand back on. The squirm slider's easter egg.
   final int falls;
+
+  /// The rung the player picked, ringed; null when it follows what is played.
+  final int? picked;
+
+  /// Called with a rung's index when it is tapped.
+  final ValueChanged<int>? onPick;
 
   @override
   State<StringlingClimber> createState() => _StringlingClimberState();
@@ -156,13 +167,66 @@ class _StringlingClimberState extends State<StringlingClimber>
 
   @override
   Widget build(BuildContext context) {
-    return ExcludeSemantics(
+    final picture = ExcludeSemantics(
       child: CustomPaint(
         painter: _ClimberPainter(this, _repaint),
         size: Size.infinite,
       ),
     );
+    final pick = widget.onPick;
+    if (pick == null) return picture;
+    // A band round each rung, half a gap either side, is its tap target.
+    return LayoutBuilder(builder: (context, box) {
+      final l = _Layout(box.biggest, widget.rungs.length);
+      return Stack(
+        children: [
+          Positioned.fill(child: picture),
+          for (var i = 0; i < widget.rungs.length; i++)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: l.rungY(i) + l.thick / 2 - l.gap / 2,
+              height: l.gap,
+              child: Semantics(
+                button: true,
+                selected: widget.picked == i,
+                label: '${widget.rungs[i].letter} string',
+                child: GestureDetector(
+                  key: ValueKey('tuner_string_${widget.rungs[i].letter}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => pick(i),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
+}
+
+/// Where the rungs and the stringling go in a box of a given size: shared
+/// by the painter and the rungs' tap targets, so the two always agree.
+class _Layout {
+  _Layout(Size size, this.n) : width = size.width {
+    final h = size.height;
+    // Room above the top rule for a sharp stringling and the mode pill the
+    // screen lays over the card.
+    top = h * 0.28;
+    bottom = h - h * 0.15;
+    gap = n > 1 ? (bottom - top) / (n - 1) : 0.0;
+    rx = math.max(20.0, math.min(48.0, math.min(width * 0.075, gap * 0.42)));
+    ry = rx * 0.87;
+    thick = math.max(8.0, rx * 0.26);
+    x2 = width - 18;
+    cx0 = x1 + (x2 - x1) * 0.55;
+  }
+
+  final int n;
+  final double width;
+  late final double top, bottom, gap, rx, ry, thick, x2, cx0;
+  static const x1 = 58.0;
+
+  double rungY(int i) => bottom - i * gap;
 }
 
 const _ink = kStringlingsPupil;
@@ -184,18 +248,11 @@ class _ClimberPainter extends CustomPainter {
     final w = s.widget;
     final n = w.rungs.length;
     if (n == 0) return;
-    final h = size.height, width = size.width;
-    // Room above the top rule for a sharp stringling and the Squirm | Tune
-    // pill the screen lays over the card.
-    final top = h * 0.28, bottom = h - h * 0.15;
-    final gap = n > 1 ? (bottom - top) / (n - 1) : 0.0;
-    double rungY(int i) => bottom - i * gap;
-    final rx = math.max(20.0, math.min(48.0, math.min(width * 0.075, gap * 0.42)));
-    final ry = rx * 0.87;
-    final thick = math.max(8.0, rx * 0.26);
-    const x1 = 58.0;
-    final x2 = width - 18;
-    final cx0 = x1 + (x2 - x1) * 0.55;
+    final l = _Layout(size, n);
+    final gap = l.gap, rx = l.rx, ry = l.ry, thick = l.thick;
+    double rungY(int i) => l.rungY(i);
+    const x1 = _Layout.x1;
+    final x2 = l.x2, cx0 = l.cx0;
 
     final climbing = s.climb != null;
     final fc = s.climb;
@@ -212,9 +269,19 @@ class _ClimberPainter extends CustomPainter {
       final glow = active && inTune ? math.min(1.0, s.held * 2.5) : 0.0;
       _rung(canvas, x1, x2, rungY(i), thick, r.color.withValues(alpha: active ? 1 : 0.45),
           w.doubled, glow, r.color);
+      final letterSize = math.min(26.0, gap * 0.36);
       _text(canvas, r.letter, Offset(28, rungY(i) + thick / 2),
-          TextStyle(color: r.color, fontSize: math.min(26, gap * 0.36), fontWeight: FontWeight.w900),
+          TextStyle(color: r.color, fontSize: letterSize, fontWeight: FontWeight.w900),
           center: true);
+      if (i == w.picked) {
+        canvas.drawCircle(
+            Offset(28, rungY(i) + thick / 2),
+            letterSize * 0.78,
+            Paint()
+              ..color = r.color
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.2);
+      }
       _text(canvas, r.caption, Offset(x1 + 4, rungY(i) - 5),
           const TextStyle(color: _inkSoft, fontSize: 10.5, fontFeatures: [FontFeature.tabularFigures()]),
           above: true);

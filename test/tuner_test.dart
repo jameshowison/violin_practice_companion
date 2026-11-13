@@ -126,9 +126,10 @@ void main() {
 
   group('TunerScreen', () {
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
-        {bool deny = false, bool mandolin = false}) async {
+        {bool deny = false, bool mandolin = false, bool auto = false}) async {
       SharedPreferences.setMockInitialValues({
         if (mandolin) instrumentSetKey: InstrumentSet.violinAndMandolin.name,
+        if (auto) tunerAutoStringKey: true,
       });
       final sp = await SharedPreferences.getInstance();
       final fake = FakeTunerInput(deny: deny);
@@ -251,7 +252,7 @@ void main() {
     });
 
     testWidgets('Tune starts listening; a flat G says turn clockwise', (tester) async {
-      final fake = await pumpTuner(tester);
+      final fake = await pumpTuner(tester, auto: true);
       await listen(tester);
       expect(fake.starts, 1);
       expect(find.byKey(const ValueKey('tuner_mode_squirm')), findsOneWidget);
@@ -300,7 +301,7 @@ void main() {
     });
 
     testWidgets('mandolin is equal-tempered, and has no fine-tuner advice', (tester) async {
-      final fake = await pumpTuner(tester, mandolin: true);
+      final fake = await pumpTuner(tester, mandolin: true, auto: true);
       await openSettings(tester);
       await tester.tap(find.text('Mandolin'));
       await tester.pump();
@@ -320,6 +321,43 @@ void main() {
       await listen(tester);
       await play(tester, fake, off(660, -45));
       expect(find.text('−45.0¢'), findsOneWidget);
+    });
+
+    testWidgets('opens on A, and a tapped string is the one tuned', (tester) async {
+      final fake = await pumpTuner(tester);
+      StringlingClimber climber() =>
+          tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
+      expect(climber().picked, 2);
+      await listen(tester);
+      await play(tester, fake, 440);
+      expect(status(tester), 'In tune!');
+      await play(tester, fake, 196.0); // a G, but A is picked
+      expect(climber().target, 2);
+      await tester.tap(find.byKey(const ValueKey('tuner_string_D')));
+      await tester.pump();
+      expect(climber().picked, 1);
+      await play(tester, fake, 293.66);
+      expect(status(tester), 'In tune!');
+      await tester.pump(const Duration(seconds: 2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('following the string played is a setting, saved', (tester) async {
+      final fake = await pumpTuner(tester);
+      await openSettings(tester);
+      await tester.tap(find.byKey(const ValueKey('tuner_auto_string')));
+      await tester.pump();
+      final sp = await SharedPreferences.getInstance();
+      expect(sp.getBool(tunerAutoStringKey), isTrue);
+      await tester.tapAt(const Offset(10, 10)); // close the sheet
+      await tester.pump(const Duration(milliseconds: 400));
+      StringlingClimber climber() =>
+          tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
+      expect(climber().picked, isNull);
+      await listen(tester);
+      await play(tester, fake, 195.556);
+      expect(climber().target, 0, reason: 'followed to G');
+      expect(status(tester), 'In tune!');
     });
 
     testWidgets('microphone refused, then back to playing', (tester) async {
