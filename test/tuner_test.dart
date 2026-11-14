@@ -124,6 +124,47 @@ void main() {
     });
   });
 
+  group('CelebrationClock', () {
+    void run(CelebrationClock c, double secs, {double? cents, bool steady = true}) {
+      for (var t = 0.0; t < secs; t += 1 / 60) {
+        c.update(1 / 60, cents: cents, steady: steady, inTune: steady && cents != null && cents.abs() <= 3);
+      }
+    }
+
+    test('nothing on opening in tune, or after a climb', () {
+      final c = CelebrationClock();
+      run(c, 2, cents: 0);
+      expect(c.since, isNull);
+      run(c, 1, cents: -20, steady: false); // climbing past, out of tune
+      run(c, 1, cents: 0);
+      expect(c.since, isNull);
+    });
+
+    test('earned by being out of tune; lasts 3 s and fades', () {
+      final c = CelebrationClock();
+      run(c, 0.5, cents: -20);
+      run(c, 1, cents: 0);
+      expect(c.since, closeTo(1, 0.05));
+      expect(c.fade, 1);
+      run(c, 1.7, cents: 0);
+      expect(c.fade, inExclusiveRange(0, 1), reason: 'fading in the last 0.6 s');
+      run(c, 0.5, cents: 0);
+      expect(c.fade, 0);
+    });
+
+    test('a small wobble or a brush out of tune does not go again', () {
+      final c = CelebrationClock();
+      run(c, 0.5, cents: -20);
+      run(c, 4, cents: 0);
+      run(c, 0.3, cents: 5); // out of the zone, under 6 cents
+      run(c, 0.5, cents: 0);
+      expect(c.since, isNull);
+      run(c, 0.2, cents: 20); // past 6 cents, but not for a third of a second
+      run(c, 0.5, cents: 0);
+      expect(c.since, isNull);
+    });
+  });
+
   group('TunerScreen', () {
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
         {bool deny = false, bool mandolin = false, bool auto = false}) async {
@@ -166,11 +207,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400)); // the sheet slides up
     }
 
-    // Empty when Squirm's hint stands in for the status line.
+    // Empty when Play mode's hint stands in for the status line.
     String status(WidgetTester tester) {
       final f = find.byKey(const ValueKey('tuner_status'));
       return f.evaluate().isEmpty ? '' : tester.widget<Text>(f).data!;
     }
+
+    StringlingClimber climber(WidgetTester tester) =>
+        tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
+    // No figures on screen: what the stringling is told.
+    double? cents(WidgetTester tester) => climber(tester).cents;
 
     testWidgets('opens in play mode with the microphone off', (tester) async {
       final fake = await pumpTuner(tester);
@@ -180,19 +226,21 @@ void main() {
       expect(find.text('sharp'), findsOneWidget);
       expect(find.text('Slide the dot to make it squirm'), findsOneWidget);
       expect(status(tester), '');
-      expect(find.text('±0¢'), findsOneWidget);
+      expect(cents(tester), 0);
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.text('Ready to'), findsOneWidget);
+      expect(find.textContaining('Hz'), findsNothing, reason: 'the frequencies are in settings');
     });
 
     testWidgets('holding the dot makes it squirm; letting go springs back to happy', (tester) async {
       await pumpTuner(tester);
-      String cents() => tester.widget<Text>(find.byKey(const ValueKey('tuner_cents'))).data!;
       final box = tester.getRect(find.byKey(const ValueKey('tuner_slider')));
       Offset at(double f) => Offset(box.left + box.width * f, box.center.dy);
 
       final g = await tester.startGesture(at(0.3));
       await tester.pump(const Duration(milliseconds: 150)); // past the press delay
       expect(status(tester), 'Flat · turn the fine tuner clockwise');
-      expect(cents(), startsWith('−'));
+      expect(cents(tester), lessThan(0));
       for (var f = 0.3; f <= 0.7; f += 0.05) {
         await g.moveTo(at(f));
         await tester.pump(const Duration(milliseconds: 16));
@@ -207,20 +255,20 @@ void main() {
       await g.up();
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(cents(), '±0¢');
+      expect(cents(tester), 0);
       expect(status(tester), '');
 
       // A plain tap also springs back.
       await tester.tapAt(at(0.1));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(cents(), '±0¢');
+      expect(cents(tester), 0);
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('held at the flat end, it falls a string (and only down)', (tester) async {
       await pumpTuner(tester);
-      int target() => tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber'))).target;
+      int target() => climber(tester).target;
       final box = tester.getRect(find.byKey(const ValueKey('tuner_slider')));
       Offset at(double f) => Offset(box.left + box.width * f, box.center.dy);
       expect(target(), 2, reason: 'opens on A');
@@ -240,14 +288,14 @@ void main() {
       expect(target(), 2);
       await tester.pump(const Duration(seconds: 1));
       expect(target(), 1, reason: 'fell to D');
-      expect(find.text('−50¢'), findsOneWidget, reason: 'really flat on D');
+      expect(cents(tester), -50, reason: 'really flat on D');
       await tester.pump(const Duration(seconds: 6));
       expect(target(), 0, reason: 'kept holding: fell to G, and stops there');
       await g.up();
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(target(), 0, reason: 'it stays on the string it fell to');
-      expect(find.text('±0¢'), findsOneWidget);
+      expect(cents(tester), 0);
       expect(tester.takeException(), isNull);
     });
 
@@ -255,25 +303,25 @@ void main() {
       final fake = await pumpTuner(tester, auto: true);
       await listen(tester);
       expect(fake.starts, 1);
-      expect(find.byKey(const ValueKey('tuner_mode_squirm')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_mode_play')), findsOneWidget);
       expect(find.text('Slide the dot to make it squirm'), findsNothing);
       expect(status(tester), 'Play a string');
       expect(fake.range!.minHz, closeTo(195.56 / 1.5, 0.01));
 
       await play(tester, fake, off(195.556, -30));
-      expect(find.text('−30.0¢'), findsOneWidget);
+      expect(cents(tester), closeTo(-30, 0.5));
       expect(status(tester), 'Flat · turn the fine tuner clockwise');
       await tester.pump(const Duration(seconds: 1)); // climbs down to G
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('in tune, then Squirm stops listening', (tester) async {
+    testWidgets('in tune, then Play Mode stops listening', (tester) async {
       final fake = await pumpTuner(tester);
       await listen(tester);
       await play(tester, fake, 440.5);
       expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 2)); // sparkles
-      await tester.tap(find.byKey(const ValueKey('tuner_mode_squirm')));
+      await tester.tap(find.byKey(const ValueKey('tuner_mode_play')));
       await tester.pump();
       expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
       expect(fake.ctl, isNull, reason: 'the microphone stopped');
@@ -284,8 +332,11 @@ void main() {
       expect(find.text('A = 442'), findsNothing);
       await listen(tester);
       await openSettings(tester);
+      String hz() => tester.widget<Text>(find.byKey(const ValueKey('tuner_string_hz'))).data!;
+      expect(hz(), contains('A4 440.00'));
       await tester.tap(find.text('A = 442'));
       await tester.pump();
+      expect(hz(), contains('A4 442.00'), reason: 'the frequencies follow A');
       await tester.pump(const Duration(milliseconds: 20));
       expect(fake.starts, 2, reason: 'the range moved, so the mic restarts');
       await play(tester, fake, 442);
@@ -320,13 +371,12 @@ void main() {
       await tester.pump();
       await listen(tester);
       await play(tester, fake, off(660, -45));
-      expect(find.text('−45.0¢'), findsOneWidget);
+      expect(cents(tester), closeTo(-45, 0.5));
     });
 
     testWidgets('opens on A, and a tapped string is the one tuned', (tester) async {
       final fake = await pumpTuner(tester);
-      StringlingClimber climber() =>
-          tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
+      StringlingClimber climber() => tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
       expect(climber().picked, 2);
       await listen(tester);
       await play(tester, fake, 440);
@@ -342,36 +392,61 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('following the string played is a setting, saved', (tester) async {
+    testWidgets('Choose | Sense under Tune: following the string played, saved', (tester) async {
       final fake = await pumpTuner(tester);
       await openSettings(tester);
-      await tester.tap(find.byKey(const ValueKey('tuner_auto_string')));
+      expect(find.text('Follow the string I play'), findsNothing, reason: 'one place only');
+      await tester.tapAt(const Offset(10, 10)); // close the sheet
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byKey(const ValueKey('tuner_sense')));
       await tester.pump();
       final sp = await SharedPreferences.getInstance();
       expect(sp.getBool(tunerAutoStringKey), isTrue);
-      await tester.tapAt(const Offset(10, 10)); // close the sheet
-      await tester.pump(const Duration(milliseconds: 400));
-      StringlingClimber climber() =>
-          tester.widget<StringlingClimber>(find.byKey(const ValueKey('tuner_climber')));
-      expect(climber().picked, isNull);
+      expect(find.text('Sense: following the string you play'), findsOneWidget);
+      expect(climber(tester).picked, isNull);
       await listen(tester);
       await play(tester, fake, 195.556);
-      expect(climber().target, 0, reason: 'followed to G');
+      expect(climber(tester).target, 0, reason: 'followed to G');
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.byKey(const ValueKey('tuner_note')), findsNothing, reason: 'the note goes');
       expect(status(tester), 'In tune!');
+      await tester.tap(find.byKey(const ValueKey('tuner_choose')));
+      await tester.pump();
+      expect(sp.getBool(tunerAutoStringKey), isFalse);
+      expect(climber(tester).picked, 0, reason: 'chooses the string it is on');
+      await tester.pump(const Duration(seconds: 3));
     });
 
-    testWidgets('sharp on E its head stays below the pill; flat on G its feet stay in', (tester) async {
+    testWidgets('sharp on E its head comes up between the pills; flat on G its feet stay in',
+        (tester) async {
       await pumpTuner(tester);
       final card = tester.getRect(find.byKey(const ValueKey('tuner_climber')));
-      final pill = tester.getRect(find.byKey(const ValueKey('tuner_mode_tune')));
-      final (head, _) = StringlingClimber.extentAt(card.size, 4, 3, 50);
-      expect(card.top + head, greaterThan(pill.bottom));
-      final (_, feet) = StringlingClimber.extentAt(card.size, 4, 0, -50);
-      expect(feet, lessThan(card.height));
+      Rect onScreen(Rect r) => r.shift(card.topLeft);
+      final play = tester.getRect(find.byKey(const ValueKey('tuner_mode_play')));
+      final tune = tester.getRect(find.byKey(const ValueKey('tuner_mode_tune')));
+      final sense = tester.getRect(find.byKey(const ValueKey('tuner_sense')));
+      final choose = tester.getRect(find.byKey(const ValueKey('tuner_choose')));
+      final sharpE = onScreen(StringlingClimber.bodyAt(card.size, 4, 3, 50));
+      expect(sharpE.top, greaterThanOrEqualTo(card.top));
+      // Side to side it sits between the pills, but the test font's square
+      // glyphs make them far wider than on a phone, so that is checked on
+      // the simulator; here, only that it is below the pills' tops and left
+      // of the Tune pill's middle (it comes up nearer the left one).
+      expect(sharpE.center.dx, lessThan(tune.center.dx));
+      expect(sharpE.center.dx, greaterThan(play.center.dx));
+      // The E string's own rule sits under the corner controls.
+      final restE = onScreen(StringlingClimber.bodyAt(card.size, 4, 3, 0));
+      final ry = restE.height / 2.05, ruleE = restE.top + ry * 1.3;
+      for (final r in [play, tune, sense, choose]) {
+        expect(ruleE, greaterThan(r.bottom), reason: 'E rule at $ruleE under $r');
+      }
+      final flatG = StringlingClimber.bodyAt(card.size, 4, 0, -50);
+      expect(flatG.bottom, lessThan(card.height));
+      expect(card.height - flatG.bottom, lessThan(24), reason: 'just enough room below G');
       // Out of tune a little, it is already well off the string.
-      final (rest, _) = StringlingClimber.extentAt(card.size, 4, 2, 0);
-      final (tenFlat, _) = StringlingClimber.extentAt(card.size, 4, 2, -10);
-      final (fiftyFlat, _) = StringlingClimber.extentAt(card.size, 4, 2, -50);
+      final rest = StringlingClimber.bodyAt(card.size, 4, 2, 0).top;
+      final tenFlat = StringlingClimber.bodyAt(card.size, 4, 2, -10).top;
+      final fiftyFlat = StringlingClimber.bodyAt(card.size, 4, 2, -50).top;
       expect((tenFlat - rest) / (fiftyFlat - rest), greaterThan(0.4));
     });
 

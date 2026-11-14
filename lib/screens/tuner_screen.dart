@@ -24,26 +24,27 @@ const tunerA4Key = 'tuner.a4';
 /// the app's Instruments setting includes it.
 const tunerInstrumentKey = 'tuner.instrument';
 
-/// `tuner.autoString`: follow whichever string is played rather than the one
-/// tapped. Off by default; Auto as a chip beside the strings confused testers.
+/// `tuner.autoString`: follow whichever string is played (Sense) rather than
+/// the one tapped (Choose). Off by default; Auto as a chip beside the strings
+/// confused testers, so it is a small Choose | Sense switch under Tune.
 const tunerAutoStringKey = 'tuner.autoString';
 
 /// The tuner: a stringling climbs to the string being played and shows by
 /// its height and face how far out of tune it is (see [StringlingClimber]).
 ///
-/// It opens in SQUIRM mode, with the microphone off: the pitch slider under
-/// the note is a toy, and dragging it makes the stringling squirm, so a child
-/// learns what flat and sharp look like before tuning anything. The Squirm |
-/// Tune pill at the top of the card switches to listening (and Tune is where
-/// the microphone permission is asked, in context); the slider then shows the
-/// string's pitch instead. For violin, an arrow above the string's rule shows
-/// which way to turn the fine tuner.
+/// It opens in PLAY mode, with the microphone off: the pitch slider under
+/// the card is a toy, and dragging it makes the stringling squirm, so a child
+/// learns what flat and sharp look like before tuning anything. Two pills in
+/// the card's top corners, Play Mode and Ready to Tune, switch to listening
+/// (and Tune is where the microphone permission is asked, in context); the
+/// slider then shows the string's pitch instead. For violin, an arrow above
+/// the string's rule shows which way to turn the fine tuner.
 ///
-/// Tapping a string picks it; the tuner always opens on A. Following
-/// whichever string is played instead is a switch in the settings sheet.
-/// Violin targets are pure fifths from A, mandolin's equal-tempered
-/// (`string_tuner`'s [InstrumentTuning]). The reference A and the instrument
-/// are in the settings sheet (the cog).
+/// Tapping a string picks it; the tuner always opens on A. The Choose | Sense
+/// switch under Ready to Tune makes it follow whichever string is played
+/// instead. Violin targets are pure fifths from A, mandolin's equal-tempered
+/// (`string_tuner`'s [InstrumentTuning]). The reference A, with the strings'
+/// frequencies, and the instrument are in the settings sheet (the cog).
 class TunerScreen extends ConsumerStatefulWidget {
   const TunerScreen({super.key});
 
@@ -67,6 +68,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   bool _mandolin = false;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
+
+  /// What the Choose | Sense switch just did, said for a moment in place of
+  /// the status line.
+  String? _note;
+  Timer? _noteTimer;
 
   /// Lets the play slider go back to in tune, with a little overshoot, when
   /// it is let go: every squirm ends happy.
@@ -150,6 +156,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _sub?.cancel();
     _input.dispose();
     _fallTimer?.cancel();
+    _noteTimer?.cancel();
     _spring.dispose();
     _reading.dispose();
     _play.dispose();
@@ -258,10 +265,16 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 
   void _setAuto(bool on) {
+    if (on == _auto) return;
     ref.read(sharedPreferencesProvider)?.setBool(tunerAutoStringKey, on);
+    _noteTimer?.cancel();
+    _noteTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _note = null);
+    });
     setState(() {
       _auto = on;
       _model.pinned = on ? null : _model.tuning.strings[_rung].name;
+      _note = on ? 'Sense: following the string you play' : 'Choose: tap the string to tune';
     });
     _reading.value = null;
   }
@@ -299,21 +312,17 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                       setSheet(() {});
                     },
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${_model.tuning.strings.map((s) => '${s.name} ${s.hz.toStringAsFixed(2)}').join(' · ')} Hz'
+                    '${_mandolin ? ' (each a pair)' : ''}',
+                    key: const ValueKey('tuner_string_hz'),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                  ),
                   const SizedBox(height: 4),
                   Text('Most teachers use 440. Some orchestras tune a little higher, to 442.',
                       style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 10),
-                  SwitchListTile.adaptive(
-                    key: const ValueKey('tuner_auto_string'),
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Follow the string I play'),
-                    subtitle: const Text('Instead of the string you tap.'),
-                    value: _auto,
-                    onChanged: (v) {
-                      _setAuto(v);
-                      setSheet(() {});
-                    },
-                  ),
                   if (features.fretNumbers) ...[
                     const SizedBox(height: 18),
                     Text('Instrument', style: theme.textTheme.titleSmall),
@@ -356,11 +365,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     final tuning = _model.tuning;
     final rungs = [
       for (final s in tuning.strings)
-        ClimberRung(
-          letter: s.name[0],
-          caption: '${s.name} · ${s.hz.toStringAsFixed(2)} Hz${_mandolin ? ' · pair' : ''}',
-          color: _colorOf(s.name[0]),
-        ),
+        ClimberRung(letter: s.name[0], color: _colorOf(s.name[0])),
     ];
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
     final shown = Listenable.merge([_reading, _play]);
@@ -439,16 +444,36 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                 ),
                               ),
                             ),
+                            // In the corners, so a sharp stringling on E
+                            // pokes its head up between them.
                             Positioned(
-                              top: 10,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                child: _ModePill(
-                                  tuning: _listening,
-                                  onSquirm: _listening ? _stop : null,
-                                  onTune: _listening ? null : _start,
-                                ),
+                              top: 8,
+                              left: 8,
+                              child: _ModeButton(
+                                key: const ValueKey('tuner_mode_play'),
+                                lines: const ('Play', 'Mode'),
+                                icon: Icons.swipe,
+                                selected: !_listening,
+                                onTap: _listening ? _stop : null,
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  _ModeButton(
+                                    key: const ValueKey('tuner_mode_tune'),
+                                    lines: const ('Ready to', 'Tune'),
+                                    icon: _listening ? Icons.mic : Icons.mic_none,
+                                    selected: _listening,
+                                    onTap: _listening ? null : _start,
+                                    iconColor: _listening ? const Color(0xFFFF8A80) : null,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _SenseSwitch(sense: _auto, onChanged: _setAuto),
+                                ],
                               ),
                             ),
                           ],
@@ -457,13 +482,14 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
               ListenableBuilder(
                 listenable: shown,
                 builder: (context, _) {
                   final r = current();
                   return _Readout(
                     reading: r,
+                    note: _note,
                     listening: _listening,
                     fineTuners: !_mandolin,
                     onDrag: _listening ? null : _dragTo,
@@ -479,74 +505,53 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 }
 
-/// Squirm | Tune: the slider as a toy, or the microphone listening. Opens in
-/// Squirm; Tune is where the microphone permission is asked.
-class _ModePill extends StatelessWidget {
-  const _ModePill({required this.tuning, required this.onSquirm, required this.onTune});
-  final bool tuning;
-  final VoidCallback? onSquirm, onTune;
+/// One of the two mode pills in the card's top corners: Play Mode (the
+/// slider as a toy) or Ready to Tune (the microphone listening, and where its
+/// permission is asked). Two lines beside an icon; the chosen one filled.
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    super.key,
+    required this.lines,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    this.iconColor,
+  });
+  final (String, String) lines;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  final Color? iconColor;
 
   static const ink = Color(0xFF2B2340);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: ShapeDecoration(
-        color: Colors.white,
-        shape: const StadiumBorder(side: BorderSide(color: ink, width: 1.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _segment(
-            key: 'tuner_mode_squirm',
-            label: 'Squirm',
-            icon: Icons.swipe,
-            selected: !tuning,
-            onTap: onSquirm,
-          ),
-          _segment(
-            key: 'tuner_mode_tune',
-            label: 'Tune',
-            icon: tuning ? Icons.mic : Icons.mic_none,
-            selected: tuning,
-            onTap: onTune,
-            iconColor: tuning ? const Color(0xFFFF8A80) : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _segment({
-    required String key,
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback? onTap,
-    Color? iconColor,
-  }) {
     final fg = selected ? Colors.white : ink;
+    final style = TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15, height: 1.0);
     return Semantics(
       button: true,
       selected: selected,
+      label: '${lines.$1} ${lines.$2}',
+      excludeSemantics: true,
       child: Material(
-        color: selected ? ink : Colors.transparent,
-        shape: const StadiumBorder(),
+        color: selected ? ink : Colors.white,
+        shape: const StadiumBorder(side: BorderSide(color: ink, width: 1.5)),
         child: InkWell(
-          key: ValueKey(key),
           customBorder: const StadiumBorder(),
           onTap: onTap ?? () {},
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            padding: const EdgeInsets.fromLTRB(12, 7, 14, 7),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon, size: 17, color: iconColor ?? fg),
-                const SizedBox(width: 5),
-                Text(label,
-                    style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [Text(lines.$1, style: style), Text(lines.$2, style: style)],
+                ),
               ],
             ),
           ),
@@ -556,9 +561,80 @@ class _ModePill extends StatelessWidget {
   }
 }
 
+/// Choose | Sense, under Ready to Tune: tune the string you tap, or follow
+/// whichever string is played. A white knob slides to the side that is on.
+class _SenseSwitch extends StatelessWidget {
+  const _SenseSwitch({required this.sense, required this.onChanged});
+  final bool sense;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    Widget side(String label, bool on, String key) => Expanded(
+          child: Semantics(
+            button: true,
+            selected: on,
+            label: on ? '$label, on' : label,
+            excludeSemantics: true,
+            child: GestureDetector(
+              key: ValueKey(key),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(label == 'Sense'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: on ? _ModeButton.ink : const Color(0xFF6A6180))),
+              ),
+            ),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: const ShapeDecoration(
+        color: Color(0xFFEFEAF6),
+        shape: StadiumBorder(side: BorderSide(color: Color(0xFFD9D1E6))),
+      ),
+      child: IntrinsicWidth(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: AnimatedAlign(
+                alignment: sense ? Alignment.centerRight : Alignment.centerLeft,
+                duration: still ? Duration.zero : const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                child: const FractionallySizedBox(
+                  widthFactor: 0.5,
+                  heightFactor: 1,
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: Colors.white,
+                      shape: StadiumBorder(),
+                      shadows: [BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1))],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Row(children: [
+              side('Choose', !sense, 'tuner_choose'),
+              side('Sense', sense, 'tuner_sense'),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Readout extends StatelessWidget {
   const _Readout({
     required this.reading,
+    this.note,
     required this.listening,
     required this.fineTuners,
     required this.onDrag,
@@ -566,6 +642,9 @@ class _Readout extends StatelessWidget {
   });
 
   final TunerReading? reading;
+
+  /// Said for a moment in place of the status line.
+  final String? note;
   final bool listening, fineTuners;
 
   /// Non-null in play mode, where the slider is a toy.
@@ -578,41 +657,23 @@ class _Readout extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final r = reading;
-    final soft = theme.colorScheme.onSurface.withValues(alpha: 0.6);
-    const tab = [FontFeature.tabularFigures()];
-    final digits = _playing ? 0 : 1;
-    final cents = r == null
-        ? '–'
-        : '${r.cents > 0.05 ? '+' : r.cents < -0.05 ? '−' : '±'}${r.cents.abs().toStringAsFixed(digits)}¢';
+    // No figures: the stringling and the slider's dot say how far out it is
+    // (and the slider tells a screen reader the cents).
     return Opacity(
       opacity: r != null && !r.live ? 0.6 : 1,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(cents,
-                  key: const ValueKey('tuner_cents'),
-                  style: theme.textTheme.headlineSmall?.copyWith(fontFeatures: tab)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  r == null || _playing
-                      ? ''
-                      : '${r.hz.toStringAsFixed(1)} Hz · ${r.string.hz.toStringAsFixed(2)}',
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: theme.textTheme.bodySmall?.copyWith(color: soft, fontFeatures: tab),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
           _PitchSlider(cents: r?.cents, onChanged: onDrag, onEnd: onLetGo),
           const SizedBox(height: 4),
-          // In Squirm, the hint sits here until there is advice to give.
-          if (_playing && _status(r).isEmpty)
+          // In Play mode, the hint sits here until there is advice to give.
+          if (note != null)
+            Text(note!,
+                key: const ValueKey('tuner_note'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))
+          else if (_playing && _status(r).isEmpty)
             Text('Slide the dot to make it squirm',
                 key: const ValueKey('tuner_play_hint'),
                 textAlign: TextAlign.center,

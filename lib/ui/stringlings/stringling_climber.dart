@@ -7,13 +7,10 @@ import '../splash/stringlings_art.g.dart';
 
 /// One string's rung on the ladder.
 class ClimberRung {
-  const ClimberRung({required this.letter, required this.caption, required this.color});
+  const ClimberRung({required this.letter, required this.color});
 
   /// `G`, `D`, `A`, `E`.
   final String letter;
-
-  /// Small text over the rung, e.g. `G3 · 195.56 Hz`.
-  final String caption;
   final Color color;
 }
 
@@ -35,7 +32,12 @@ class ClimberRung {
 /// climbing.
 ///
 /// With [onPick], each rung is a tap target (and a button to screen readers)
-/// for picking that string; [picked] gets a ring round its letter.
+/// for picking that string. Nothing marks the picked one on screen: the
+/// stringling hanging there does.
+///
+/// It celebrates (a hop, a burst, sparkles) only when it is brought back in
+/// tune after being really out, for [CelebrationClock.length] seconds: not
+/// when the tuner opens, nor after climbing to an in-tune string.
 ///
 /// Ported from the approved design prototype (the "Stringling Tuner"
 /// artifact). The body is the icon's stringling (scripts/app_icon/
@@ -69,19 +71,21 @@ class StringlingClimber extends StatefulWidget {
   /// swings, and gets the other hand back on. The squirm slider's easter egg.
   final int falls;
 
-  /// The rung the player picked, ringed; null when it follows what is played.
+  /// The rung the player picked (selected, to screen readers); null when it
+  /// follows what is played.
   final int? picked;
 
   /// Called with a rung's index when it is tapped.
   final ValueChanged<int>? onPick;
 
-  /// The resting stringling's head top and feet bottom on [rung] at
-  /// [cents], in a box of [size]: for tests that check it stays in view.
+  /// The resting stringling on [rung] at [cents], in a box of [size], from
+  /// the top of its head to the bottom of its feet and side to side: for
+  /// tests that check it stays in view and clear of the corner pills.
   @visibleForTesting
-  static (double, double) extentAt(Size size, int n, int rung, double cents) {
+  static Rect bodyAt(Size size, int n, int rung, double cents) {
     final l = _Layout(size, n);
     final cy = l.rungY(rung) - l.ry * 0.3 + l.offset(cents);
-    return (cy - l.ry, cy + l.ry * 1.05);
+    return Rect.fromLTRB(l.cx0 - l.rx, cy - l.ry, l.cx0 + l.rx, cy + l.ry * 1.05);
   }
 
   @override
@@ -94,6 +98,52 @@ class _Climb {
   final bool lead; // which hand reaches first (or, falling, catches)
   final bool fall;
   double t = 0;
+}
+
+/// When to celebrate, and for how long. A celebration is earned: it starts
+/// on landing in tune only after the pitch has really been out of tune
+/// (past [armCents] for [armAfter] seconds, while not climbing), so never on
+/// opening the tuner, nor on climbing to a string that is already in tune.
+/// It lasts [length] seconds, fading over the last [fadeOut].
+class CelebrationClock {
+  static const length = 3.0, fadeOut = 0.6, armAfter = 0.33, armCents = 6.0;
+
+  /// Out of tune long enough that the next landing in tune celebrates.
+  bool armed = false;
+
+  /// Seconds into the celebration; null when there is none (out of tune,
+  /// or in tune without having earned one). Keeps counting past [length]
+  /// while it stays in tune.
+  double? since;
+
+  double _out = 0;
+  bool _wasInTune = false;
+
+  /// [steady] is false while climbing; [cents] null is idle.
+  void update(double dt, {required double? cents, required bool steady, required bool inTune}) {
+    if (steady && cents != null && cents.abs() > armCents) {
+      _out += dt;
+      if (_out > armAfter) armed = true;
+    } else {
+      _out = 0;
+    }
+    if (!inTune) {
+      since = null;
+    } else if (!_wasInTune && armed) {
+      since = 0;
+      armed = false;
+    } else if (since != null) {
+      since = since! + dt;
+    }
+    _wasInTune = inTune;
+  }
+
+  /// 1 while celebrating, easing to 0 over the last [fadeOut] seconds.
+  double get fade {
+    final c = since;
+    if (c == null || c >= length) return 0;
+    return 1 - _ease((c - (length - fadeOut)) / fadeOut);
+  }
 }
 
 /// A fall's timeline, in seconds: panic (one hand off, flailing, legs
@@ -111,6 +161,7 @@ class _StringlingClimberState extends State<StringlingClimber>
   double t = 0; // seconds
   double shown = 0; // smoothed cents
   double held = 0; // seconds in tune
+  final party = CelebrationClock();
   int rung = 0;
   _Climb? climb;
   bool _flip = false;
@@ -166,11 +217,9 @@ class _StringlingClimberState extends State<StringlingClimber>
         climb = null;
       }
     }
-    if (climb == null && widget.cents != null && shown.abs() <= 3) {
-      held += dt;
-    } else {
-      held = 0;
-    }
+    final inTune = climb == null && widget.cents != null && shown.abs() <= 3;
+    held = inTune ? held + dt : 0;
+    party.update(dt, cents: widget.cents == null ? null : shown, steady: climb == null, inTune: inTune);
     _repaint.value++;
   }
 
@@ -217,9 +266,10 @@ class _StringlingClimberState extends State<StringlingClimber>
 /// by the painter and the rungs' tap targets, so the two always agree.
 ///
 /// The rules are spaced so that the stringling at its furthest reach stays
-/// in the box: a sharp one on the top string keeps its head below the mode
-/// pill the screen lays over the card, a flat one on the bottom string its
-/// feet above the card's edge. In between it may overlap the next string.
+/// in the box: a sharp one on the top string keeps its head inside the
+/// card's top edge, rising between the two mode pills the screen lays in its
+/// top corners; a flat one on the bottom string keeps its feet above the
+/// card's bottom edge. In between it may overlap the next string.
 class _Layout {
   _Layout(Size size, this.n) : width = size.width {
     final h = size.height;
@@ -229,24 +279,25 @@ class _Layout {
     // reach: a few rounds settle it.
     for (var k = 0; k < 6 && n > 1; k++) {
       final r = radius(g) * 0.87;
-      g = (h - pillRoom - _headRoom * r - _feetRoom * r - 2 * reach * g) / (n - 1);
+      g = (h - roof - _headRoom * r - _feetRoom * r - 2 * reach * g) / (n - 1);
     }
     rx = radius(g);
     ry = rx * 0.87;
     // A short card (a phone on its side) can't afford the full reach: keep
     // the rules from bunching, and give the reach what room is left.
     if (n > 1 && g < minGap) {
-      g = math.min(minGap, (h - pillRoom - (_headRoom + _feetRoom) * ry) / (n - 1));
+      g = math.min(minGap, (h - roof - (_headRoom + _feetRoom) * ry) / (n - 1));
       g = math.max(g, 0.0);
     }
     gap = g;
-    final spare = h - pillRoom - (_headRoom + _feetRoom) * ry - (n - 1) * gap;
+    final spare = h - roof - (_headRoom + _feetRoom) * ry - (n - 1) * gap;
     reachPx = n > 1 ? math.max(0.0, math.min(reach * gap, spare / 2)) : 0.0;
-    top = pillRoom + reachPx + _headRoom * ry;
+    // The top string itself stays below the corner controls.
+    top = math.max(roof + reachPx + _headRoom * ry, cornerRoom);
     bottom = top + (n - 1) * gap;
     thick = math.max(8.0, rx * 0.26);
     x2 = width - 18;
-    cx0 = x1 + (x2 - x1) * 0.55;
+    cx0 = x1 + (x2 - x1) * 0.48;
   }
 
   final int n;
@@ -257,8 +308,13 @@ class _Layout {
   late final double reachPx;
   static const x1 = 58.0;
 
-  /// The mode pill's bottom edge, two lines tall, and a little air.
-  static const pillRoom = 66.0;
+  /// Air above a sharp head at the card's top edge: the head comes up
+  /// between the corner pills, so it needs no room for them.
+  static const roof = 4.0;
+
+  /// The corner pills and the Choose | Sense switch under the right one
+  /// reach this far down; the top string's rule stays below them.
+  static const cornerRoom = 100.0;
 
   /// The stringling's reach at ±50 cents, as a fraction of the gap between
   /// rules. Over half, a flat one hangs down among the string below's.
@@ -336,18 +392,6 @@ class _ClimberPainter extends CustomPainter {
       _text(canvas, r.letter, Offset(28, rungY(i) + thick / 2),
           TextStyle(color: r.color, fontSize: letterSize, fontWeight: FontWeight.w900),
           center: true);
-      if (i == w.picked) {
-        canvas.drawCircle(
-            Offset(28, rungY(i) + thick / 2),
-            letterSize * 0.78,
-            Paint()
-              ..color = r.color
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.2);
-      }
-      _text(canvas, r.caption, Offset(x1 + 4, rungY(i) - 5),
-          const TextStyle(color: _inkSoft, fontSize: 10.5, fontFeatures: [FontFeature.tabularFigures()]),
-          above: true);
     }
 
     // Pose.
@@ -421,7 +465,7 @@ class _ClimberPainter extends CustomPainter {
       anchor = ya + (yb - ya) * _ease((c.t - 0.12) / 0.76);
       handL = c.lead ? lead : trail;
       handR = c.lead ? trail : lead;
-      p = 0.3;
+      p = 0; // smiling, but working at it (see StringlingFace.effort)
       dir = c.to > c.from ? -1 : 1; // looks where it is going
       offset = math.sin(c.t * math.pi) * ry * 0.25;
     } else {
@@ -436,23 +480,25 @@ class _ClimberPainter extends CustomPainter {
       }
     }
     final cx = cx0 + sway + bodyDx + (c != null && !c.fall ? math.sin(c.t * math.pi * 2) * 5 : 0);
-    // Landing in tune: a hop with a few dwindling bounces, then a happy
-    // little jig, and it swells a touch.
+    // An earned landing in tune: a hop with a few dwindling bounces, then a
+    // happy little jig, and it swells a touch, all settling as it ends.
     var hop = 0.0, grow = 1.0;
-    if (inTune && s.held > 0) {
-      final k = s.held;
-      grow = 1 + 0.22 * _hop * math.min(1.0, k * 3);
+    final cel = inTune ? s.party.since : null, fade = inTune ? s.party.fade : 0.0;
+    if (cel != null && fade > 0) {
+      final k = cel;
+      grow = 1 + 0.22 * _hop * math.min(1.0, k * 3) * fade;
       if (!s.still) {
         hop = (math.max(0.0, math.sin(k * 7)) * math.exp(-k * 0.6) * 0.55 +
                 (math.sin(k * 4.2)).abs() * 0.12 * math.min(1.0, k)) *
             ry *
-            _hop;
+            _hop *
+            fade;
       }
     }
     final bodyY = anchor - ry * 0.3 + offset - hop;
-    if (inTune && !s.still && s.held < 0.9) {
+    if (cel != null && !s.still && cel < 0.9) {
       // A gold ring bursting out as it lands.
-      final k = s.held / 0.9;
+      final k = cel / 0.9;
       canvas.drawCircle(
           Offset(cx, bodyY),
           rx * (1 + k * 4),
@@ -472,6 +518,8 @@ class _ClimberPainter extends CustomPainter {
       dir: dir,
       t: s.t,
       held: s.held,
+      sparkle: cel != null && cel > 0.25 ? math.min(1.0, (cel - 0.25) / 0.35) * fade : 0,
+      effort: c != null && !c.fall,
       idle: idle && c == null,
       still: s.still,
       panic: panic,
@@ -612,6 +660,8 @@ class StringlingFace {
     required this.dir,
     required this.t,
     this.held = 0,
+    this.sparkle = 0,
+    this.effort = false,
     this.idle = false,
     this.still = false,
     this.panic = 0,
@@ -619,6 +669,14 @@ class StringlingFace {
   });
 
   final double cx, cy, rx, ry, thick, pain, dir, t, held;
+
+  /// The sparkles' opacity, 0 for none: up while celebrating.
+  final double sparkle;
+
+  /// Climbing between strings: smiling but working at it, so a gentle
+  /// wiggly mouth and a bead of sweat (with [pain] 0's happy eyes; no
+  /// brows, which read as cross).
+  final bool effort;
 
   /// Over 0.5: the falling face, wide eyes and an open mouth, legs going
   /// hard, in place of [pain]'s.
@@ -753,6 +811,19 @@ class StringlingFace {
       final o = Rect.fromCenter(center: Offset(mx, my + mh * 0.5), width: mw * 0.85, height: mh * 1.9);
       canvas.drawOval(o, white);
       canvas.drawOval(o.deflate(2.2 * u), Paint()..color = const Color(0xFF8E2A3C));
+    } else if (effort) {
+      // The strain's wiggly mouth, gentler.
+      const segs = 6;
+      final w = mw * 1.5, amp = mh * 0.3;
+      final wob = still ? 0.0 : math.sin(t * 18) * 0.25;
+      final path = Path();
+      for (var k = 0; k <= segs; k++) {
+        final px = mx - w / 2 + w * k / segs;
+        final edge = k == 0 || k == segs ? 0.2 : 1.0;
+        final py = my + mh * 0.3 + (k.isOdd ? amp : -amp) * (1 + wob) * edge;
+        k == 0 ? path.moveTo(px, py) : path.lineTo(px, py);
+      }
+      canvas.drawPath(path, wStroke);
     } else if (idle) {
       canvas.drawPath(
           Path()
@@ -808,6 +879,10 @@ class StringlingFace {
     }
 
     // Sweat and tears.
+    if (effort && !_panicked) {
+      final slide = still ? 0.0 : ((t * 0.8) % 1) * ry * 0.3;
+      _drop(canvas, x + rx * 0.84, cy - ry * 0.62 + slide, 3.4 * u);
+    }
     if (p > 0.35) {
       final slide = still ? 0.0 : ((t * 0.6) % 1) * ry * 0.35;
       _drop(canvas, x + rx * 0.82, cy - ry * 0.7 + slide, 4.2 * u);
@@ -835,8 +910,8 @@ class StringlingFace {
 
     // Sparkles once it has settled in tune: a ring of them at golden-angle
     // spacing, twinkling, turning and drifting up and out.
-    if (held > 0.25) {
-      final a = math.min(1.0, (held - 0.25) / 0.35);
+    if (sparkle > 0) {
+      final a = sparkle;
       final colors = [_gold, accent, _coral, _sweat, _lilac];
       for (var k = 0; k < _sparkles; k++) {
         final ang = k * 2.399 + 0.3, ring = 1.35 + (k * 0.37) % 1 * 1.4;
