@@ -1,50 +1,175 @@
+import 'dart:math' as math;
+
 import 'package:string_tuner/string_tuner.dart';
 
 import 'tuner_input_base.dart';
 
+/// Which way the last change of tuning went, measured on the |cents| from
+/// the target: what lets the tuner say "Wrong way!" while there is still
+/// time to turn back.
+enum TunerTrend {
+  /// Nothing to compare with yet, or no real change.
+  none,
+
+  /// Nearer the target than before: keep going.
+  closer,
+
+  /// Further out on the same side: turning the wrong way.
+  wrongWay,
+
+  /// Across the target and out the other side: back a little.
+  overshot,
+}
+
+/// What [TunerModel.add] did with a frame, for the session recording.
+enum TunerDecision {
+  /// Too quiet to analyse.
+  silent,
+
+  /// Under [TunerModel.minClarity].
+  unclear,
+
+  /// Clear, but no note has started.
+  noNote,
+
+  /// In the first [TunerModel.attack] of a note.
+  attack,
+
+  /// More than 18 dB under the note's peak.
+  tail,
+
+  /// 8 dB under the last 300 ms: a beat's null, a bow change.
+  dip,
+
+  /// Too far from the note's pitch (an octave slip), or one of a run.
+  outlier,
+
+  /// Taken into the note's pitch.
+  accepted,
+}
+
 /// What the tuner screen shows.
 class TunerReading {
-  const TunerReading(this.string, this.cents, this.hz, {required this.live});
+  const TunerReading(this.string, this.cents, this.hz,
+      {required this.live, bool? inTune, this.trend = TunerTrend.none})
+      : _inTune = inTune; // ignore: prefer_initializing_formals
 
   final TunedString string;
 
-  /// Smoothed; negative is flat.
+  /// Settled pitch of the note being played (or just played); negative is
+  /// flat.
   final double cents;
   final double hz;
 
-  /// False while holding the last reading through a gap (a bow change, a
-  /// pause between plucks).
+  /// False once the note has stopped: the reading is then the pose of the
+  /// last pluck or bow, held until the next one.
   final bool live;
+
+  final bool? _inTune;
+
+  /// In tune, with hysteresis: in at ±[TunerModel.inTuneCents], out only past
+  /// ±[TunerModel.outOfTuneCents], so a reading on the edge doesn't flicker
+  /// between "In tune!" and advice. Without a model, just ±3.
+  bool get inTune => _inTune ?? cents.abs() <= TunerModel.inTuneCents;
+
+  final TunerTrend trend;
 }
 
-/// Turns microphone frames into the reading on screen.
+/// Turns microphone frames into the reading on screen, one NOTE at a time.
 ///
-/// - Frames under [minClarity] are ignored (noise, the scrape of a bow
-///   change, two strings at once).
-/// - [StringFollower] picks the string, unless one is [pinned].
-/// - The cents shown are the median of the last [medianOf] readings: it
-///   steadies the display without the lag of a long average, and ignores a
-///   single wild frame.
-/// - When the sound stops, the last reading stays for [holdFor], then the
-///   tuner goes back to idle.
+/// A plucked string does not hold a pitch: its attack is sharp (a big pluck
+/// stretches the string, and the pitch falls back as it decays), and it
+/// fades into the room's noise. A mandolin's course is two strings that are
+/// never quite in unison, so it beats: once a second for 4 cents at A, and
+/// in each null of the beat the pitch reads wild or locks onto a
+/// subharmonic (an octave or a twelfth down) with clarity to spare. Read
+/// frame by frame, the tuner flickers. So each note is read as a whole:
+///
+/// - A note starts at an onset: the level at least doubling over its
+///   recent minimum, and (while a note rings) rising past what it has been
+///   ringing at. A beat's recovery and a bow change come back to the old
+///   level, not past it, so they continue the note.
+/// - The first [attack] of a note is skipped: the pluck's sharp glide, the
+///   scrape of the bow starting.
+/// - Frames under [minClarity], more than 18 dB under the note's peak (its
+///   fading tail), or 8 dB under the last 300 ms (a beat's null, a bow
+///   change), are ignored.
+/// - Frames more than [outlierCents] from the note's own pitch are ignored
+///   (an octave slip), unless a dozen agree: a slur to another string, or a
+///   peg turned a long way, starts a new note there.
+/// - The note's pitch is the median of what was accepted in its last
+///   [window]: steady, and nearer the settled end of a pluck than its
+///   sharp start.
+/// - When the note stops, its last reading stays (not [TunerReading.live])
+///   for [holdFor]: the stringling keeps the pose of the last pluck, and
+///   with it the advice, until the next one.
+///
+/// It also says which way the tuning is going ([TunerReading.trend]),
+/// between notes (this pluck against the last one, on the same string) and,
+/// for a held note that does not fade (a bow), within it (now against
+/// [trendAfter] ago). Notes are compared at the same age, [settleAfter] in
+/// (or at the end, if shorter): by then a pluck's glide is mostly gone, and
+/// what is left is much the same in both, so it cancels. At 700 ms a hard
+/// pluck and a gentle one of the same pitch still differed by 4¢. Compared early, the
+/// glide would make a flat string look as if it were going the wrong way.
 ///
 /// Time comes from the frames themselves, so tests can drive it exactly.
 class TunerModel {
+  /// What the last frame was taken as, and whether it started a note.
+  TunerDecision lastDecision = TunerDecision.silent;
+  bool lastOnset = false;
+
   TunerModel(InstrumentTuning tuning,
       {this.minClarity = 0.85,
-      this.medianOf = 5,
-      this.holdFor = const Duration(milliseconds: 1500)})
+      this.attack = const Duration(milliseconds: 100),
+      this.window = const Duration(milliseconds: 400),
+      this.holdFor = const Duration(seconds: 20),
+      this.outlierCents = 60,
+      this.trendCents = 4,
+      this.trendAfter = const Duration(milliseconds: 600),
+      this.settleAfter = const Duration(milliseconds: 900)})
       : _follower = StringFollower(tuning);
 
+  /// "In tune!" within this many cents, after [inTuneFor] there.
+  static const inTuneCents = 3.0;
+
+  /// And stays in tune until past this.
+  static const outOfTuneCents = 5.0;
+
+  /// How long a live note must sit within [inTuneCents] to count (and a
+  /// pluck must first have settled: see [TunerModel]'s _mayEnterInTune).
+  static const inTuneFor = Duration(milliseconds: 150);
+
+  /// No accepted frame for this long ends the note.
+  static const noteGap = Duration(milliseconds: 400);
+
   final double minClarity;
-  final int medianOf;
-  final Duration holdFor;
+  final Duration attack, window, holdFor, trendAfter, settleAfter;
+  final double outlierCents, trendCents;
 
   StringFollower _follower;
-  final _recent = <double>[];
-  TunerReading? _reading;
-  Duration? _lastHeard;
   Duration _now = Duration.zero;
+
+  // Levels of recent frames (0 for silence), newest last: ~300 ms.
+  final _levels = <double>[];
+  static const _levelFrames = 28, _onsetFrames = 5;
+
+  // The note.
+  Duration? _start;
+  double _peak = 0;
+  final _accepted = <(Duration, double)>[]; // (at, pitch in cents from A4)
+  double? _pitch; // median of the window, cents from A4
+  Duration? _lastAccepted;
+  final _history = <(Duration, double, double)>[]; // (at, pitch, level)
+  final _stray = <double>[]; // consecutive outliers, cents from A4
+  TunerTrend _withinTrend = TunerTrend.none;
+  double? _settled; // cents at settleAfter
+  Duration? _inSince;
+  bool _inTune = false;
+  TunedString? _string;
+
+  // The last note that ended with a reading.
+  ({int midi, double cents})? _previous;
 
   InstrumentTuning get tuning => _follower.tuning;
 
@@ -72,15 +197,18 @@ class TunerModel {
 
   /// The reading to show, or null when idle.
   TunerReading? get reading {
-    final r = _reading;
-    if (r == null || _lastHeard == null) return null;
-    final quiet = _now - _lastHeard!;
+    final p = _pitch, s = _string, last = _lastAccepted;
+    if (p == null || s == null || last == null) return null;
+    final quiet = _now - last;
     if (quiet > holdFor) return null;
-    // Short dropouts (a frame or two under minClarity) are normal even on a
-    // steady note; only a real gap dims the reading.
-    return quiet > const Duration(milliseconds: 400)
-        ? TunerReading(r.string, r.cents, r.hz, live: false)
-        : r;
+    final hz = _hz(p);
+    final cents = centsBetween(hz, s.hz);
+    final live = quiet <= noteGap;
+    final inTune = live ? _inTune : cents.abs() <= (_inTune ? outOfTuneCents : inTuneCents);
+    return TunerReading(s, cents, hz,
+        live: live,
+        inTune: inTune,
+        trend: inTune ? TunerTrend.none : _trend(cents, s, live: live));
   }
 
   /// Takes one frame. Returns true when [reading] may have changed.
@@ -88,26 +216,189 @@ class TunerModel {
     final before = reading;
     _now = f.at;
     final p = f.pitch;
-    if (p != null && p.clarity >= minClarity) {
-      final r = _follower.update(p.hz);
-      if (_reading != null && _reading!.string.midi != r.string.midi) {
-        _recent.clear();
-      }
-      _recent.add(r.cents);
-      if (_recent.length > medianOf) _recent.removeAt(0);
-      final sorted = [..._recent]..sort();
-      final med = sorted[sorted.length ~/ 2];
-      _reading = TunerReading(r.string, med, r.hz, live: true);
-      _lastHeard = f.at;
-      return true;
-    }
+    final level = p?.rms ?? 0;
+    lastOnset = false;
+    lastDecision = p == null ? TunerDecision.silent : TunerDecision.unclear;
+    final changed = p != null && p.clarity >= minClarity && _take(f.at, p, level);
+    _levels.add(level);
+    if (_levels.length > _levelFrames) _levels.removeAt(0);
+    if (changed) return true;
     final after = reading;
     return (before == null) != (after == null) || before?.live != after?.live;
   }
 
+  /// A clear frame: starts a note, or adds to one. True if it was accepted.
+  bool _take(Duration at, PitchEstimate p, double level) {
+    if (_isOnset(at, level)) {
+      _begin(at);
+      lastOnset = true;
+    }
+    final start = _start;
+    lastDecision = TunerDecision.noNote;
+    if (start == null) return false;
+    _peak = math.max(_peak, level);
+    lastDecision = TunerDecision.attack;
+    if (at - start < attack) return false;
+    final local = _levels.isEmpty ? level : math.max(level, _levels.reduce(math.max));
+    lastDecision = level < _peak / 8 ? TunerDecision.tail : TunerDecision.dip;
+    if (level < _peak / 8 || level < local / 2.5) return false;
+    lastDecision = TunerDecision.outlier;
+
+    final pc = 1200 * math.log(p.hz / 440) / math.ln2;
+    final pitch = _pitch;
+    if (pitch != null && (pc - pitch).abs() > outlierCents) {
+      // An octave slip, or the start of something new: a dozen that agree.
+      if (_stray.isNotEmpty && (pc - _stray.first).abs() > outlierCents / 2) _stray.clear();
+      _stray.add(pc);
+      if (_stray.length < 12) return false;
+      final agreed = [..._stray];
+      _begin(at, keepPeak: true);
+      lastOnset = true;
+      for (final c in agreed) {
+        _accepted.add((at, c));
+      }
+    } else {
+      _stray.clear();
+    }
+    lastDecision = TunerDecision.accepted;
+
+    _accepted.add((at, pc));
+    while (_accepted.first.$1 < at - window) {
+      _accepted.removeAt(0);
+    }
+    final sorted = [for (final e in _accepted) e.$2]..sort();
+    _pitch = sorted[sorted.length ~/ 2];
+    _lastAccepted = at;
+
+    final r = _follower.update(p.hz);
+    if (_string != null && _string!.midi != r.string.midi) {
+      // A move to another string (when following): nothing to compare.
+      _history.clear();
+      _withinTrend = TunerTrend.none;
+      _settled = null;
+      _previous = null;
+      _inSince = null;
+      _inTune = false;
+    }
+    _string = r.string;
+    final cents = centsBetween(_hz(_pitch!), r.string.hz);
+    if (_settled == null && at - _start! >= settleAfter) _settled = cents;
+    _updateWithinTrend(at, cents);
+    _updateInTune(at, cents);
+    return true;
+  }
+
+  bool _isOnset(Duration at, double level) {
+    if (_levels.isEmpty) return true;
+    final recent = _levels.sublist(math.max(0, _levels.length - _onsetFrames));
+    final rose = level > 2 * recent.reduce(math.min) + 1e-4;
+    if (_start == null) return rose || _levels.last == 0;
+    final ended = _lastAccepted == null
+        ? at - _start! > noteGap + attack
+        : at - _lastAccepted! > noteGap;
+    if (ended) return rose;
+    if (at - _start! < const Duration(milliseconds: 250)) return false;
+    // Past what it has been ringing at, not just back to it.
+    final earlier = _levels.sublist(0, math.max(0, _levels.length - _onsetFrames));
+    final ringing = earlier.isEmpty ? 0.0 : earlier.reduce(math.max);
+    return rose && level > 1.4 * ringing;
+  }
+
+  void _begin(Duration at, {bool keepPeak = false}) {
+    // The note that ends, if it came to a reading, is the one to compare with.
+    final s = _string, p = _pitch;
+    if (s != null && p != null) {
+      _previous = (midi: s.midi, cents: _settled ?? centsBetween(_hz(p), s.hz));
+    }
+    _start = at;
+    if (!keepPeak) _peak = 0;
+    _accepted.clear();
+    _history.clear();
+    _stray.clear();
+    _withinTrend = TunerTrend.none;
+    _settled = null;
+    _inSince = null;
+    // _pitch, _lastAccepted and _string stay: the last pose holds until this
+    // note has a reading of its own. _inTune too, so "In tune!" isn't lost
+    // to a re-pluck of an in-tune string.
+  }
+
+  void _updateInTune(Duration at, double cents) {
+    final a = cents.abs();
+    if (_inTune) {
+      if (a > outOfTuneCents) {
+        _inTune = false;
+        _inSince = null;
+      }
+      return;
+    }
+    if (a <= inTuneCents && _mayEnterInTune(at)) {
+      _inSince ??= at;
+      if (at - _inSince! >= inTuneFor) _inTune = true;
+    } else {
+      _inSince = null;
+    }
+  }
+
+  /// Whether this note may be called in tune yet. A pluck glides down from
+  /// sharp, so a string a little flat passes through in tune on its way: a
+  /// pluck must wait until [settleAfter]. A note whose level holds (a bow)
+  /// may once it has held for 300 ms.
+  bool _mayEnterInTune(Duration at) {
+    if (at - _start! >= settleAfter) return true;
+    final then = _history.lastWhere((h) => h.$1 <= at - const Duration(milliseconds: 300),
+        orElse: () => _history.first);
+    if (at - then.$1 < const Duration(milliseconds: 300)) return false;
+    return _history.last.$3 >= 0.9 * then.$3;
+  }
+
+  /// Within a note that does not fade (a bow): now against [trendAfter] ago.
+  void _updateWithinTrend(Duration at, double cents) {
+    final recent = _levels.sublist(math.max(0, _levels.length - 14));
+    final level = ([...recent]..sort())[recent.length ~/ 2];
+    _history.add((at, cents, level));
+    final then = _history.lastWhere((h) => h.$1 <= at - trendAfter, orElse: () => _history.first);
+    if (at - then.$1 < trendAfter) return;
+    _history.removeWhere((h) => h.$1 < then.$1);
+    // A pluck fades (by a third or more over the interval); a bow holds.
+    if (level < 0.8 * then.$3 || level < 0.5 * _peak) return;
+    final t = _compare(then.$2, cents);
+    if (t != TunerTrend.none) _withinTrend = t;
+  }
+
+  TunerTrend _trend(double cents, TunedString s, {required bool live}) {
+    if (_withinTrend != TunerTrend.none) return _withinTrend;
+    final prev = _previous;
+    if (prev == null || prev.midi != s.midi) return TunerTrend.none;
+    final now = _settled ?? (live ? null : cents);
+    return now == null ? TunerTrend.none : _compare(prev.cents, now);
+  }
+
+  TunerTrend _compare(double before, double now) {
+    if (now.abs() <= inTuneCents) return TunerTrend.none;
+    if (before.abs() > inTuneCents && before.sign != now.sign) return TunerTrend.overshot;
+    final d = now.abs() - before.abs();
+    if (d >= trendCents) return TunerTrend.wrongWay;
+    if (d <= -trendCents) return TunerTrend.closer;
+    return TunerTrend.none;
+  }
+
+  static double _hz(double centsFromA4) => 440 * math.pow(2, centsFromA4 / 1200).toDouble();
+
   void _clear() {
-    _recent.clear();
-    _reading = null;
-    _lastHeard = null;
+    _levels.clear();
+    _start = null;
+    _peak = 0;
+    _accepted.clear();
+    _pitch = null;
+    _lastAccepted = null;
+    _history.clear();
+    _stray.clear();
+    _withinTrend = TunerTrend.none;
+    _settled = null;
+    _inSince = null;
+    _inTune = false;
+    _string = null;
+    _previous = null;
   }
 }

@@ -12,8 +12,10 @@ import '../models/violin_string_palette.dart';
 import '../services/instrument_setting.dart';
 import '../services/keep_awake.dart';
 import '../services/piece_display_prefs.dart' show sharedPreferencesProvider;
+import '../services/tuner_advice.dart';
 import '../services/tuner_input.dart';
 import '../services/tuner_model.dart';
+import '../services/tuner_recording.dart';
 import '../theme/brand.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_climber.dart';
@@ -43,7 +45,10 @@ const tunerAutoStringKey = 'tuner.autoString';
 ///
 /// Tapping a string picks it; the tuner always opens on A. The Choose | Sense
 /// switch under Ready to Tune makes it follow whichever string is played
-/// instead. Violin targets are pure fifths from A, mandolin's equal-tempered
+/// instead. The reading is a note's settled pitch, and stays when the note
+/// stops: the stringling keeps the pose of the last pluck or bow, with its
+/// advice, and says when a turn went the wrong way ([TunerModel] has why).
+/// Violin targets are pure fifths from A, mandolin's equal-tempered
 /// (`string_tuner`'s [InstrumentTuning]). The reference A, with the strings'
 /// frequencies, and the instrument are in the settings sheet (the cog).
 class TunerScreen extends ConsumerStatefulWidget {
@@ -74,6 +79,41 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   /// the status line.
   String? _note;
   Timer? _noteTimer;
+
+  void _say(String note) {
+    _noteTimer?.cancel();
+    _noteTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _note = null);
+    });
+    setState(() => _note = note);
+  }
+
+  /// The developer's session recording (tuner_recording.dart): switched by
+  /// a long press on the title, one session per listening run.
+  bool _record = false;
+  TunerRecording? _rec;
+
+  void _toggleRecording() {
+    final on = !_record;
+    ref.read(sharedPreferencesProvider)?.setBool(tunerRecordSessionsKey, on);
+    setState(() => _record = on);
+    _say(on ? 'Recording tuning sessions on this phone' : 'Not recording');
+    if (_listening) _start(); // a session starts, or ends, now
+  }
+
+  void _mark() {
+    if (_rec == null) return;
+    _rec!.event('mark');
+    HapticFeedback.lightImpact();
+    _say('Marked');
+  }
+
+  Future<void> _endRecording() async {
+    _input.onPcm = null;
+    final rec = _rec;
+    _rec = null;
+    await rec?.close();
+  }
 
   /// Lets the play slider go back to in tune, with a little overshoot, when
   /// it is let go: every squirm ends happy.
@@ -177,6 +217,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _mandolin = prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
         ref.read(instrumentFeaturesProvider).fretNumbers;
     _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
+    _record = prefs?.getBool(tunerRecordSessionsKey) ?? false;
     _model = TunerModel(_tuning());
     if (!_auto) _model.pinned = _model.tuning.strings[_rung].name;
     WidgetsBinding.instance.addObserver(this);
@@ -188,7 +229,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     WidgetsBinding.instance.removeObserver(this);
     KeepAwake.disable();
     _sub?.cancel();
-    _input.dispose();
+    _endRecording().then((_) => _input.dispose());
     _fallTimer?.cancel();
     _stretchTimer?.cancel();
     _noteTimer?.cancel();
@@ -223,6 +264,19 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _sub = null;
     setState(() => _mic = _Mic.starting);
     final range = _model.tuning.detectionRange;
+    await _endRecording();
+    if (_record) {
+      final t = _model.tuning;
+      final rec = await TunerRecording.start(
+          header: 'instrument=${t.name} a4=${t.a4} temperament=${t.temperament.name} '
+              'pinned=${_model.pinned ?? ''} build=$kBuildRef started=${DateTime.now().toIso8601String()}');
+      if (!mounted) {
+        await rec?.close();
+        return;
+      }
+      _rec = rec;
+      _input.onPcm = rec?.addPcm;
+    }
     try {
       final frames = await _input.start(minHz: range.minHz, maxHz: range.maxHz);
       if (!mounted) return;
@@ -249,6 +303,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   Future<void> _stop() async {
     _sub?.cancel();
     _sub = null;
+    await _endRecording();
     if (mounted) {
       setState(() => _mic = _Mic.off);
       _reading.value = null;
@@ -264,8 +319,14 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           'rms ${p.rms.toStringAsFixed(4)} → ${_model.reading?.string.name} '
           '${_model.reading?.cents.toStringAsFixed(1)}¢');
     }
-    if (!_model.add(f)) return;
+    final changed = _model.add(f);
+    _rec?.addFrame(f, _model,
+        tunerStatus(_model.reading, listening: true, playing: false, fineTuners: !_mandolin));
+    if (!changed) return;
     final r = _model.reading;
+    if (r?.trend == TunerTrend.wrongWay && _reading.value?.trend != TunerTrend.wrongWay) {
+      HapticFeedback.mediumImpact(); // a nudge: stop, the other way
+    }
     _reading.value = r;
     if (r != null) {
       final i = _model.tuning.strings.indexWhere((s) => s.midi == r.string.midi);
@@ -285,6 +346,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       prefs?.setString(tunerInstrumentKey, mandolin ? 'mandolin' : 'violin');
     }
     setState(() => _model.tuning = _tuning());
+    _rec?.event('tuning ${_model.tuning.name} a4=${_model.tuning.a4}');
     _reading.value = null;
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
   }
@@ -296,21 +358,19 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _rung = i;
       if (!_auto) _model.pinned = _model.tuning.strings[i].name;
     });
+    _rec?.event('picked ${_model.tuning.strings[i].name}');
     _reading.value = null;
   }
 
   void _setAuto(bool on) {
     if (on == _auto) return;
     ref.read(sharedPreferencesProvider)?.setBool(tunerAutoStringKey, on);
-    _noteTimer?.cancel();
-    _noteTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) setState(() => _note = null);
-    });
     setState(() {
       _auto = on;
       _model.pinned = on ? null : _model.tuning.strings[_rung].name;
-      _note = on ? 'Sense: following the string you play' : 'Choose: tap the string to tune';
     });
+    _say(on ? 'Sense: following the string you play' : 'Choose: tap the string to tune');
+    _rec?.event(on ? 'sense' : 'choose ${_model.pinned}');
     _reading.value = null;
   }
 
@@ -408,15 +468,32 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Tuner'),
-            if (kDebugMode) Text(kBuildRef, style: TextStyle(fontSize: 9, color: muted)),
-          ],
+        // A long press on the title is the developer's recording switch.
+        title: GestureDetector(
+          key: const ValueKey('tuner_title'),
+          onLongPress: _toggleRecording,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Tuner'),
+              if (kDebugMode) Text(kBuildRef, style: TextStyle(fontSize: 9, color: muted)),
+              if (_record)
+                Text(_rec == null ? '● REC when tuning' : '● REC',
+                    key: const ValueKey('tuner_rec'),
+                    style: const TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFD7263D))),
+            ],
+          ),
         ),
         centerTitle: true,
         actions: [
+          if (_record)
+            IconButton(
+              key: const ValueKey('tuner_mark'),
+              icon: const Icon(Icons.flag_outlined),
+              tooltip: 'Mark this moment in the recording',
+              onPressed: _rec == null ? null : _mark,
+            ),
           IconButton(
             key: const ValueKey('tuner_settings'),
             icon: const Icon(Icons.settings),
@@ -471,6 +548,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                   rungs: rungs,
                                   target: _rung,
                                   cents: current()?.cents,
+                                  inTune: _listening ? current()?.inTune : null,
+                                  wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
                                   doubled: _mandolin,
                                   fineTuners: !_mandolin,
                                   falls: _falls,
@@ -728,16 +807,8 @@ class _Readout extends StatelessWidget {
     );
   }
 
-  String _status(TunerReading? r) {
-    if (r == null) return listening ? 'Play a string' : '';
-    final c = r.cents, a = c.abs();
-    if (a <= 3) return _playing ? '' : 'In tune!';
-    if (a > 40) {
-      return c < 0 ? 'Very flat · the peg needs a turn up' : 'Very sharp · the peg needs a turn down';
-    }
-    if (!fineTuners) return c < 0 ? 'Flat · tighten the tuner' : 'Sharp · loosen the tuner';
-    return c < 0 ? 'Flat · turn the fine tuner clockwise' : 'Sharp · turn the fine tuner anti-clockwise';
-  }
+  String _status(TunerReading? r) =>
+      tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners);
 }
 
 /// −50..+50 cents with the ±3 in-tune zone, and "flat" and "sharp" under its

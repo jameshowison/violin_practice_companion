@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'tuner_input_base.dart';
 
 /// Web stub. `record` can stream on the web, but there are no isolates there,
@@ -15,4 +17,7 @@ class TunerInput implements TunerInputBase {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  set onPcm(void Function(Uint8List pcm)? f) {}
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,12 +12,13 @@ import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';
+import 'package:violin_practice_companion/services/tuner_recording.dart';
 import 'package:violin_practice_companion/ui/stringlings/stringling_climber.dart';
 
 /// Frames every ~10.7 ms (a 512-sample hop at 48 kHz), from [ms] onwards.
-TunerFrame frame(int i, double? hz, {double clarity = 0.97, int startMs = 0}) =>
-    TunerFrame(Duration(microseconds: startMs * 1000 + (i * 512 * 1e6 / 48000).round()),
-        hz == null ? null : PitchEstimate(hz: hz, clarity: clarity, rms: 0.05));
+TunerFrame frame(int i, double? hz, {double clarity = 0.97, double rms = 0.05}) =>
+    TunerFrame(Duration(microseconds: (i * 512 * 1e6 / 48000).round()),
+        hz == null ? null : PitchEstimate(hz: hz, clarity: clarity, rms: rms));
 
 double off(double hz, double cents) => hz * math.pow(2, cents / 1200);
 
@@ -48,79 +50,238 @@ class FakeTunerInput implements TunerInputBase {
 
   @override
   Future<void> dispose() => stop();
+
+  @override
+  set onPcm(void Function(Uint8List pcm)? f) {}
 }
 
 void main() {
   group('TunerModel', () {
     final violin = InstrumentTuning.violin();
+    final mandolin = InstrumentTuning.mandolin();
     final a = violin.strings[2], d = violin.strings[1];
 
-    test('steady flat A reads flat on A', () {
-      final m = TunerModel(violin);
-      for (var i = 0; i < 20; i++) {
-        m.add(frame(i, off(a.hz, -12)));
+    /// Drives a model on a running clock, a frame per 512-sample hop.
+    late TunerModel m;
+    var i = 0;
+    void start(InstrumentTuning t, {String? pin}) {
+      m = TunerModel(t);
+      if (pin != null) m.pinned = pin;
+      i = 0;
+    }
+
+    /// [n] frames of [hz] (or a function of the frame's age in seconds), at
+    /// [rms] (or a function of age, for a fading pluck), starting [after]
+    /// frames into the sound.
+    void sound(int n, Object hz, {Object rms = 0.05, double clarity = 0.97, int after = 0}) {
+      for (var k = 0; k < n; k++) {
+        final age = (k + after) * 512 / 48000;
+        final h = hz is double ? hz : (hz as double Function(double))(age);
+        final r = rms is double ? rms : (rms as double Function(double))(age);
+        m.add(frame(i++, h, clarity: clarity, rms: r));
       }
+    }
+
+    void silence(int n) {
+      for (var k = 0; k < n; k++) {
+        m.add(frame(i++, null));
+      }
+    }
+
+    // A pluck: sharp by [glide] at the start, falling back as it fades.
+    double Function(double) pluckHz(double hz, {double glide = 0}) =>
+        (t) => off(hz, glide * math.exp(-t / 0.45));
+    double fading(double t) => 0.2 * math.exp(-t / 0.9);
+
+    test('steady flat A reads flat on A', () {
+      start(violin);
+      sound(25, off(a.hz, -12));
       expect(m.reading!.string.name, 'A4');
       expect(m.reading!.cents, closeTo(-12, 0.01));
       expect(m.reading!.live, isTrue);
+      expect(m.reading!.inTune, isFalse);
     });
 
-    test('ignores unclear frames and a single wild one', () {
-      final m = TunerModel(violin);
-      for (var i = 0; i < 10; i++) {
-        m.add(frame(i, off(a.hz, 4)));
-      }
-      m.add(frame(10, a.hz * 2)); // an octave blip
-      m.add(frame(11, 300, clarity: 0.4)); // noise
+    test('skips the attack: nothing for the first 100 ms', () {
+      start(violin);
+      sound(9, off(a.hz, 30)); // ~96 ms of a bow's scrape
+      expect(m.reading, isNull);
+      sound(5, a.hz);
+      expect(m.reading!.cents, closeTo(0, 0.01));
+    });
+
+    test('ignores unclear frames, an octave blip, and a run of subharmonics', () {
+      start(violin);
+      sound(20, off(a.hz, 4));
+      sound(1, a.hz * 2); // an octave blip
+      sound(1, 300.0, clarity: 0.4); // noise
+      sound(8, a.hz / 2); // a beat's null, locked an octave down
+      sound(8, a.hz / 3); // and a twelfth
+      sound(1, off(a.hz, 4));
       expect(m.reading!.cents, closeTo(4, 0.01));
     });
 
-    test('holds through a short gap, then goes idle', () {
-      final m = TunerModel(violin);
-      for (var i = 0; i < 10; i++) {
-        m.add(frame(i, a.hz));
-      }
-      m.add(frame(30, null)); // ~210 ms later: a dropout, still live
+    test('ignores a pluck\'s fading tail and a beat\'s null, however clear', () {
+      start(mandolin, pin: 'A4');
+      sound(40, a.hz, rms: 0.2);
+      sound(10, off(a.hz, 45), rms: 0.06); // 10 dB down on the last 300 ms
+      expect(m.reading!.cents, closeTo(0, 0.01));
+      sound(40, off(a.hz, 20), rms: 0.02); // 20 dB under the peak
+      expect(m.reading!.cents, closeTo(0, 0.01));
+    });
+
+    test('a hard pluck settles near its rest pitch, not its sharp start', () {
+      start(mandolin, pin: 'A4');
+      silence(3);
+      sound(150, pluckHz(a.hz, glide: 15), rms: fading); // 1.6 s
+      // At 1.6 s the string is still 0.5¢ sharp; the median of the last
+      // 0.4 s lags it a little.
+      expect(m.reading!.cents, inInclusiveRange(0, 1.5));
+      expect(m.reading!.inTune, isTrue);
+    });
+
+    test('holds the last note\'s pose after it stops, then goes idle', () {
+      start(violin);
+      sound(30, off(a.hz, -9));
+      silence(20); // ~210 ms: a dropout, still live
       expect(m.reading!.live, isTrue);
-      m.add(frame(60, null)); // ~540 ms later: a gap, held
-      expect(m.reading, isNotNull);
+      silence(30); // ~530 ms: the note has stopped
       expect(m.reading!.live, isFalse);
-      m.add(frame(200, null)); // ~2 s
+      expect(m.reading!.cents, closeTo(-9, 0.01), reason: 'the pose of the last bow');
+      silence(900); // ~10 s
+      expect(m.reading!.cents, closeTo(-9, 0.01));
+      silence(1100); // past 20 s
       expect(m.reading, isNull);
     });
 
-    test('pinned string measures everything against it', () {
-      final m = TunerModel(violin)..pinned = 'D4';
-      for (var i = 0; i < 10; i++) {
-        m.add(frame(i, a.hz));
+    test('in tune with hysteresis: in at 3¢ once the note holds, out only past 5¢', () {
+      start(violin);
+      sound(30, off(a.hz, 2.5)); // 320 ms, of which 220 after the attack
+      expect(m.reading!.inTune, isFalse, reason: 'the level has not held for long enough yet');
+      sound(25, off(a.hz, 2.5)); // held 300 ms, then in tune for 150
+      expect(m.reading!.inTune, isTrue);
+      sound(60, off(a.hz, 4.5)); // drifts to 4.5: still in tune
+      expect(m.reading!.cents, closeTo(4.5, 0.01));
+      expect(m.reading!.inTune, isTrue);
+      sound(60, off(a.hz, 6));
+      expect(m.reading!.inTune, isFalse);
+      sound(60, off(a.hz, 4.5)); // and back to 4.5 is not in tune again
+      expect(m.reading!.inTune, isFalse);
+    });
+
+    test('a flat pluck gliding down through in tune is not called in tune', () {
+      start(mandolin, pin: 'A4');
+      silence(3);
+      // 8¢ flat, plucked hard enough to start 10¢ sharp.
+      for (var k = 0; k < 150; k++) {
+        sound(1, pluckHz(off(a.hz, -8), glide: 10), rms: fading, after: k);
+        expect(m.reading?.inTune ?? false, isFalse, reason: 'at ${(k * 10.7).round()} ms');
       }
+      expect(m.reading!.cents, closeTo(-8, 1.5));
+    });
+
+    test('a pluck that settles in tune is called in tune', () {
+      start(mandolin, pin: 'A4');
+      silence(3);
+      sound(85, pluckHz(off(a.hz, -1), glide: 10), rms: fading); // 0.9 s
+      expect(m.reading!.inTune, isFalse, reason: 'not settled yet');
+      sound(30, pluckHz(off(a.hz, -1), glide: 10), rms: fading, after: 85);
+      expect(m.reading!.inTune, isTrue);
+    });
+
+    test('pinned string measures everything against it', () {
+      start(violin, pin: 'D4');
+      sound(20, a.hz);
       expect(m.reading!.string.name, 'D4');
       expect(m.reading!.cents, closeTo(701.96, 0.01)); // a pure fifth up
     });
 
     test('follows a move to another string, not a brush of it', () {
-      final m = TunerModel(violin);
-      var i = 0;
-      for (; i < 20; i++) {
-        m.add(frame(i, d.hz));
-      }
-      for (var k = 0; k < 6; k++) {
-        m.add(frame(i++, a.hz));
-      }
+      start(violin);
+      sound(30, d.hz);
+      sound(6, a.hz);
       expect(m.reading!.string.name, 'D4');
-      for (var k = 0; k < 20; k++) {
-        m.add(frame(i++, a.hz));
-      }
+      expect(m.reading!.cents, closeTo(0, 0.01), reason: 'the brush is ignored');
+      sound(40, a.hz); // a slur: no new onset, but a dozen agree
       expect(m.reading!.string.name, 'A4');
       expect(m.reading!.cents, closeTo(0, 0.01));
     });
 
     test('A = 442 moves the targets', () {
-      final m = TunerModel(InstrumentTuning.violin(a4: 442));
-      for (var i = 0; i < 10; i++) {
-        m.add(frame(i, 440));
-      }
+      start(InstrumentTuning.violin(a4: 442));
+      sound(20, 440.0);
       expect(m.reading!.cents, closeTo(-7.85, 0.01));
+    });
+
+    group('trend', () {
+      // Re-plucked while still ringing, 1.2 s apart, as a player does while
+      // turning a tuner.
+      void pluck(double cents) =>
+          sound(112, pluckHz(off(a.hz, cents), glide: 12), rms: fading);
+
+      test('between plucks: wrong way, closer, too far', () {
+        start(mandolin, pin: 'A4');
+        silence(3);
+        pluck(-20);
+        expect(m.reading!.trend, TunerTrend.none, reason: 'nothing to compare with');
+        pluck(-28);
+        expect(m.reading!.cents, closeTo(-28, 1.5));
+        expect(m.reading!.trend, TunerTrend.wrongWay);
+        pluck(-10);
+        expect(m.reading!.trend, TunerTrend.closer);
+        pluck(8);
+        expect(m.reading!.trend, TunerTrend.overshot);
+        pluck(1);
+        expect(m.reading!.inTune, isTrue);
+        expect(m.reading!.trend, TunerTrend.none);
+      });
+
+      test('a pluck is not judged during its glide', () {
+        start(mandolin, pin: 'A4');
+        silence(3);
+        pluck(-20);
+        // The next one, as flat, plucked harder. Early on its glide makes it
+        // read sharper, which would look like "closer".
+        sound(30, pluckHz(off(a.hz, -20), glide: 25), rms: fading);
+        expect(m.reading!.trend, TunerTrend.none);
+        sound(82, pluckHz(off(a.hz, -20), glide: 25), rms: fading, after: 30);
+        expect(m.reading!.trend, TunerTrend.none, reason: 'same pitch, at the same age');
+      });
+
+      test('a sudden pluck after silence is compared with the last, held one', () {
+        start(mandolin, pin: 'A4');
+        silence(3);
+        pluck(-15);
+        silence(100);
+        expect(m.reading!.live, isFalse);
+        expect(m.reading!.trend, TunerTrend.none);
+        pluck(-22);
+        expect(m.reading!.trend, TunerTrend.wrongWay);
+      });
+
+      test('within a bowed note: turning while bowing', () {
+        start(violin, pin: 'A4');
+        // -15, then the tuner turned the wrong way over a second, to -25.
+        sound(200, (double t) => off(a.hz, t < 0.5 ? -15 : -15 - 10 * math.min(1.0, (t - 0.5))));
+        expect(m.reading!.trend, TunerTrend.wrongWay);
+      });
+
+      test('the same drift in a fading pluck is its glide, not a turn', () {
+        start(mandolin, pin: 'A4');
+        silence(3);
+        // Falling 10¢ over a second, fading as a pluck does.
+        sound(150, (double t) => off(a.hz, -15 - 10 * math.min(1.0, t)), rms: fading);
+        expect(m.reading!.trend, TunerTrend.none);
+      });
+
+      test('a move to another string forgets the last one', () {
+        start(violin);
+        sound(40, off(d.hz, -20));
+        silence(50);
+        sound(100, off(a.hz, -10));
+        expect(m.reading!.string.name, 'A4');
+        expect(m.reading!.trend, TunerTrend.none);
+      });
     });
   });
 
@@ -227,9 +388,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
 
-    Future<void> play(WidgetTester tester, FakeTunerInput fake, double hz, {int n = 30}) async {
+    // The microphone's clock runs on across notes; each one after a pause
+    // long enough to end the last (TunerModel.noteGap).
+    var clock = 0;
+    Future<void> play(WidgetTester tester, FakeTunerInput fake, double hz, {int n = 60}) async {
+      for (var i = 0; i < 45; i++) {
+        fake.ctl!.add(frame(clock++, null));
+      }
       for (var i = 0; i < n; i++) {
-        fake.ctl!.add(frame(i, hz));
+        fake.ctl!.add(frame(clock++, hz));
       }
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -373,6 +540,81 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
       expect(fake.ctl, isNull, reason: 'the microphone stopped');
+    });
+
+    testWidgets('the last note\'s pose and advice stay after it stops', (tester) async {
+      final fake = await pumpTuner(tester);
+      await listen(tester);
+      await play(tester, fake, off(440, -20));
+      for (var i = 0; i < 300; i++) {
+        fake.ctl!.add(frame(clock++, null)); // ~3 s of quiet
+      }
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(cents(tester), closeTo(-20, 0.5), reason: 'still hanging flat');
+      expect(status(tester), 'Flat · turn the fine tuner clockwise');
+    });
+
+    testWidgets('says when a turn went the wrong way, and which way to go', (tester) async {
+      final fake = await pumpTuner(tester);
+      await listen(tester);
+      // Each a second long, past the point notes are compared at.
+      await play(tester, fake, off(440, -20), n: 100);
+      expect(status(tester), 'Flat · turn the fine tuner clockwise');
+      expect(climber(tester).wrongWay, isFalse);
+      await play(tester, fake, off(440, -30), n: 100);
+      expect(status(tester), 'Wrong way! Turn clockwise instead');
+      expect(climber(tester).wrongWay, isTrue, reason: 'the arrow pulses red');
+      await play(tester, fake, off(440, -12), n: 100);
+      expect(status(tester), 'Closer! Keep turning clockwise');
+      expect(climber(tester).wrongWay, isFalse);
+      await play(tester, fake, off(440, 10), n: 100);
+      expect(status(tester), 'Too far! Back a little, anti-clockwise');
+      await play(tester, fake, off(440, 1), n: 100);
+      expect(status(tester), 'In tune!');
+      await tester.pump(const Duration(seconds: 4)); // the celebration
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('mandolin: wrong way, in tuner words', (tester) async {
+      final fake = await pumpTuner(tester, mandolin: true);
+      await openSettings(tester);
+      await tester.tap(find.text('Mandolin'));
+      await tester.pump();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump(const Duration(milliseconds: 400));
+      await listen(tester);
+      await play(tester, fake, off(440, 15), n: 100);
+      expect(status(tester), 'Sharp · loosen the tuner');
+      await play(tester, fake, off(440, 24), n: 100);
+      expect(status(tester), 'Wrong way! Loosen it instead');
+    });
+
+    testWidgets('a long press on the title switches the session recording', (tester) async {
+      final fake = await pumpTuner(tester);
+      expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
+      expect(find.byKey(const ValueKey('tuner_mark')), findsNothing);
+      await tester.longPress(find.byKey(const ValueKey('tuner_title')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('tuner_rec')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tuner_mark')), findsOneWidget);
+      final sp = await SharedPreferences.getInstance();
+      expect(sp.getBool(tunerRecordSessionsKey), isTrue);
+      expect(find.text('Recording tuning sessions on this phone'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3)); // the note clears
+      // No documents directory in a widget test: the tuner still listens.
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('tuner_mode_tune')));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pump();
+      expect(fake.ctl, isNotNull, reason: 'listening without a recording');
+      await play(tester, fake, 440);
+      expect(status(tester), 'In tune!');
+      await tester.longPress(find.byKey(const ValueKey('tuner_title')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
+      expect(sp.getBool(tunerRecordSessionsKey), isFalse);
+      await tester.pump(const Duration(seconds: 3));
     });
 
     testWidgets('A = 442 lives in the settings sheet, is saved and retargets', (tester) async {

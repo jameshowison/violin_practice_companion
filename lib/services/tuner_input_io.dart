@@ -38,6 +38,10 @@ class TunerInput implements TunerInputBase {
   StreamController<TunerFrame>? _out;
 
   @override
+  set onPcm(void Function(Uint8List pcm)? f) => _onPcm = f;
+  void Function(Uint8List pcm)? _onPcm;
+
+  @override
   bool get isSupported => true;
 
   @override
@@ -100,7 +104,10 @@ class TunerInput implements TunerInputBase {
       androidConfig: AndroidRecordConfig(audioSource: AndroidAudioSource.mic),
     ));
     _pcm = pcm.listen(
-      (chunk) => _toWorker?.send(TransferableTypedData.fromList([chunk])),
+      (chunk) {
+        _onPcm?.call(chunk);
+        _toWorker?.send(TransferableTypedData.fromList([chunk]));
+      },
       onError: (Object e) {
         if (kDebugMode) debugPrint('[tuner] mic stream error: $e');
         out.addError(e);

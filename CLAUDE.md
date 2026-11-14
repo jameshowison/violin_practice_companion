@@ -474,6 +474,15 @@ the CoreDevice id `devicectl list devices` prints. Install a release build with 
 script and have the feature write what you need to `Documents/` instead — as the
 calibration trace does (`scripts/pull_sync_trace.sh <device>`).
 
+**The tuner records sessions on request.** A long press on the tuner's title
+switches on a developer recording (● REC under the title, and a flag button to
+mark a moment): each listening run's microphone audio as a WAV, plus a CSV of
+what `TunerModel` did with every frame. `bash scripts/pull_tuner_sessions.sh
+<device>` copies them into the restricted checkout (never this repo) and
+replays the newest with `dart run tool/replay_tuner_session.dart <wav>`, which
+also takes `--set attack=150` etc. to try the model's settings on real audio,
+and `--frames 12.0-14.5` for the frames round a mark.
+
 ### Audio on iOS: one session, and a synth that doesn't follow the speaker
 
 Two traps behind the 2026-11-10 "calibration volume drops to zero / woodblocks
