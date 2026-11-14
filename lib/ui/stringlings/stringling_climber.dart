@@ -51,6 +51,7 @@ class StringlingClimber extends StatefulWidget {
     this.doubled = false,
     this.fineTuners = false,
     this.falls = 0,
+    this.stretches = 0,
     this.picked,
     this.onPick,
     this.party = false,
@@ -71,6 +72,12 @@ class StringlingClimber extends StatefulWidget {
   /// climbing: it lets go, drops, catches the lower string with one hand,
   /// swings, and gets the other hand back on. The squirm slider's easter egg.
   final int falls;
+
+  /// Bumped (with [target] one rung higher) for the sharp end's easter egg
+  /// instead of a climb: pulled up from above at full stretch, one hand
+  /// lets go and its arm recoils up over its head past the next string,
+  /// flaps about up there, grabs it, and it pulls itself up.
+  final int stretches;
 
   /// The rung the player picked (selected, to screen readers); null when it
   /// follows what is played.
@@ -100,11 +107,13 @@ class StringlingClimber extends StatefulWidget {
 }
 
 class _Climb {
-  _Climb(this.from, this.to, this.lead, {this.fall = false});
+  _Climb(this.from, this.to, this.lead, {this.fall = false, this.stretch = false});
   final int from, to;
-  final bool lead; // which hand reaches first (or, falling, catches)
-  final bool fall;
+  final bool lead; // which hand reaches first (or, falling, catches; or, stretching, flings)
+  final bool fall, stretch;
   double t = 0;
+
+  double get seconds => fall ? _fallTime : stretch ? _stretchTime : 0.62;
 }
 
 /// When to celebrate, and for how long. A celebration is earned: it starts
@@ -163,6 +172,18 @@ const _march = 1.8, _bye = 0.9, _scurry = 0.5, _friends = 2, _spread = 2.6;
 const _panic = 0.7, _letGo = 0.1, _drop = 0.38, _fallTime = 1.85;
 const _caught = _panic + _letGo + _drop;
 
+/// The sharp end's stretch, in seconds: straining against the pull from
+/// above, the arm's recoil when a hand lets go, its flapping about above
+/// the next string, the grab, and the pull up. And how far above the next
+/// string the recoil flings the hand, in gaps.
+const _strain = 1.0, _recoil = 0.2, _flap = 1.4, _grab = 0.18, _pull = 0.8, _overshoot = 0.8;
+const _stretchTime = _strain + _recoil + _flap + _grab + _pull;
+const _grabbed = _strain + _recoil + _flap + _grab;
+
+/// When the stretch's hand closes on the next string: the screen's cue for
+/// a bump in the hand.
+const stretchGrab = Duration(milliseconds: 2780); // _grabbed s
+
 class _StringlingClimberState extends State<StringlingClimber>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker = createTicker(_tick);
@@ -200,6 +221,9 @@ class _StringlingClimberState extends State<StringlingClimber>
     if (widget.falls != old.falls && climb == null && !still && widget.target == rung - 1) {
       climb = _Climb(rung, rung - 1, _flip = !_flip, fall: true);
     }
+    if (widget.stretches != old.stretches && climb == null && !still && widget.target == rung + 1) {
+      climb = _Climb(rung, rung + 1, _flip = !_flip, stretch: true);
+    }
   }
 
   @override
@@ -229,7 +253,7 @@ class _StringlingClimberState extends State<StringlingClimber>
     }
     final c = climb;
     if (c != null) {
-      c.t += dt / (c.fall ? _fallTime : still ? 0.18 : 0.62);
+      c.t += dt / (still && !c.fall && !c.stretch ? 0.18 : c.seconds);
       if (c.t >= 1) {
         rung = c.to;
         climb = null;
@@ -331,7 +355,9 @@ class _Layout {
     bottom = top + (n - 1) * gap;
     thick = math.max(8.0, rx * 0.26);
     x2 = width - 18;
-    cx0 = x1 + (x2 - x1) * 0.48;
+    // Left of centre, so a sharp head on E clears the Choose | Sense switch
+    // under the right pill (it touched it at 0.48 on an SE).
+    cx0 = x1 + (x2 - x1) * 0.45;
   }
 
   final int n;
@@ -409,8 +435,9 @@ class _ClimberPainter extends CustomPainter {
 
     final climbing = s.climb != null;
     final fc = s.climb;
-    final target = fc != null && fc.fall && fc.t * _fallTime < _caught
-        ? fc.from // don't give the fall away before it lands
+    final target = fc != null &&
+            ((fc.fall && fc.t * _fallTime < _caught) || (fc.stretch && fc.t * _stretchTime < _grabbed))
+        ? fc.from // don't give the fall or the fling away before it lands
         : w.target.clamp(0, n - 1);
     final idle = w.cents == null;
     final inTune = !climbing && !idle && s.shown.abs() <= 3;
@@ -435,8 +462,74 @@ class _ClimberPainter extends CustomPainter {
     double bodyDx = 0;
     final c = s.climb;
     final sway = s.still ? 0.0 : math.sin(s.t * 1.6) * 2;
-    double panic = 0;
-    if (c != null && c.fall) {
+    double panic = 0, wave = 0;
+    int? openHand; // the stretch's flung hand, open
+    if (c != null && c.stretch) {
+      final ya = rungY(c.from), yb = rungY(c.to);
+      final sharp = l.offset(50); // up
+      final sc = c.lead ? 1.0 : -1.0; // the side of the hand that lets go
+      var tt = c.t * _stretchTime;
+      double phase(double len) {
+        final v = (tt / len).clamp(0.0, 1.0);
+        tt -= len;
+        return v;
+      }
+      final strain = phase(_strain), rec = phase(_recoil), flap = phase(_flap);
+      final grab = phase(_grab), pull = phase(_pull);
+      var cy = ya + sharp - ry * 0.3; // sitting sharp, pulled up from above
+      var hold = Offset(cx0 - sc * handDx, ya);
+      final peak = yb - gap * _overshoot;
+      final restX = cx0 + sc * handDx;
+      Offset free;
+      if (rec == 0) {
+        // Full stretch: dragged further up, trembling harder and harder,
+        // the fingers of one hand slipping.
+        final k = strain * strain;
+        cy -= ry * 0.45 * _ease(strain);
+        bodyDx = s.still ? 0 : math.sin(s.t * 38) * (1 + 5 * k);
+        free = Offset(restX, ya + (strain > 0.8 ? thick * 0.6 * (strain - 0.8) / 0.2 : 0));
+        p = 0.8 + 0.2 * strain;
+      } else if (flap == 0) {
+        // Snap: like a released rubber band the arm recoils up over its
+        // head, past the next string; the body jolts up and swings to the
+        // hand still holding.
+        final k = 1 - math.pow(1 - rec, 3).toDouble();
+        cy -= ry * 0.45 + ry * 0.35 * math.sin(rec * math.pi);
+        bodyDx = -sc * rx * 0.35 * k;
+        free = Offset(restX + sc * rx * 1.6 * math.sin(k * math.pi) * 0.7, ya + (peak - ya) * k);
+        wave = 1;
+        p = 0.3;
+        panic = 1;
+      } else if (grab == 0) {
+        // Flapping about up there, swinging side to side and bouncing, the
+        // swings dying away as the hand comes down on the string.
+        final tf = flap * _flap, die = math.exp(-1.8 * tf) * (1 - flap * flap * flap);
+        cy -= ry * 0.45;
+        bodyDx = -sc * rx * 0.35 * math.exp(-3 * tf) * math.cos(7 * tf);
+        final bounce = s.still ? 0.0 : math.max(math.cos(2 * math.pi * 1.8 * tf), -0.35);
+        final whip = s.still ? 0.0 : sc * rx * 1.5 * die * math.sin(2 * math.pi * 2.3 * tf + 0.6);
+        free = Offset(restX + whip, yb + (peak - yb) * die * bounce - ry * 0.15 * (1 - flap));
+        wave = die;
+        p = 0.3;
+        panic = flap < 0.5 ? 1 : 0;
+      } else if (pull == 0) {
+        // The grab.
+        cy -= ry * 0.45;
+        free = Offset(restX, yb - ry * 0.15 * (1 - _ease(grab)));
+        p = 0.4;
+      } else {
+        // Hand over hand up to the higher string, the other hand following.
+        final k = _ease(pull);
+        cy = ya + sharp - ry * 0.75 + ((yb + sharp - ry * 0.3) - (ya + sharp - ry * 0.75)) * k;
+        free = Offset(restX, yb);
+        hold = Offset(cx0 - sc * handDx, ya + (yb - ya) * _ease((pull - 0.45) / 0.5));
+        p = 0.6 + 0.35 * k;
+      }
+      openHand = rec > 0 && grab == 0 ? (sc > 0 ? 1 : 0) : null;
+      hands = sc > 0 ? [hold, free] : [free, hold];
+      anchor = handL = handR = cy + ry * 0.3; // so the body sits at cy
+      dir = 1; // looks up, where it is going
+    } else if (c != null && c.fall) {
       final ya = rungY(c.from), yb = rungY(c.to);
       final flat = l.offset(s.shown);
       final d = flat - ry * 0.3; // the body's centre, below its hands
@@ -513,7 +606,7 @@ class _ClimberPainter extends CustomPainter {
         dir = s.shown < 0 ? -1 : 1;
       }
     }
-    final cx = cx0 + sway + bodyDx + (c != null && !c.fall ? math.sin(c.t * math.pi * 2) * 5 : 0);
+    final cx = cx0 + sway + bodyDx + (c != null && !c.fall && !c.stretch ? math.sin(c.t * math.pi * 2) * 5 : 0);
     // An earned landing in tune: a hop with a few dwindling bounces, then a
     // happy little jig, and it swells a touch, all settling as it ends.
     var hop = 0.0, grow = 1.0;
@@ -554,7 +647,9 @@ class _ClimberPainter extends CustomPainter {
       t: s.t,
       held: s.held,
       sparkle: cel != null && cel > 0.25 ? math.min(1.0, (cel - 0.25) / 0.35) * fade : 0,
-      effort: c != null && !c.fall,
+      effort: c != null && !c.fall && !c.stretch,
+      wave: wave,
+      openHand: openHand,
       idle: idle && c == null,
       still: s.still,
       panic: panic,
@@ -828,6 +923,8 @@ class StringlingFace {
     this.held = 0,
     this.sparkle = 0,
     this.effort = false,
+    this.wave = 0,
+    this.openHand,
     this.idle = false,
     this.still = false,
     this.panic = 0,
@@ -843,6 +940,13 @@ class StringlingFace {
   /// wiggly mouth and a bead of sweat (with [pain] 0's happy eyes; no
   /// brows, which read as cross).
   final bool effort;
+
+  /// A gentle bend running along the arm of [openHand], 0 for none: the
+  /// stretch's flung arm flapping about.
+  final double wave;
+
+  /// The index into [hands] of a hand that has let go, drawn open.
+  final int? openHand;
 
   /// Over 0.5: the falling face, wide eyes and an open mouth, legs going
   /// hard, in place of [pain]'s.
@@ -872,11 +976,27 @@ class StringlingFace {
       final length = (Offset(sx, sy) - h).distance;
       stroke.strokeWidth = 9 * u * (rx * 1.6 / math.max(length, 1)).clamp(0.6, 1.0);
       final mx = (sx + h.dx) / 2 + side * 5 * u, my = (sy + h.dy + thick / 2) / 2;
-      canvas.drawPath(
-          Path()
-            ..moveTo(sx, sy)
-            ..quadraticBezierTo(mx, my, h.dx, h.dy + thick / 2),
-          stroke);
+      final ex = h.dx, ey = h.dy + thick / 2;
+      if (i == openHand && wave > 0.02 && !still) {
+        // A bend travelling along the flapping arm.
+        final len = math.max(1.0, (Offset(ex, ey) - Offset(sx, sy)).distance);
+        final nx = -(ey - sy) / len, ny = (ex - sx) / len, amp = rx * 0.16 * wave;
+        final path = Path();
+        for (var j = 0; j <= 24; j++) {
+          final q = j / 24, r = 1 - q;
+          final w = math.sin(q * math.pi) * math.sin(q * math.pi * 1.5 - t * 11) * amp;
+          final px = r * r * sx + 2 * r * q * mx + q * q * ex + nx * w;
+          final py = r * r * sy + 2 * r * q * my + q * q * ey + ny * w;
+          j == 0 ? path.moveTo(px, py) : path.lineTo(px, py);
+        }
+        canvas.drawPath(path, stroke);
+      } else {
+        canvas.drawPath(
+            Path()
+              ..moveTo(sx, sy)
+              ..quadraticBezierTo(mx, my, ex, ey),
+            stroke);
+      }
     }
 
     // Feet, kicking harder the more it hurts.
@@ -1065,7 +1185,21 @@ class StringlingFace {
 
     // Fingers curled over the rule, on top of everything.
     final fw = math.max(5.0, rx * 0.13);
-    for (final h in hands) {
+    for (var i = 0; i < hands.length; i++) {
+      final h = hands[i];
+      if (i == openHand) {
+        // Let go: a palm and three splayed fingers.
+        final c = Offset(h.dx, h.dy + thick / 2);
+        canvas.drawCircle(c, fw * 1.3, ink);
+        for (final j in [-1, 0, 1]) {
+          canvas.save();
+          canvas.translate(c.dx, c.dy);
+          canvas.rotate(math.pi + j * 0.6);
+          canvas.drawRRect(RRect.fromLTRBR(-fw / 2, 0, fw / 2, fw * 2.4, Radius.circular(fw / 2)), ink);
+          canvas.restore();
+        }
+        continue;
+      }
       for (final j in [-1, 0, 1]) {
         final fx = h.dx + j * fw * 1.15 - fw / 2;
         canvas.drawRRect(

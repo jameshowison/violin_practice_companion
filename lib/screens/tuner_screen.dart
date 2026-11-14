@@ -105,6 +105,31 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _armFall(_fallHold + const Duration(milliseconds: 1850));
   }
 
+  /// And at the sharp end: pulled up at full stretch, it flings an arm up
+  /// to the next string and pulls itself up there (never down). Keep
+  /// holding and it goes again, up to the highest string.
+  Timer? _stretchTimer;
+  int _stretches = 0;
+  static const _stretchAgain = Duration(milliseconds: 3600); // the climber's stretch
+
+  void _armStretch(Duration after) {
+    _stretchTimer?.cancel();
+    _stretchTimer = Timer(after, _stretch);
+  }
+
+  void _stretch() {
+    _stretchTimer = null;
+    final top = _model.tuning.strings.length - 1;
+    if (!mounted || _listening || _rung >= top || _play.value < 49.5) return;
+    setState(() {
+      _rung++;
+      _stretches++;
+      if (_model.pinned != null) _model.pinned = _model.tuning.strings[_rung].name;
+    });
+    Future.delayed(stretchGrab, HapticFeedback.mediumImpact);
+    _armStretch(_fallHold + _stretchAgain);
+  }
+
   void _dragTo(double c) {
     _spring.stop();
     if (c <= -49.5) {
@@ -113,6 +138,12 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _fallTimer?.cancel();
       _fallTimer = null;
     }
+    if (c >= 49.5) {
+      if (_stretchTimer == null) _armStretch(_fallHold);
+    } else {
+      _stretchTimer?.cancel();
+      _stretchTimer = null;
+    }
     if ((c / 10).round() != (_play.value / 10).round()) HapticFeedback.selectionClick();
     _play.value = c;
   }
@@ -120,6 +151,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   void _springBack() {
     _fallTimer?.cancel();
     _fallTimer = null;
+    _stretchTimer?.cancel();
+    _stretchTimer = null;
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
       _play.value = 0;
       return;
@@ -157,6 +190,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _sub?.cancel();
     _input.dispose();
     _fallTimer?.cancel();
+    _stretchTimer?.cancel();
     _noteTimer?.cancel();
     _spring.dispose();
     _reading.dispose();
@@ -440,6 +474,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                   doubled: _mandolin,
                                   fineTuners: !_mandolin,
                                   falls: _falls,
+                                  stretches: _stretches,
                                   picked: _auto ? null : _rung,
                                   onPick: _pick,
                                   party: SkinStyle.of(context).mascots,

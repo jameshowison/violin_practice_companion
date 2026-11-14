@@ -299,6 +299,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('held at the sharp end, it flings itself up a string (and only up)', (tester) async {
+      await pumpTuner(tester);
+      final box = tester.getRect(find.byKey(const ValueKey('tuner_slider')));
+      Offset at(double f) => Offset(box.left + box.width * f, box.center.dy);
+      expect(climber(tester).target, 2, reason: 'opens on A');
+      final g = await tester.startGesture(at(0.5));
+      await g.moveTo(at(1.0));
+      await tester.pump(const Duration(seconds: 1));
+      expect(climber(tester).target, 2, reason: 'not yet');
+      await tester.pump(const Duration(seconds: 1));
+      expect(climber(tester).target, 3, reason: 'flung up to E');
+      expect(climber(tester).stretches, 1);
+      await tester.pump(const Duration(seconds: 8));
+      expect(climber(tester).target, 3, reason: 'E is the top: it only strains');
+      expect(climber(tester).stretches, 1);
+      await g.up();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(climber(tester).target, 3, reason: 'it stays on the string it reached');
+      await tester.pump(const Duration(seconds: 4));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('held at the flat end, it falls a string (and only down)', (tester) async {
       await pumpTuner(tester);
       int target() => climber(tester).target;
@@ -306,16 +329,8 @@ void main() {
       Offset at(double f) => Offset(box.left + box.width * f, box.center.dy);
       expect(target(), 2, reason: 'opens on A');
 
-      // Held at the sharp end: nothing.
-      var g = await tester.startGesture(at(0.5));
-      await g.moveTo(at(1.0));
-      await tester.pump(const Duration(seconds: 5));
-      expect(target(), 2);
-      await g.up();
-      await tester.pump(const Duration(seconds: 1));
-
       // Briefly at the flat end: not yet.
-      g = await tester.startGesture(at(0.5));
+      final g = await tester.startGesture(at(0.5));
       await g.moveTo(at(0.0));
       await tester.pump(const Duration(seconds: 1));
       expect(target(), 2);
