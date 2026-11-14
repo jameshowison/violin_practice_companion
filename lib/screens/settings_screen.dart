@@ -1,10 +1,18 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/instrument_setting.dart';
 import '../theme/app_skin.dart';
 import '../theme/skins.dart';
 import 'thanks_screen.dart';
+
+/// The policy the App Store and Google Play listings point at (docs/privacy.md).
+const privacyPolicyUrl =
+    'https://github.com/jameshowison/violin_practice_companion/blob/main/docs/privacy.md';
+const issueTrackerUrl =
+    'https://github.com/jameshowison/violin_practice_companion/issues';
 
 /// App-wide settings, from the gear on the piece list. Per-piece choices (view,
 /// spacing, fingering detail) stay in the piece's own drawer; this is for facts
@@ -22,20 +30,10 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          ListTile(
-            key: const ValueKey('thanks_entry'),
-            leading: const Icon(Icons.favorite_outline),
-            title: const Text('Thanks and how to contribute'),
-            subtitle: const Text(
-                'Free and open source on GitHub: credits and licences'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const ThanksScreen()),
-            ),
-          ),
+          const _PrivacyNote(key: ValueKey('privacy_note')),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text('Appearance', style: theme.textTheme.titleSmall),
           ),
           Padding(
@@ -65,14 +63,13 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Text(
-              'Changes colours, type, shapes and how the piece list draws its '
-              'rows. The screens and controls stay the same.',
+              'Changes the look; the screens and controls stay the same.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text('Instruments', style: theme.textTheme.titleSmall),
           ),
           RadioGroup<InstrumentSet>(
@@ -86,23 +83,119 @@ class SettingsScreen extends ConsumerWidget {
                 RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_violin'),
                   value: InstrumentSet.violin,
+                  dense: true,
                   title: Text('Violin'),
-                  subtitle: Text(
-                      'Violin fingering only. Mandolin frets, the tab view '
-                      'and chords are hidden.'),
                 ),
                 RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_violin_mandolin'),
                   value: InstrumentSet.violinAndMandolin,
-                  title: Text('Violin and mandolin'),
-                  subtitle: Text(
-                      'Each piece can show violin fingering or mandolin frets, '
-                      'with the tab view and chords.'),
+                  dense: true,
+                  title: Text('Violin and mandolin: frets, tab, chords'),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('thanks_entry'),
+            leading: const Icon(Icons.favorite_outline),
+            title: const Text('Thanks and how to contribute'),
+            subtitle: const Text(
+                'Free and open source on GitHub: credits and licences'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ThanksScreen()),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+}
+
+/// What the app collects (nothing), with links to the full policy and to
+/// support.
+class _PrivacyNote extends StatefulWidget {
+  const _PrivacyNote({super.key});
+
+  @override
+  State<_PrivacyNote> createState() => _PrivacyNoteState();
+}
+
+class _PrivacyNoteState extends State<_PrivacyNote> {
+  final _taps = <TapGestureRecognizer>[];
+
+  TapGestureRecognizer _tapFor(String url) {
+    final r = TapGestureRecognizer()..onTap = () => _open(url);
+    _taps.add(r);
+    return r;
+  }
+
+  Future<void> _open(String url) async {
+    final ok = await launchUrl(Uri.parse(url),
+        mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not open $url')));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final r in _taps) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    for (final r in _taps) {
+      r.dispose();
+    }
+    _taps.clear();
+    final theme = Theme.of(context);
+    final base = theme.textTheme.bodyMedium;
+    final linkColor = theme.colorScheme.primary;
+    InlineSpan link(String text, String url) => TextSpan(
+          text: text,
+          recognizer: _tapFor(url),
+          style: TextStyle(color: linkColor),
+          children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: GestureDetector(
+                onTap: () => _open(url),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Icon(Icons.open_in_new,
+                      size: (base?.fontSize ?? 14) * 0.95, color: linkColor),
+                ),
+              ),
+            ),
+          ],
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Text.rich(
+        TextSpan(children: [
+          const TextSpan(
+              text: 'Stringlings collects no data, has no accounts or '
+                  'sign-ups, and its features work entirely on your device. '
+                  'See the '),
+          link('privacy policy', privacyPolicyUrl),
+          const TextSpan(text: '.\n\nQuestions go to '),
+          link('support@stringlings.app', 'mailto:support@stringlings.app'),
+          const TextSpan(text: ' or the '),
+          link("project's issue tracker", issueTrackerUrl),
+          const TextSpan(
+              text: '. Stringlings is a one-person, spare-time project, so '
+                  "please be patient with replies — there's violin and "
+                  'mandolin practice to fit in too ;)'),
+        ]),
+        style: base,
       ),
     );
   }

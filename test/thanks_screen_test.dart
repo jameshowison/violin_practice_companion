@@ -10,8 +10,9 @@ import 'package:violin_practice_companion/services/bundled_licenses.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 
 void main() {
-  testWidgets('Settings opens with Thanks at the top, which links GitHub, '
-      'thanks homr and reaches the licence page', (tester) async {
+  testWidgets('Settings opens with the privacy note and ends with Thanks, '
+      'which links GitHub, thanks homr and reaches the licence page',
+      (tester) async {
     tester.view.physicalSize = const Size(375 * 3, 667 * 3); // dev-iphone-se
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -22,10 +23,18 @@ void main() {
       child: const MaterialApp(home: SettingsScreen()),
     ));
 
-    final entry = find.byKey(const ValueKey('thanks_entry'));
-    expect(entry, findsOneWidget);
-    expect(tester.getTopLeft(entry).dy,
+    final note = find.byKey(const ValueKey('privacy_note'));
+    expect(find.textContaining('entirely on your device. See the privacy policy',
+        findRichText: true), findsOneWidget);
+    expect(tester.getTopLeft(note).dy,
         lessThan(tester.getTopLeft(find.text('Appearance')).dy));
+
+    final entry = find.byKey(const ValueKey('thanks_entry'));
+    await tester.scrollUntilVisible(entry, 200);
+    expect(tester.getTopLeft(entry).dy,
+        greaterThan(tester.getTopLeft(find.text('Instruments')).dy));
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
 
     await tester.tap(entry);
     await tester.pumpAndSettle();
