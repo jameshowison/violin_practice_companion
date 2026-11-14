@@ -25,7 +25,8 @@ class ClimberRung {
 /// Changing [target] makes it climb there, one rung at a time, hand over
 /// hand. [cents] null is idle: resting, blinking, listening.
 ///
-/// With [fineTuners], a turning arrow just above the string's rule shows
+/// With [fineTuners], a turning arrow just above the string's rule, beside
+/// the stringling's right hand, shows
 /// which way to turn its fine tuner, on the screw head as the player sees it
 /// from behind the violin (flattened, the far side up): clockwise raises the
 /// pitch, so flat shows clockwise and sharp anti-clockwise. Hidden when in tune, idle or
@@ -113,7 +114,7 @@ class _Climb {
   final bool fall, stretch;
   double t = 0;
 
-  double get seconds => fall ? _fallTime : stretch ? _stretchTime : 0.62;
+  double get seconds => fall ? _fallTime : stretch ? _stretchTime / _stretchSpeed : 0.62;
 }
 
 /// When to celebrate, and for how long. A celebration is earned: it starts
@@ -165,7 +166,7 @@ class CelebrationClock {
 /// The party: seconds to march in, to walk off at the end, and to scurry
 /// off when it goes out of tune; friends on each side, and how far out the
 /// nearest stands, in the hero's widths.
-const _march = 1.8, _bye = 0.9, _scurry = 0.5, _friends = 2, _spread = 2.6;
+const _march = 3.0, _bye = 0.9, _scurry = 0.5, _friends = 3, _spread = 2.5;
 
 /// A fall's timeline, in seconds: panic (one hand off, flailing, legs
 /// kicking), the other hand slips, the drop, then a swing on one arm.
@@ -175,14 +176,17 @@ const _caught = _panic + _letGo + _drop;
 /// The sharp end's stretch, in seconds: straining against the pull from
 /// above, the arm's recoil when a hand lets go, its flapping about above
 /// the next string, the grab, and the pull up. And how far above the next
-/// string the recoil flings the hand, in gaps.
-const _strain = 1.0, _recoil = 0.2, _flap = 1.4, _grab = 0.18, _pull = 0.8, _overshoot = 0.8;
+/// string the recoil flings the hand, in gaps. The phases are at
+/// [_stretchSpeed]: under 1 plays them slower. [_flapAmount] scales the
+/// flapping (the whip side to side and the arm's wave).
+const _strain = 1.0, _recoil = 0.2, _flap = 1.4, _grab = 0.18, _pull = 0.8, _overshoot = 1.15;
+const _stretchSpeed = 0.9, _flapAmount = 0.1;
 const _stretchTime = _strain + _recoil + _flap + _grab + _pull;
 const _grabbed = _strain + _recoil + _flap + _grab;
 
 /// When the stretch's hand closes on the next string: the screen's cue for
 /// a bump in the hand.
-const stretchGrab = Duration(milliseconds: 2780); // _grabbed s
+const stretchGrab = Duration(milliseconds: 3089); // _grabbed / _stretchSpeed s
 
 class _StringlingClimberState extends State<StringlingClimber>
     with SingleTickerProviderStateMixin {
@@ -337,21 +341,21 @@ class _Layout {
     // reach: a few rounds settle it.
     for (var k = 0; k < 6 && n > 1; k++) {
       final r = radius(g) * 0.87;
-      g = (h - roof - _headRoom * r - _feetRoom * r - 2 * reach * g) / (n - 1);
+      g = (h - roof - topRoom - _headRoom * r - _feetRoom * r - 2 * reach * g) / (n - 1);
     }
     rx = radius(g);
     ry = rx * 0.87;
     // A short card (a phone on its side) can't afford the full reach: keep
     // the rules from bunching, and give the reach what room is left.
     if (n > 1 && g < minGap) {
-      g = math.min(minGap, (h - roof - (_headRoom + _feetRoom) * ry) / (n - 1));
+      g = math.min(minGap, (h - roof - topRoom - (_headRoom + _feetRoom) * ry) / (n - 1));
       g = math.max(g, 0.0);
     }
     gap = g;
-    final spare = h - roof - (_headRoom + _feetRoom) * ry - (n - 1) * gap;
+    final spare = h - roof - topRoom - (_headRoom + _feetRoom) * ry - (n - 1) * gap;
     reachPx = n > 1 ? math.max(0.0, math.min(reach * gap, spare / 2)) : 0.0;
     // The top string itself stays below the corner controls.
-    top = math.max(roof + reachPx + _headRoom * ry, cornerRoom);
+    top = math.max(roof + topRoom + reachPx + _headRoom * ry, cornerRoom);
     bottom = top + (n - 1) * gap;
     thick = math.max(8.0, rx * 0.26);
     x2 = width - 18;
@@ -372,18 +376,21 @@ class _Layout {
   /// between the corner pills, so it needs no room for them.
   static const roof = 4.0;
 
+  /// Extra room above the top string, beyond what a sharp head needs.
+  static const topRoom = 32.0;
+
   /// The corner pills and the Choose | Sense switch under the right one
   /// reach this far down; the top string's rule stays below them.
   static const cornerRoom = 100.0;
 
   /// The stringling's reach at ±50 cents, as a fraction of the gap between
   /// rules. Over half, a flat one hangs down among the string below's.
-  static const reach = 0.95;
+  static const reach = 0.5;
 
   /// How soon it gets there: the exponent on how far out of tune it is.
-  /// Under 1 it leaves the string quickly (at 0.5: 45% of its reach at
+  /// Under 1 it leaves the string quickly (at 0.32: 60% of its reach at
   /// ±10 cents) so a small mistune is plain to see; 1 is a straight line.
-  static const soon = 0.5;
+  static const soon = 0.32;
 
   /// Below this the rules bunch up and the reach gives way instead.
   static const minGap = 52.0;
@@ -414,7 +421,7 @@ const _lilac = Color(0xFFB388FF);
 
 /// The in-tune celebration: how many sparkles, how big (over the old 9
 /// point star), and how high it hops when it lands (in body heights, about).
-const _sparkles = 16, _sparkleSize = 1.9, _hop = 0.6;
+const _sparkles = 18, _sparkleSize = 2.0, _hop = 0.75;
 
 double _ease(double x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 
@@ -507,9 +514,9 @@ class _ClimberPainter extends CustomPainter {
         cy -= ry * 0.45;
         bodyDx = -sc * rx * 0.35 * math.exp(-3 * tf) * math.cos(7 * tf);
         final bounce = s.still ? 0.0 : math.max(math.cos(2 * math.pi * 1.8 * tf), -0.35);
-        final whip = s.still ? 0.0 : sc * rx * 1.5 * die * math.sin(2 * math.pi * 2.3 * tf + 0.6);
+        final whip = s.still ? 0.0 : sc * rx * 1.5 * _flapAmount * die * math.sin(2 * math.pi * 2.3 * tf + 0.6);
         free = Offset(restX + whip, yb + (peak - yb) * die * bounce - ry * 0.15 * (1 - flap));
-        wave = die;
+        wave = die * _flapAmount;
         p = 0.3;
         panic = flap < 0.5 ? 1 : 0;
       } else if (pull == 0) {
@@ -657,8 +664,11 @@ class _ClimberPainter extends CustomPainter {
     ).paint(canvas);
 
     if (w.fineTuners && !climbing && !idle && !inTune) {
-      final r = math.max(11.0, math.min(16.0, gap * 0.2));
-      _turnArrow(canvas, Offset(x2 - r - 10, rungY(s.rung) - r * _dialTilt - 10), r,
+      // Just right of its right hand, not out at the string's end: on a
+      // wide card (an iPad on its side) the end is far enough off to miss.
+      final r = math.max(11.0, math.min(22.0, gap * 0.2));
+      final ax = math.min(x2 - r - 10, cx0 + rx * 2.4 + r);
+      _turnArrow(canvas, Offset(ax, rungY(s.rung) - r * _dialTilt - 10), r,
           clockwise: s.shown < 0, t: s.still ? 0 : s.t);
     }
 

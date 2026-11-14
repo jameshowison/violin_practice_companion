@@ -110,7 +110,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   /// holding and it goes again, up to the highest string.
   Timer? _stretchTimer;
   int _stretches = 0;
-  static const _stretchAgain = Duration(milliseconds: 3600); // the climber's stretch
+  static const _stretchAgain = Duration(milliseconds: 4000); // the climber's stretch (3.98s)
 
   void _armStretch(Duration after) {
     _stretchTimer?.cancel();
