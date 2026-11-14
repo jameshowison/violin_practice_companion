@@ -52,6 +52,7 @@ import '../widgets/staff_view_verovio.dart';
 import '../widgets/time_signature_dialog.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
+import 'scan_photo_screen.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -361,6 +362,27 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     onChanged: (mode) =>
                         ref.read(displayModePrefProvider.notifier).state = mode,
                   ),
+                  // A scanned piece can be checked against the page it was
+                  // read from. Beside the view picker because it is another
+                  // way of looking at the piece; absent for one never scanned.
+                  if ((ref.watch(scanOriginalCountProvider(piece.id))
+                              .valueOrNull ??
+                          0) >
+                      0)
+                    ListTile(
+                      key: const ValueKey('scan_photo_tile'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.photo_outlined),
+                      title: const Text('Original photo'),
+                      onTap: () {
+                        Navigator.of(context).pop(); // the drawer
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => ScanPhotoScreen(
+                              pieceId: piece.id, title: piece.title),
+                        ));
+                      },
+                    ),
                   // Second because it is the other question that decides what
                   // everything else says: which instrument the numbers are
                   // for. Shown in every view — the title line and the

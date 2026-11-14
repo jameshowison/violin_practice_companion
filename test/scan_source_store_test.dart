@@ -44,4 +44,20 @@ void main() {
     await store.delete('never_scanned');
     expect(names('tune_1'), isEmpty);
   });
+
+  test('originals come back in page order, crops left out', () async {
+    final store = ScanSourceStore(root: docs);
+    final pages = [
+      for (var i = 0; i < 11; i++)
+        ScanSourcePage(
+            original: Uint8List.fromList([0xff, 0xd8, 0xff, i]), cropped: png),
+    ];
+    await store.save('tune_1', pages);
+    expect(await store.originalCount('tune_1'), 11);
+    // page_10 sorts before page_2 by name; it must not by page.
+    expect([for (final b in await store.originals('tune_1')) b.last],
+        List.generate(11, (i) => i));
+    expect(await store.originals('never_scanned'), isEmpty);
+    expect(await store.originalCount('never_scanned'), 0);
+  });
 }

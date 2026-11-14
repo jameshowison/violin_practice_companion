@@ -38,6 +38,30 @@ class ScanSourceStore {
     }
   }
 
+  /// Each page's image as acquired, in page order — what the piece screen's
+  /// "Original photo" shows. Empty for a piece that wasn't scanned (or was
+  /// scanned before this store existed).
+  Future<List<Uint8List>> originals(String pieceId) async =>
+      [for (final f in await _originalFiles(pieceId)) await f.readAsBytes()];
+
+  /// How many pages [originals] would return, without reading them.
+  Future<int> originalCount(String pieceId) async =>
+      (await _originalFiles(pieceId)).length;
+
+  Future<List<File>> _originalFiles(String pieceId) async {
+    final dir = await _dir(pieceId);
+    if (!await dir.exists()) return const [];
+    final byPage = <int, File>{};
+    await for (final e in dir.list()) {
+      if (e is! File) continue;
+      final m = _original.firstMatch(e.uri.pathSegments.last);
+      if (m != null) byPage[int.parse(m.group(1)!)] = e;
+    }
+    return [for (final n in byPage.keys.toList()..sort()) byPage[n]!];
+  }
+
+  static final _original = RegExp(r'^page_(\d+)_original\.\w+$');
+
   /// Idempotent: a piece that was never scanned has nothing to remove.
   Future<void> delete(String pieceId) async {
     final dir = await _dir(pieceId);

@@ -400,6 +400,13 @@ final scanSourceStoreProvider = Provider<ScanSourceStore>(
   (_) => ScanSourceStore(),
 );
 
+/// How many original page photos a scanned piece kept (0 for one that wasn't
+/// scanned). Gates the piece screen's "Original photo" entry. Reads file names
+/// only — the viewer loads the images themselves.
+final scanOriginalCountProvider = FutureProvider.autoDispose.family<int, String>(
+  (ref, pieceId) => ref.read(scanSourceStoreProvider).originalCount(pieceId),
+);
+
 final abcSourceStoreProvider = Provider<AbcSourceStore>(
   (_) => AbcSourceStore(),
 );
