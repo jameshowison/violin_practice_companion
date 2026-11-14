@@ -15,6 +15,7 @@ import '../services/piece_display_prefs.dart' show sharedPreferencesProvider;
 import '../services/tuner_input.dart';
 import '../services/tuner_model.dart';
 import '../theme/brand.dart';
+import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_climber.dart';
 
 /// The reference A, `tuner.a4`: 440 or 442.
@@ -441,6 +442,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                   falls: _falls,
                                   picked: _auto ? null : _rung,
                                   onPick: _pick,
+                                  party: SkinStyle.of(context).mascots,
                                 ),
                               ),
                             ),

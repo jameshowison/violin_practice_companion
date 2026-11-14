@@ -165,6 +165,39 @@ void main() {
     });
   });
 
+  group('StringlingClimber party', () {
+    const rungs = [
+      ClimberRung(letter: 'G', color: Colors.green),
+      ClimberRung(letter: 'D', color: Colors.blue),
+      ClimberRung(letter: 'A', color: Colors.red),
+      ClimberRung(letter: 'E', color: Colors.amber),
+    ];
+    Future<void> show(WidgetTester tester, double? cents, {bool party = true}) => tester.pumpWidget(
+        MaterialApp(
+            home: SizedBox(
+                width: 351,
+                height: 480,
+                child: StringlingClimber(rungs: rungs, target: 2, cents: cents, party: party))));
+
+    testWidgets('the parade comes, dances, and leaves either way, without a hitch', (tester) async {
+      await show(tester, -20);
+      await tester.pump(const Duration(seconds: 1));
+      await show(tester, 0); // earned: in they march
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 50)); // in, dancing, waving off
+      }
+      await show(tester, -20);
+      await tester.pump(const Duration(seconds: 1));
+      await show(tester, 0);
+      await tester.pump(const Duration(seconds: 1)); // marching in
+      await show(tester, 25); // out of tune: they scurry
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('TunerScreen', () {
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
         {bool deny = false, bool mandolin = false, bool auto = false}) async {

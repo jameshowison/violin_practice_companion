@@ -53,6 +53,7 @@ class StringlingClimber extends StatefulWidget {
     this.falls = 0,
     this.picked,
     this.onPick,
+    this.party = false,
   });
 
   final List<ClimberRung> rungs;
@@ -77,6 +78,12 @@ class StringlingClimber extends StatefulWidget {
 
   /// Called with a rung's index when it is tapped.
   final ValueChanged<int>? onPick;
+
+  /// The Playful skin's party: friends in cone hats march in from both
+  /// edges along the same string to dance and toot for an earned
+  /// celebration, wave and walk off when it ends, and scurry off, worried,
+  /// if the string goes out of tune first.
+  final bool party;
 
   /// The resting stringling on [rung] at [cents], in a box of [size], from
   /// the top of its head to the bottom of its feet and side to side: for
@@ -146,6 +153,11 @@ class CelebrationClock {
   }
 }
 
+/// The party: seconds to march in, to walk off at the end, and to scurry
+/// off when it goes out of tune; friends on each side, and how far out the
+/// nearest stands, in the hero's widths.
+const _march = 1.8, _bye = 0.9, _scurry = 0.5, _friends = 2, _spread = 2.6;
+
 /// A fall's timeline, in seconds: panic (one hand off, flailing, legs
 /// kicking), the other hand slips, the drop, then a swing on one arm.
 const _panic = 0.7, _letGo = 0.1, _drop = 0.38, _fallTime = 1.85;
@@ -162,6 +174,12 @@ class _StringlingClimberState extends State<StringlingClimber>
   double shown = 0; // smoothed cents
   double held = 0; // seconds in tune
   final party = CelebrationClock();
+
+  // The party parade: 0 (off stage) to 1 (in place, dancing); leaving
+  // happily when the celebration ended, worried when it went out of tune.
+  double pp = 0;
+  bool leaving = false, happyExit = false;
+  int partyRung = 0;
   int rung = 0;
   _Climb? climb;
   bool _flip = false;
@@ -220,6 +238,22 @@ class _StringlingClimberState extends State<StringlingClimber>
     final inTune = climb == null && widget.cents != null && shown.abs() <= 3;
     held = inTune ? held + dt : 0;
     party.update(dt, cents: widget.cents == null ? null : shown, steady: climb == null, inTune: inTune);
+    final since = party.since;
+    // They always get a dance in, even past the end of the sparkles.
+    final on = widget.party &&
+        inTune &&
+        since != null &&
+        since > 0.3 &&
+        since < math.max(CelebrationClock.length, 0.3 + _march + 1.2);
+    if (on) {
+      if (pp <= 0) partyRung = rung;
+      pp = still ? 1 : math.min(1.0, pp + dt / _march);
+      leaving = false;
+    } else if (pp > 0) {
+      if (!leaving) happyExit = inTune;
+      leaving = true;
+      pp = still || !widget.party ? 0 : math.max(0.0, pp - dt / (happyExit ? _bye : _scurry));
+    }
     _repaint.value++;
   }
 
@@ -496,6 +530,7 @@ class _ClimberPainter extends CustomPainter {
       }
     }
     final bodyY = anchor - ry * 0.3 + offset - hop;
+    if (s.pp > 0) _parade(canvas, l, size);
     if (cel != null && !s.still && cel < 0.9) {
       // A gold ring bursting out as it lands.
       final k = cel / 0.9;
@@ -539,6 +574,137 @@ class _ClimberPainter extends CustomPainter {
               fontSize: 12,
               fontWeight: FontWeight.w800),
           right: true);
+    }
+  }
+
+  /// The party friends, behind the hero, and confetti while they party.
+  void _parade(Canvas canvas, _Layout l, Size size) {
+    final y = l.rungY(s.partyRung), rx = l.rx * 0.55, ry = rx * 0.87, u = rx / 46;
+    final still = s.still, t = s.t;
+    final worried = s.leaving && !s.happyExit;
+    const colors = [_gold, _coral, _sweat, _lilac, Color(0xFF81C784), _blush];
+    final ink = Paint()..color = _ink;
+    final line = Paint()
+      ..color = _ink
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final white = Paint()..color = _white;
+    final wStroke = Paint()
+      ..color = _white
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(1.6, 3.4 * u);
+    for (final side in [-1.0, 1.0]) {
+      for (var k = 0; k < _friends; k++) {
+        final i = (side > 0 ? 3 : 0) + k;
+        final slot = l.cx0 + side * (l.rx * _spread + k * rx * 3.0);
+        final edge = side < 0 ? -rx * 2 - k * rx * 2.4 : size.width + rx * 2 + k * rx * 2.4;
+        // Marching in eases in, staggered; leaving runs out straight.
+        final f = still ? 1.0 : s.leaving ? s.pp : _ease(math.min(1.0, s.pp * 1.15 - k * 0.08));
+        final x = edge + (slot - edge) * math.max(0.0, f);
+        final marching = !s.leaving && f < 1, dancing = !s.leaving && f >= 1;
+        final bob = still
+            ? 0.0
+            : marching
+                ? math.sin(t * 10 + i).abs() * ry * 0.35
+                : dancing
+                    ? math.sin(t * 6 + i * 1.3).abs() * ry * 0.5
+                    : math.sin(t * 18 + i).abs() * ry * 0.25;
+        final cy = y - ry * 1.05 - bob;
+        final facing = s.leaving ? side : -side; // at the hero, or away
+        // Legs, feet on the string.
+        line.strokeWidth = math.max(2.5, 6 * u);
+        for (final leg in [-1.0, 1.0]) {
+          final step = still
+              ? 0.0
+              : math.sin(t * (worried ? 22 : 12) + leg * math.pi / 2 + i) * rx * 0.35 * (dancing ? 0.4 : 1);
+          canvas.drawLine(Offset(x + leg * rx * 0.3, cy + ry * 0.6), Offset(x + leg * rx * 0.3 + step, y - 1), line);
+        }
+        // Arms up and waving; flung back when scurrying off.
+        line.strokeWidth = math.max(3.0, 8 * u);
+        for (final arm in [-1.0, 1.0]) {
+          final wave = still ? 0.0 : math.sin(t * 8 + i + arm) * 0.5;
+          final a = worried ? -math.pi / 2 - facing * 1.9 + arm * 0.25 : -math.pi / 2 - arm * (0.55 + wave);
+          final sh = Offset(x + arm * rx * 0.8, cy);
+          canvas.drawLine(sh, sh + Offset(math.cos(a), math.sin(a)) * rx * 1.1, line);
+        }
+        canvas.drawOval(Rect.fromCenter(center: Offset(x, cy), width: 2 * rx, height: 2 * ry), ink);
+        // Face.
+        final fx = x + facing * rx * 0.12;
+        if (worried) {
+          for (final e in [-1.0, 1.0]) {
+            final ex = fx + e * rx * 0.34;
+            canvas.drawOval(
+                Rect.fromCenter(center: Offset(ex, cy - ry * 0.22), width: rx * 0.34, height: ry * 0.44), white);
+            canvas.drawCircle(Offset(ex + facing * rx * 0.06, cy - ry * 0.22), rx * 0.08, ink);
+          }
+          final m = Path()..moveTo(fx - rx * 0.25, cy + ry * 0.3);
+          for (var j = 1; j <= 4; j++) {
+            m.lineTo(fx - rx * 0.25 + j * rx * 0.125, cy + ry * 0.3 + (j.isOdd ? -1 : 1) * ry * 0.07);
+          }
+          canvas.drawPath(m, wStroke);
+          StringlingFace._drop(canvas, x - facing * rx * 0.9, cy - ry * 0.6, 3 * u + 1);
+        } else {
+          for (final e in [-1.0, 1.0]) {
+            canvas.drawArc(Rect.fromCircle(center: Offset(fx + e * rx * 0.34, cy - ry * 0.16), radius: rx * 0.19),
+                math.pi * 1.12, math.pi * 0.76, false, wStroke);
+          }
+          canvas.drawPath(
+              Path()
+                ..moveTo(fx - rx * 0.3, cy + ry * 0.15)
+                ..quadraticBezierTo(fx, cy + ry * 0.6, fx + rx * 0.3, cy + ry * 0.15)
+                ..close(),
+              white);
+        }
+        // A striped cone hat with a gold bobble.
+        final hw = rx * 0.62, hh = rx * 1.15;
+        final tilt = facing * 0.18 + (still ? 0.0 : math.sin(t * 6 + i) * 0.08);
+        canvas.save();
+        canvas.translate(x, cy - ry * 0.8);
+        canvas.rotate(tilt);
+        final hat = Path()
+          ..moveTo(-hw, 0)
+          ..lineTo(0, -hh)
+          ..lineTo(hw, 0)
+          ..close();
+        canvas.drawPath(hat, Paint()..color = colors[i % colors.length]);
+        canvas.save();
+        canvas.clipPath(hat);
+        final stripe = Paint()
+          ..color = const Color(0xBFFFFFFF)
+          ..strokeWidth = rx * 0.16;
+        for (var m = -2; m < 4; m++) {
+          canvas.drawLine(Offset(-hw * 1.5, -m * hh * 0.3), Offset(hw * 1.5, -m * hh * 0.3 - hh * 0.35), stripe);
+        }
+        canvas.restore();
+        canvas.drawCircle(Offset(0, -hh), rx * 0.17, Paint()..color = _gold);
+        canvas.restore();
+        // The front one on each side toots a horn while dancing.
+        if (dancing && k == 0) {
+          final blow = still ? 1.0 : 0.6 + 0.4 * math.sin(t * 3 + i).abs();
+          canvas.drawLine(
+              Offset(fx + facing * rx * 0.2, cy + ry * 0.35),
+              Offset(fx + facing * rx * (0.2 + 1.1 * blow), cy + ry * 0.4),
+              Paint()
+                ..color = _coral
+                ..strokeWidth = rx * 0.18
+                ..strokeCap = StrokeCap.round);
+        }
+      }
+    }
+    // Confetti while they party (and as they walk off happy).
+    if (!still && !worried) {
+      final a = math.min(1.0, s.pp * 1.5);
+      for (var i = 0; i < 26; i++) {
+        final x = (i * 53.7) % size.width;
+        final yy = (t * 60 * (0.6 + (i % 5) * 0.15) + i * 37) % (size.height + 20) - 10;
+        canvas.save();
+        canvas.translate(x, yy);
+        canvas.rotate(t * 3 + i);
+        canvas.drawRect(const Rect.fromLTWH(-3, -1.5, 6, 3),
+            Paint()..color = colors[i % 5].withValues(alpha: a * 0.85));
+        canvas.restore();
+      }
     }
   }
 
