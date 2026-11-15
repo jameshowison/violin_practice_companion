@@ -1,6 +1,6 @@
 # Stringlings — App Description
 
-Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-15; edit here, then paste into App Store Connect.
+Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-15; edit here, then `uv run scripts/push_listing.py` (dry run) and `--apply`.
 
 ## Name, subtitle and promotional text
 
@@ -12,6 +12,14 @@ Source of truth for the App Store Connect and TestFlight fields. Last updated 20
 | Promotional text | 170 | Snap a photo of your child's music and get fingerings on every note. Hear any part aloud or record your teacher playing, all synced up. No signups or data collected. | 165 |
 
 Promotional text can be changed at any time without a new build, so it can carry news later.
+
+## Links and contact
+
+| Field | Value |
+| --- | --- |
+| Support URL | https://github.com/jameshowison/violin_practice_companion/issues |
+| Privacy policy URL | https://github.com/jameshowison/violin_practice_companion/blob/main/docs/privacy.md |
+| TestFlight feedback email | support@stringlings.app |
 
 ## TestFlight beta app description
 
@@ -69,8 +77,8 @@ A built-in tuner helps you get the strings in tune before you start.
 PRIVATE BY DESIGN
 Stringlings collects no data and has no accounts or sign-ups. Everything works on your device.
 
-**Keywords** (93 of 100 characters; none repeat a word from the name or subtitle, since Apple combines words across all three)
+**Keywords** (95 of 100 characters; none repeat a word from the name or subtitle, since Apple combines words across all three)
 
 ```
-music,kids,beginner,learn,lessons,tuner,notes,finger chart,sheet,teacher,parent,fiddle,jianpu
+music,family,beginner,learn,lessons,tuner,notes,finger chart,sheet,teacher,parent,fiddle,jianpu
 ```
