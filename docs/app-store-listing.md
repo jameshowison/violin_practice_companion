@@ -9,7 +9,7 @@ Source of truth for the App Store Connect and TestFlight fields. Last updated 20
 | App name | 30 | Stringlings | 11 |
 | Subtitle | 30 | Violin practice help at home | 28 |
 | Subtitle (alternative) | 30 | Practice violin with your kid | 29 |
-| Promotional text | 170 | Snap a photo of your child's music and get fingerings on every note. Hear any part aloud or record your teacher playing, all synced up. No signups or data collected. | 165 |
+| Promotional text | 170 | Snap a photo of your music and get fingerings on every note. Hear any part aloud or record your teacher playing, all synced up. No signups or data collected. | 157 |
 
 Promotional text can be changed at any time without a new build, so it can carry news later.
 
