@@ -1,6 +1,6 @@
 # Stringlings — App Description
 
-Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-15; edit here, then `uv run scripts/push_listing.py` (dry run) and `--apply`.
+Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-15; edit here, then `uv run scripts/push_listing.py` (offline preview), `--compare` (vs. live) and `--apply`.
 
 ## Name, subtitle and promotional text
 

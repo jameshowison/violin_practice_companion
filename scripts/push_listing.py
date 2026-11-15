@@ -4,10 +4,11 @@
 # ///
 """Push docs/app-store-listing.md into App Store Connect.
 
-    uv run scripts/push_listing.py           # dry run: shows each field, live vs. new
-    uv run scripts/push_listing.py --apply   # writes the fields that changed
+    uv run scripts/push_listing.py             # offline preview + length checks, no key
+    uv run scripts/push_listing.py --compare   # live vs. new, field by field
+    uv run scripts/push_listing.py --apply     # writes the fields that changed
 
-The API key lives in 1Password (item "App Store Connect API" in the Private
+--compare and --apply need the API key. It lives in 1Password (item "App Store Connect API" in the Private
 vault: key_id, issuer_id, and the AuthKey_<key_id>.p8 attachment). It is read
 with `op read` at run time and never written to disk.
 
@@ -174,6 +175,22 @@ def main():
     if len(want["whatsNew"]) > LIMITS["whatsNew"]:
         sys.exit("What to Test is over 4000 characters")
 
+    if not (apply or "--compare" in sys.argv):
+        # Offline preview: no key, no network. Shown against empty, so every
+        # field prints in full.
+        for group in ("appInfo", "version", "beta"):
+            print({"appInfo": "App information", "version": "App Store version",
+                   "beta": "TestFlight test information"}[group])
+            for k, v in want[group].items():
+                show(f"{group}.{k}", None, v)
+            print()
+        print(f"Build {want['build']}: What to Test")
+        show("build.whatsNew", None, want["whatsNew"])
+        print("\nAll fields within their limits. Offline preview: nothing was read from or "
+              "sent to App Store Connect.\n--compare diffs against what's live; --apply "
+              "writes (both read the key from 1Password).")
+        return
+
     asc = Asc()
     apps = asc.get("/v1/apps")
     if len(apps) != 1:
@@ -224,7 +241,7 @@ def main():
     if not todo:
         print("\nEverything already matches.")
     elif not apply:
-        print(f"\nDry run: {len(todo)} write(s) pending. Re-run with --apply to send them.")
+        print(f"\nCompared: {len(todo)} write(s) pending. Re-run with --apply to send them.")
     else:
         for step in todo:
             step()
