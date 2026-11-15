@@ -9,7 +9,7 @@ Source of truth for the App Store Connect and TestFlight fields. Last updated 20
 | App name | 30 | Stringlings | 11 |
 | Subtitle | 30 | Violin practice help at home | 28 |
 | Subtitle (alternative) | 30 | Practice violin with your kid | 29 |
-| Promotional text | 170 | Snap a photo of your music and get fingerings on every note. Hear any part aloud or record your teacher playing, all synced up. No signups or data collected. | 157 |
+| Promotional text | 170 | Snap a photo of violin music and get fingerings on every note. Hear any part aloud or record your teacher playing, all synced up. No signups or data collected. | 159 |
 
 Promotional text can be changed at any time without a new build, so it can carry news later.
 
@@ -77,8 +77,8 @@ A built-in tuner helps you get the strings in tune before you start.
 PRIVATE BY DESIGN
 Stringlings collects no data and has no accounts or sign-ups. Everything works on your device.
 
-**Keywords** (95 of 100 characters; none repeat a word from the name or subtitle, since Apple combines words across all three)
+**Keywords** (98 of 100 characters; none repeat a word from the name or subtitle, since Apple combines words across all three)
 
 ```
-music,family,beginner,learn,lessons,tuner,notes,finger chart,sheet,teacher,parent,fiddle,jianpu
+music,family,beginner,learn,lessons,tuner,notes,finger chart,sheet,teacher,parent,jianpu,orchestra
 ```
