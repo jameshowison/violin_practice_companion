@@ -74,20 +74,24 @@ class MusicXmlBeamer {
       return musicXml;
     }
 
+    // The meter before any measure states one: the first `<time>` in the
+    // document, as MusicXmlParser reads it.
     final timeEl = doc.findAllElements('time').firstOrNull;
-    final span = _beamSpan(
-      _intOf(timeEl, 'beats') ?? 4,
-      _intOf(timeEl, 'beat-type') ?? 4,
-    );
+    var beats = _intOf(timeEl, 'beats') ?? 4;
+    var beatType = _intOf(timeEl, 'beat-type') ?? 4;
 
-    // `<divisions>` is stated in an `<attributes>` and holds until restated, so
-    // it's carried across measures rather than read once.
+    // `<divisions>` and `<time>` are stated in an `<attributes>` and hold until
+    // restated, so they're carried across measures rather than read once.
     var divisions = 1;
     var changed = false;
     for (final measureEl in doc.findAllElements('measure')) {
       for (final attrEl in measureEl.findElements('attributes')) {
         divisions = _intOf(attrEl, 'divisions') ?? divisions;
+        final t = attrEl.findElements('time').firstOrNull;
+        beats = _intOf(t, 'beats') ?? beats;
+        beatType = _intOf(t, 'beat-type') ?? beatType;
       }
+      final span = _beamSpan(beats, beatType);
       if (measureEl.findAllElements('beam').isNotEmpty) continue;
       changed = _beamMeasure(measureEl, divisions, span) || changed;
     }

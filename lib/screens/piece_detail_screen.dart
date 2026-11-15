@@ -51,7 +51,6 @@ import '../widgets/section_minimap.dart';
 import '../widgets/tempo_controls.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
-import '../widgets/time_signature_dialog.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
 import 'scan_photo_screen.dart';
@@ -2033,77 +2032,30 @@ class _DrawerTab extends StatelessWidget {
 
 // ── Piece identity + note vocabulary (app bar controls, palette staff below) ──
 
-/// The meter, on the title line. Tapping opens the meter editor; the pencil
-/// says so, since italic grey text otherwise reads as a label, not a control.
+/// The meter, on the title line: the opening meter, with "…" when the piece
+/// changes meter later. A label only — the meter is edited bar by bar from
+/// the measure editor's time-signature card, which is where a change belongs
+/// once a piece can move between 3/4 and 4/4.
 ///
 /// It used to carry the key's name too; that now leads the title line, in
-/// [_KeySummary], beside the fingerings it implies. A wrong meter is something
-/// you notice while looking at the staff, which is why it's up here at all
-/// instead of on a strip of its own.
+/// [_KeySummary], beside the fingerings it implies.
 class _KeyMeterButton extends ConsumerWidget {
   const _KeyMeterButton({this.mirror = false});
 
-  /// Lay out and take up space, but draw nothing and take no taps — the
-  /// counterweight that centres the title. See the app bar's `title`.
+  /// Lay out and take up space, but draw nothing — the counterweight that
+  /// centres the title. See the app bar's `title`.
   final bool mirror;
-
-  /// Relabels the score's meter. Note values are untouched — see
-  /// [MeasureXmlEditor.setTimeSignature].
-  ///
-  /// No confirmation step: the change is fully reversible from the same control
-  /// (unlike deleting a measure, which this otherwise mirrors), and the dialog
-  /// has already shown what the new meter does to the bar totals.
-  Future<void> _editTimeSignature(
-      BuildContext context, WidgetRef ref, ParsedPiece parsed) async {
-    final chosen = await showTimeSignatureDialog(context, piece: parsed);
-    if (chosen == null || !context.mounted) return;
-
-    final piece = ref.read(selectedPieceProvider);
-    if (piece == null) return;
-    final repo = ref.read(pieceRepositoryProvider);
-    try {
-      final original = await repo.loadMusicXml(piece);
-      final newXml = MeasureXmlEditor.setTimeSignature(original,
-          beats: chosen.beats, beatType: chosen.beatType);
-      final updated = await repo.writeEditedMusicXml(piece, newXml);
-      ref.read(selectedPieceProvider.notifier).state = updated;
-      ref.invalidate(piecesProvider);
-      ref.invalidate(parsedPieceProvider);
-    } catch (e) {
-      if (!context.mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Could not change the time signature'),
-          content: Text('$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
     final body = Padding(
+      key: mirror ? null : const ValueKey('piece_meter_label'),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${parsed.beatsPerMeasure}/${parsed.beatType}',
-            style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
-          ),
-          const SizedBox(width: 5),
-          Icon(Icons.edit_outlined,
-              size: 13, color: Theme.of(context).hintColor),
-        ],
+      child: Text(
+        '${parsed.openingMeter}${parsed.hasMeterChanges ? ' …' : ''}',
+        style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
       ),
     );
 
@@ -2112,13 +2064,7 @@ class _KeyMeterButton extends ConsumerWidget {
         child: IgnorePointer(child: Opacity(opacity: 0, child: body)),
       );
     }
-
-    return InkWell(
-      key: const ValueKey('piece_meter_button'),
-      borderRadius: BorderRadius.circular(6),
-      onTap: () => _editTimeSignature(context, ref, parsed),
-      child: body,
-    );
+    return body;
   }
 }
 

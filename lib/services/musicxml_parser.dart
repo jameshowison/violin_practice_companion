@@ -34,11 +34,14 @@ class MusicXmlParser {
 
     final divisions =
         int.tryParse(doc.findAllElements('divisions').firstOrNull?.innerText ?? '') ?? 1;
-    final timeEl = doc.findAllElements('time').firstOrNull;
-    final beatsPerMeasure =
-        int.tryParse(timeEl?.findElements('beats').firstOrNull?.innerText ?? '') ?? 4;
-    final beatType =
-        int.tryParse(timeEl?.findElements('beat-type').firstOrNull?.innerText ?? '') ?? 4;
+    // The opening meter: the first `<time>` in the document, which is bar 1's
+    // in any well-formed score. A score with none is in 4/4 (MusicXML's
+    // reading too). Later `<time>`s are per-bar changes, kept on each
+    // measure as [Measure.timeChange].
+    final opening = _meterOf(doc.findAllElements('time').firstOrNull) ??
+        const Meter(4, 4);
+    final beatsPerMeasure = opening.beats;
+    final beatType = opening.beatType;
 
     final measures = <Measure>[];
     for (final measureEl in doc.findAllElements('measure')) {
@@ -252,6 +255,10 @@ class MusicXmlParser {
         systemStart: measureEl
             .findElements('print')
             .any((p) => p.getAttribute('new-system') == 'yes'),
+        timeChange: _meterOf(measureEl
+            .findElements('attributes')
+            .expand((a) => a.findElements('time'))
+            .firstOrNull),
       ));
     }
 
@@ -264,6 +271,20 @@ class MusicXmlParser {
       beatsPerMeasure: beatsPerMeasure,
       beatType: beatType,
     );
+  }
+
+  /// A `<time>` element's meter; null for none, or one without numbers
+  /// (`<senza-misura>`).
+  static Meter? _meterOf(XmlElement? time) {
+    if (time == null) return null;
+    final beats =
+        int.tryParse(time.findElements('beats').firstOrNull?.innerText.trim() ?? '');
+    final beatType = int.tryParse(
+        time.findElements('beat-type').firstOrNull?.innerText.trim() ?? '');
+    if (beats == null || beatType == null || beats < 1 || beatType < 1) {
+      return null;
+    }
+    return Meter(beats, beatType);
   }
 
   int _toMidi(String step, int octave, double alter) {

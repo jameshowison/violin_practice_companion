@@ -73,6 +73,7 @@ class SectionDetector {
           partLabelNote: source[i].partLabelNote,
           lineStartNote: source[i].lineStartNote,
           systemStart: measures[i].systemStart,
+          timeChange: measures[i].timeChange,
         ),
     ];
   }

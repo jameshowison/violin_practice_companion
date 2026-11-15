@@ -55,7 +55,7 @@ class AbcExporter {
       ..writeln('L: 1/${32 ~/ unit}')
       ..writeln('K: ${MusicXmlParser.keyName(piece.keyFifths, piece.keyMode)}');
 
-    final beamUnits = _beamUnits(piece);
+    final meters = piece.meters;
     final measures = piece.measures;
     final line = StringBuffer();
 
@@ -91,8 +91,10 @@ class AbcExporter {
         leading = opening;
       }
       write(leading);
+      // A meter change is an inline field at the head of its bar.
+      if (i > 0 && meters[i] != meters[i - 1]) write('[M:${meters[i]}]');
       write(_navOpening(m));
-      write(_measureBody(m, piece.keyFifths, unit, beamUnits));
+      write(_measureBody(m, piece.keyFifths, unit, _beamUnits(meters[i])));
       write(_navClosing(m, measures));
     }
     write(measures.isNotEmpty && measures.last.repeatEnd ? ':|' : '|]');
@@ -215,9 +217,9 @@ class AbcExporter {
   /// engravers beam eighths across a half bar, which as ABC would run four or
   /// eight notes together and hide the pulse. abcjs beams what it finds
   /// unspaced, so the tune still *engraves* correctly either way.
-  static int _beamUnits(ParsedPiece piece) {
-    final beat = 32 ~/ piece.beatType;
-    if (piece.beatType == 8 && piece.beatsPerMeasure % 3 == 0) return beat * 3;
+  static int _beamUnits(Meter meter) {
+    final beat = 32 ~/ meter.beatType;
+    if (meter.beatType == 8 && meter.beats % 3 == 0) return beat * 3;
     return beat > 8 ? 8 : beat;
   }
 

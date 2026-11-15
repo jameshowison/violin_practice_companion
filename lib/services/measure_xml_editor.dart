@@ -129,56 +129,138 @@ class MeasureXmlEditor {
     return doc.toXmlString();
   }
 
-  /// Rewrites the score's time signature to [beats]/[beatType].
+  /// Makes [measureNumber] start a new meter: its `<time>` becomes
+  /// [beats]/[beatType] (rewritten if it has one, inserted if not), and the
+  /// bars after it follow until the next `<time>`.
   ///
-  /// **Relabels only — note values are untouched.** The case this exists for is
-  /// a score whose bars are right and whose `<time>` is wrong: The Wellerman
-  /// imported with four quarters in every bar under a `2/4` signature, so every
-  /// bar read as double-length and the measure editor flagged the lot. Changing
-  /// the label to `2/2` makes the file self-consistent without moving a note.
+  /// It relabels; no note value changes. That is for a score whose bars are
+  /// right and whose `<time>` is wrong: The Wellerman imported with four
+  /// quarters in every bar under a `2/4` signature, so every bar read as
+  /// double-length and the measure editor flagged the lot. Changing the label
+  /// to `2/2` makes the file self-consistent without moving a note.
   /// Re-notating a tune into a different meter (halving or doubling every
   /// duration) is a different operation and deliberately not this one.
   ///
-  /// Only the FIRST `<time>` in each part is rewritten. The app's model carries
-  /// one meter per piece ([ParsedPiece.beatsPerMeasure] comes from the first
-  /// `<time>` in the document), so a mid-piece meter change is already outside
-  /// what it can represent — overwriting those too would silently destroy a
-  /// distinction the rest of the app can't yet make. A part with no `<time>` at
-  /// all gets one, inserted into its first `<attributes>` in the order MusicXML
-  /// requires (after `<key>`, before `<clef>`).
-  static String setTimeSignature(String musicXml,
+  /// This is how the measure editor's time-signature card writes: a change at
+  /// any bar, so a piece can move between 3/4 and 4/4. Setting the first bar
+  /// sets the piece's opening meter. Throws [ArgumentError] when no measure
+  /// has that number.
+  static String setTimeChange(String musicXml, int measureNumber,
       {required int beats, required int beatType}) {
     if (beats < 1 || beatType < 1) {
       throw ArgumentError('Time signature $beats/$beatType is not a meter');
     }
     final doc = XmlDocument.parse(musicXml);
-    var changed = false;
-
+    var found = false;
     for (final part in doc.findAllElements('part')) {
-      final existing = part.findAllElements('time').firstOrNull;
+      final measure = part
+          .findElements('measure')
+          .where((m) => m.getAttribute('number') == '$measureNumber')
+          .firstOrNull;
+      if (measure == null) continue;
+      found = true;
+      _pinOpeningMeter(part);
+      final existing = measure
+          .findElements('attributes')
+          .expand((a) => a.findElements('time'))
+          .firstOrNull;
       if (existing != null) {
         _setChildText(existing, 'beats', '$beats');
         _setChildText(existing, 'beat-type', '$beatType');
-        changed = true;
         continue;
       }
-      final attributes = part.findAllElements('attributes').firstOrNull;
-      if (attributes == null) continue;
-      final time = XmlDocument.parse(
-              '<time><beats>$beats</beats><beat-type>$beatType</beat-type></time>')
-          .rootElement
-          .copy();
-      final clefIdx = attributes.children
-          .indexWhere((n) => n is XmlElement && n.name.local == 'clef');
-      attributes.children
-          .insert(clefIdx == -1 ? attributes.children.length : clefIdx, time);
-      changed = true;
+      _insertTime(_attributesFor(measure), beats, beatType);
     }
-
-    if (!changed) {
-      throw ArgumentError('No <attributes> block to hold a time signature');
-    }
+    if (!found) throw ArgumentError('No measure $measureNumber');
     return doc.toXmlString();
+  }
+
+  /// Removes the meter change at [measureNumber], so the bar carries on in the
+  /// meter before it. The first measure keeps its `<time>`: the piece needs an
+  /// opening meter, which [setTimeChange] edits instead. Unchanged when the bar
+  /// states no `<time>`.
+  static String removeTimeChange(String musicXml, int measureNumber) {
+    final doc = XmlDocument.parse(musicXml);
+    var changed = false;
+    for (final part in doc.findAllElements('part')) {
+      final measures = part.findElements('measure').toList();
+      final i = measures
+          .indexWhere((m) => m.getAttribute('number') == '$measureNumber');
+      if (i <= 0) continue;
+      _pinOpeningMeter(part);
+      for (final attributes
+          in measures[i].findElements('attributes').toList()) {
+        final times = attributes.findElements('time').toList();
+        if (times.isEmpty) continue;
+        for (final t in times) {
+          t.remove();
+        }
+        changed = true;
+        // An `<attributes>` that held only the time would be an empty block.
+        if (attributes.childElements.isEmpty) attributes.remove();
+      }
+    }
+    return changed ? doc.toXmlString() : musicXml;
+  }
+
+  /// Writes the meter [part] opens in into its first measure, if that has no
+  /// `<time>` of its own.
+  ///
+  /// A score may state its first meter only later — a scan cropped below its
+  /// opening system had just one `<time>`, at bar 19 — and MusicXmlParser then
+  /// reads that one as the opening meter too. Changing or removing it would
+  /// silently re-meter every bar before it, so before touching any later bar
+  /// the opening is pinned where it belongs.
+  static void _pinOpeningMeter(XmlElement part) {
+    final first = part.findElements('measure').firstOrNull;
+    if (first == null) return;
+    final hasOwn = first
+        .findElements('attributes')
+        .any((a) => a.findElements('time').isNotEmpty);
+    if (hasOwn) return;
+    final opening = part.findAllElements('time').firstOrNull;
+    int? read(String tag) => int.tryParse(
+        opening?.findElements(tag).firstOrNull?.innerText.trim() ?? '');
+    final beats = read('beats'), beatType = read('beat-type');
+    if (beats == null || beatType == null) return; // none at all: 4/4
+    _insertTime(_attributesFor(first), beats, beatType);
+  }
+
+  /// The `<attributes>` in [measure] a `<time>` belongs in: the one already
+  /// holding the key or clef (an OMR scan splits divisions from those), else
+  /// its first, else a new block placed before the bar's first note.
+  static XmlElement _attributesFor(XmlElement measure) {
+    final blocks = measure.findElements('attributes').toList();
+    final withKeyOrClef = blocks
+        .where((a) =>
+            a.findElements('key').isNotEmpty ||
+            a.findElements('clef').isNotEmpty)
+        .firstOrNull;
+    if (withKeyOrClef != null) return withKeyOrClef;
+    if (blocks.isNotEmpty) return blocks.first;
+    final created = XmlElement(XmlName('attributes'));
+    final firstMusic = measure.children.indexWhere((n) =>
+        n is XmlElement &&
+        const {'note', 'backup', 'forward'}.contains(n.name.local));
+    measure.children.insert(
+        firstMusic == -1 ? measure.children.length : firstMusic, created);
+    return created;
+  }
+
+  /// Inserts a `<time>` into [attributes] where MusicXML's sequence puts it:
+  /// after `<divisions>`/`<key>`, before `<staves>`, `<clef>` and the rest.
+  static void _insertTime(XmlElement attributes, int beats, int beatType) {
+    const after = {
+      'staves', 'part-symbol', 'instruments', 'clef', 'staff-details',
+      'transpose', 'directive', 'measure-style',
+    };
+    final time = XmlDocument.parse(
+            '<time><beats>$beats</beats><beat-type>$beatType</beat-type></time>')
+        .rootElement
+        .copy();
+    final at = attributes.children
+        .indexWhere((n) => n is XmlElement && after.contains(n.name.local));
+    attributes.children.insert(at == -1 ? attributes.children.length : at, time);
   }
 
   /// Sets [element]'s `<$name>` child to [text], creating it if absent.

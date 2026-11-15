@@ -1,6 +1,7 @@
 
 import 'support/bundled_scores.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -32,11 +33,10 @@ const _twoFour = '<time><beats>2</beats><beat-type>4</beat-type></time>';
 void main() {
   final parser = MusicXmlParser();
 
-  group('setTimeSignature', () {
+  group('setTimeChange on the first bar', () {
     test('rewrites an existing signature and leaves note values alone', () {
       final before = parser.parse(_score(time: _twoFour));
-      final after = parser.parse(MeasureXmlEditor.setTimeSignature(
-          _score(time: _twoFour),
+      final after = parser.parse(MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
           beats: 2,
           beatType: 2));
 
@@ -56,15 +56,14 @@ void main() {
       final wrong = parser.parse(_score(time: _twoFour));
       expect(wrong.flaggedMeasureNumbers, isNotEmpty);
 
-      final fixed = parser.parse(MeasureXmlEditor.setTimeSignature(
-          _score(time: _twoFour),
+      final fixed = parser.parse(MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
           beats: 2,
           beatType: 2));
       expect(fixed.flaggedMeasureNumbers, isEmpty);
     });
 
     test('adds a signature to a score that has none, before the clef', () {
-      final xml = MeasureXmlEditor.setTimeSignature(_score(),
+      final xml = MeasureXmlEditor.setTimeChange(_score(), 1,
           beats: 6, beatType: 8);
       final parsed = parser.parse(xml);
       expect(parsed.beatsPerMeasure, 6);
@@ -75,50 +74,51 @@ void main() {
     });
 
     test('is idempotent', () {
-      final once = MeasureXmlEditor.setTimeSignature(_score(time: _twoFour),
+      final once = MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
           beats: 3, beatType: 4);
       final twice =
-          MeasureXmlEditor.setTimeSignature(once, beats: 3, beatType: 4);
+          MeasureXmlEditor.setTimeChange(once, 1, beats: 3, beatType: 4);
       expect(twice, once);
       expect('<time>'.allMatches(twice), hasLength(1));
     });
 
     test('rejects a meter that is not one', () {
       expect(
-          () => MeasureXmlEditor.setTimeSignature(_score(time: _twoFour),
+          () => MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
               beats: 0, beatType: 4),
           throwsArgumentError);
       expect(
-          () => MeasureXmlEditor.setTimeSignature(_score(time: _twoFour),
+          () => MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
               beats: 4, beatType: 0),
           throwsArgumentError);
     });
 
     test('leaves a mid-piece meter change alone', () {
-      // The app's model carries one meter per piece, so only the first <time>
-      // is ours to rewrite — clobbering the rest would destroy a distinction
-      // nothing else in the app can currently make.
+      // Setting the opening meter must not touch a later change: a piece may
+      // move between meters.
       final withChange = _score(time: _twoFour).replaceFirst(
           '<measure number="2">',
           '<measure number="2"><attributes>'
               '<time><beats>3</beats><beat-type>4</beat-type></time>'
               '</attributes>');
-      final out = MeasureXmlEditor.setTimeSignature(withChange,
+      final out = MeasureXmlEditor.setTimeChange(withChange, 1,
           beats: 2, beatType: 2);
       expect(out, contains('<beats>2</beats><beat-type>2</beat-type>'));
       expect(out, contains('<beats>3</beats><beat-type>4</beat-type>'));
     });
   });
 
-  group('copyWithTime', () {
+  group('copyWithTimeChangeAt', () {
     test('re-reads the same bars under a different meter', () {
       final piece = parser.parse(_score(time: _twoFour));
       expect(piece.flaggedMeasureNumbers, isNotEmpty);
 
-      final asCutTime = piece.copyWithTime(beatsPerMeasure: 2, beatType: 2);
+      final asCutTime = piece.copyWithTimeChangeAt(0, const Meter(2, 2));
       expect(asCutTime.flaggedMeasureNumbers, isEmpty);
       // Nothing but the meter moved.
-      expect(asCutTime.measures, same(piece.measures));
+      for (var i = 0; i < piece.measures.length; i++) {
+        expect(asCutTime.measures[i].notes, same(piece.measures[i].notes));
+      }
       expect(asCutTime.keyFifths, piece.keyFifths);
       expect(piece.beatType, 4, reason: 'the original must not be mutated');
     });
@@ -128,8 +128,7 @@ void main() {
     // The shape The Wellerman imported in: four quarters in every bar under a
     // 2/4 signature.
     test('exports as 2/2 once relabelled', () {
-      final fixed = parser.parse(MeasureXmlEditor.setTimeSignature(
-          _score(time: _twoFour),
+      final fixed = parser.parse(MeasureXmlEditor.setTimeChange(_score(time: _twoFour), 1,
           beats: 2,
           beatType: 2));
       final abc = AbcExporter.export(fixed, title: 'The Wellerman');
@@ -145,7 +144,8 @@ void main() {
       for (final file in allScoreFixtures()) {
         final xml = file.readAsStringSync();
         final before = parser.parse(xml);
-        final after = parser.parse(MeasureXmlEditor.setTimeSignature(xml,
+        final after = parser.parse(MeasureXmlEditor.setTimeChange(
+            xml, before.measures.first.number,
             beats: before.beatsPerMeasure, beatType: before.beatType));
         expect(after.beatsPerMeasure, before.beatsPerMeasure,
             reason: file.path);

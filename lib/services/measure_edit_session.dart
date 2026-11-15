@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/duration_step.dart';
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
+import '../models/parsed_piece.dart';
 import '../models/section.dart';
 import 'chord_editor.dart';
 import 'fingering_mapper.dart';
@@ -36,6 +37,20 @@ class MeasureEditSession {
   /// (a sidecar), so they're tracked apart from the note/repeat edits.
   final List<Section> sectionStarts;
   final List<Section> originalSectionStarts;
+
+  /// The time signature this bar starts, or null when it carries on in
+  /// [meterBefore]. On the first bar it is the piece's opening meter and
+  /// never null. Written on Save, not drafted: the draft re-engraves notes.
+  final Meter? timeChange;
+  final Meter? originalTimeChange;
+
+  /// The meter in force just before this bar — what a bar with no
+  /// [timeChange] is in. The opening meter for the first bar.
+  final Meter meterBefore;
+
+  /// Whether this is the piece's first bar, whose meter can be changed but
+  /// not removed.
+  final bool isFirstMeasure;
   final bool saving;
 
   const MeasureEditSession({
@@ -50,8 +65,15 @@ class MeasureEditSession {
     required this.originalRepeatEnd,
     required this.sectionStarts,
     required this.originalSectionStarts,
+    this.timeChange,
+    this.originalTimeChange,
+    this.meterBefore = const Meter(4, 4),
+    this.isFirstMeasure = false,
     this.saving = false,
   });
+
+  /// The meter this bar is in, with any pending change.
+  Meter get meter => timeChange ?? meterBefore;
 
   NoteEvent? get selected =>
       selectedIndex != null && selectedIndex! < notes.length
@@ -78,7 +100,9 @@ class MeasureEditSession {
   bool get repeatsChanged =>
       repeatStart != originalRepeatStart || repeatEnd != originalRepeatEnd;
   bool get sectionsChanged => !_sameSections(sectionStarts, originalSectionStarts);
-  bool get isDirty => notesChanged || repeatsChanged || sectionsChanged;
+  bool get timeChanged => timeChange != originalTimeChange;
+  bool get isDirty =>
+      notesChanged || repeatsChanged || sectionsChanged || timeChanged;
 
   bool get lyricsMoved =>
       ChordEditor.lyricsMayBeMisaligned(originalNotes, notes);
@@ -90,6 +114,8 @@ class MeasureEditSession {
     bool? repeatStart,
     bool? repeatEnd,
     List<Section>? sectionStarts,
+    Meter? timeChange,
+    bool clearTimeChange = false,
     bool? saving,
   }) =>
       MeasureEditSession(
@@ -105,6 +131,11 @@ class MeasureEditSession {
         originalRepeatEnd: originalRepeatEnd,
         sectionStarts: sectionStarts ?? this.sectionStarts,
         originalSectionStarts: originalSectionStarts,
+        timeChange:
+            clearTimeChange ? null : (timeChange ?? this.timeChange),
+        originalTimeChange: originalTimeChange,
+        meterBefore: meterBefore,
+        isFirstMeasure: isFirstMeasure,
         saving: saving ?? this.saving,
       );
 
@@ -164,11 +195,14 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       return false;
     }
     _clearDraft();
-    final measure = parsed.measures.firstWhere(
-      (m) => m.number == measureNumber,
-      orElse: () => parsed.measures[
-          (measureNumber - 1).clamp(0, parsed.measures.length - 1)],
-    );
+    var index = parsed.measures.indexWhere((m) => m.number == measureNumber);
+    if (index < 0) {
+      index = (measureNumber - 1).clamp(0, parsed.measures.length - 1);
+    }
+    final measure = parsed.measures[index];
+    final isFirst = index == 0;
+    final timeChange =
+        isFirst ? parsed.openingMeter : measure.timeChange;
     // Repair the chord invariant up front — OMR output can carry a stray
     // leading <chord/> or a member whose duration drifted from its primary.
     final notes = ChordEditor.normalize(measure.notes);
@@ -185,6 +219,10 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       originalRepeatEnd: measure.repeatEnd,
       sectionStarts: sections,
       originalSectionStarts: List.of(sections),
+      timeChange: timeChange,
+      originalTimeChange: timeChange,
+      meterBefore: isFirst ? parsed.openingMeter : parsed.meterAt(index - 1),
+      isFirstMeasure: isFirst,
     );
     return true;
   }
@@ -456,6 +494,20 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     _update(s.copyWith(sectionStarts: next), redraft: false);
   }
 
+  /// Sets the time signature this bar starts — or with null, makes it carry
+  /// on in the meter before it (not on the first bar, which always has one).
+  /// Applied on Save, not drafted.
+  void setTimeChange(Meter? meter) {
+    final s = state;
+    if (s == null) return;
+    if (meter == null && s.isFirstMeasure) return;
+    _update(
+        meter == null
+            ? s.copyWith(clearTimeChange: true)
+            : s.copyWith(timeChange: meter),
+        redraft: false);
+  }
+
   // ── Persistence ────────────────────────────────────────────────────────
 
   /// Writes the bar (and the section markers) and closes the session. Throws
@@ -478,6 +530,13 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
             xml, s.measureNumber, s.notes, parsed.divisions);
         xml = MeasureXmlEditor.setMeasureRepeats(xml, s.measureNumber,
             start: s.repeatStart, end: s.repeatEnd);
+      }
+      if (s.timeChanged) {
+        final m = s.timeChange;
+        xml = m == null
+            ? MeasureXmlEditor.removeTimeChange(xml, s.measureNumber)
+            : MeasureXmlEditor.setTimeChange(xml, s.measureNumber,
+                beats: m.beats, beatType: m.beatType);
       }
       // Materializes a writable copy on a bundled fixture's first edit, so the
       // returned piece is always file-backed.

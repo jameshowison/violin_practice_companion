@@ -8,6 +8,7 @@ import '../services/fingering_mapper.dart';
 import '../services/measure_edit_session.dart';
 import '../services/providers.dart';
 import 'measure_edit_row.dart';
+import 'time_signature_dialog.dart';
 
 const _accGlyph = TextStyle(fontSize: 18);
 
@@ -69,7 +70,9 @@ class MeasureEditPanel extends ConsumerWidget {
     if (s == null || parsed == null) return const SizedBox.shrink();
     final ctl = ref.read(measureEditProvider.notifier);
 
-    final expectedUnits = parsed.beatsPerMeasure * 32 ~/ parsed.beatType;
+    // Checked against this bar's own meter: a piece may change meter.
+    final meter = s.meter;
+    final expectedUnits = meter.units;
     // Chord members add no time (see Measure.actualUnits) — skip them so a
     // chord doesn't read as several sequential notes in the beat total.
     final actualUnits = s.notes.fold<int>(
@@ -77,7 +80,7 @@ class MeasureEditPanel extends ConsumerWidget {
         (sum, n) =>
             n.isChord ? sum : sum + thirtySecondUnits(n.noteValue, n.dotted));
     final mismatch = s.measureNumber != 0 && actualUnits != expectedUnits;
-    final actualBeats = actualUnits * parsed.beatType / 32;
+    final actualBeats = actualUnits * meter.beatType / 32;
     final cs = Theme.of(context).colorScheme;
 
     return Material(
@@ -96,11 +99,13 @@ class MeasureEditPanel extends ConsumerWidget {
             // height is stable.
             Row(
               children: [
+                // First, as a time signature sits at the start of a bar.
+                _TimeCard(session: s),
                 if (mismatch)
                   _WarningCard(
                     icon: Icons.warning_amber_rounded,
                     title:
-                        '${_fmtBeats(actualBeats)} of ${parsed.beatsPerMeasure}',
+                        '${_fmtBeats(actualBeats)} of ${meter.beats}',
                     subtitle: 'beats',
                   ),
                 if (s.lyricsMoved)
@@ -257,6 +262,76 @@ class _Header extends ConsumerWidget {
 
 /// Beat-mismatch / lyrics warning, sized to match a note card so it sits flush
 /// at the left of the note row.
+/// The bar's time signature, drawn as one (3 over 4), ahead of its notes.
+/// Solid where the meter is set — the first bar, or a bar that changes it —
+/// and faded where the bar just carries on in the meter before it. Tap to
+/// change the meter from this bar on, or (not on the first bar) to remove a
+/// change. Saved with the bar.
+class _TimeCard extends ConsumerWidget {
+  final MeasureEditSession session;
+
+  const _TimeCard({required this.session});
+
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final parsed = ref.read(parsedPieceProvider).valueOrNull;
+    if (parsed == null || parsed.measures.isEmpty) return;
+    final index =
+        parsed.measures.indexWhere((m) => m.number == session.measureNumber);
+    final chosen = await showTimeSignatureDialog(
+      context,
+      piece: parsed,
+      measureIndex: index < 0 ? 0 : index,
+      current: session.timeChange,
+    );
+    if (chosen == null) return;
+    ref.read(measureEditProvider.notifier).setTimeChange(chosen.meter);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final s = session;
+    final sets = s.timeChange != null;
+    final color = sets ? cs.onSurface : cs.onSurface.withValues(alpha: 0.38);
+    final digits = TextStyle(
+        fontSize: 22, height: 1.0, fontWeight: FontWeight.w700, color: color);
+    return Semantics(
+      button: true,
+      label: sets
+          ? 'Time signature ${s.meter}'
+          : 'Time signature ${s.meter}, same as before',
+      child: InkWell(
+        key: const ValueKey('measure_time_card'),
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _edit(context, ref),
+        child: Container(
+          width: 56,
+          height: 96,
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: s.timeChanged ? cs.primary : cs.outlineVariant,
+                width: s.timeChanged ? 2 : 1),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('${s.meter.beats}', style: digits),
+              Text('${s.meter.beatType}', style: digits),
+              const SizedBox(height: 6),
+              Text(sets ? 'time' : 'same',
+                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _WarningCard extends StatelessWidget {
   final IconData icon;
   final String title;

@@ -1,6 +1,26 @@
 import 'duration_step.dart';
 import 'note_event.dart';
 
+/// A time signature: [beats] of [beatType] notes per bar.
+class Meter {
+  final int beats;
+  final int beatType;
+  const Meter(this.beats, this.beatType);
+
+  /// A full bar's length in 32nd-note units.
+  int get units => beats * 32 ~/ beatType;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Meter && other.beats == beats && other.beatType == beatType;
+
+  @override
+  int get hashCode => Object.hash(beats, beatType);
+
+  @override
+  String toString() => '$beats/$beatType';
+}
+
 class Measure {
   final int number;
   final List<NoteEvent> notes;
@@ -59,6 +79,12 @@ class Measure {
   /// phrase-start hint for [SectionDetector].
   final bool systemStart;
 
+  /// The time signature written in this measure (a `<time>` in its
+  /// `<attributes>`): where the meter changes. Null on every bar that carries
+  /// on in the meter before it. The meter in force for any bar is
+  /// [ParsedPiece.meterAt].
+  final Meter? timeChange;
+
   const Measure({
     required this.number,
     required this.notes,
@@ -76,6 +102,7 @@ class Measure {
     this.partLabelNote = 0,
     this.lineStartNote,
     this.systemStart = false,
+    this.timeChange,
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
@@ -101,6 +128,7 @@ class Measure {
         partLabelNote: partLabelNote,
         lineStartNote: lineStartNote,
         systemStart: systemStart,
+        timeChange: timeChange,
       );
 
   /// True when this measure's visible notes don't sum to the expected number of
@@ -140,6 +168,10 @@ class ParsedPiece {
   /// `<duration>` values when serializing edits and to validate beat counts.
   /// Defaults match a 4/4 score with one division per quarter note.
   final int divisions;
+
+  /// The OPENING meter. A piece may change meter: each bar's own is
+  /// [meterAt], from the [Measure.timeChange]s — use that for anything about
+  /// a particular bar (its beat count, a count-in starting there).
   final int beatsPerMeasure;
   final int beatType;
 
@@ -153,21 +185,99 @@ class ParsedPiece {
     this.beatType = 4,
   });
 
-  /// The same music read under a different meter.
-  ///
-  /// Nothing about the notes changes — this is the "what if it were 2/2?"
-  /// question the time-signature editor asks so it can show how many bars would
-  /// still fail to add up before anything is written to the file.
-  ParsedPiece copyWithTime({int? beatsPerMeasure, int? beatType}) =>
-      ParsedPiece(
+  /// The same music with the meter change at document index [index] set to
+  /// [meter], or removed when [meter] is null — the measure editor's "what if
+  /// the meter changed to 4/4 here?", asked before anything is written so it
+  /// can show which bars would add up. At index 0 [meter] is the opening
+  /// meter, which can't be removed (a null there changes nothing).
+  ParsedPiece copyWithTimeChangeAt(int index, Meter? meter) {
+    if (index <= 0) {
+      if (meter == null || measures.isEmpty) return this;
+      final opening = measures[0].timeChange != null
+          ? [_withTimeChange(measures[0], meter), ...measures.skip(1)]
+          : measures;
+      return ParsedPiece(
         keySignature: keySignature,
         keyFifths: keyFifths,
         keyMode: keyMode,
-        measures: measures,
+        measures: opening,
         divisions: divisions,
-        beatsPerMeasure: beatsPerMeasure ?? this.beatsPerMeasure,
-        beatType: beatType ?? this.beatType,
+        beatsPerMeasure: meter.beats,
+        beatType: meter.beatType,
       );
+    }
+    return copyWithMeasures([
+      for (var i = 0; i < measures.length; i++)
+        i == index ? _withTimeChange(measures[i], meter) : measures[i],
+    ]);
+  }
+
+  /// Document indices of the bars whose meter is set at [index]: from it up
+  /// to (not including) the next [Measure.timeChange].
+  Iterable<int> meterSpanFrom(int index) sync* {
+    for (var k = index; k < measures.length; k++) {
+      if (k > index && measures[k].timeChange != null) return;
+      yield k;
+    }
+  }
+
+  static Measure _withTimeChange(Measure m, Meter? meter) => Measure(
+        number: m.number,
+        notes: m.notes,
+        hiddenLeadNotes: m.hiddenLeadNotes,
+        repeatStart: m.repeatStart,
+        repeatEnd: m.repeatEnd,
+        doubleBarEnd: m.doubleBarEnd,
+        daCapo: m.daCapo,
+        dalSegno: m.dalSegno,
+        fine: m.fine,
+        toCoda: m.toCoda,
+        segno: m.segno,
+        coda: m.coda,
+        partLabel: m.partLabel,
+        partLabelNote: m.partLabelNote,
+        lineStartNote: m.lineStartNote,
+        systemStart: m.systemStart,
+        timeChange: meter,
+      );
+
+  /// The meter the piece opens in: [beatsPerMeasure]/[beatType].
+  Meter get openingMeter => Meter(beatsPerMeasure, beatType);
+
+  /// The meter in force for every measure, by document index: the opening
+  /// meter until the first [Measure.timeChange], then each change until the
+  /// next. One list per call, so callers walking the whole piece should take
+  /// it once rather than ask [meterAt] per bar.
+  List<Meter> get meters {
+    var current = openingMeter;
+    return [
+      for (final m in measures) current = m.timeChange ?? current,
+    ];
+  }
+
+  /// The meter in force at document index [index] (clamped to the piece).
+  Meter meterAt(int index) {
+    if (measures.isEmpty) return openingMeter;
+    final i = index.clamp(0, measures.length - 1);
+    for (var k = i; k >= 0; k--) {
+      final t = measures[k].timeChange;
+      if (t != null) return t;
+    }
+    return openingMeter;
+  }
+
+  /// The meter in force at the measure numbered [number] — the opening meter
+  /// if no measure has that number.
+  Meter meterAtNumber(int number) {
+    final i = measures.indexWhere((m) => m.number == number);
+    return i < 0 ? openingMeter : meterAt(i);
+  }
+
+  /// Whether the meter changes anywhere after the opening.
+  bool get hasMeterChanges {
+    final all = meters;
+    return all.any((m) => m != all.first);
+  }
 
   ParsedPiece copyWithMeasures(List<Measure> measures) => ParsedPiece(
         keySignature: keySignature,
@@ -293,12 +403,14 @@ class ParsedPiece {
   ///    into. See [_pickupPairedIndices].
   Set<int> get flaggedMeasureNumbers {
     final paired = _pickupPairedIndices();
+    final all = meters;
     final flagged = <int>{};
     for (var i = 0; i < measures.length; i++) {
       final m = measures[i];
-      if (i == 0 && m.isShort(beatsPerMeasure, beatType)) continue;
+      final meter = all[i];
+      if (i == 0 && m.isShort(meter.beats, meter.beatType)) continue;
       if (paired.contains(i)) continue;
-      if (m.isDurationMismatch(beatsPerMeasure, beatType)) flagged.add(m.number);
+      if (m.isDurationMismatch(meter.beats, meter.beatType)) flagged.add(m.number);
     }
     return flagged;
   }
@@ -324,7 +436,7 @@ class ParsedPiece {
   Set<int> _pickupPairedIndices() {
     final order = performanceOrder(measures);
     if (order.length < 2) return const {};
-    final expected = beatsPerMeasure * 32 ~/ beatType;
+    final all = meters;
     final paired = <int>{};
     for (var k = 0; k < order.length; k++) {
       final isWrap = k == order.length - 1;
@@ -333,9 +445,11 @@ class ParsedPiece {
       if (ai == bi) continue;
       final a = measures[ai];
       final b = measures[bi];
-      if (!a.isShort(beatsPerMeasure, beatType)) continue;
-      if (!b.isShort(beatsPerMeasure, beatType)) continue;
-      if (a.actualUnits + b.actualUnits != expected) continue;
+      // A pickup pair completes the bar it starts: the meter of [a].
+      final meter = all[ai];
+      if (!a.isShort(meter.beats, meter.beatType)) continue;
+      if (!b.isShort(meter.beats, meter.beatType)) continue;
+      if (a.actualUnits + b.actualUnits != meter.units) continue;
       if (!a.repeatEnd && !a.doubleBarEnd && !b.repeatStart && !isWrap) {
         continue;
       }

@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
+import 'meter_repair.dart';
 import 'omr_service_base.dart';
 import 'title_recognizer.dart';
 
@@ -74,7 +75,9 @@ class OmrService implements OmrServiceBase {
         OmrStage.assembling => OmrScanStage.assembling,
       }),
     );
-    return OmrScanResult(musicXml: musicXml, title: title);
+    // The recogniser misreads time-signature digits far more often than note
+    // values: re-derive the meters from the bars. See MeterRepair.
+    return OmrScanResult(musicXml: MeterRepair.repair(musicXml), title: title);
   }
 
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

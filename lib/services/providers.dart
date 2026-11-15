@@ -1755,9 +1755,11 @@ final playbackStartNoteProvider = Provider<int>(
 /// setting says "3 beats" precisely when Play will count three.
 final resolvedCountInProvider = Provider<CountInPlan?>((ref) {
   final parsed = ref.watch(parsedPieceProvider).valueOrNull;
-  final beatsPerMeasure = parsed?.beatsPerMeasure ?? 4;
-  final beatType = parsed?.beatType ?? 4;
   final start = ref.watch(playbackStartMeasureProvider);
+  // Counted in the meter of the bar Play starts on: a piece may change meter.
+  final meter = parsed?.meterAtNumber(start) ?? const Meter(4, 4);
+  final beatsPerMeasure = meter.beats;
+  final beatType = meter.beatType;
   Measure? startMeasure;
   for (final m in parsed?.measures ?? const <Measure>[]) {
     if (m.number == start) {
