@@ -474,6 +474,35 @@ the CoreDevice id `devicectl list devices` prints. Install a release build with 
 script and have the feature write what you need to `Documents/` instead — as the
 calibration trace does (`scripts/pull_sync_trace.sh <device>`).
 
+### App Store listing and TestFlight text
+
+`docs/app-store-listing.md` is the source of truth for every listing field: name,
+subtitle, promotional text, description, keywords, support/privacy URLs, the
+TestFlight beta description and feedback email, and the build's What to Test.
+`scripts/push_listing.py` writes it to App Store Connect through the API:
+
+```bash
+uv run scripts/push_listing.py             # offline preview + length checks, no key
+uv run scripts/push_listing.py --compare   # live vs. file, field by field
+uv run scripts/push_listing.py --apply     # write what changed
+```
+
+- **The API key is in 1Password** (Private vault, item "App Store Connect API":
+  `key_id`, `issuer_id`, the `AuthKey_<key_id>.p8` attachment), read with `op read`
+  at run time — Touch ID prompts. Never copy the `.p8` to disk or into the repo.
+- **Fields are plain text.** The script flattens the markdown (bold dropped, `- `
+  becomes `•`, line breaks kept); ALL-CAPS lines stand in for headings.
+- **What to Test belongs to one build** — the number in its heading, `(build 1.0.0+4)`.
+  Bump it when a new build is uploaded, or the text lands on the old build.
+- **Subtitle and description/keywords are editable only while a version is in
+  Prepare for Submission;** promotional text and the TestFlight fields any time.
+- **Search rules behind the wording:** Apple combines words across name, subtitle
+  and keywords, so no keyword repeats one already there (keywords: 100 chars,
+  commas, no spaces needed). Subtitle words carry the most weight and should be
+  ones parents type ("violin", "practice"), not feature words like "fingerings" or
+  "scan". Guideline 2.3.8 reserves "for kids"/"for children" for the Kids category,
+  so keep them out of the metadata. No method or brand names in keywords.
+
 ### Audio on iOS: one session, and a synth that doesn't follow the speaker
 
 Two traps behind the 2026-11-10 "calibration volume drops to zero / woodblocks
