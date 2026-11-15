@@ -12,14 +12,21 @@ set -u
 # ../violin_dev_library isn't checked out.
 SYNC=1
 ARGS=()
+FLUTTER_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --sync) SYNC=1 ;;
     --no-sync) SYNC="" ;;
+    # Anything else starting with -- goes to flutter run, e.g.
+    # --dart-define=SCREENSHOTS=true (README, "App Store screenshots").
+    --*) FLUTTER_ARGS+=("$arg") ;;
     *) ARGS+=("$arg") ;;
   esac
 done
 DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone-se}}"
+# The App Store screenshot sims show only the bundled pieces, so they never take
+# the dev library (its scanned pieces, and relabels synced back from there).
+[[ "$DEVICE" == shots-* ]] && SYNC=""
 FIFO="/tmp/flutter_ctl"
 LOG="flutter_run.log"
 
@@ -58,7 +65,7 @@ mkfifo "$FIFO"
 # build is live".
 STAMP=$(bash "$(dirname "$0")/gen_build_info.sh")
 
-flutter run -d "$DEVICE" < "$FIFO" > "$LOG" 2>&1 &
+flutter run -d "$DEVICE" ${FLUTTER_ARGS[@]+"${FLUTTER_ARGS[@]}"} < "$FIFO" > "$LOG" 2>&1 &
 
 # Hold the write end open so the fifo doesn't close. Detached on purpose: `exec 3>`
 # would last only as long as THIS shell, so the pipe would lose its only writer the
@@ -66,5 +73,5 @@ flutter run -d "$DEVICE" < "$FIFO" > "$LOG" 2>&1 &
 # a closed pipe.
 nohup sleep 86400 > "$FIFO" 2>/dev/null &
 
-echo "launched (device=$DEVICE, log=$LOG)"
+echo "launched (device=$DEVICE, log=$LOG${FLUTTER_ARGS[@]+, ${FLUTTER_ARGS[*]}})"
 echo "$STAMP"

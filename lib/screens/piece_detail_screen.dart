@@ -55,6 +55,7 @@ import '../widgets/time_signature_dialog.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
 import 'scan_photo_screen.dart';
+import '../debug/screenshot_mode.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -284,7 +285,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       appBar: _CountInOverBar(
         service: activeService,
         bar: AppBar(
-        toolbarHeight: kDebugMode ? 64 : 56,
+        toolbarHeight: kShowDevChrome ? 64 : 56,
         titleSpacing: 8,
         centerTitle: true,
         // The title line does triple duty on a tablet: what the piece is, what
@@ -303,7 +304,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             // ride just ahead of it — see [_KeySummary].
             const _KeySummary(),
             const SizedBox(width: 6),
-            const PreamblePreview(height: kDebugMode ? 64 : 56),
+            const PreamblePreview(height: kShowDevChrome ? 64 : 56),
             const SizedBox(width: 8),
             // An invisible copy of the key block on the left, so the title
             // lands on the true centre instead of being shoved off it by the
@@ -326,7 +327,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       style: const TextStyle(fontSize: 14),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
-                  if (kDebugMode)
+                  if (kShowDevChrome)
                     Text(kBuildRef,
                         style: TextStyle(
                             fontSize: 9,
@@ -344,7 +345,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             // rather than the title alone is a fair price for reading it.
             if (!useCompact) ...[
               const SizedBox(width: 8),
-              const PreamblePreview(mirror: true, height: kDebugMode ? 64 : 56),
+              const PreamblePreview(mirror: true, height: kShowDevChrome ? 64 : 56),
               const SizedBox(width: 6),
               const _KeySummary(mirror: true),
             ],

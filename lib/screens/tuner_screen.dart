@@ -17,6 +17,7 @@ import '../services/tuner_model.dart';
 import '../theme/brand.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_climber.dart';
+import '../debug/screenshot_mode.dart';
 
 /// The reference A, `tuner.a4`: 440 or 442.
 const tunerA4Key = 'tuner.a4';
@@ -412,7 +413,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Tuner'),
-            if (kDebugMode) Text(kBuildRef, style: TextStyle(fontSize: 9, color: muted)),
+            if (kShowDevChrome) Text(kBuildRef, style: TextStyle(fontSize: 9, color: muted)),
           ],
         ),
         centerTitle: true,

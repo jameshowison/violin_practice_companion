@@ -24,6 +24,7 @@ import 'tuner_screen.dart';
 import '../services/launch_timing.dart';
 import '../ui/stringlings/stringling_tuner_icon.dart';
 import '../ui/stringlings/stringlings_tile.dart';
+import '../debug/screenshot_mode.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
@@ -137,7 +138,7 @@ class PieceListScreen extends ConsumerWidget {
               fit: BoxFit.scaleDown,
               child: Text(book?.name ?? skin.listTitle, maxLines: 1),
             ),
-            if (kDebugMode)
+            if (kShowDevChrome)
               Text(kBuildRef,
                   style: TextStyle(
                       fontSize: 9,

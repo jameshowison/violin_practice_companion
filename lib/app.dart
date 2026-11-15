@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'debug/screenshot_mode.dart';
 import 'screens/piece_list_screen.dart';
 import 'theme/app_skin.dart';
 import 'theme/skins.dart';
@@ -13,6 +14,7 @@ class ViolinPracticeApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       title: 'Stringlings',
+      debugShowCheckedModeBanner: kShowDevChrome,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

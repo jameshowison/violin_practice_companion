@@ -84,6 +84,22 @@ Also try the tuner. It's a first draft: does it settle on the note quickly, and 
 
 Also welcome feedback on additional features that could help.
 
+## Screenshots
+
+One set per device class: 6.9" iPhone (1320×2868) and 13" iPad (2064×2752),
+captured on the `shots-iphone` and `shots-ipad` simulators. Each raw capture
+gets its caption from this table (`uv run scripts/frame_screenshots.py`; README,
+"App Store screenshots"). Upload by hand in App Store Connect, Media Manager.
+Every piece in view must be a bundled public-domain one.
+
+| # | Caption | Screen |
+| --- | --- | --- |
+| 1 | Fingerings on every note | Lightly Row, Annotated view, two bars a line, three bars selected |
+| 2 | Hear your teacher play just this part | Same piece and selection, playing, the media picker open on "Teacher demo" and "Piano and Violin" |
+| 3 | Snap a photo of your music | "Crop to Music" on a photo of a printed public-domain page |
+| 4 | …and it's ready to practice | The piece that scan made, Annotated, laid out like the printed page |
+| 5 | Tune up before you practice | The tuner, in the Playful look |
+
 ## App Store description and keywords
 
 **Description**

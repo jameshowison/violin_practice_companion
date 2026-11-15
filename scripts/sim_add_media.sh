@@ -2,6 +2,10 @@
 # Attach an audio/video file to a piece on a booted simulator, from the CLI.
 #
 #   bash scripts/sim_add_media.sh dev-iphone happy_farmer path/to/track.mp3 "Happy Farmer (mp3)"
+#   bash scripts/sim_add_media.sh --kind recorded shots-iphone lightly_row track.m4a "Teacher demo"
+#
+# --kind recorded registers it as if recorded in the app (the teacher icon in
+# the tray), as the App Store screenshots want; the default is imported.
 #
 # Why this exists: the in-app "Add audio or video…" route goes through the
 # system document picker, which is native iOS. Marionette only sees Flutter
@@ -25,6 +29,10 @@
 # NSUserDefaults in memory and flushes over anything written underneath it.
 
 set -euo pipefail
+
+KIND=imported
+if [ "${1:-}" = "--kind" ]; then KIND="${2:?--kind needs imported or recorded}"; shift 2; fi
+case "$KIND" in imported|recorded) ;; *) echo "--kind must be imported or recorded" >&2; exit 1 ;; esac
 
 DEVICE="${1:?usage: sim_add_media.sh <device> <pieceId> <file> [label]}"
 PIECE_ID="${2:?missing pieceId (e.g. happy_farmer)}"
@@ -56,17 +64,17 @@ cp "$SOURCE" "$DEST/source.$EXT"
 echo "→ copied to Documents/media/$PIECE_ID/$MEDIA_ID/source.$EXT"
 
 python3 - "$DATA/Library/Preferences/$BUNDLE.plist" \
-         "$PIECE_ID" "$MEDIA_ID" "$EXT" "$LABEL" "$IS_VIDEO" <<'PY'
+         "$PIECE_ID" "$MEDIA_ID" "$EXT" "$LABEL" "$IS_VIDEO" "$KIND" <<'PY'
 import json, plistlib, sys
 
-plist_path, piece_id, media_id, ext, label, is_video = sys.argv[1:7]
+plist_path, piece_id, media_id, ext, label, is_video, kind = sys.argv[1:8]
 rel = f"media/{piece_id}/{media_id}/source.{ext}"
 ref = {"storage": "appFile", "path": rel}
 
 entry = {
     "id": media_id,
     "label": label,
-    "kind": "imported",
+    "kind": kind,
     "alignmentKey": f"media:{piece_id}:{media_id}",
     "audio": ref,
     # The same file is the analysis source — a video's audio track is what gets

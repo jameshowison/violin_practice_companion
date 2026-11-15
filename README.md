@@ -139,13 +139,15 @@ there is no extra setup step.
 
 ## Simulator names
 
-The docs and scripts refer to three simulators by name rather than by UDID:
+The docs and scripts refer to these simulators by name rather than by UDID:
 
 | Name            | Device                   | Role                          |
 | --------------- | ------------------------ | ----------------------------- |
 | `dev-iphone-se` | iPhone SE (3rd gen)      | primary compact (phone) target |
 | `dev-iphone`    | iPhone 17                | larger phone                  |
 | `dev-ipad`      | iPad Pro 11-inch (M5)    | tablet                        |
+| `shots-iphone`  | iPhone 17 Pro Max        | App Store screenshots, 6.9"   |
+| `shots-ipad`    | iPad Pro 13-inch (M5)    | App Store screenshots, 13"    |
 
 `dev-iphone-se` matches the physical phone this is built for, and at 375×667pt
 it is the smallest screen the compact layout has to fit — 375pt tall in
@@ -539,6 +541,39 @@ Catching something that only lasts a moment (the count-in, the cursor on a fast
 note) needs the capture running *before* you trigger it — a single screenshot
 lands seconds too late. See `CLAUDE.md` ("Capturing short-lived UI") for the
 armed-burst pattern and for widening the window instead.
+
+## App Store screenshots
+
+App Store Connect wants a 6.9" iPhone set (1320×2868) and a 13" iPad set
+(2064×2752). They're captured on two sims kept just for this, `shots-iphone`
+and `shots-ipad` (see "Simulator names"). The shot list and captions are in
+`docs/app-store-listing.md`, "Screenshots".
+
+```bash
+bash scripts/dev_run.sh shots-iphone --dart-define=SCREENSHOTS=true
+xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
+  --wifiBars 3 --cellularBars 4 --batteryState charged --batteryLevel 100
+```
+
+- `SCREENSHOTS=true` (`lib/debug/screenshot_mode.dart`) hides the build stamp,
+  the taller debug toolbar and the DEBUG banner. The app stays a debug build,
+  so Marionette still drives it.
+- `dev_run.sh` never syncs the dev library onto a `shots-*` sim. Its piece
+  list holds only the bundled public-domain pieces, and nothing relabelled
+  there leaks back into the library.
+- The teacher recording goes in with
+  `bash scripts/sim_add_media.sh --kind recorded shots-iphone lightly_row <file> "Teacher demo"`.
+  The audio never leaves the sim, and a screenshot carries none.
+- The scan photo is a printed page of a bundled piece, photographed for real,
+  loaded with `xcrun simctl addmedia shots-iphone photo.heic`. The photo
+  picker and the cropper are native, so a person taps through them.
+- The status-bar override is lost when the sim reboots.
+- `simctl io screenshot` can't overwrite an existing file there: it fails
+  with a permission error and leaves the old one in place. Capture to a new
+  path (`/tmp/…`) and `cp` it over.
+- Raw captures go in `build/screenshots/raw/{iphone,ipad}/NN.png` (gitignored),
+  then `uv run scripts/frame_screenshots.py` adds the captions and writes
+  `build/screenshots/out/`. No images are committed.
 
 ## Distribution
 
