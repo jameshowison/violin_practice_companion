@@ -17,8 +17,8 @@ Promotional text can be changed at any time without a new build, so it can carry
 
 | Field | Value |
 | --- | --- |
-| Support URL | https://github.com/jameshowison/violin_practice_companion/issues |
-| Privacy policy URL | https://github.com/jameshowison/violin_practice_companion/blob/main/docs/privacy.md |
+| Support URL | https://stringlings.app/support.html |
+| Privacy policy URL | https://stringlings.app/privacy.html |
 | TestFlight feedback email | support@stringlings.app |
 
 ## Version details and App Review
