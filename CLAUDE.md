@@ -481,7 +481,9 @@ subtitle, promotional text, description, keywords, support/privacy URLs, the
 TestFlight beta description and feedback email, the build's What to Test, and
 the version details (copyright, categories, content rights, age rating) and App
 Review information (contact, sign-in, reviewer notes listing the bundled
-public-domain pieces). Only App Privacy ("Data Not Collected") has no API and
+public-domain pieces; written to both the App Store and the TestFlight beta-review
+forms). External testers are the "First round testers" group, public link off.
+Only App Privacy ("Data Not Collected") has no API and
 is set on the web.
 `scripts/push_listing.py` writes it to App Store Connect through the API:
 

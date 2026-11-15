@@ -322,6 +322,13 @@ def main():
         todo.append(lambda d=diff, v=ver["id"]: asc.create(
             "appStoreReviewDetails", d, "appStoreVersion", "appStoreVersions", v))
 
+    # TestFlight's beta review has its own copy of the same form (one per app).
+    print("\nTestFlight beta review information (same contact and notes)")
+    beta_rev = asc.call("GET", f"/v1/apps/{app}/betaAppReviewDetail")["data"]
+    diff = changes("betaReview", beta_rev["attributes"], review)
+    if diff:
+        todo.append(lambda d=diff, i=beta_rev["id"]: asc.patch("betaAppReviewDetails", i, d))
+
     if not todo:
         print("\nEverything already matches.")
     elif not apply:
