@@ -19,7 +19,7 @@ import '../widgets/manage_piece_row.dart';
 ///
 /// ## Immediate-commit, not Cancel/Save
 ///
-/// The shell matches [EditMeasureScreen] — full-screen route, `Divider(height:
+/// The shell matches the old full-screen measure editor — full-screen route, `Divider(height:
 /// 1)` bands, the same 20×20 in-flight indicator in the AppBar — but it
 /// deliberately does NOT copy its buffer-then-commit model. A library edit has
 /// no coherent commit boundary (what would Cancel mean after deleting three

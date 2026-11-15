@@ -55,6 +55,7 @@ import 'staff_zoom.dart';
 import 'staff_zoom_store.dart';
 import 'system_break_injector.dart';
 import 'launch_timing.dart';
+import 'measure_xml_editor.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 
@@ -326,13 +327,64 @@ class LibraryActions {
   }
 }
 
+// ── Measure draft (the in-context editor's unsaved bar) ──────────────────────
+
+/// One bar's unsaved edits, as the inline measure editor holds them (see
+/// `measure_edit_session.dart`). While one is set, [pieceMusicXmlProvider]
+/// serves the piece with this bar swapped in — through the same
+/// [MeasureXmlEditor] calls Save makes — so every view engraves the edit in
+/// place, in the context of the whole piece, before anything is written.
+class MeasureDraft {
+  final String pieceId;
+  final int measureNumber;
+  final List<NoteEvent> notes;
+  final int divisions;
+  final bool repeatStart;
+  final bool repeatEnd;
+
+  const MeasureDraft({
+    required this.pieceId,
+    required this.measureNumber,
+    required this.notes,
+    required this.divisions,
+    required this.repeatStart,
+    required this.repeatEnd,
+  });
+
+  String applyTo(String xml) {
+    final withNotes = MeasureXmlEditor.replaceMeasureNotes(
+        xml, measureNumber, notes, divisions);
+    return MeasureXmlEditor.setMeasureRepeats(withNotes, measureNumber,
+        start: repeatStart, end: repeatEnd);
+  }
+}
+
+final measureDraftProvider = StateProvider<MeasureDraft?>((_) => null);
+
+/// The selected piece's MusicXML as every view should see it: the file, with
+/// any [measureDraftProvider] edit applied. Everything that engraves or parses
+/// the piece reads this rather than [PieceRepository.loadMusicXml] directly.
+final pieceMusicXmlProvider = FutureProvider<String?>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return null;
+  final repo = ref.watch(pieceRepositoryProvider);
+  final draft = ref.watch(measureDraftProvider);
+  final xml = await repo.loadMusicXml(piece);
+  if (draft == null || draft.pieceId != piece.id) return xml;
+  try {
+    return draft.applyTo(xml);
+  } catch (_) {
+    // A draft that can't be applied must never take the piece view down.
+    return xml;
+  }
+});
+
 // ── Parsed piece (loads + parses + converts on piece selection) ───────────────
 
 final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
 
-  final repo = ref.watch(pieceRepositoryProvider);
   final parser = ref.watch(musicXmlParserProvider);
   final jianpu = ref.watch(jianpuConverterProvider);
   final fingering = ref.watch(fingeringMapperProvider);
@@ -340,7 +392,8 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   await jianpu.init();
   await fingering.init();
 
-  final xml = await repo.loadMusicXml(piece);
+  final xml = await ref.watch(pieceMusicXmlProvider.future);
+  if (xml == null) return null;
   final parsed = parser.parse(xml);
   final withJianpu = jianpu.convert(parsed);
   final withFingering = fingering.map(withJianpu,
@@ -1131,8 +1184,9 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   // that push redo this whole pipeline. stripLayoutHints never reads them.
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
-  final repo = ref.watch(pieceRepositoryProvider);
-  String xml = await repo.loadMusicXml(piece);
+  String? source = await ref.watch(pieceMusicXmlProvider.future);
+  if (source == null) return null;
+  String xml = source;
   // The printed page's lines, before [PieceLayout.stripLayoutHints] drops them.
   final printedLines = systemStartPositions(xml);
   xml = PieceLayout.stripLayoutHints(xml);
@@ -1239,8 +1293,9 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   if (parsed == null) return null;
   final numberMode = ref.watch(noteNumberModeProvider);
   final fretStyle = ref.watch(fretStyleProvider);
-  final repo = ref.watch(pieceRepositoryProvider);
-  String xml = await repo.loadMusicXml(piece);
+  final source = await ref.watch(pieceMusicXmlProvider.future);
+  if (source == null) return null;
+  String xml = source;
   xml = PieceLayout.stripLayoutHints(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views

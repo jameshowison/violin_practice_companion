@@ -3,7 +3,7 @@
 /// Extracted so the piece list and the Manage screen can't drift apart on the
 /// wording or the button treatment of a destructive action. Each one is the
 /// established in-app pattern, generalised rather than invented:
-/// [showTextEntryDialog] from `_editSectionMarker` in `edit_measure_screen.dart`
+/// [showTextEntryDialog] from `_editSectionMarker` in `measure_edit_panel.dart`
 /// and [confirmDestructive] from `_confirmAndDelete` in
 /// `piece_detail_screen.dart`.
 library;

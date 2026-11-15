@@ -26,6 +26,12 @@ class MeasureEditRow extends StatelessWidget {
   final NoteNumberMode numberMode;
   final FretStyle fretStyle;
 
+  /// Repeat barlines on this bar, drawn at the ends of the card row as on the
+  /// staff (`‖:` before the first card, `:‖` after the last), so the box view
+  /// of the measure shows what the REPEAT toggles did.
+  final bool repeatStart;
+  final bool repeatEnd;
+
   const MeasureEditRow({
     super.key,
     required this.notes,
@@ -33,6 +39,8 @@ class MeasureEditRow extends StatelessWidget {
     required this.onSelect,
     this.numberMode = NoteNumberMode.violinFingering,
     this.fretStyle = FretStyle.openStrings,
+    this.repeatStart = false,
+    this.repeatEnd = false,
   });
 
   @override
@@ -57,6 +65,9 @@ class MeasureEditRow extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (repeatStart)
+                const _RepeatBarline(
+                    key: ValueKey('repeat_start_bar'), start: true),
               for (final g in ChordEditor.groups(notes))
                 Padding(
                   // The same vertical padding on both branches keeps every
@@ -68,6 +79,9 @@ class MeasureEditRow extends StatelessWidget {
                       ? _card(g.start)
                       : _chordGroup(cs, g),
                 ),
+              if (repeatEnd)
+                const _RepeatBarline(
+                    key: ValueKey('repeat_end_bar'), start: false),
             ],
           ),
         ),
@@ -226,4 +240,50 @@ class _NoteEditCard extends StatelessWidget {
     };
     return '${abbr[n.noteValue]}${n.dotted ? '•' : ''}';
   }
+}
+
+/// A repeat barline the height of a note card: thick and thin lines with the
+/// two dots on the inside, facing the bar's notes.
+class _RepeatBarline extends StatelessWidget {
+  final bool start;
+  const _RepeatBarline({super.key, required this.start});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 18,
+        height: 100,
+        child: CustomPaint(
+          painter: _RepeatBarlinePainter(
+              start: start, color: Theme.of(context).colorScheme.primary),
+        ),
+      );
+}
+
+class _RepeatBarlinePainter extends CustomPainter {
+  final bool start;
+  final Color color;
+  _RepeatBarlinePainter({required this.start, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fill = Paint()..color = color;
+    const top = 8.0;
+    final bottom = size.height - 8;
+    // Outside edge → inside: thick line, thin line, dots.
+    double x(double fromOutside) =>
+        start ? fromOutside : size.width - fromOutside;
+    final thick = Rect.fromLTRB(
+        start ? x(1) : x(5), top, start ? x(5) : x(1), bottom);
+    canvas.drawRect(thick, fill);
+    final thin = Rect.fromLTRB(
+        start ? x(8) : x(9.5), top, start ? x(9.5) : x(8), bottom);
+    canvas.drawRect(thin, fill);
+    final mid = size.height / 2;
+    canvas.drawCircle(Offset(x(14), mid - 8), 2.2, fill);
+    canvas.drawCircle(Offset(x(14), mid + 8), 2.2, fill);
+  }
+
+  @override
+  bool shouldRepaint(_RepeatBarlinePainter old) =>
+      old.start != start || old.color != color;
 }

@@ -5,12 +5,13 @@ import '../models/note_event.dart'; // DisplayMode
 import '../models/section.dart'; // sectionsAfterMeasureDelete
 import '../models/section_run.dart';
 import '../models/section_run_groups.dart';
-import '../screens/edit_measure_screen.dart';
+import '../services/measure_edit_session.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
+import 'measure_edit_panel.dart';
 import 'section_loop.dart';
 
 /// Which unfolded run is "where we are": the playing pass (by performance
@@ -310,7 +311,7 @@ class SectionMinimap extends ConsumerWidget {
 // appears whenever exactly one measure is selected on a platform with
 // writable storage — independent of the drawer/tray state, so it's
 // discoverable the moment you tap a measure. Fixtures are materialized to
-// an editable file on first save (see EditMeasureScreen._save); web has no
+// an editable file on first save (see MeasureEditController.save); web has no
 // file storage so editing is disabled there via `supportsEditing` — no
 // `kIsWeb` needed in shared code.
 //
@@ -338,6 +339,8 @@ class MeasureActions extends ConsumerWidget {
     final sel = ref.watch(measureSelectionProvider);
     final canEdit = sel != null &&
         sel.isSingle &&
+        // The panel's own header takes over while a bar is open.
+        ref.watch(measureEditProvider) == null &&
         ref.watch(pieceRepositoryProvider).supportsEditing;
     if (!canEdit) return const SizedBox.shrink();
     // A part must keep at least one measure (see MeasureXmlEditor.deleteMeasure).
@@ -351,12 +354,9 @@ class MeasureActions extends ConsumerWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: _buttonConstraints,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    EditMeasureScreen(measureNumber: sel.startMeasure),
-              ),
-            ),
+            // Edited in place: the panel docks under the score (see
+            // MeasureEditPanel), so the bar never leaves its context.
+            onPressed: () => MeasureEditPanel.open(ref, sel.startMeasure),
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, size: 16),

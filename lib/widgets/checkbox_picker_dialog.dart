@@ -7,7 +7,7 @@ typedef PickerItem = ({String id, String label, Color? dot});
 ///
 /// Buffered rather than write-per-checkbox so a whole re-tagging is one write,
 /// one invalidate and no flicker — and so Cancel means something. The tri-state
-/// return mirrors `_editSectionMarker` in `edit_measure_screen.dart`: null is
+/// return mirrors `_editSectionMarker` in `measure_edit_panel.dart`: null is
 /// cancelled, a set (possibly empty) is the new selection.
 ///
 /// `CheckboxListTile` is the sibling of the `SwitchListTile` already used in the

@@ -53,7 +53,7 @@ Still open:
 `Section` already carries `startNote`, and everything downstream honours it:
 tints, bar splits, the engraved measure map and `resolveSectionRanges`. The
 measure editor can already put a marker on a note: select it, then use "Mark
-section start" (`edit_measure_screen.dart` `_editSectionMarker`). But that is
+section start" (`measure_edit_panel.dart` `_editSectionMarker`). But that is
 buried. It means opening the editor bar by bar, and moving a marker onto a
 lead-in means removing it in one bar and adding it in another.
 
@@ -133,7 +133,7 @@ written-out) before offering it on existing pieces.
 
 ## 2. Note editor gaps
 
-The measure editor (`edit_measure_screen.dart`) is built and in use. What it
+The measure editor (`measure_edit_panel.dart`) is built and in use. What it
 still can't do:
 
 - **Add a note to an empty measure.** homr sometimes emits an empty measure

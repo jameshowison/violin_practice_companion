@@ -10,7 +10,7 @@ import '../models/key_signature.dart';
 /// A conforming file states the sounding pitch: an F♯ under a one-sharp
 /// signature carries `<alter>1</alter>` even though no sharp is drawn. That is
 /// what MuseScore, the OMR output and this app's own measure editor produce
-/// (see `edit_measure_screen.dart`, which resolves a note's alteration through
+/// (see `measure_edit_session.dart`, which resolves a note's alteration through
 /// [KeySignature.defaultAlter] before writing it).
 ///
 /// The bundled abcjs converter instead writes `<alter>` only where an

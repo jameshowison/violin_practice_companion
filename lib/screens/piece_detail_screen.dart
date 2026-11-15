@@ -32,6 +32,7 @@ import '../services/piece_activity_store.dart';
 import '../services/providers.dart';
 import '../services/instrument_setting.dart';
 import '../services/media_catalog.dart';
+import '../services/measure_edit_session.dart';
 import '../services/media_playback_service.dart';
 import '../services/staff_overlays.dart';
 import '../services/staff_zoom.dart';
@@ -40,6 +41,7 @@ import '../widgets/fingering_view.dart';
 import '../widgets/floating_video_overlay.dart';
 import '../widgets/jianpu_view.dart';
 import '../widgets/new_chords_block.dart';
+import '../widgets/measure_edit_panel.dart';
 import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
@@ -105,6 +107,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
 
   // Recents: captured here, because `ref` is off limits in dispose.
   late final PieceActivityNotifier _activity;
+  // Likewise: an open measure edit must not outlive the screen it docks in.
+  late final MeasureEditController _measureEdit;
   String? _pieceId;
   String? _lastSection;
 
@@ -113,6 +117,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     super.initState();
     KeepAwake.enable();
     _activity = ref.read(pieceActivityProvider.notifier);
+    _measureEdit = ref.read(measureEditProvider.notifier);
     _pieceId = ref.read(selectedPieceProvider)?.id;
     final id = _pieceId;
     // Deferred: a provider must not change while the tree is building.
@@ -125,6 +130,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final id = _pieceId;
     final section = _lastSection;
     if (id != null) Future.microtask(() => _activity.left(id, section));
+    Future.microtask(_measureEdit.cancel);
     super.dispose();
   }
 
@@ -150,6 +156,39 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final features = ref.watch(instrumentFeaturesProvider);
     final selection = ref.watch(measureSelectionProvider);
     _trackSelection(piece, selection);
+    final editing = ref.watch(measureEditProvider);
+    // While a bar is open, the score's selection IS that bar. A tap on another
+    // bar moves the editor there when nothing would be lost; otherwise the
+    // selection snaps back, so the highlight never points somewhere the panel
+    // isn't.
+    ref.listen(measureSelectionProvider, (prev, next) {
+      final s = ref.read(measureEditProvider);
+      if (s == null) return;
+      if (next != null && next.isSingle && next.startMeasure == s.measureNumber) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final cur = ref.read(measureEditProvider);
+        if (cur == null) return;
+        final sel = ref.read(measureSelectionProvider);
+        if (sel != null && sel.isSingle && !cur.isDirty && !cur.saving) {
+          MeasureEditPanel.open(ref, sel.startMeasure);
+          return;
+        }
+        if (sel != null && cur.isDirty) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text('Save or cancel measure ${cur.measureNumber} '
+                  'before editing another.'),
+              duration: const Duration(seconds: 2),
+            ));
+        }
+        ref.read(measureSelectionProvider.notifier).state =
+            MeasureSelection(cur.measureNumber, cur.measureNumber);
+      });
+    });
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
     final service = ref.watch(playbackServiceProvider);
 
@@ -232,7 +271,14 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     });
 
     final mascots = SkinStyle.of(context).mascots;
-    return Scaffold(
+    // Back closes an open measure edit first (asking if it would lose work),
+    // rather than leaving the piece with the edit still pending.
+    return PopScope(
+      canPop: editing == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) MeasureEditPanel.confirmClose(context, ref);
+      },
+      child: Scaffold(
       // The count-off takes over the whole bar while it runs — back arrow,
       // title and icons alike — as one extra line of music above the score.
       appBar: _CountInOverBar(
@@ -602,7 +648,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             }
           });
 
+          // A reload (an edit drafted in the measure editor, a saved bar)
+          // keeps the old layout up until the new one lands: dropping to the
+          // spinner would tear down the score and the edit panel with it, and
+          // the panel would lose its place in the controls on every tap.
           return layoutAsync.when(
+            skipLoadingOnReload: true,
             data: (layout) {
               if (layout == null) {
                 return const Center(child: Text('No piece loaded'));
@@ -686,6 +737,16 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
 
               final hasSectionUi = unfoldedRuns.isNotEmpty || canEditSelection;
 
+              if (useCompact && editing != null) {
+                // Editing a bar: the play tray (and its sections) step aside
+                // for the edit panel, docked under the score so the bar stays
+                // in view in its place in the piece.
+                return Column(children: [
+                  Expanded(child: notationView),
+                  const MeasureEditPanel(),
+                ]);
+              }
+
               if (useCompact) {
                 // On a phone the sections are a chip row in the play tray, not
                 // a rail over the music (see SectionChipRow).
@@ -750,6 +811,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       ],
                     ),
                   ),
+                  if (editing != null)
+                    // The transport steps aside while a bar is open; the
+                    // edit panel takes its place under the score.
+                    const MeasureEditPanel()
+                  else ...[
                   if (displayMode == DisplayMode.staff ||
                       displayMode == DisplayMode.staffFingering ||
                       displayMode == DisplayMode.tab)
@@ -762,6 +828,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     media: mediaList,
                     selected: selectedMedia,
                   ),
+                  ],
                 ],
               );
             },
@@ -771,6 +838,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         },
         ),
       ),
+    ),
     );
   }
 
@@ -2416,9 +2484,13 @@ class _NotationView extends ConsumerWidget {
       );
     }
 
+    // skipLoadingOnReload on each: a re-engrave (an edit drafted in the
+    // measure editor, a display toggle) keeps the old score up until the new
+    // one is ready, instead of blanking the music to a spinner meanwhile.
     switch (mode) {
       case DisplayMode.staff:
         return ref.watch(staffXmlProvider).when(
+          skipLoadingOnReload: true,
           data: (xml) => xml != null
               ? buildStaff(xml)
               : const Center(child: CircularProgressIndicator()),
@@ -2428,6 +2500,7 @@ class _NotationView extends ConsumerWidget {
 
       case DisplayMode.staffFingering:
         return ref.watch(staffFingeringXmlProvider).when(
+          skipLoadingOnReload: true,
           data: (xml) => xml != null
               ? buildStaff(xml, fingeringChannel: true)
               : const Center(child: CircularProgressIndicator()),
@@ -2497,6 +2570,7 @@ class _NotationView extends ConsumerWidget {
           );
         }
         return ref.watch(tabScoreProvider).when(
+          skipLoadingOnReload: true,
           data: (tab) => tab != null
               ? StaffViewVerovio(
                   musicXml: tab.musicXml,
