@@ -574,6 +574,12 @@ xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
 - Raw captures go in `build/screenshots/raw/{iphone,ipad}/NN.png` (gitignored),
   then `uv run scripts/frame_screenshots.py` adds the captions and writes
   `build/screenshots/out/`. No images are committed.
+- `uv run scripts/push_screenshots.py` compares those with the version's
+  6.9" iPhone and 13" iPad slots; `--apply` replaces each slot with the local
+  set, in file order (same 1Password key as `push_listing.py`).
+- The app icon isn't uploaded with these. App Store Connect takes it from the
+  build (`AppIcon` 1024×1024 in `ios/Runner/Assets.xcassets`), so it shows
+  once a build is attached to the version.
 
 ## Distribution
 
