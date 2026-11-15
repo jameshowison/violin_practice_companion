@@ -145,24 +145,28 @@ def editable(items, what):
 # ---------------------------------------------------------------- diff + push
 
 def show(label, old, new):
-    old = old or ""
-    if old == new:
+    """old=None means offline: the live value is unknown, so print only the new one."""
+    offline = old is None
+    if not offline and old == new:
         print(f"  = {label}: unchanged")
         return False
     limit = LIMITS.get(label.split(".")[-1])
     size = f" ({len(new)}/{limit})" if limit else ""
-    print(f"  ~ {label}{size}")
+    print(f"  {'·' if offline else '~'} {label}{size}")
     if "\n" in new or len(new) > 70:
-        print("      now: " + (f"{len(old)} chars" if old else "(empty)"))
+        if not offline:
+            print("      now: " + (f"{len(old)} chars" if old else "(empty)"))
         print("      new:\n" + "\n".join("        | " + l for l in new.splitlines()))
     else:
-        print(f"      now: {old or '(empty)'}\n      new: {new}")
+        if not offline:
+            print(f"      now: {old or '(empty)'}")
+        print(f"      new: {new}")
     return True
 
 
 def changes(label, live_attrs, wanted):
     return {k: v for k, v in wanted.items()
-            if show(f"{label}.{k}", (live_attrs or {}).get(k), v)}
+            if show(f"{label}.{k}", (live_attrs or {}).get(k) or "", v)}
 
 
 def main():
