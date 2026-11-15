@@ -21,6 +21,42 @@ Promotional text can be changed at any time without a new build, so it can carry
 | Privacy policy URL | https://github.com/jameshowison/violin_practice_companion/blob/main/docs/privacy.md |
 | TestFlight feedback email | support@stringlings.app |
 
+## Version details and App Review
+
+| Field | Value |
+| --- | --- |
+| Copyright | 2026 James Howison |
+| Primary category | MUSIC |
+| Secondary category | EDUCATION |
+| Content rights | USES_THIRD_PARTY_CONTENT |
+| Age rating | None to every question (4+) |
+| Review contact | James Howison |
+| Sign-in required | No |
+
+The review contact's phone and email come from 1Password (`review_phone`, `review_email`), never this file. App Privacy ("Data Not Collected") can't be set through the API; it's done on the web.
+
+**Review notes**
+
+No sign-in or account is needed.
+
+The app comes with nine pieces already installed, so every feature can be tried without scanning anything. All nine are in the public domain: traditional songs, or works published before 1850. Each is our own notes-only encoding, not a copy of any published edition.
+
+- Lightly Row (traditional German folk song)
+- Song of the Wind (traditional German folk song)
+- May Song (traditional German folk song)
+- Long, Long Ago (Thomas Haynes Bayly, 1833)
+- The Happy Farmer (Robert Schumann, 1848)
+- Gavotte (François-Joseph Gossec, 1786)
+- Minuet in G (Christian Petzold, c. 1725)
+- The Wellerman (traditional, 19th century)
+- Old Joe Clark (traditional American tune)
+
+To try it: open any piece and the fingering appears above each note. Play it to hear it with each note highlighted, or select a few bars to play just those.
+
+Scanning is optional: photographing any page of printed violin music adds it as a new piece, with fingerings.
+
+Playback uses the GeneralUser GS soundfont under its free license. The microphone is used only for the tuner and for recording a teacher; the camera and photo library only to add music. The app collects no data.
+
 ## TestFlight beta app description
 
 Stringlings helps with learning violin. Designed by and for parents helping their kids through the early stages.

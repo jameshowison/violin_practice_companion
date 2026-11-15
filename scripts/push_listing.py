@@ -29,7 +29,20 @@ OP_ITEM = "op://Private/App Store Connect API"
 API = "https://api.appstoreconnect.apple.com"
 LOCALE = "en-US"
 LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "keywords": 100,
-          "description": 4000, "whatsNew": 4000}
+          "description": 4000, "whatsNew": 4000, "notes": 4000}
+# Shown as "(from 1Password)", never printed.
+PRIVATE = {"contactPhone", "contactEmail"}
+# "None to every question" in the age-rating questionnaire (4+).
+AGE_NO = ["advertising", "ageAssurance", "gambling", "healthOrWellnessTopics", "lootBox",
+          "messagingAndChat", "parentalControls", "unrestrictedWebAccess",
+          "userGeneratedContent", "socialMedia"]
+AGE_NONE = ["alcoholTobaccoOrDrugUseOrReferences", "contests", "gamblingSimulated",
+            "gunsOrOtherWeapons", "horrorOrFearThemes", "matureOrSuggestiveThemes",
+            "medicalOrTreatmentInformation", "profanityOrCrudeHumor",
+            "sexualContentGraphicAndNudity", "sexualContentOrNudity",
+            "violenceCartoonOrFantasy", "violenceRealistic",
+            "violenceRealisticProlongedGraphicOrSadistic"]
+AGE_RATING = {**{k: False for k in AGE_NO}, **{k: "NONE" for k in AGE_NONE}}
 
 
 # ---------------------------------------------------------------- the listing
@@ -76,8 +89,21 @@ def parse_listing(md: str) -> dict:
     _, store = section("App Store description")
     desc = re.search(r"\*\*Description\*\*\n(.*?)\n\*\*Keywords\*\*", store, re.S)
     kw = re.search(r"```\n(.*?)\n```", store, re.S)
+    _, rev = section("Version details and App Review")
+    details = table(rev, 1)
+    notes = re.search(r"\*\*Review notes\*\*\n(.*)", rev, re.S)
+    first, _, last = details["Review contact"].partition(" ")
+    if not details["Age rating"].startswith("None to every question"):
+        sys.exit("listing: the script only knows how to answer 'None to every question'")
 
     return {
+        "copyright": details["Copyright"],
+        "categories": {"primaryCategory": details["Primary category"],
+                       "secondaryCategory": details["Secondary category"]},
+        "contentRightsDeclaration": details["Content rights"],
+        "review": {"contactFirstName": first, "contactLastName": last,
+                   "demoAccountRequired": details["Sign-in required"].lower() != "no",
+                   "notes": plain(notes.group(1))},
         "appInfo": {"name": fields["App name"], "subtitle": fields["Subtitle"],
                     "privacyPolicyUrl": link["Privacy policy URL"]},
         "version": {"description": plain(desc.group(1)), "keywords": kw.group(1).strip(),
@@ -150,23 +176,28 @@ def show(label, old, new):
     if not offline and old == new:
         print(f"  = {label}: unchanged")
         return False
-    limit = LIMITS.get(label.split(".")[-1])
+    key = label.split(".")[-1]
+    limit = LIMITS.get(key)
     size = f" ({len(new)}/{limit})" if limit else ""
     print(f"  {'·' if offline else '~'} {label}{size}")
+    if key in PRIVATE:
+        old, new = ("(set)" if old else old), "(from 1Password)"
+    new = str(new)
     if "\n" in new or len(new) > 70:
         if not offline:
-            print("      now: " + (f"{len(old)} chars" if old else "(empty)"))
+            print("      now: " + (f"{len(str(old))} chars" if old else "(empty)"))
         print("      new:\n" + "\n".join("        | " + l for l in new.splitlines()))
     else:
         if not offline:
-            print(f"      now: {old or '(empty)'}")
+            print(f"      now: {'(empty)' if old in ('', None) else old}")
         print(f"      new: {new}")
     return True
 
 
 def changes(label, live_attrs, wanted):
+    live = live_attrs or {}
     return {k: v for k, v in wanted.items()
-            if show(f"{label}.{k}", (live_attrs or {}).get(k) or "", v)}
+            if show(f"{label}.{k}", "" if live.get(k) is None else live[k], v)}
 
 
 def main():
@@ -178,6 +209,8 @@ def main():
                 sys.exit(f"{k} is {len(v)} characters; the limit is {LIMITS[k]}")
     if len(want["whatsNew"]) > LIMITS["whatsNew"]:
         sys.exit("What to Test is over 4000 characters")
+    if len(want["review"]["notes"]) > LIMITS["notes"]:
+        sys.exit("Review notes are over 4000 characters")
 
     if not (apply or "--compare" in sys.argv):
         # Offline preview: no key, no network. Shown against empty, so every
@@ -190,6 +223,15 @@ def main():
             print()
         print(f"Build {want['build']}: What to Test")
         show("build.whatsNew", None, want["whatsNew"])
+        print("\nVersion details and App Review")
+        show("version.copyright", None, want["copyright"])
+        show("app.contentRightsDeclaration", None, want["contentRightsDeclaration"])
+        for k, v in want["categories"].items():
+            show(f"appInfo.{k}", None, v)
+        print("  · ageRating: none to every question (4+)")
+        for k, v in want["review"].items():
+            show(f"review.{k}", None, v)
+        print("  · review.contactPhone, review.contactEmail: from 1Password")
         print("\nAll fields within their limits. Offline preview: nothing was read from or "
               "sent to App Store Connect.\n--compare diffs against what's live; --apply "
               "writes (both read the key from 1Password).")
@@ -241,6 +283,44 @@ def main():
     elif diff:
         todo.append(lambda d=diff, b=build["id"]: asc.create(
             "betaBuildLocalizations", {"locale": LOCALE, **d}, "build", "builds", b))
+
+    print("\nVersion details and App Review")
+    diff = changes("version", ver["attributes"], {"copyright": want["copyright"]})
+    if diff:
+        todo.append(lambda d=diff, i=ver["id"]: asc.patch("appStoreVersions", i, d))
+
+    diff = changes("app", apps[0]["attributes"],
+                   {"contentRightsDeclaration": want["contentRightsDeclaration"]})
+    if diff:
+        todo.append(lambda d=diff: asc.patch("apps", app, d))
+
+    live_cats = {}
+    for rel in want["categories"]:
+        r = asc.call("GET", f"/v1/appInfos/{info['id']}/{rel}")
+        live_cats[rel] = (r.get("data") or {}).get("id")
+    diff = changes("appInfo", live_cats, want["categories"])
+    if diff:
+        todo.append(lambda d=diff, i=info["id"]: asc.call("PATCH", f"/v1/appInfos/{i}", json={
+            "data": {"type": "appInfos", "id": i, "relationships": {
+                rel: {"data": {"type": "appCategories", "id": cat}} for rel, cat in d.items()}}}))
+
+    age = asc.call("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
+    off = {k: v for k, v in AGE_RATING.items() if age["attributes"].get(k) != v}
+    if off:
+        print(f"  ~ ageRating: {len(off)} answer(s) to set to none/no (4+)")
+        todo.append(lambda d=off, i=age["id"]: asc.patch("ageRatingDeclarations", i, d))
+    else:
+        print("  = ageRating: unchanged")
+
+    review = {**want["review"], "contactPhone": op_read("review_phone"),
+              "contactEmail": op_read("review_email")}
+    live = asc.call("GET", f"/v1/appStoreVersions/{ver['id']}/appStoreReviewDetail").get("data")
+    diff = changes("review", live and live["attributes"], review)
+    if diff and live:
+        todo.append(lambda d=diff, i=live["id"]: asc.patch("appStoreReviewDetails", i, d))
+    elif diff:
+        todo.append(lambda d=diff, v=ver["id"]: asc.create(
+            "appStoreReviewDetails", d, "appStoreVersion", "appStoreVersions", v))
 
     if not todo:
         print("\nEverything already matches.")

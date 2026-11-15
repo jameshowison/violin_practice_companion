@@ -478,7 +478,11 @@ calibration trace does (`scripts/pull_sync_trace.sh <device>`).
 
 `docs/app-store-listing.md` is the source of truth for every listing field: name,
 subtitle, promotional text, description, keywords, support/privacy URLs, the
-TestFlight beta description and feedback email, and the build's What to Test.
+TestFlight beta description and feedback email, the build's What to Test, and
+the version details (copyright, categories, content rights, age rating) and App
+Review information (contact, sign-in, reviewer notes listing the bundled
+public-domain pieces). Only App Privacy ("Data Not Collected") has no API and
+is set on the web.
 `scripts/push_listing.py` writes it to App Store Connect through the API:
 
 ```bash
@@ -490,6 +494,8 @@ uv run scripts/push_listing.py --apply     # write what changed
 - **The API key is in 1Password** (Private vault, item "App Store Connect API":
   `key_id`, `issuer_id`, the `AuthKey_<key_id>.p8` attachment), read with `op read`
   at run time — Touch ID prompts. Never copy the `.p8` to disk or into the repo.
+  The review contact's `review_phone` and `review_email` live there too, never in
+  the (public) listing file; the script prints them as "(from 1Password)".
 - **Fields are plain text.** The script flattens the markdown (bold dropped, `- `
   becomes `•`, line breaks kept); ALL-CAPS lines stand in for headings.
 - **What to Test belongs to one build** — the number in its heading, `(build 1.0.0+4)`.
