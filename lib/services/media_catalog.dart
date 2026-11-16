@@ -69,6 +69,7 @@ class MediaCatalog {
       // Always present, always first: the one medium every piece has, and the
       // one the app can offer before anything has been recorded or imported.
       PieceMedia.synthesized,
+      PieceMedia.silent,
       if (audioFolder != null) ...bundledMediaFor(audioFolder),
       ...await _store.load(pieceId),
     ];

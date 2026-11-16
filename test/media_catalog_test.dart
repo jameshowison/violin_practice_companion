@@ -56,8 +56,8 @@ void main() {
       final media =
           await MediaCatalog().mediaFor('happy_farmer', audioFolder: null);
 
-      expect(media, [PieceMedia.synthesized]);
-      expect(media.single.isSynthesized, isTrue);
+      expect(media, [PieceMedia.synthesized, PieceMedia.silent]);
+      expect(media.every((m) => m.isSynthesized), isTrue);
     });
 
     test('the synthesized score is always first', () async {
@@ -67,7 +67,7 @@ void main() {
 
       expect(media.first, PieceMedia.synthesized);
       expect(media.map((m) => m.label),
-          ['Simulated', 'Melody', 'Chords']);
+          ['Simulated', 'Silent', 'Melody', 'Chords']);
     });
 
     test('user media come after the bundled ones', () async {
@@ -88,7 +88,7 @@ void main() {
           await MediaCatalog().mediaFor('lightly_row', audioFolder: 'lightly_row');
 
       expect(media.map((m) => m.label),
-          ['Simulated', 'Melody', 'Chords', 'Lesson 3']);
+          ['Simulated', 'Silent', 'Melody', 'Chords', 'Lesson 3']);
       expect(media.last.isRemovable, isTrue);
     });
 
@@ -99,7 +99,7 @@ void main() {
       final media =
           await MediaCatalog().mediaFor('galopede', audioFolder: null);
 
-      expect(media.map((m) => m.label), ['Simulated', 'Teacher demo']);
+      expect(media.map((m) => m.label), ['Simulated', 'Silent', 'Teacher demo']);
       expect(media.last.audio!.path, 'teacher_recordings/galopede/audio.wav');
     });
   });
@@ -107,6 +107,7 @@ void main() {
   group('resolve', () {
     final media = [
       PieceMedia.synthesized,
+      PieceMedia.silent,
       ...MediaCatalog.bundledMediaFor('lightly_row'),
     ];
 
@@ -116,7 +117,7 @@ void main() {
 
     test('nothing chosen opens on a recording when there is one', () {
       // Bundled tracks only: the first of them.
-      expect(MediaCatalog.resolve(media, null), media[1]);
+      expect(MediaCatalog.resolve(media, null), media[2]);
       // Only the score: the score.
       expect(MediaCatalog.resolve(const [PieceMedia.synthesized], null),
           PieceMedia.synthesized);
@@ -131,6 +132,14 @@ void main() {
         audio: MediaRef.appFile('media/p/teacher_vp/source.mp3'),
       );
       expect(MediaCatalog.resolve([...media, teacher], null), teacher);
+    });
+
+    test('Silent is chosen, never the default', () {
+      expect(MediaCatalog.resolve(media, 'silent'), PieceMedia.silent);
+      expect(PieceMedia.silent.isSilent, isTrue);
+      expect(MediaCatalog.resolve(
+              const [PieceMedia.synthesized, PieceMedia.silent], null),
+          PieceMedia.synthesized);
     });
 
     test('choosing Simulated sticks', () {

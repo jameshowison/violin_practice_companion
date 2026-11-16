@@ -210,8 +210,19 @@ enum _TempoAction { setPerformance, followRecording }
 /// Custom always asks, even when it is already selected — that is the only way
 /// to change it from here. Below them, the piece's performance tempo can be set
 /// by hand, or handed back to its recordings.
+///
+/// The tray shows only a percentage: how fast this plays against the
+/// performance tempo, or — for a recording, given as [percent] — against the
+/// recording's own tempo, which is what is heard. The names and bpm are in the
+/// menu and the tooltip; the tray hasn't the width for them on a phone.
 class TempoPresetPicker extends ConsumerWidget {
-  const TempoPresetPicker({super.key});
+  /// Overrides the label's percentage (a recording's playback rate × 100).
+  final double? percent;
+
+  /// Appended to the tooltip (e.g. what the recording's own tempo is).
+  final String? tooltipNote;
+
+  const TempoPresetPicker({super.key, this.percent, this.tooltipNote});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -223,6 +234,10 @@ class TempoPresetPicker extends ConsumerWidget {
         ? null
         : (ref.watch(loadedRecordingBpmProvider) ??
             ref.watch(pieceRecordingBpmProvider(piece.id)).valueOrNull);
+    final marked = ref.watch(parsedPieceProvider).valueOrNull?.markedBpm;
+    final shown = percent ?? settings.exactBpmFor(settings.preset, perf.bpm) /
+        perf.bpm *
+        100;
     final style = Theme.of(context).textTheme.bodyMedium;
 
     Future<void> onSelected(Object choice) async {
@@ -268,12 +283,16 @@ class TempoPresetPicker extends ConsumerWidget {
         };
 
     return PopupMenuButton<Object>(
-      tooltip: switch (perf.source) {
-        PerformanceSource.piece => 'Tempo — performance set for this piece',
-        PerformanceSource.recording =>
-          'Tempo — performance from the recording',
-        PerformanceSource.defaultTempo => 'Tempo',
-      },
+      tooltip: [
+        '${settings.preset.label} · ${settings.bpmAt(perf.bpm)} bpm',
+        switch (perf.source) {
+          PerformanceSource.piece => 'performance set for this piece',
+          PerformanceSource.recording => 'performance from the recording',
+          PerformanceSource.score => 'performance marked in the score',
+          PerformanceSource.defaultTempo => 'default performance tempo',
+        },
+        ?tooltipNote,
+      ].join(' — '),
       initialValue: settings.preset,
       onSelected: onSelected,
       itemBuilder: (context) => [
@@ -288,9 +307,11 @@ class TempoPresetPicker extends ConsumerWidget {
           if (perf.source == PerformanceSource.piece)
             PopupMenuItem<Object>(
               value: _TempoAction.followRecording,
-              child: Text(recorded == null
-                  ? 'Use default (${settings.performance})'
-                  : 'Use recording (${recorded.round()})'),
+              child: Text(recorded != null
+                  ? 'Use recording (${recorded.round()})'
+                  : marked != null
+                      ? 'Use score (${marked.round()})'
+                      : 'Use default (${settings.performance})'),
             ),
         ],
       ],
@@ -299,11 +320,9 @@ class TempoPresetPicker extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.music_note, size: 16),
-            const SizedBox(width: 2),
             Flexible(
               child: Text(
-                '${settings.preset.shortLabel} · ${settings.bpmAt(perf.bpm)}',
+                '${shown.round()}%',
                 style: style?.copyWith(fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

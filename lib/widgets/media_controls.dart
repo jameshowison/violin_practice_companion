@@ -206,7 +206,7 @@ class _MediaPicker extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_iconFor(selected.kind), size: 16),
+            Icon(_iconFor(selected), size: 16),
             if (!iconOnly) ...[
               const SizedBox(width: 6),
               Flexible(
@@ -324,7 +324,9 @@ class _MediaPicker extends ConsumerWidget {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  static IconData _iconFor(MediaKind kind) => switch (kind) {
+  static IconData _iconFor(PieceMedia media) => media.isSilent
+      ? Icons.volume_off
+      : switch (media.kind) {
         MediaKind.synthesized => Icons.piano,
         MediaKind.bundled => Icons.headphones,
         MediaKind.imported => Icons.library_music,
@@ -359,7 +361,7 @@ class _MediaRow extends StatelessWidget {
       minLeadingWidth: 24,
       horizontalTitleGap: 8,
       leading: Icon(
-        isSelected ? Icons.check : _MediaPicker._iconFor(media.kind),
+        isSelected ? Icons.check : _MediaPicker._iconFor(media),
         color: isSelected ? Theme.of(context).colorScheme.primary : null,
       ),
       title: Text(media.label, overflow: TextOverflow.ellipsis),
@@ -620,32 +622,127 @@ class _PickerAction {
 void playSelection(WidgetRef ref, PlaybackServiceBase service,
     {bool countIn = true}) {
   final selection = ref.read(measureSelectionProvider);
+  final end = _playEnd(ref);
   service.play(
     fromMeasure: ref.read(playbackStartMeasureProvider),
     fromNote: ref.read(playbackStartNoteProvider),
-    toMeasure: selection?.endMeasure,
-    toNote: selection?.endNote ?? -1,
+    toMeasure: end.toMeasure,
+    toNote: end.toNote,
     fromIndex: selection?.startPerf ?? -1,
-    toIndex: selection?.endPerf ?? -1,
+    toIndex: end.toIndex,
     countIn: countIn ? ref.read(resolvedCountInProvider) : null,
   );
 }
 
-/// Repeat the selection (or the piece) until stopped. One setting shared by
-/// every source — see [loopEnabledProvider].
-class _LoopButton extends ConsumerWidget {
-  const _LoopButton();
+/// Where Play stops: the selection's end, or — in [PlayMode.through], or
+/// with nothing selected — the end of the piece (a null measure).
+({int? toMeasure, int toNote, int toIndex}) _playEnd(WidgetRef ref) {
+  final selection = ref.read(measureSelectionProvider);
+  if (selection == null || ref.read(playModeProvider) == PlayMode.through) {
+    return (toMeasure: null, toNote: -1, toIndex: -1);
+  }
+  return (
+    toMeasure: selection.endMeasure,
+    toNote: selection.endNote,
+    toIndex: selection.endPerf,
+  );
+}
+
+/// Once / Loop / Through. One setting shared by every source — see
+/// [playModeProvider].
+///
+/// Wide (a phone on its side, a tablet), a segmented pill with all three in
+/// view. Narrow (any phone upright) there isn't the room — the pill crowded
+/// the SE's tray — so it is a menu button showing the current mode's icon;
+/// the menu names each mode, which also answers what the icons mean.
+///
+/// Switching into or out of Through mid-play moves the end without going back
+/// to the start ([PlaybackServiceBase.setEnd]); Once and Loop differ only at
+/// the end, where the service reads [PlaybackServiceBase.loopEnabled].
+class PlayModePill extends ConsumerWidget {
+  final PlaybackServiceBase service;
+
+  const PlayModePill({super.key, required this.service});
+
+  /// Below this screen width the modes go into a menu. Every phone in
+  /// portrait is under it (the largest is ~440pt); in landscape, and on an
+  /// iPad either way, the pill fits.
+  static const menuBelowWidth = 600.0;
+
+  static const _modes = [
+    (PlayMode.once, Icons.keyboard_tab, 'Play once'),
+    (PlayMode.loop, Icons.repeat, 'Loop'),
+    (PlayMode.through, Icons.east, 'Play through to the end'),
+  ];
+
+  static (PlayMode, IconData, String) _of(PlayMode m) =>
+      _modes.firstWhere((e) => e.$1 == m);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final on = ref.watch(loopEnabledProvider);
-    return IconButton(
-      icon: Icon(Icons.repeat,
-          color: on ? Theme.of(context).colorScheme.primary : null),
-      iconSize: 22,
-      tooltip: on ? 'Loop on' : 'Loop off',
-      onPressed: () => ref.read(loopEnabledProvider.notifier).state = !on,
+    final mode = ref.watch(playModeProvider);
+    if (MediaQuery.sizeOf(context).width < menuBelowWidth) {
+      final (_, icon, label) = _of(mode);
+      final primary = Theme.of(context).colorScheme.primary;
+      return PopupMenuButton<PlayMode>(
+        tooltip: label,
+        initialValue: mode,
+        position: PopupMenuPosition.over,
+        onSelected: (m) => _choose(ref, m),
+        itemBuilder: (_) => [
+          for (final (m, icon, label) in _modes)
+            PopupMenuItem(
+              value: m,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                minLeadingWidth: 24,
+                leading: Icon(icon, color: m == mode ? primary : null),
+                title: Text(label),
+                trailing: m == mode ? Icon(Icons.check, color: primary) : null,
+              ),
+            ),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, semanticLabel: label),
+              const Icon(Icons.arrow_drop_down, size: 18),
+            ],
+          ),
+        ),
+      );
+    }
+    // A gap after the pill: its outline otherwise runs into the tempo label.
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 12),
+      child: SegmentedButton<PlayMode>(
+      segments: [
+        for (final (m, icon, label) in _modes)
+          ButtonSegment(
+            value: m,
+            icon: Icon(icon, size: 20, semanticLabel: label),
+            tooltip: label,
+          ),
+      ],
+      selected: {mode},
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity(horizontal: -2, vertical: -2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onSelectionChanged: (s) => _choose(ref, s.first),
+      ),
     );
+  }
+
+  void _choose(WidgetRef ref, PlayMode m) {
+    ref.read(playModeProvider.notifier).state = m;
+    final end = _playEnd(ref);
+    service.setEnd(
+        toMeasure: end.toMeasure, toNote: end.toNote, toIndex: end.toIndex);
   }
 }
 
@@ -683,34 +780,21 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
             }
           },
         ),
-        IconButton(
-          icon: const Icon(Icons.stop),
-          iconSize: 22,
-          tooltip: 'Stop',
-          onPressed: service.stop,
-        ),
-        const _LoopButton(),
-        IconButton(
-          icon: Icon(
-            service.muted ? Icons.volume_off : Icons.volume_up,
-            color: service.muted ? Theme.of(context).colorScheme.primary : null,
-          ),
-          iconSize: 22,
-          tooltip: service.muted ? 'Unmute' : 'Mute',
-          onPressed: () => setState(() => service.muted = !service.muted),
-        ),
-        const _OutputPickerButton(
-            source: AudioSyncSource.score, compact: true),
+        PlayModePill(service: service),
         // Named practice speeds rather than a slider: a slider's exact value
         // is hard to hit again tomorrow, and "slow / medium / performance" is
         // how the tempo is actually thought about. The bpm behind each name is
         // a drawer setting; the service is told in PieceDetailScreen.
+        // Expanded so the spare width sits after it, putting the output
+        // picker in the corner on either transport.
         const Expanded(
           child: Align(
             alignment: Alignment.centerLeft,
             child: TempoPresetPicker(),
           ),
         ),
+        const _OutputPickerButton(
+            source: AudioSyncSource.score, compact: true),
       ],
     );
   }
@@ -863,36 +947,32 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                 );
               },
             ),
-            // Repeats the selection, as on the synthesized transport. An
+            // Once / Loop / Through, as on the synthesized transport. An
             // unaligned recording has no bars to loop and plays to its end.
-            const _LoopButton(),
+            PlayModePill(service: service),
             // The same tempo picker as the synthesized transport. A recording
             // can't be re-generated at a bpm, so the chosen bpm becomes a
             // playback rate against the recording's own measured tempo (see
-            // MediaPlaybackService.speedFor); the rate is shown beside it.
-            // Flexible, not Expanded: the row is left-justified, so the
-            // buttons after it follow the rate rather than sit in the corner.
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Flexible(child: TempoPresetPicker()),
-                  Consumer(builder: (context, ref, _) {
-                    ref.watch(exactTempoBpmProvider);
-                    final recBpm = service.recordingBpm;
-                    return Tooltip(
-                      message: recBpm == null
-                          ? "This recording isn't matched to the score, so it "
-                              'plays at its own speed.'
-                          : 'This recording ≈ ${recBpm.round()} bpm',
-                      child: Text('${_speed.toStringAsFixed(2)}×',
-                          style: Theme.of(context).textTheme.bodySmall),
-                    );
-                  }),
-                ],
+            // MediaPlaybackService.speedFor), and that rate is the label.
+            // Expanded, left-aligned: the spare width sits after the rate,
+            // so the output picker is always in the corner.
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Consumer(builder: (context, ref, _) {
+                final recBpm = service.recordingBpm;
+                final speed = MediaPlaybackService.speedFor(
+                    ref.watch(exactTempoBpmProvider), recBpm);
+                return TempoPresetPicker(
+                  percent: speed * 100,
+                  tooltipNote: recBpm == null
+                      ? "this recording isn't matched to the score, so it "
+                          'plays at its own speed'
+                      : 'this recording ≈ ${recBpm.round()} bpm',
+                );
+              }),
               ),
             ),
-            const _OutputPickerButton(source: AudioSyncSource.recording),
             if (result?.outcome == MediaLoadOutcome.playsWithoutHighlight)
               IconButton(
                 icon: const Icon(Icons.info_outline, color: Colors.amber),
@@ -911,6 +991,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                     )
                   : const SizedBox.shrink(),
             ),
+            const _OutputPickerButton(source: AudioSyncSource.recording),
           ],
         );
       },

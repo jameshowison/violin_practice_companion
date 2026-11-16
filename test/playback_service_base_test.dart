@@ -321,6 +321,46 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       expect(service.playbackState, PlaybackState.stopped);
     });
+
+    testWidgets('Play through from the second pass runs on to the end',
+        (tester) async {
+      // Order 1 2 1 2 3: from the second bar 1 (index 2), no end.
+      service.play(fromMeasure: 1, fromIndex: 2);
+      expect(service.startOffsetSeconds, 6.0);
+      expect(service.selectionEnd, isNull);
+      service.fakeSeconds = 14.9;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.playing);
+      expect(service.currentHighlightNotifier.value?.measureNumber, 3);
+      service.fakeSeconds = 15.0;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.stopped);
+    });
+
+    testWidgets('setEnd mid-play keeps the place and moves the end',
+        (tester) async {
+      // Bar 1's second pass, selected, and heard at its middle note.
+      service.play(fromMeasure: 1, toMeasure: 1, fromIndex: 2, toIndex: 2);
+      expect(service.selectionEnd, 9.0);
+      service.fakeSeconds = 7.5;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.currentHighlightNotifier.value?.performanceIndex, 2);
+
+      service.setEnd(); // Through: to the end of the piece
+      expect(service.playbackState, PlaybackState.playing);
+      expect(service.startOffsetSeconds, 7.0);
+      expect(service.selectionEnd, isNull);
+
+      service.setEnd(toMeasure: 1, toIndex: 2); // back to Once
+      expect(service.startOffsetSeconds, 7.0);
+      expect(service.selectionEnd, 9.0);
+      service.stop();
+    });
+
+    test('setEnd when not playing does nothing', () {
+      service.setEnd(toMeasure: 2);
+      expect(service.playbackState, PlaybackState.stopped);
+    });
   });
 
   group('an end the player is told in advance', () {

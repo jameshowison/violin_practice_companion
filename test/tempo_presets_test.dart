@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/models/tempo_presets.dart';
 import 'package:violin_practice_companion/services/providers.dart';
@@ -83,10 +85,16 @@ void main() {
     const piece = Piece(
         id: 'p', title: 'P', musicXmlAssetPath: 'x.xml', sections: []);
 
-    ProviderContainer make({double? cached}) {
+    ProviderContainer make({double? cached, double? marked}) {
       SharedPreferences.setMockInitialValues({});
       final c = ProviderContainer(overrides: [
         pieceRecordingBpmProvider.overrideWith((ref, id) async => cached),
+        parsedPieceProvider.overrideWith((ref) async => ParsedPiece(
+            keySignature: 'C',
+            keyFifths: 0,
+            keyMode: KeyMode.major,
+            measures: const [],
+            markedBpm: marked)),
       ]);
       c.read(selectedPieceProvider.notifier).state = piece;
       return c;
@@ -116,6 +124,24 @@ void main() {
       c.read(loadedRecordingBpmProvider.notifier).state = 62.6;
       c.read(tempoSettingsProvider.notifier).select(TempoPreset.performance);
       expect(c.read(exactTempoBpmProvider), 62.6);
+    });
+
+    test("the score's marked tempo stands in for the app-wide default",
+        () async {
+      final c = make(marked: 116);
+      await c.read(pieceRecordingBpmProvider('p').future);
+      await c.read(parsedPieceProvider.future);
+      final perf = c.read(performanceTempoProvider);
+      expect(perf.bpm, 116);
+      expect(perf.source, PerformanceSource.score);
+    });
+
+    test('a recording wins over the marked tempo', () async {
+      final c = make(cached: 62.6, marked: 116);
+      await c.read(pieceRecordingBpmProvider('p').future);
+      await c.read(parsedPieceProvider.future);
+      expect(c.read(performanceTempoProvider).source,
+          PerformanceSource.recording);
     });
 
     test('a tempo set for the piece wins over its recordings', () async {

@@ -272,6 +272,51 @@ abstract class PlaybackServiceBase {
     }
   }
 
+  /// Moves where the current play-through ends — Play through switched on or
+  /// off mid-play — without going back to the start: playback carries on from
+  /// the bar (and pass) it is in, as [setTempo] does. Not playing, or the same
+  /// end, does nothing; the next Play takes the new end from its caller.
+  void setEnd({int? toMeasure, int toNote = -1, int toIndex = -1}) {
+    if (_state != PlaybackState.playing) return;
+    if (toMeasure == _toMeasure && toNote == _toNote && toIndex == _toIndex) {
+      return;
+    }
+    final d = _data;
+    if (d == null) return;
+    var fromMeasure = _fromMeasure;
+    var fromNote = _fromNote;
+    var fromIndex = _fromIndex;
+    CountInPlan? countIn;
+    final pt = currentPlaybackSeconds();
+    if (pt == null || pt < _startOffset) {
+      // Still counting in: start where it was going to, counted again.
+      countIn = _countInPlan;
+    } else {
+      // From the note being heard, on the pass being heard — not the bar's
+      // start, which would set the player back by up to a bar.
+      final onsets = d.measureOnsetSeconds;
+      var idx = 0;
+      while (idx + 1 < onsets.length && onsets[idx + 1] <= pt) {
+        idx++;
+      }
+      fromIndex = idx;
+      fromMeasure = d.measureNumbers[idx];
+      final timings = d.measureNoteTimings[idx];
+      fromNote = 0;
+      for (var i = 0; i < timings.length && timings[i].$1 <= pt; i++) {
+        fromNote = i;
+      }
+    }
+    play(
+        fromMeasure: fromMeasure,
+        fromNote: fromNote,
+        toMeasure: toMeasure,
+        toNote: toNote,
+        fromIndex: fromIndex,
+        toIndex: toIndex,
+        countIn: countIn);
+  }
+
   void _stopInternal({bool silent = false}) {
     _timer?.cancel();
     _timer = null;

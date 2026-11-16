@@ -192,6 +192,11 @@ class ParsedPiece {
   final int beatsPerMeasure;
   final int beatType;
 
+  /// The tempo the score itself asks for, in quarter notes per minute (the
+  /// unit [MidiGenerator] plays in), or null when it marks none. The default
+  /// performance tempo when nothing more particular is known.
+  final double? markedBpm;
+
   const ParsedPiece({
     required this.keySignature,
     required this.keyFifths,
@@ -200,6 +205,7 @@ class ParsedPiece {
     this.divisions = 1,
     this.beatsPerMeasure = 4,
     this.beatType = 4,
+    this.markedBpm,
   });
 
   /// The same music with the meter change at document index [index] set to
@@ -221,6 +227,7 @@ class ParsedPiece {
         divisions: divisions,
         beatsPerMeasure: meter.beats,
         beatType: meter.beatType,
+        markedBpm: markedBpm,
       );
     }
     return copyWithMeasures([
@@ -306,6 +313,7 @@ class ParsedPiece {
         divisions: divisions,
         beatsPerMeasure: beatsPerMeasure,
         beatType: beatType,
+        markedBpm: markedBpm,
       );
 
   List<NoteEvent> get allNotes =>

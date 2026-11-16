@@ -1456,14 +1456,27 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 void _followHighlightSettings(Ref ref, PlaybackServiceBase service) {
   _follow<bool>(ref, highlightEveryNoteProvider,
       (everyNote) => service.highlightDownbeatOnly = !everyNote);
-  _follow<bool>(ref, loopEnabledProvider, (on) => service.loopEnabled = on);
+  _follow<PlayMode>(ref, playModeProvider,
+      (mode) => service.loopEnabled = mode == PlayMode.loop);
 }
 
-/// Whether Play repeats the selection (or the piece) until stopped. One
-/// setting for every source, so switching from the score to a recording keeps
-/// it — and so it survives the recording service being rebuilt each visit.
-/// Session-only.
-final loopEnabledProvider = StateProvider<bool>((_) => false);
+/// What Play does with the selection (or, with none, the piece).
+enum PlayMode {
+  /// Play it, then stop.
+  once,
+
+  /// Go round it again until paused.
+  loop,
+
+  /// Start at it and carry on to the end of the piece, through every repeat,
+  /// ending and D.C. after it.
+  through,
+}
+
+/// The transport's Once / Loop / Through setting. One setting for every
+/// source, so switching from the score to a recording keeps it — and so it
+/// survives the recording service being rebuilt each visit. Session-only.
+final playModeProvider = StateProvider<PlayMode>((_) => PlayMode.once);
 
 /// Applies [provider]'s value to a service now, and again whenever it changes.
 ///
@@ -1505,6 +1518,12 @@ final activePlaybackServiceProvider =
       const [PieceMedia.synthesized];
   final selected =
       MediaCatalog.resolve(media, ref.watch(selectedMediaIdProvider(piece.id)));
+  // "Silent" is the synthesized score with its sound off. Muting touches no
+  // notifier (only the synth's notes), so it is safe here; and it is undone
+  // on every re-resolve and on leaving the piece, so nothing else the synth
+  // plays is left silent.
+  synth.muted = selected.isSilent;
+  ref.onDispose(() => synth.muted = false);
   return selected.isSynthesized
       ? synth
       : ref.watch(mediaPlaybackServiceProvider);
@@ -1702,13 +1721,13 @@ final pieceRecordingBpmProvider =
 });
 
 /// Where the selected piece's performance tempo came from.
-enum PerformanceSource { piece, recording, defaultTempo }
+enum PerformanceSource { piece, recording, score, defaultTempo }
 
 /// The selected piece's performance tempo, which Slow and Medium are shares
 /// of: set for the piece by hand; else the loaded recording's own tempo (so
 /// Performance plays it at exactly 1.0x); else its recordings' tempo from the
-/// alignment cache (so the synthesized score matches them); else the app-wide
-/// default.
+/// alignment cache (so the synthesized score matches them); else the tempo
+/// marked in the score; else the app-wide default.
 final performanceTempoProvider =
     Provider<({double bpm, PerformanceSource source})>((ref) {
   final piece = ref.watch(selectedPieceProvider);
@@ -1727,6 +1746,10 @@ final performanceTempoProvider =
       bpm: recorded.clamp(minBpm.toDouble(), maxBpm.toDouble()),
       source: PerformanceSource.recording,
     );
+  }
+  final marked = ref.watch(parsedPieceProvider).valueOrNull?.markedBpm;
+  if (marked != null) {
+    return (bpm: marked, source: PerformanceSource.score);
   }
   return (bpm: fallback.toDouble(), source: PerformanceSource.defaultTempo);
 });

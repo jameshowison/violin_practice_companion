@@ -210,7 +210,22 @@ class PieceMedia {
     alignmentKey: '',
   );
 
+  /// The synthesized score with its sound off: the cursor, count-off and loop
+  /// run on, so a player can play along with nothing but the highlight.
+  /// Offered in the picker as a track of its own, since "what do I hear" is
+  /// the question the picker already answers.
+  static const PieceMedia silent = PieceMedia(
+    id: 'silent',
+    label: 'Silent',
+    kind: MediaKind.synthesized,
+    alignmentKey: '',
+  );
+
+  /// True for [synthesized] and [silent] alike: both are played by the
+  /// soundfont engine, from the score's own timeline.
   bool get isSynthesized => kind == MediaKind.synthesized;
+
+  bool get isSilent => id == silent.id;
 
   /// Whether this medium can drive the score highlight. False for the
   /// synthesized score (which drives it directly, without anchors) and for an

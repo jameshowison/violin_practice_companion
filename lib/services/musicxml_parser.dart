@@ -316,7 +316,44 @@ class MusicXmlParser {
       divisions: divisions,
       beatsPerMeasure: beatsPerMeasure,
       beatType: beatType,
+      markedBpm: markedBpmOf(doc),
     );
+  }
+
+  /// The score's first tempo, in quarter notes per minute: a sound element's
+  /// `tempo` (quarter notes by definition), else a `<metronome>` mark
+  /// converted from its beat unit. Null for none, or for a value outside
+  /// what the app can play (40–208) — a mark that far out is more likely a
+  /// typo than a tempo to practise towards.
+  static double? markedBpmOf(XmlDocument doc) {
+    double? playable(double? bpm) =>
+        bpm != null && bpm >= 40 && bpm <= 208 ? bpm : null;
+    for (final sound in doc.findAllElements('sound')) {
+      final t = double.tryParse(sound.getAttribute('tempo') ?? '');
+      if (t != null) return playable(t);
+    }
+    for (final m in doc.findAllElements('metronome')) {
+      final perMinute = double.tryParse(
+          m.findElements('per-minute').firstOrNull?.innerText.trim() ?? '');
+      final unit = m.findElements('beat-unit').firstOrNull?.innerText.trim();
+      if (perMinute == null || unit == null) continue;
+      final quarters = const {
+        'whole': 4.0,
+        'half': 2.0,
+        'quarter': 1.0,
+        'eighth': 0.5,
+        '16th': 0.25,
+      }[unit];
+      if (quarters == null) continue;
+      // Each dot adds half again of the previous value.
+      var length = quarters, add = quarters;
+      for (final _ in m.findElements('beat-unit-dot')) {
+        add /= 2;
+        length += add;
+      }
+      return playable(perMinute * length);
+    }
+    return null;
   }
 
   /// A note's `<time-modification>` as a tuplet ratio; null for none, or for

@@ -134,4 +134,31 @@ void main() {
     expect(m[1].partLabel, isNull);
     expect(m[2].partLabel, 'B');
   });
+
+  group('marked tempo', () {
+    String withDirection(String direction) => simpleXml.replaceFirst(
+        '<note><pitch><step>D</step>',
+        '<direction>$direction</direction><note><pitch><step>D</step>');
+
+    test('none marked', () {
+      expect(parser.parse(simpleXml).markedBpm, isNull);
+    });
+
+    test('a sound tempo is quarter notes per minute', () {
+      expect(parser.parse(withDirection('<sound tempo="116"/>')).markedBpm,
+          116);
+    });
+
+    test('a metronome mark is converted from its beat unit', () {
+      const dottedQuarter = '<direction-type><metronome>'
+          '<beat-unit>quarter</beat-unit><beat-unit-dot/>'
+          '<per-minute>60</per-minute></metronome></direction-type>';
+      expect(parser.parse(withDirection(dottedQuarter)).markedBpm, 90);
+    });
+
+    test('an unplayable tempo is ignored', () {
+      expect(parser.parse(withDirection('<sound tempo="400"/>')).markedBpm,
+          isNull);
+    });
+  });
 }
