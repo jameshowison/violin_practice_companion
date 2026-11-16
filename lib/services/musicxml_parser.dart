@@ -45,6 +45,10 @@ class MusicXmlParser {
 
     final measures = <Measure>[];
     var meterInForce = opening;
+    // The volta bracket open at this point, if any: its numbers, carried from
+    // the measure whose `<ending type="start">` opened it to the one whose
+    // `stop`/`discontinue` closes it (see [Measure.endings]).
+    Set<int>? openEnding;
     for (final measureEl in doc.findAllElements('measure')) {
       meterInForce = _meterOf(measureEl
               .findElements('attributes')
@@ -214,6 +218,26 @@ class MusicXmlParser {
       var repeatStart = false;
       var repeatEnd = false;
       var doubleBarEnd = false;
+      // Volta brackets: <barline><ending number="1" type="start"/> opens one,
+      // type="stop" (closed hook) or "discontinue" (open end) closes it, on
+      // this measure or a later one. A new start also closes any still open.
+      Set<int>? endings;
+      var closesEnding = false;
+      for (final barlineEl in measureEl.findElements('barline')) {
+        for (final e in barlineEl.findElements('ending')) {
+          final type = e.getAttribute('type');
+          if (type == 'start') {
+            openEnding = _endingNumbers(e.getAttribute('number'));
+            endings = openEnding;
+          } else if (type == 'stop' || type == 'discontinue') {
+            endings ??= openEnding ?? _endingNumbers(e.getAttribute('number'));
+            closesEnding = true;
+          }
+        }
+      }
+      endings ??= openEnding;
+      if (closesEnding) openEnding = null;
+
       for (final barlineEl in measureEl.findElements('barline')) {
         final dir = barlineEl.findElements('repeat').firstOrNull?.getAttribute('direction');
         if (dir == 'forward') repeatStart = true;
@@ -272,6 +296,15 @@ class MusicXmlParser {
             .findElements('attributes')
             .expand((a) => a.findElements('time'))
             .firstOrNull),
+        keyChange: int.tryParse(measureEl
+                .findElements('attributes')
+                .expand((a) => a.findElements('key'))
+                .expand((k) => k.findElements('fifths'))
+                .firstOrNull
+                ?.innerText
+                .trim() ??
+            ''),
+        endings: endings ?? const {},
       ));
     }
 
@@ -304,6 +337,16 @@ class MusicXmlParser {
 
   /// A `<time>` element's meter; null for none, or one without numbers
   /// (`<senza-misura>`).
+  /// The passes an `<ending number="…">` names: `"1"`, `"1, 2"` or `"1,2"`.
+  /// An unreadable number counts as a first ending.
+  static Set<int> _endingNumbers(String? number) {
+    final passes = {
+      for (final m in RegExp(r'\d+').allMatches(number ?? ''))
+        int.parse(m.group(0)!),
+    }..remove(0);
+    return passes.isEmpty ? const {1} : Set.unmodifiable(passes);
+  }
+
   static Meter? _meterOf(XmlElement? time) {
     if (time == null) return null;
     final beats =

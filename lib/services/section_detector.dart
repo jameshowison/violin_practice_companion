@@ -23,18 +23,26 @@ class SectionDetector {
   static const _blockSizes = [8, 4];
 
   /// Strain boundaries come from, in order of trust: the author's part labels,
-  /// repeat brackets, the author's ABC music lines, double barlines, a
-  /// scanned page's printed lines, then equal 8/4-bar blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
+  /// the piece's own seams (see [_passageStrains]: time and key changes, the
+  /// end of a multi-bar rest), repeat brackets, the author's ABC music lines,
+  /// double barlines, a scanned page's printed lines, then equal 8/4-bar
+  /// blocks. A boundary the author placed mid-bar (a `[P:X]` or a line that
   /// begins on a lead-in) is kept exactly; the rest start on a downbeat and
   /// are then moved back onto their lead-in by [withLeadIns].
   static List<Section> detect(List<Measure> measures) {
     final fromLabels = _fromPartLabels(measures);
     if (fromLabels != null) return withLeadIns(fromLabels, measures);
 
-    final seg = _segment(measures);
+    final seg = _passageStrains(measures) ?? _segment(measures);
     if (seg == null || seg.strains.length < _minStrains) return const [];
-    final prints = [for (final s in seg.strains) _fingerprint(s)];
-    final labels = _assignLabels(prints);
+    // An opening of nothing but rests (an accompaniment's intro) is its own
+    // section, but not a strain of the tune: it takes no letter.
+    final intro = _allRests(seg.strains.first);
+    final prints = [
+      for (final s in intro ? seg.strains.skip(1) : seg.strains)
+        _fingerprint(s)
+    ];
+    final labels = [if (intro) introLabel, ..._assignLabels(prints)];
     return withLeadIns([
       for (var i = 0; i < seg.strains.length; i++)
         Section(
@@ -42,6 +50,186 @@ class SectionDetector {
             startMeasure: seg.starts[i],
             startNote: seg.startNotes?[i] ?? 0),
     ], measures);
+  }
+
+  /// The label of an opening section that is all rests.
+  static const introLabel = '-';
+
+  static bool _allRests(List<Measure> strain) =>
+      strain.every((m) => m.notes.every((n) => n.isRest));
+
+  // ── Passages: the piece's own seams ─────────────────────────────────────────
+
+  /// Bars a time change, key change or double bar must be from the boundary
+  /// before it (and from the end) to start a passage of its own. Closer than
+  /// this it is one seam written in stages — We Wish You a Merry Christmas
+  /// Fantasy changes time, then two scale bars later key — and the first wins.
+  static const _minPassageBars = 4;
+
+  /// A passage this many counted bars or longer is a run of strains, not one,
+  /// and is split further (its repeats, lines or 8-bar blocks).
+  static const _splitPassageBars = 16;
+
+  /// The bars at which a time or key change really changes something: not
+  /// bar 1's, and not a signature restating the one in force (a score with
+  /// no opening key is in C, as MusicXML reads it — scans write `0` out on a
+  /// later line). A meter change must change the bar's length: 2/2 to 4/4 is
+  /// what OMR makes of a cut-time C read as common time, not a new passage.
+  static Set<int> _meterOrKeyChanges(List<Measure> measures) {
+    final out = <int>{};
+    var units = measures.first.timeChange?.units;
+    var key = measures.first.keyChange ?? 0;
+    for (var i = 1; i < measures.length; i++) {
+      final t = measures[i].timeChange?.units, k = measures[i].keyChange;
+      if ((t != null && units != null && t != units) ||
+          (k != null && k != key)) {
+        out.add(i);
+      }
+      units = t ?? units;
+      key = k ?? key;
+    }
+    return out;
+  }
+
+  /// Passages between the seams a medley or fantasy is built on: a change of
+  /// time or key, and the first note after a multi-bar rest (where the soloist
+  /// comes in, on the very note — a pickup inside the bar included). Double
+  /// barlines also count once one of those is present. A meter that lasts a
+  /// single bar ends the phrase before it rather than starting one (a 2/4 bar
+  /// between 4/4s): the passage starts where the meter settles. Seams closer
+  /// than [_minPassageBars] keep only the first; the end of a rest is always
+  /// kept. Null when there is no time, key or rest seam, so tunes without
+  /// them go through [_segment] exactly as before.
+  ///
+  /// A rest run at the start becomes its own passage; each passage of
+  /// [_splitPassageBars] or more is split again by [_splitPassage].
+  static _Strains? _passageStrains(List<Measure> measures) {
+    final n = measures.length;
+    if (n < 2) return null;
+    bool rests(Measure m) => m.notes.every((x) => x.isRest);
+
+    // Multi-bar rests, and the first note after each.
+    final inRest = List.filled(n, false);
+    final restEnds = <({int bar, int note})>[];
+    for (var i = 0; i < n;) {
+      if (!rests(measures[i])) {
+        i++;
+        continue;
+      }
+      var j = i;
+      while (j < n && rests(measures[j])) {
+        j++;
+      }
+      if (j - i >= 2) {
+        for (var k = i; k < j; k++) {
+          inRest[k] = true;
+        }
+        if (j < n) {
+          restEnds.add(
+              (bar: j, note: measures[j].notes.indexWhere((x) => !x.isRest)));
+        }
+      }
+      i = j;
+    }
+
+    final changes = _meterOrKeyChanges(measures);
+    // A meter lasting one bar: the seam is the bar after it.
+    final meterOf = _fullBars(measures);
+    changes.removeWhere((i) =>
+        changes.contains(i + 1) &&
+        measures[i].timeChange != null &&
+        meterOf[i] != meterOf[i + 1]);
+    if (changes.isEmpty && restEnds.isEmpty) return null;
+
+    final weak = {
+      ...changes,
+      for (var i = 0; i < n - 1; i++)
+        if (measures[i].doubleBarEnd) i + 1,
+    }..removeWhere((i) => inRest[i] || restEnds.any((r) => r.bar == i));
+    final candidates = [
+      for (final r in restEnds) (bar: r.bar, note: r.note, strong: true),
+      for (final i in weak) (bar: i, note: 0, strong: false),
+    ]..sort((a, b) => a.bar.compareTo(b.bar));
+
+    final kept = <({int bar, int note})>[(bar: 0, note: 0)];
+    for (final c in candidates) {
+      if (!c.strong &&
+          (c.bar - kept.last.bar < _minPassageBars ||
+              n - c.bar < _minPassageBars)) {
+        continue;
+      }
+      if (c.bar == kept.last.bar && c.note == kept.last.note) continue;
+      if (c.bar == 0 && c.note == 0) continue;
+      kept.add((bar: c.bar, note: c.note));
+    }
+    if (kept.length < _minStrains) return null;
+
+    final strains = <List<Measure>>[];
+    final starts = <int>[], startNotes = <int>[];
+    for (var k = 0; k < kept.length; k++) {
+      final from = kept[k];
+      final to = k + 1 < kept.length ? kept[k + 1] : (bar: n, note: 0);
+      for (final p in _splitPassage(measures, from, to)) {
+        strains.add(_slice(measures, p.from, p.to));
+        starts.add(measures[p.from.bar].number);
+        startNotes.add(p.from.note);
+      }
+    }
+    return (strains: strains, starts: starts, startNotes: startNotes);
+  }
+
+  /// The notes from [from] up to (not including) [to], bar by bar: a passage
+  /// that starts or ends mid-bar shares that bar with its neighbour.
+  static List<Measure> _slice(List<Measure> measures, ({int bar, int note}) from,
+      ({int bar, int note}) to) {
+    final out = <Measure>[];
+    for (var i = from.bar; i < to.bar; i++) {
+      final m = measures[i];
+      out.add(i == from.bar && from.note > 0
+          ? m.copyWithNotes(m.notes.sublist(from.note))
+          : m);
+    }
+    if (to.note > 0 && to.bar < measures.length) {
+      final m = measures[to.bar];
+      out.add(m.copyWithNotes(m.notes.sublist(0, to.note)));
+    }
+    return out;
+  }
+
+  /// One passage, split into strains when it has [_splitPassageBars] counted
+  /// bars or more: by its own repeats, authored lines or evenly printed lines
+  /// when those give two or more, else into 8-bar blocks from its first full
+  /// bar, a remainder under 4 bars joining the last block. Strains after the
+  /// first start on a downbeat, for [withLeadIns] to move onto their lead-ins.
+  static List<({({int bar, int note}) from, ({int bar, int note}) to})>
+      _splitPassage(List<Measure> measures, ({int bar, int note}) from,
+          ({int bar, int note}) to) {
+    final whole = [(from: from, to: to)];
+    final first = from.note > 0 ? from.bar + 1 : from.bar;
+    final count = to.bar - first;
+    if (count < _splitPassageBars) return whole;
+    final body = measures.sublist(first, to.bar);
+    final seg =
+        _repeatStrains(body) ?? _lineStrains(body) ?? _printedLineStrains(body);
+    final cuts = <int>[];
+    if (seg != null && seg.strains.length >= _minStrains) {
+      final byNumber = {
+        for (var i = first; i < to.bar; i++) measures[i].number: i,
+      };
+      for (var k = 1; k < seg.starts.length; k++) {
+        if ((seg.startNotes?[k] ?? 0) != 0) return whole; // keep it simple
+        cuts.add(byNumber[seg.starts[k]]!);
+      }
+    } else {
+      for (var b = first + 8; to.bar - b >= _minPassageBars; b += 8) {
+        cuts.add(b);
+      }
+    }
+    final points = [from, for (final c in cuts) (bar: c, note: 0), to];
+    return [
+      for (var k = 0; k + 1 < points.length; k++)
+        (from: points[k], to: points[k + 1]),
+    ];
   }
 
   /// [measures] with the authored line starts and part labels of [source]
@@ -74,6 +262,8 @@ class SectionDetector {
           lineStartNote: source[i].lineStartNote,
           systemStart: measures[i].systemStart,
           timeChange: measures[i].timeChange,
+          keyChange: measures[i].keyChange,
+          endings: measures[i].endings,
         ),
     ];
   }
@@ -97,17 +287,22 @@ class SectionDetector {
   /// pickup. With no such ending, it is the tail as long as the opening
   /// pickup, on a note boundary, skipping leading rests.
   /// The first section's lead-in is the opening pickup itself, so a first
-  /// section starting on the bar after it moves back onto the pickup bar. Any
-  /// section already off its downbeat is left alone, as is a start at a
-  /// repeat boundary, unless the tail of the `:|` bar before it is the same
+  /// section starting on the bar after it moves back onto the pickup bar.
+  /// The opening pickup is the music before the first full bar: a short
+  /// first bar, or the notes after the rests in the bar a soloist comes in
+  /// on after a multi-bar rest (see [_openingPickup]). Any
+  /// section already off its downbeat is left alone, as is one where the time
+  /// or key changes (the new meter or key is where it begins), and a start at
+  /// a repeat boundary, unless the tail of the `:|` bar before it is the same
   /// music as the lead-in into that repeat (Devil's Dream's `e2`), which
   /// then serves both.
   static List<Section> withLeadIns(
       List<Section> sections, List<Measure> measures) {
     if (measures.length < 2 || sections.length < 2) return sections;
-    final pickup = measures.first.actualUnits;
-    final fullBar = _commonUnits(measures);
-    if (pickup <= 0 || pickup >= fullBar) return sections;
+    final opening = _openingPickup(measures);
+    if (opening == null) return sections;
+    final full = _fullBars(measures);
+    final changes = _meterOrKeyChanges(measures);
     final indexOf = {
       for (var i = 0; i < measures.length; i++) measures[i].number: i,
     };
@@ -118,24 +313,27 @@ class SectionDetector {
     return [
       for (final s in sections)
         if (identical(s, first))
-          indexOf[s.startMeasure] == 1 && s.startNote == 0
-              ? Section(label: s.label, startMeasure: measures.first.number)
+          indexOf[s.startMeasure] == opening.bar + 1 && s.startNote == 0
+              ? Section(
+                  label: s.label,
+                  startMeasure: measures[opening.bar].number,
+                  startNote: opening.note)
               : s
-        else if (s.startNote != 0)
+        else if (s.startNote != 0 || changes.contains(indexOf[s.startMeasure]))
           s
         else
-          _leadIn(s, measures, indexOf, pickup, fullBar) ?? s,
+          _leadIn(s, measures, indexOf, opening.units, full) ?? s,
     ];
   }
 
   static Section? _leadIn(Section s, List<Measure> measures,
-      Map<int, int> indexOf, int pickup, int fullBar) {
+      Map<int, int> indexOf, int pickup, List<int> full) {
     final i = indexOf[s.startMeasure];
     if (i == null || i == 0) return null;
     final here = measures[i], prev = measures[i - 1];
     if (here.repeatStart && !prev.repeatEnd) return null;
-    if (prev.actualUnits != fullBar) return null;
-    final afterEnd = _afterPhraseEnd(prev.notes, fullBar);
+    if (prev.actualUnits != full[i - 1]) return null;
+    final afterEnd = _afterPhraseEnd(prev.notes, full[i - 1]);
     if (afterEnd == _noLeadIn) return null;
     var j = afterEnd ?? _pickupTail(prev.notes, pickup);
     if (j == null) return null;
@@ -201,6 +399,41 @@ class SectionDetector {
     }
     if (j <= 0 || j >= notes.length) return null;
     return j;
+  }
+
+  /// The opening pickup: where it starts and how long it is. A short first
+  /// bar is one (from its start, as ever); so are the notes after the rests
+  /// in the first bar that sounds after leading rest bars — a solo part
+  /// coming in on an upbeat after an accompaniment's intro. Null when the
+  /// music starts on a full bar's downbeat.
+  static ({int bar, int note, int units})? _openingPickup(
+      List<Measure> measures) {
+    final full = _fullBars(measures);
+    final f = measures.indexWhere((m) => m.notes.any((n) => !n.isRest));
+    if (f < 0) return null;
+    if (f == 0) {
+      final units = measures.first.actualUnits;
+      return units > 0 && units < full[0]
+          ? (bar: 0, note: 0, units: units)
+          : null;
+    }
+    final notes = measures[f].notes;
+    final k = notes.indexWhere((n) => !n.isRest);
+    final units = unitsOf(notes.sublist(k));
+    return units > 0 && units < full[f] ? (bar: f, note: k, units: units) : null;
+  }
+
+  /// Each bar's full length: the commonest bar length, or, in a piece that
+  /// changes meter, the length of the meter in force there.
+  static List<int> _fullBars(List<Measure> measures) {
+    final common = _commonUnits(measures);
+    final meters = {
+      for (final m in measures)
+        if (m.timeChange != null) m.timeChange!,
+    };
+    if (meters.length < 2) return List.filled(measures.length, common);
+    var cur = measures.first.timeChange?.units ?? common;
+    return [for (final m in measures) cur = m.timeChange?.units ?? cur];
   }
 
   /// The commonest bar length — a full bar, whatever the time signature.
@@ -449,14 +682,14 @@ class SectionDetector {
   /// one section and its second the next one's pickup (Gundagai's `A z ‖ d c`,
   /// The Single Girl's `…G2 ‖ G`).
   static Set<int> _leadInBars(List<Measure> measures) {
-    final fullBar = _commonUnits(measures);
+    final full = _fullBars(measures);
     return {
       for (var i = 0; i < measures.length; i++)
-        if (measures[i].actualUnits < fullBar &&
+        if (measures[i].actualUnits < full[i] &&
             (i == 0 ||
-                (measures[i - 1].actualUnits < fullBar &&
+                (measures[i - 1].actualUnits < full[i] &&
                     measures[i - 1].actualUnits + measures[i].actualUnits ==
-                        fullBar)))
+                        full[i])))
           i,
     };
   }

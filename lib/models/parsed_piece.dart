@@ -84,6 +84,21 @@ class Measure {
   /// [ParsedPiece.meterAt].
   final Meter? timeChange;
 
+  /// The key signature written in this measure (the `<fifths>` of a `<key>`
+  /// in its `<attributes>`), or null when it carries on in the key before it.
+  /// Like [timeChange], it may restate the key in force; compare before
+  /// treating it as a change. A section boundary for [SectionDetector].
+  final int? keyChange;
+
+  /// The volta brackets ("first/second endings") this measure sits under,
+  /// parsed from MusicXML `<ending>` elements in the measures' barlines (a
+  /// `start` opens a bracket, a `stop` or `discontinue` closes it): `{1}`
+  /// under a first ending, `{2}` under a second,
+  /// `{1, 2}` for a bracket numbered `1, 2`. Empty for an ordinary measure.
+  /// [ParsedPiece.performanceOrder] plays a measure only on the passes its
+  /// set names.
+  final Set<int> endings;
+
   const Measure({
     required this.number,
     required this.notes,
@@ -102,6 +117,8 @@ class Measure {
     this.lineStartNote,
     this.systemStart = false,
     this.timeChange,
+    this.keyChange,
+    this.endings = const {},
   });
 
   /// Returns a copy with replaced [notes], carrying the measure number, hidden
@@ -128,6 +145,8 @@ class Measure {
         lineStartNote: lineStartNote,
         systemStart: systemStart,
         timeChange: timeChange,
+        keyChange: keyChange,
+        endings: endings,
       );
 
   /// True when this measure's visible notes don't sum to the expected number of
@@ -237,6 +256,8 @@ class ParsedPiece {
         lineStartNote: m.lineStartNote,
         systemStart: m.systemStart,
         timeChange: meter,
+        keyChange: m.keyChange,
+        endings: m.endings,
       );
 
   /// The meter the piece opens in: [beatsPerMeasure]/[beatType].
@@ -308,8 +329,16 @@ class ParsedPiece {
   /// point; a backward repeat ([Measure.repeatEnd]), the first time it's
   /// reached, jumps back to that return point once (defaulting to the piece
   /// start if no forward repeat preceded it), then continues past on the second
-  /// arrival. Nested repeats and voltas/endings are out of scope. With no
-  /// repeats the result is the identity `[0, 1, … n-1]`.
+  /// arrival. Nested repeats are out of scope. With no repeats the result is
+  /// the identity `[0, 1, … n-1]`.
+  ///
+  /// First/second endings ([Measure.endings]) are honoured by counting
+  /// passes: each `:|` taken starts the next pass, and a measure under a
+  /// volta plays only on the passes it names, so `|: 1–3 [1 4 :| [2 5` plays
+  /// 1 2 3 4 1 2 3 5. A first ending with no `:|` of its own (OMR missed it,
+  /// or nobody marked one) repeats anyway when the next measure is an ending
+  /// for a later pass. Once a volta group is behind it, a later `:|` with no
+  /// `|:` returns to the bar after the group, not to the earlier strain.
   ///
   /// Then the navigation marks: at the end of a [Measure.daCapo] (or
   /// [Measure.dalSegno]) bar — once its own `:|`, if any, has been taken — the
@@ -354,16 +383,45 @@ class ParsedPiece {
     final endRepeatTaken = <int>{};
     var returnIndex = 0;
     var jumped = false;
+    var pass = 1; // which time through the current repeat (for endings)
+    var arrivedByJump = false;
     var i = 0;
     var guard = 0;
     while (i < measures.length) {
       if (++guard > 1000000) break; // backstop against a malformed loop
       final m = measures[i];
-      if (m.repeatStart) returnIndex = i;
+      if (m.repeatStart) {
+        returnIndex = i;
+        if (!arrivedByJump) pass = 1;
+      }
+      arrivedByJump = false;
+      // A measure under a volta for another pass is skipped. After a D.C. or
+      // D.S. the player takes the last ending of each group.
+      if (m.endings.isNotEmpty &&
+          !m.endings.contains(jumped ? _lastEndingOfGroup(measures, i) : pass)) {
+        i = _advance(measures, i, (r) => returnIndex = r, () => pass = 1);
+        continue;
+      }
       order.add(i);
-      if (m.repeatEnd && !endRepeatTaken.contains(i)) {
+      final next = i + 1 < measures.length ? measures[i + 1] : null;
+      final implicitEnd = !jumped &&
+          m.endings.isNotEmpty &&
+          next != null &&
+          next.endings.isNotEmpty &&
+          !next.endings.contains(pass) &&
+          next.endings.any((p) => p > pass);
+      // A :| under an ending repeats on every pass a later ending is
+      // waiting for (`[1,2 :| [3` repeats twice); others repeat once.
+      final voltaRepeat = !jumped &&
+          m.repeatEnd &&
+          m.endings.isNotEmpty &&
+          _lastEndingOfGroup(measures, i) > pass;
+      if (voltaRepeat ||
+          ((m.repeatEnd || implicitEnd) && !endRepeatTaken.contains(i))) {
         endRepeatTaken.add(i);
         i = returnIndex;
+        pass++;
+        arrivedByJump = true;
         continue;
       }
       if (jumped) {
@@ -384,11 +442,44 @@ class ParsedPiece {
           if (s >= 0) target = s;
         }
         i = returnIndex = target;
+        arrivedByJump = true;
         continue;
       }
-      i++;
+      i = _advance(measures, i, (r) => returnIndex = r, () => pass = 1);
     }
     return (order: order, jumpAt: jumpAt);
+  }
+
+  /// Steps forward from document measure [i]. Leaving a volta group (a
+  /// measure under an ending followed by one that isn't) ends that repeat:
+  /// the pass count resets and a later bare `:|` returns to the bar after it.
+  static int _advance(List<Measure> measures, int i,
+      void Function(int) setReturn, void Function() resetPass) {
+    final n = i + 1;
+    if (measures[i].endings.isNotEmpty &&
+        (n >= measures.length || measures[n].endings.isEmpty)) {
+      resetPass();
+      setReturn(n);
+    }
+    return n;
+  }
+
+  /// The highest pass named anywhere in the run of volta measures around [i].
+  static int _lastEndingOfGroup(List<Measure> measures, int i) {
+    var lo = i, hi = i;
+    while (lo > 0 && measures[lo - 1].endings.isNotEmpty) {
+      lo--;
+    }
+    while (hi + 1 < measures.length && measures[hi + 1].endings.isNotEmpty) {
+      hi++;
+    }
+    var best = 1;
+    for (var k = lo; k <= hi; k++) {
+      for (final p in measures[k].endings) {
+        if (p > best) best = p;
+      }
+    }
+    return best;
   }
 
   /// Measure numbers whose visible notes don't total the expected beat count.

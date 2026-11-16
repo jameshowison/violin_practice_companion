@@ -614,4 +614,108 @@ void main() {
           [6, 10, 14]);
     });
   });
+
+  group('seams: time and key changes, multi-bar rests', () {
+    // The shape of a scanned medley ("We Wish You a Merry Christmas
+    // Fantasy", sectioned by hand): bar lengths, meters, keys, rests and
+    // barlines as in the score; pitches are placeholders, all distinct so no
+    // two strains match. The hand-made sections start at
+    // 1, 6.1, 14.1, 24, 36, 45 and 52.
+    var pitch = 50;
+    NoteEvent n(NoteValue v, {bool rest = false}) => NoteEvent(
+          pitch: 'X',
+          midiNumber: rest ? 0 : pitch++,
+          octave: 4,
+          noteValue: v,
+          dotted: false,
+          isRest: rest,
+        );
+    const q = NoteValue.quarter, h = NoteValue.half, e = NoteValue.eighth;
+    const w = NoteValue.whole;
+    List<NoteEvent> bar(int units) => units == 32
+        ? [for (var i = 0; i < 8; i++) n(e)]
+        : units == 24
+            ? [n(q), n(q), n(q)]
+            : [n(e), n(e), n(e), n(e)];
+
+    List<Measure> medley() {
+      pitch = 50;
+      Measure m(int number, List<NoteEvent> notes,
+              {Meter? time, int? key, bool repeatStart = false,
+              bool repeatEnd = false, bool doubleBarEnd = false}) =>
+          Measure(
+              number: number,
+              notes: notes,
+              timeChange: time,
+              keyChange: key,
+              repeatStart: repeatStart,
+              repeatEnd: repeatEnd,
+              doubleBarEnd: doubleBarEnd);
+      return [
+        m(1, [n(w, rest: true)], time: const Meter(4, 4), key: 1),
+        m(2, [n(w, rest: true)]),
+        m(3, [n(h, rest: true), n(q, rest: true)], time: const Meter(3, 4)),
+        m(4, [n(h, rest: true), n(q, rest: true)]),
+        m(5, [n(h, rest: true), n(q, rest: true)]),
+        m(6, [n(h, rest: true), n(q)]), // the soloist's pickup
+        m(7, bar(24), repeatStart: true),
+        for (var b = 8; b <= 13; b++) m(b, bar(24)),
+        m(14, [n(h), n(q)]), // phrase end, then the next phrase's pickup
+        for (var b = 15; b <= 21; b++) m(b, bar(24)),
+        m(22, bar(24), repeatEnd: true),
+        m(23, [n(q), n(q, rest: true), n(q, rest: true)]),
+        m(24, bar(32), time: const Meter(4, 4)),
+        m(25, bar(32), doubleBarEnd: true),
+        m(26, bar(32), key: 3),
+        for (var b = 27; b <= 34; b++) m(b, bar(32)),
+        m(35, bar(16), time: const Meter(2, 4)),
+        m(36, bar(32), time: const Meter(4, 4)),
+        for (var b = 37; b <= 44; b++) m(b, bar(32)),
+        m(45, bar(24), time: const Meter(3, 4)),
+        for (var b = 46; b <= 51; b++) m(b, bar(24)),
+        m(52, bar(32), time: const Meter(4, 4)),
+        for (var b = 53; b <= 54; b++) m(b, bar(32)),
+        m(55, bar(32), doubleBarEnd: true),
+      ];
+    }
+
+    test('finds the hand-made sections of a scanned medley', () {
+      final sections = SectionDetector.detect(medley());
+      expect([for (final s in sections) '${s.startMeasure}.${s.startNote}'],
+          ['1.0', '6.1', '14.1', '24.0', '36.0', '45.0', '52.0']);
+      expect([for (final s in sections) s.label],
+          [SectionDetector.introLabel, 'A', 'B', 'C', 'D', 'E', 'F']);
+    });
+
+    test('a restated signature is not a change', () {
+      final measures = [
+        for (var b = 1; b <= 16; b++)
+          Measure(
+              number: b,
+              notes: [for (var i = 0; i < 4; i++) _note(60 + b)],
+              timeChange: b == 9 ? const Meter(4, 4) : null,
+              keyChange: b == 9 ? 0 : null),
+      ];
+      measures[0] = Measure(
+          number: 1,
+          notes: measures[0].notes,
+          timeChange: const Meter(4, 4),
+          keyChange: 0);
+      // No seam, so the plain 8-bar blocks decide, as before.
+      expect([for (final s in SectionDetector.detect(measures)) s.startMeasure],
+          [1, 9]);
+    });
+
+    test('a key change starts a section with no lead-in', () {
+      final measures = [
+        for (var b = 1; b <= 10; b++)
+          Measure(
+              number: b,
+              notes: [for (var i = 0; i < 4; i++) _note(60 + b)],
+              keyChange: b == 1 ? 0 : (b == 6 ? 2 : null)),
+      ];
+      expect([for (final s in SectionDetector.detect(measures)) s.startMeasure],
+          [1, 6]);
+    });
+  });
 }
