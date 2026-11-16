@@ -30,11 +30,15 @@ class PieceListTile extends StatelessWidget {
     required this.wide,
     required this.lastPlayed,
     required this.onTap,
+    this.selected,
   });
 
   final PieceListRow row;
   final String subtitle;
   final bool wide;
+
+  /// In Select mode, whether this row is ticked; null outside it.
+  final bool? selected;
 
   /// "Today", "3 days ago"; only shown wide.
   final String? lastPlayed;
@@ -59,6 +63,10 @@ class PieceListTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
         child: Row(
           children: [
+            if (selected case final on?) ...[
+              SelectionMark(selected: on),
+              const SizedBox(width: 12),
+            ],
             if (row.bookNumber case final n?) ...[
               BookNumberBadge(number: n),
               const SizedBox(width: 12),
@@ -99,7 +107,8 @@ class PieceListTile extends StatelessWidget {
                       size: 18, color: muted, semanticLabel: 'Has a recording')
                   : null,
             ),
-            Icon(Icons.chevron_right, color: theme.colorScheme.outline),
+            if (selected == null)
+              Icon(Icons.chevron_right, color: theme.colorScheme.outline),
           ],
         ),
       );
@@ -113,7 +122,8 @@ class PieceListTile extends StatelessWidget {
   /// order of least use: keywords, then time, then last played; key stays.
   static const _minTitle = 220.0;
 
-  /// Padding, number badge, recording mark and chevron.
+  /// Padding, number badge, recording mark and chevron (or, in Select mode,
+  /// the selection mark, about as wide).
   static const _chrome = 16 + 12 + 42 + 24 + 24.0;
 
   static List<Widget> _columns(
@@ -151,6 +161,7 @@ class PieceCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.selected,
   });
 
   final PieceListRow row;
@@ -158,13 +169,22 @@ class PieceCard extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
+  /// In Select mode, whether this card is ticked; null outside it.
+  final bool? selected;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final ink = SkinStyle.of(context).cardInk;
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(22),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: selected == true
+            ? BorderSide(color: theme.colorScheme.primary, width: 3)
+            : BorderSide.none,
+      ),
+      clipBehavior: Clip.antiAlias,
       elevation: 0,
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
@@ -203,7 +223,9 @@ class PieceCard extends StatelessWidget {
                           : const SizedBox.shrink(),
                     ),
                   ),
-                  if (row.hasRecording)
+                  if (selected case final on?)
+                    SelectionMark(selected: on, onCard: true)
+                  else if (row.hasRecording)
                     Icon(Icons.graphic_eq,
                         size: 18, color: ink, semanticLabel: 'Has a recording'),
                 ],
@@ -258,6 +280,40 @@ class BookNumberBadge extends StatelessWidget {
             fontWeight: FontWeight.w800,
             color: inverse ? Colors.white : scheme.onPrimaryContainer,
           )),
+    );
+  }
+}
+
+/// Select mode's tick: an empty ring, or a filled one with a check.
+class SelectionMark extends StatelessWidget {
+  const SelectionMark({super.key, required this.selected, this.onCard = false});
+
+  final bool selected;
+
+  /// On a coloured card the empty ring needs a white fill to read.
+  final bool onCard;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final ink = SkinStyle.of(context).cardInk;
+    return Semantics(
+      checked: selected,
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? scheme.primary : (onCard ? Colors.white : null),
+          border: Border.all(
+            color: selected ? scheme.primary : (onCard ? ink : scheme.outline),
+            width: 1.6,
+          ),
+        ),
+        child: selected
+            ? Icon(Icons.check, size: 16, color: scheme.onPrimary)
+            : null,
+      ),
     );
   }
 }

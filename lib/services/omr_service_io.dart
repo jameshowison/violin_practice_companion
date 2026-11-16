@@ -86,7 +86,7 @@ class OmrService implements OmrServiceBase {
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   /// When no title can be read: "Scanned piece 10 Nov 2026 16:40". Rename it
-  /// in Manage pieces.
+  /// by pressing and holding it in the piece list.
   static String _defaultTitle(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
     return 'Scanned piece ${t.day} ${_months[t.month - 1]} ${t.year} ${two(t.hour)}:${two(t.minute)}';

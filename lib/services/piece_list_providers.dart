@@ -59,6 +59,14 @@ final recordedPiecesProvider = FutureProvider<Set<String>>((ref) async {
   };
 });
 
+/// Pieces deleted moments ago whose Undo snackbar is still up.
+///
+/// Deleting is deferred: the piece leaves the list at once, and the files go
+/// only when the snackbar closes without Undo (see `deletePiecesWithUndo`).
+/// Killing the app inside that window therefore keeps the piece, which is the
+/// safe way round. Session-only on purpose.
+final pendingDeletesProvider = StateProvider<Set<String>>((_) => const {});
+
 /// The list the screen renders. Waits only for the pieces: the library,
 /// metadata and recordings decorate it as they arrive, never gate it.
 final pieceListProvider = Provider<AsyncValue<PieceListResult>>((ref) {
@@ -68,8 +76,11 @@ final pieceListProvider = Provider<AsyncValue<PieceListResult>>((ref) {
   final activity = ref.watch(pieceActivityProvider);
   final filter = ref.watch(pieceFilterProvider);
   final query = ref.watch(pieceSearchProvider);
+  final pending = ref.watch(pendingDeletesProvider);
   return ref.watch(piecesProvider).whenData((List<Piece> pieces) => filterPieces(
-        pieces: pieces,
+        pieces: pending.isEmpty
+            ? pieces
+            : [for (final p in pieces) if (!pending.contains(p.id)) p],
         library: library,
         meta: meta,
         activity: activity,

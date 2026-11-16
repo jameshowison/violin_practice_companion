@@ -44,6 +44,7 @@ import '../widgets/measure_edit_panel.dart';
 import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
+import '../widgets/piece_actions.dart';
 import '../widgets/print_sheet.dart';
 import '../widgets/share_piece_sheet.dart';
 import '../widgets/section_chip_row.dart';
@@ -447,6 +448,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         showSharePieceSheet(context, piece);
                       },
                     ),
+                  // Rename, keywords, ABC, hide or delete: what press and hold
+                  // on the piece list offers, in plain sight.
+                  const Divider(),
+                  const _DrawerLabel('This piece'),
+                  PieceEditTiles(host: context, piece: piece),
+                  const Divider(),
                   // Second because it is the other question that decides what
                   // everything else says: which instrument the numbers are
                   // for. Shown in every view — the title line and the

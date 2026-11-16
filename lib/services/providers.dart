@@ -84,7 +84,7 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 /// `loadAll()` would make the repository depend on `shared_preferences` (so it
 /// could not run headless), would force this into a family so all four
 /// `ref.invalidate(piecesProvider)` sites had to care about a flag unrelated to
-/// importing a score, and would leave the Manage screen — which needs
+/// importing a score, and would leave the hidden-pieces sheet — which needs
 /// everything, with hidden marked — without a source. See [visiblePiecesProvider].
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
   await ref.watch(devLibraryProvider.future);
@@ -215,7 +215,7 @@ final activeCollectionProvider = StateProvider<String?>((_) => null);
 final pieceSearchProvider = StateProvider<String>((_) => '');
 
 /// Every piece with its user-chosen title applied — nothing filtered, nothing
-/// reordered. What the Manage screen lists (it needs the hidden ones too).
+/// reordered, hidden ones included.
 ///
 /// The library is read with `valueOrNull` rather than awaited: while the
 /// metadata read is in flight the raw list shows instead of a spinner.
@@ -234,9 +234,9 @@ final libraryPiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
 /// There is deliberately no "show hidden" escape hatch here. This list once had
 /// a session-sticky toggle, and it was a trap: leave it on and hiding silently
 /// stops applying on the one screen hiding exists to protect, with nothing but a
-/// grey footer at the bottom of a long list to say so. Hidden pieces are always
-/// visible (dimmed) on the Manage screen instead, which is where they can be
-/// changed anyway — one place, no mode.
+/// grey footer at the bottom of a long list to say so. That footer now opens a
+/// sheet listing the hidden pieces, each with a Show button — one place, no
+/// mode.
 final visiblePiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
   final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
   final collectionId = ref.watch(activeCollectionProvider);

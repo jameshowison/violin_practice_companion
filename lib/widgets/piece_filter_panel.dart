@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/piece_filter.dart';
 import '../models/piece_library.dart';
-import '../screens/manage_pieces_screen.dart';
+import 'piece_actions.dart';
 import '../services/piece_list_providers.dart';
 import '../services/providers.dart';
 import '../theme/skin_style.dart';
@@ -88,37 +88,55 @@ class PieceFilterPanel extends ConsumerWidget {
                       ),
                   const _SectionHeader('Books and sets'),
                   if (books.isEmpty)
-                    const _Hint('Make a keyword a book in Manage to keep '
-                        'its pieces in order.')
+                    const _Hint('Press and hold a keyword and choose "Make it '
+                        'a book" to keep its pieces in order.')
                   else
                     _Group(children: [
                       for (final b in books)
-                        _OptionTile(
-                          key: ValueKey('filter_book_${b.id}'),
-                          leading: Icons.format_list_numbered,
-                          label: b.name,
-                          count: result?.bookCounts[b.id],
-                          selected: filter.bookId == b.id,
-                          onTap: () => update((f) => f.toggleBook(b.id)),
+                        _CollectionMenu(
+                          collection: b,
+                          preview: _surfacePreview,
+                          child: _OptionTile(
+                            key: ValueKey('filter_book_${b.id}'),
+                            leading: Icons.format_list_numbered,
+                            label: b.name,
+                            count: result?.bookCounts[b.id],
+                            selected: filter.bookId == b.id,
+                            onTap: () => update((f) => f.toggleBook(b.id)),
+                          ),
                         ),
                     ]),
                   const _SectionHeader('Keywords'),
                   if (tags.isEmpty)
-                    const _Hint('No keywords yet. Add them in Manage.')
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final t in tags)
-                          FilterChip(
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: _Hint('No keywords yet. Press and hold a piece '
+                          'to give it one, or make one here.'),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final t in tags)
+                        _CollectionMenu(
+                          collection: t,
+                          preview: _chipPreview,
+                          child: FilterChip(
                             key: ValueKey('filter_tag_${t.id}'),
                             label: Text(_countLabel(t.name, result?.tagCounts[t.id])),
                             selected: filter.tagIds.contains(t.id),
                             onSelected: (_) => update((f) => f.toggleTag(t.id)),
                           ),
-                      ],
-                    ),
+                        ),
+                      ActionChip(
+                        key: const ValueKey('filter_new_keyword_chip'),
+                        avatar: const Icon(Icons.add, size: 18),
+                        label: const Text('New'),
+                        tooltip: 'New keyword',
+                        onPressed: () => PieceActions(context, ref).createKeyword(),
+                      ),
+                    ],
+                  ),
                   const _SectionHeader('Key'),
                   if (keys.isEmpty)
                     const _Hint('Reading keys…')
@@ -144,20 +162,6 @@ class PieceFilterPanel extends ConsumerWidget {
                           update((f) => f.copyWith(hasRecording: v)),
                     ),
                   ]),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      key: const ValueKey('manage_pieces_button'),
-                      icon: const Icon(Icons.edit_note),
-                      label: const Text('Manage pieces and keywords…'),
-                      onPressed: () {
-                        if (dismissible) close();
-                        Navigator.of(context).push(MaterialPageRoute<void>(
-                            builder: (_) => const ManagePiecesScreen()));
-                      },
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -200,6 +204,103 @@ class PieceFilterPanel extends ConsumerWidget {
 
 String _countLabel(String name, int? count) =>
     count == null ? name : '$name  $count';
+
+/// A lifted book row needs the white of its group behind it.
+Widget _surfacePreview(BuildContext context, Widget child) => Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(SkinStyle.of(context).groupRadius),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+
+/// A lifted chip draws itself; it only needs a Material to draw in.
+Widget _chipPreview(BuildContext context, Widget child) =>
+    Material(type: MaterialType.transparency, child: child);
+
+enum _CollectionAction { rename, book, keyword, addPieces, delete }
+
+/// Press and hold on a keyword chip or a book row: rename it, turn a keyword
+/// into a book or back, add pieces to it, or delete it. These were the
+/// retired Manage screen's keyword controls.
+class _CollectionMenu extends ConsumerWidget {
+  const _CollectionMenu({
+    required this.collection,
+    required this.child,
+    this.preview,
+  });
+
+  final Collection collection;
+  final Widget child;
+  final Widget Function(BuildContext, Widget)? preview;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = collection;
+    return AppContextMenu<_CollectionAction>(
+      key: ValueKey('collection_menu_${c.id}'),
+      title: c.name,
+      preview: preview,
+      actions: () => [
+        const AppSheetAction(
+            key: ValueKey('collection_menu_rename'),
+            value: _CollectionAction.rename,
+            label: 'Rename…',
+            icon: Icons.edit_outlined),
+        if (c.ordered)
+          const AppSheetAction(
+              key: ValueKey('collection_menu_keyword'),
+              value: _CollectionAction.keyword,
+              label: 'Make it a keyword',
+              icon: Icons.sell_outlined)
+        else
+          const AppSheetAction(
+              key: ValueKey('collection_menu_book'),
+              value: _CollectionAction.book,
+              label: 'Make it a book',
+              icon: Icons.format_list_numbered),
+        const AppSheetAction(
+            key: ValueKey('collection_menu_add_pieces'),
+            value: _CollectionAction.addPieces,
+            label: 'Add pieces…',
+            icon: Icons.playlist_add),
+        AppSheetAction(
+            key: const ValueKey('collection_menu_delete'),
+            value: _CollectionAction.delete,
+            label: c.ordered ? 'Delete book' : 'Delete keyword',
+            icon: Icons.delete_outline,
+            destructive: true),
+      ],
+      onSelected: (choice) async {
+        final actions = PieceActions(context, ref);
+        // A keyword that stops being one (deleted, or now a book) must not
+        // stay behind as an active filter nobody can see to clear.
+        void dropFromFilter() {
+          final n = ref.read(pieceFilterProvider.notifier);
+          var f = n.state;
+          if (f.tagIds.contains(c.id)) f = f.toggleTag(c.id);
+          if (f.bookId == c.id) f = f.toggleBook(c.id);
+          n.state = f;
+        }
+
+        switch (choice) {
+          case _CollectionAction.rename:
+            await actions.renameKeyword(c);
+          case _CollectionAction.book:
+            dropFromFilter();
+            await actions.setBook(c, true);
+          case _CollectionAction.keyword:
+            dropFromFilter();
+            await actions.setBook(c, false);
+          case _CollectionAction.addPieces:
+            await actions.addPiecesTo(c);
+          case _CollectionAction.delete:
+            if (await actions.deleteKeyword(c)) dropFromFilter();
+        }
+      },
+      child: child,
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text);

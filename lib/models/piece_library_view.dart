@@ -1,4 +1,4 @@
-/// Pure presentation logic for the piece list and the Manage screen.
+/// Pure presentation logic for the piece list and its editing actions.
 ///
 /// Flutter-free (no widget imports) and unit-tested, following the house
 /// convention set by `piece_layout.dart` and `staff_zoom.dart`: layout and copy
@@ -8,7 +8,7 @@ library;
 import 'piece.dart';
 import 'piece_library.dart';
 
-/// One row as the Manage screen needs it: the piece plus the three library
+/// One row with its library state: the piece plus the three library
 /// facts about it that deliberately are NOT fields on [Piece].
 typedef LibraryRow = ({
   Piece piece,
@@ -17,7 +17,7 @@ typedef LibraryRow = ({
   List<String> collectionNames,
 });
 
-/// Builds the Manage screen's rows.
+/// Builds [LibraryRow]s.
 ///
 /// [isBundled] is passed in rather than derived from [Piece.musicXmlAssetPath],
 /// which would be WRONG: once a bundled fixture has been edited the repository
@@ -128,18 +128,9 @@ String? resolveActiveCollection(String? requested, List<Collection> collections)
   return null;
 }
 
-/// Whether a Manage row has room to label its three action buttons.
-///
-/// Below this a phone-width row spends 16 + 40 (drag handle) + 3×40 + 16 =
-/// 192pt on chrome, leaving ~200pt for the title — enough for icons only. The
-/// same 600pt breakpoint as `measuresPerRowForWidth`; see
-/// `piece_detail_screen.dart`'s compact-layout switch for the precedent.
-bool manageRowUsesLabeledActions(double widthPx) => isWideLayout(widthPx);
-
 /// Tablet-class width: the piece list keeps its filter panel out as a
 /// sidebar, where narrower screens slide it in as a drawer. The app's one
-/// width breakpoint, shared with [manageRowUsesLabeledActions] and
-/// `measuresPerRowForWidth`.
+/// width breakpoint, shared with `measuresPerRowForWidth`.
 bool isWideLayout(double widthPx) => widthPx >= 600;
 
 /// The always-out filter sidebar on a wide layout: about a third of the

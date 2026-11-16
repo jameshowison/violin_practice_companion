@@ -11,11 +11,13 @@ import '../services/providers.dart';
 import '../services/verovio_engraver.dart';
 import '../theme/skin_style.dart';
 import '../ui/adaptive/adaptive.dart';
+import '../ui/adaptive/swipe_actions.dart';
+import '../widgets/piece_actions.dart';
 import '../widgets/piece_filter_panel.dart';
 import '../widgets/piece_row.dart';
 import '../widgets/search_token_field.dart';
+import '../widgets/share_piece_sheet.dart';
 import 'abc_import_screen.dart';
-import 'manage_pieces_screen.dart';
 import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
@@ -32,10 +34,11 @@ import '../debug/screenshot_mode.dart';
 /// keeps the same panel out as a sidebar. Either way the active filters show
 /// as tokens in the search field, and the list is Recents or All.
 ///
-/// Read-only apart from the filters and a book's order: renaming, hiding,
-/// deleting and keywording live behind Manage (in the filter panel), so the
-/// surface a kid taps to pick a piece can't accidentally lose one. The gear
-/// opens the app-wide [SettingsScreen].
+/// A tap opens a piece. Editing is on the piece itself, never one tap away:
+/// press and hold for a menu (rename, keywords, share, select, hide or
+/// delete), swipe a Classic row on iOS, or Select several. Delete always asks
+/// first and then offers Undo, so the surface a kid taps to pick a piece
+/// can't lose one by accident. The gear opens the app-wide [SettingsScreen].
 class PieceListScreen extends ConsumerWidget {
   const PieceListScreen({super.key});
 
@@ -279,6 +282,9 @@ SliverGridDelegate _cardGrid(BuildContext context) {
   );
 }
 
+/// What press and hold on a piece offers.
+enum _PieceMenu { rename, keywords, share, select, hide, delete }
+
 class _PieceListBody extends ConsumerStatefulWidget {
   const _PieceListBody({required this.wide});
 
@@ -293,10 +299,237 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
   bool _editing = false;
 
   /// The order just dragged to, shown until the library catches up — the same
-  /// optimism as Manage's reorderable list.
+  /// optimism as any drag-to-reorder list.
   List<String>? _pendingOrder;
 
+  /// Select mode: the ticked pieces, or null when not selecting.
+  Set<String>? _selection;
+
   double get _gutter => widget.wide ? 24 : 16;
+
+  PieceActions get _actions => PieceActions(context, ref);
+
+  void _tapPiece(Piece piece) {
+    final sel = _selection;
+    if (sel == null) {
+      _open(piece);
+      return;
+    }
+    appSelectionHaptic();
+    setState(() => sel.contains(piece.id) ? sel.remove(piece.id) : sel.add(piece.id));
+  }
+
+  List<AppSheetAction<_PieceMenu>> _menuFor(Piece piece) => [
+        const AppSheetAction(
+            key: ValueKey('piece_menu_rename'),
+            value: _PieceMenu.rename,
+            label: 'Rename…',
+            icon: Icons.edit_outlined),
+        const AppSheetAction(
+            key: ValueKey('piece_menu_keywords'),
+            value: _PieceMenu.keywords,
+            label: 'Keywords…',
+            icon: Icons.sell_outlined),
+        if (sharePieceAvailable)
+          const AppSheetAction(
+              key: ValueKey('piece_menu_share'),
+              value: _PieceMenu.share,
+              label: 'Share…',
+              icon: Icons.ios_share),
+        const AppSheetAction(
+            key: ValueKey('piece_menu_select'),
+            value: _PieceMenu.select,
+            label: 'Select',
+            icon: Icons.check_circle_outline),
+        // Destructive last, in red. Built-in pieces ship with the app, so
+        // they can only be hidden.
+        if (_actions.isBundled(piece))
+          const AppSheetAction(
+              key: ValueKey('piece_menu_hide'),
+              value: _PieceMenu.hide,
+              label: 'Hide from list',
+              icon: Icons.visibility_off_outlined,
+              destructive: true)
+        else
+          const AppSheetAction(
+              key: ValueKey('piece_menu_delete'),
+              value: _PieceMenu.delete,
+              label: 'Delete',
+              icon: Icons.delete_outline,
+              destructive: true),
+      ];
+
+  void _onMenu(Piece piece, _PieceMenu choice) {
+    final a = _actions;
+    switch (choice) {
+      case _PieceMenu.rename:
+        a.rename(piece);
+      case _PieceMenu.keywords:
+        a.editKeywords([piece]);
+      case _PieceMenu.share:
+        showSharePieceSheet(context, piece);
+      case _PieceMenu.select:
+        setState(() => _selection = {piece.id});
+      case _PieceMenu.hide:
+        a.hide([piece]);
+      case _PieceMenu.delete:
+        a.delete([piece]);
+    }
+  }
+
+  /// Press and hold, off while selecting (a press then just ticks).
+  Widget _withMenu(Piece piece, Widget child,
+          {Widget Function(BuildContext, Widget)? preview}) =>
+      AppContextMenu<_PieceMenu>(
+        key: ValueKey('piece_menu_${piece.id}'),
+        enabled: _selection == null,
+        title: piece.title,
+        actions: () => _menuFor(piece),
+        onSelected: (c) => _onMenu(piece, c),
+        preview: preview,
+        child: child,
+      );
+
+  /// A Classic row lifted out of its group: white, with the group's corners.
+  static Widget _rowPreview(BuildContext context, Widget child) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius:
+            BorderRadius.circular(SkinStyle.of(context).groupRadius),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      );
+
+  /// Classic rows on iOS: swipe right for Keywords, left for Delete (Hide for
+  /// a built-in piece). Each only reveals its button.
+  Widget _withSwipe(Piece piece, Widget child) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppSwipeActions(
+      enabled: _selection == null,
+      leading: SwipeAction(
+        key: ValueKey('swipe_keywords_${piece.id}'),
+        label: 'Keywords',
+        icon: Icons.sell_outlined,
+        color: scheme.primary,
+        onPressed: () => _actions.editKeywords([piece]),
+      ),
+      trailing: _actions.isBundled(piece)
+          ? SwipeAction(
+              key: ValueKey('swipe_hide_${piece.id}'),
+              label: 'Hide',
+              icon: Icons.visibility_off_outlined,
+              color: const Color(0xFFFF9500), // iOS system orange
+              onPressed: () => _actions.hide([piece]),
+            )
+          : SwipeAction(
+              key: ValueKey('swipe_delete_${piece.id}'),
+              label: 'Delete',
+              icon: Icons.delete_outline,
+              color: scheme.error,
+              onPressed: () => _actions.delete([piece]),
+            ),
+      child: child,
+    );
+  }
+
+  Widget _selectButton() => TextButton(
+        key: const ValueKey('piece_select_button'),
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        onPressed: () => setState(
+            () => _selection = _selection == null ? <String>{} : null),
+        child: Text(_selection == null ? 'Select' : 'Done'),
+      );
+
+  static Widget _toolbarButton({
+    required String key,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    Color? color,
+  }) =>
+      Expanded(
+        child: TextButton(
+          key: ValueKey(key),
+          style: TextButton.styleFrom(foregroundColor: color),
+          onPressed: onPressed,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ]),
+        ),
+      );
+
+  /// Select mode's actions on the ticked pieces that are still on screen.
+  Widget _selectToolbar(PieceListResult result) {
+    final ids = _selection!;
+    final chosen = [
+      for (final r in result.rows)
+        if (ids.contains(r.piece.id)) r.piece
+    ];
+    final none = chosen.isEmpty;
+    final anyBundled = chosen.any(_actions.isBundled);
+    void done() {
+      if (mounted) setState(() => _selection = null);
+    }
+
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          // Icon over label, as on an iOS toolbar: three side-by-side
+          // icon-and-label buttons overflow an SE.
+          child: Row(
+            children: [
+              _toolbarButton(
+                key: 'select_keywords_button',
+                icon: Icons.sell_outlined,
+                label: 'Keywords',
+                onPressed: none
+                    ? null
+                    : () async {
+                        await _actions.editKeywords(chosen);
+                        done();
+                      },
+              ),
+              _toolbarButton(
+                key: 'select_hide_button',
+                icon: Icons.visibility_off_outlined,
+                label: 'Hide',
+                onPressed: none
+                    ? null
+                    : () {
+                        _actions.hide(chosen);
+                        done();
+                      },
+              ),
+              // Built-in pieces can only be hidden, so a selection holding
+              // one can't be deleted.
+              _toolbarButton(
+                key: 'select_delete_button',
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                color: theme.colorScheme.error,
+                onPressed: none || anyBundled
+                    ? null
+                    : () async {
+                        if (await _actions.delete(chosen)) done();
+                      },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _update(PieceFilter Function(PieceFilter) f) {
     appSelectionHaptic();
@@ -379,7 +612,10 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
               ],
               selected: {filter.tab},
               onSelectionChanged: (s) {
-                setState(() => _editing = false);
+                setState(() {
+                  _editing = false;
+                  _selection = null;
+                });
                 _update((f) => f.copyWith(tab: s.single));
               },
             ),
@@ -391,6 +627,8 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
                 : filter.onShelf
                     ? _shelf(result)
                     : _list(result, filter)),
+        if (_selection != null && !editing && !filter.onShelf)
+          _selectToolbar(result),
       ],
     );
   }
@@ -494,9 +732,8 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
               ),
             )
           : const _EmptyState(
-              message: 'No books yet. In Manage, turn on "Book: keeps its own '
-                  'order" for a keyword to shelve it here.',
-              offerManage: true,
+              message: 'No books yet. In Filters, press and hold a keyword '
+                  'and choose "Make it a book" to shelve it here.',
             );
     }
 
@@ -662,7 +899,7 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
       );
       return Column(children: [
         Expanded(
-            child: _EmptyState(message: state.message, offerManage: state.offerManage)),
+            child: _EmptyState(message: state.message)),
         if (hidden > 0) _HiddenFooter(count: hidden),
       ]);
     }
@@ -676,14 +913,30 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     ];
 
     if (skin.rowStyle == PieceRowStyle.cards) {
-      return GridView.builder(
-        padding: EdgeInsets.fromLTRB(_gutter, 14, _gutter, 24),
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(_gutter + 4, 8, _gutter - 4, 0),
+          child: Row(children: [
+            Expanded(
+              child: Text(
+                  _selection == null
+                      ? ''
+                      : '${_selection!.length} selected'.toUpperCase(),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      letterSpacing: 0.6)),
+            ),
+            _selectButton(),
+          ]),
+        ),
+        Expanded(child: GridView.builder(
+        padding: EdgeInsets.fromLTRB(_gutter, 6, _gutter, 24),
         gridDelegate: _cardGrid(context),
         itemCount: result.rows.length + footer.length,
         itemBuilder: (_, i) {
           if (i >= result.rows.length) return footer[i - result.rows.length];
           final r = result.rows[i];
-          return PieceCard(
+          return _withMenu(r.piece, PieceCard(
             key: ValueKey('piece_row_${r.piece.id}'),
             row: r,
             subtitle: recents
@@ -693,10 +946,12 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
                   ].join(' · ')
                 : (r.meta?.composer ?? ''),
             color: skin.cardColors[i % skin.cardColors.length],
-            onTap: () => _open(r.piece),
-          );
+            selected: _selection?.contains(r.piece.id),
+            onTap: () => _tapPiece(r.piece),
+          ));
         },
-      );
+      )),
+      ]);
     }
 
     // Classic: inset groups. Recents (with no book) by day; otherwise one group.
@@ -724,19 +979,34 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     }
 
     final theme = Theme.of(context);
-    return ListView(
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant, letterSpacing: 0.6);
+    return AppSwipeGroup(child: ListView(
       padding: EdgeInsets.fromLTRB(_gutter, 4, _gutter, 24),
       children: [
-        for (final (label, rows) in groups) ...[
-          if (label.isEmpty)
+        for (final (gi, (label, rows)) in groups.indexed) ...[
+          // The first header carries Select at its right.
+          if (gi == 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 4, 2),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                      (_selection != null
+                              ? '${_selection!.length} selected'
+                              : label)
+                          .toUpperCase(),
+                      style: labelStyle),
+                ),
+                _selectButton(),
+              ]),
+            )
+          else if (label.isEmpty)
             const SizedBox(height: 14)
           else
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
-            child: Text(label.toUpperCase(),
-                style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    letterSpacing: 0.6)),
+            child: Text(label.toUpperCase(), style: labelStyle),
           ),
           Material(
             color: theme.colorScheme.surface,
@@ -749,15 +1019,23 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
                   Divider(
                       height: 1,
                       indent: rows[i].bookNumber == null ? 16 : 58),
-                PieceListTile(
-                  key: ValueKey('piece_row_${rows[i].piece.id}'),
-                  row: rows[i],
-                  subtitle: subtitleOf(rows[i]),
-                  wide: widget.wide,
-                  lastPlayed: rows[i].activity == null
-                      ? null
-                      : lastPlayedLabel(rows[i].activity!.openedAt, now),
-                  onTap: () => _open(rows[i].piece),
+                _withSwipe(
+                  rows[i].piece,
+                  _withMenu(
+                    rows[i].piece,
+                    PieceListTile(
+                      key: ValueKey('piece_row_${rows[i].piece.id}'),
+                      row: rows[i],
+                      subtitle: subtitleOf(rows[i]),
+                      wide: widget.wide,
+                      lastPlayed: rows[i].activity == null
+                          ? null
+                          : lastPlayedLabel(rows[i].activity!.openedAt, now),
+                      selected: _selection?.contains(rows[i].piece.id),
+                      onTap: () => _tapPiece(rows[i].piece),
+                    ),
+                    preview: _rowPreview,
+                  ),
                 ),
               ],
             ]),
@@ -765,18 +1043,18 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
         ],
         ...footer,
       ],
-    );
+    ));
   }
 }
 
 /// The hidden-piece affordance: a footnote saying how many pieces are hidden,
-/// and a way through to the screen that can change that.
+/// opening a sheet that lists them with a Show button each.
 ///
-/// A signpost, NOT a toggle. It used to flip a session-sticky "show hidden"
+/// A sheet, NOT a toggle. It used to flip a session-sticky "show hidden"
 /// flag, and that was a trap — left on (easily, since the only indication was
 /// this footer at the bottom of a long list) hiding silently stopped applying on
-/// the child's screen, which is the whole point of hiding. Hidden pieces are
-/// always visible and editable on Manage, so this list needs no mode of its own.
+/// the child's screen, which is the whole point of hiding. The list itself
+/// never has a show-hidden mode.
 class _HiddenFooter extends StatelessWidget {
   const _HiddenFooter({required this.count});
 
@@ -791,16 +1069,82 @@ class _HiddenFooter extends StatelessWidget {
       leading:
           Icon(Icons.visibility_off_outlined, size: 20, color: theme.hintColor),
       title: Text(
-        '$count hidden ${count == 1 ? 'piece' : 'pieces'} — manage to show '
-        '${count == 1 ? 'it' : 'them'}',
+        '$count hidden ${count == 1 ? 'piece' : 'pieces'} · Show…',
         style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
       ),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const ManagePiecesScreen()),
-      ),
+      onTap: () => showHiddenPiecesSheet(context),
     );
   }
 }
+
+/// Every hidden piece, each with a Show button that puts it back in the list.
+Future<void> showHiddenPiecesSheet(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => Consumer(builder: (ctx, ref, _) {
+        final theme = Theme.of(ctx);
+        final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
+        final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
+        final hidden = [
+          for (final p in applyLibrary(lib, pieces, showHidden: true))
+            if (lib.hiddenIds.contains(p.id)) p
+        ];
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.7),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                  child: Text('Hidden from the list',
+                      style: theme.textTheme.titleMedium),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                      'Hidden pieces stay on this device. Show one to put it '
+                      'back in the list.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
+                Flexible(
+                  child: hidden.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Nothing is hidden.'),
+                        )
+                      : ListView(
+                          shrinkWrap: true,
+                          children: [
+                            for (final p in hidden)
+                              ListTile(
+                                key: ValueKey('hidden_row_${p.id}'),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(horizontal: 24),
+                                title: Text(p.title),
+                                trailing: TextButton(
+                                  key: ValueKey('hidden_show_${p.id}'),
+                                  onPressed: () => ref
+                                      .read(libraryProvider.notifier)
+                                      .setHidden(p.id, false),
+                                  child: const Text('Show'),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
 
 /// A book on the Playful shelf: a coloured card like the piece cards.
 class _BookCard extends StatelessWidget {
@@ -853,12 +1197,10 @@ class _BookCard extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.message,
-    this.offerManage = false,
     this.action,
   });
 
   final String message;
-  final bool offerManage;
   final ({String key, String label, VoidCallback onPressed})? action;
 
   @override
@@ -884,18 +1226,6 @@ class _EmptyState extends StatelessWidget {
                 key: ValueKey(a.key),
                 onPressed: a.onPressed,
                 child: Text(a.label),
-              ),
-            ],
-            if (offerManage) ...[
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                key: const ValueKey('empty_state_manage_button'),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                      builder: (_) => const ManagePiecesScreen()),
-                ),
-                icon: const Icon(Icons.edit_note),
-                label: const Text('Manage pieces'),
               ),
             ],
           ],

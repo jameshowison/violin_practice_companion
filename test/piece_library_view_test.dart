@@ -137,11 +137,11 @@ void main() {
     });
   });
 
-  test('manage rows label their actions only when there is room', () {
-    expect(manageRowUsesLabeledActions(393), isFalse); // phone portrait
-    expect(manageRowUsesLabeledActions(599), isFalse);
-    expect(manageRowUsesLabeledActions(600), isTrue);
-    expect(manageRowUsesLabeledActions(1194), isTrue); // iPad landscape
+  test('the wide layout starts at 600pt', () {
+    expect(isWideLayout(393), isFalse); // phone portrait
+    expect(isWideLayout(599), isFalse);
+    expect(isWideLayout(600), isTrue);
+    expect(isWideLayout(1194), isTrue); // iPad landscape
   });
 
   test('search matches every word, ignoring case, order and punctuation', () {
