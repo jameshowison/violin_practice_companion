@@ -4,6 +4,7 @@ import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
 import 'package:violin_practice_companion/services/meter_repair.dart';
+import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_beamer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
@@ -281,6 +282,36 @@ void main() {
       final xml = MeterRepair.repair(
           _score([q(3, '3/4'), q(3), q(3, '3/4'), q(3)]));
       expect(RegExp('<time>').allMatches(xml).length, 1);
+    });
+  });
+
+  group('rest beats', () {
+    final gen = MidiGenerator.forTest(ticksPerBeat: 480);
+    String barRests(String xml, List<int> bars) => xml.replaceAllMapped(
+        RegExp(r'(<measure number="(\d+)">(?:<attributes>.*?</attributes>)*)'),
+        (m) => bars.contains(int.parse(m[2]!))
+            ? '${m[1]}<note><rest measure="yes"/><duration>8</duration></note>'
+            : m[0]!);
+
+    test('a whole-bar rest is highlighted beat by beat in its meter', () {
+      // A 4/4 rest bar, a 3/4 rest bar, then a bar of music, at 60 bpm.
+      final piece = parser.parse(barRests(
+          _score([q(0, '4/4'), q(0, '3/4'), q(3)]), [1, 2]));
+      final ev = gen.generate(piece, 60).highlightEvents;
+      expect([for (final e in ev) '${e.measureNumber}:${e.restBeat}'],
+          ['1:0', '1:1', '1:2', '1:3', '2:0', '2:1', '2:2', '3:null', '3:null', '3:null']);
+      expect([for (final e in ev) e.onsetSeconds],
+          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(ev.first.restBeats, 4);
+      expect(ev[4].restBeats, 3);
+    });
+
+    test('a rest that does not fill its bar is one event', () {
+      final piece = parser.parse(_score([q(4, '4/4'), q(4)]).replaceFirst(
+          '<measure number="2">',
+          '<measure number="2"><note><rest/><duration>4</duration><type>half</type></note>'));
+      final ev = gen.generate(piece, 60).highlightEvents;
+      expect(ev.where((e) => e.restBeat != null), isEmpty);
     });
   });
 

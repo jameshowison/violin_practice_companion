@@ -2460,7 +2460,11 @@ class _OverlayPainter extends CustomPainter {
           ev.measureNumber, ev.noteIndex, ev.performanceIndex);
       final mi = at?.index ?? -1;
       final anchor = at == null ? null : score.noteAt(at.index, at.note);
-      if (anchor != null) {
+      final restBeat = ev.restBeat;
+      final beatRect = restBeat == null ? null : _restBeatRect(mi, restBeat, ev.restBeats);
+      if (beatRect != null) {
+        _drawRestBeat(canvas, beatRect, restBeat! + 1, _bandPx(mi));
+      } else if (anchor != null) {
         final pad = (_bandPx(mi) * 0.035).clamp(2.0, 9.0);
         final r = _scaled(anchor.rect).inflate(pad);
         canvas.drawRRect(
@@ -2490,6 +2494,57 @@ class _OverlayPainter extends CustomPainter {
         l < 0 || l >= score.lineBands.length ? null : score.lineBands[l];
     if (band == null) return 48 * scale;
     return (band.bottom - band.top) * scale;
+  }
+
+  /// Beat [beat] of [beats] of a whole-bar rest in engraved measure [mi]: an
+  /// equal slice of the bar's width, after any clef/key/time it opens with.
+  /// Null when the measure isn't on screen.
+  Rect? _restBeatRect(int mi, int beat, int beats) {
+    final m = score.measureAt(mi);
+    if (m == null || beats < 1) return null;
+    var left = m.rect.left;
+    for (final r in [...score.meterSigs, ...score.keyAccids]) {
+      final c = r.center;
+      if (c.dx > m.rect.left && c.dx < m.rect.right &&
+          c.dy > m.rect.top && c.dy < m.rect.bottom && r.right > left) {
+        left = r.right;
+      }
+    }
+    final w = (m.rect.right - left) / beats;
+    if (w <= 0) return null;
+    return _scaled(Rect.fromLTRB(
+        left + w * beat, m.rect.top, left + w * (beat + 1), m.rect.bottom));
+  }
+
+  /// The rest-beat highlight: the slice, tinted and outlined like a note's,
+  /// with the beat's number above it to count by.
+  void _drawRestBeat(Canvas canvas, Rect slice, int number, double band) {
+    final pad = (band * 0.035).clamp(2.0, 9.0);
+    final r = slice.deflate(pad / 2);
+    final rr = RRect.fromRectAndRadius(r, Radius.circular(pad));
+    canvas.drawRRect(rr, Paint()..color = primary.withValues(alpha: 0.18));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (pad * 0.5).clamp(1.0, 3.0)
+        ..color = primary.withValues(alpha: 0.7),
+    );
+    final label = TextPainter(
+      text: TextSpan(
+        text: '$number',
+        style: TextStyle(
+          color: primary,
+          fontSize: (band * 0.22).clamp(11.0, 28.0),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(
+        canvas,
+        Offset(r.center.dx - label.width / 2,
+            r.center.dy - label.height / 2));
   }
 
   void _drawFlag(Canvas canvas, Rect measure, double s) {
