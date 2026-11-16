@@ -30,7 +30,8 @@ import 'measure_xml_editor.dart';
 ///  * Where it put none, the meter changes only after [minRun] bars in a row
 ///    agree on a new length (damaged bars between them don't break the run).
 ///    One odd bar is a reading error, not a change of meter.
-///  * An empty bar under a `<time>` (a multi-measure rest) can't judge the
+///  * An empty bar under a `<time>` (or one of whole-bar rest — the
+///    recogniser's multi-measure rests) can't judge the
 ///    digits: the meter of the bars after it (two in a row) stands instead.
 ///    The recogniser opened a medley's rests with "7/4" before its 3/4 bars.
 ///  * The first meter found is the opening meter, written into the first bar,
@@ -213,6 +214,14 @@ class MeterRepair {
   /// Null when it doesn't come to a whole number of 32nds (a tuplet read
   /// wrongly), which is damage, not a length.
   static int? _units(XmlElement measure, int divisions) {
+    // A bar of whole-bar rest (how the recogniser writes a multi-measure
+    // rest) is as long as whatever meter it was given: no evidence.
+    final notes = measure.findElements('note');
+    if (notes.isNotEmpty &&
+        notes.every((n) =>
+            n.getElement('rest')?.getAttribute('measure') == 'yes')) {
+      return 0;
+    }
     var pos = 0, end = 0, last = 0;
     for (final el in measure.childElements) {
       final d = _int(el, 'duration') ?? 0;

@@ -119,9 +119,14 @@ class MusicXmlParser {
             t.getAttribute('type'),
         };
         final isRest = noteEl.findElements('rest').isNotEmpty;
-        final dotted = noteEl.findElements('dot').isNotEmpty;
+        var dotted = noteEl.findElements('dot').isNotEmpty;
         final typeStr = noteEl.findElements('type').firstOrNull?.innerText ?? 'quarter';
-        final noteValue = _parseNoteValue(typeStr);
+        var noteValue = _parseNoteValue(typeStr);
+        // A whole-bar rest lasts the bar whatever its <type> says: often none
+        // (MuseScore, the scanner's multi-measure rests), or "whole" in 3/4.
+        // Its <duration> is the bar's real length.
+        final barRest = _barRestValue(noteEl, divisions);
+        if (barRest != null) (noteValue, dotted) = barRest;
 
         int midiNumber = 0;
         String pitch = 'R';
@@ -367,6 +372,30 @@ class MusicXmlParser {
       case 'none': return '';
       default: return kind; // best-effort for unmapped kinds
     }
+  }
+
+  /// The value of a `<rest measure="yes"/>` from its `<duration>`, or null
+  /// when [noteEl] isn't one or its length has no single (dotted) value.
+  static (NoteValue, bool)? _barRestValue(XmlElement noteEl, int divisions) {
+    if (noteEl.findElements('rest').firstOrNull?.getAttribute('measure') != 'yes') {
+      return null;
+    }
+    final d = int.tryParse(
+        noteEl.findElements('duration').firstOrNull?.innerText.trim() ?? '');
+    if (d == null || d <= 0 || divisions <= 0) return null;
+    // In sixteenths, so 6/8 (a dotted half) and the like stay exact.
+    final q = d * 4 / divisions;
+    return switch (q) {
+      16 => (NoteValue.whole, false),
+      24 => (NoteValue.whole, true),
+      8 => (NoteValue.half, false),
+      12 => (NoteValue.half, true),
+      4 => (NoteValue.quarter, false),
+      6 => (NoteValue.quarter, true),
+      2 => (NoteValue.eighth, false),
+      3 => (NoteValue.eighth, true),
+      _ => null,
+    };
   }
 
   NoteValue _parseNoteValue(String type) {

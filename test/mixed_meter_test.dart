@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
@@ -82,6 +83,19 @@ void main() {
   });
 
   group('bar check', () {
+    test('a whole-bar rest fills its bar, whatever its type', () {
+      // No <type> (MuseScore, the scanner) and "whole" in 3/4 (Finale).
+      final src = _score([q(3, '3/4'), q(0), q(0), q(3)])
+          .replaceFirst('<measure number="2">',
+              '<measure number="2"><note><rest measure="yes"/><duration>6</duration></note>')
+          .replaceFirst('<measure number="3">',
+              '<measure number="3"><note><rest measure="yes"/><duration>6</duration><type>whole</type></note>');
+      final p = parser.parse(src);
+      expect(p.flaggedMeasureNumbers, isEmpty);
+      expect(p.measures[1].notes.single.noteValue, NoteValue.half);
+      expect(p.measures[1].notes.single.dotted, isTrue);
+    });
+
     test('checks every bar against its own meter', () {
       final p = parser.parse(
           _score([q(3, '3/4'), q(3), q(4, '4/4'), q(4), q(3), q(4)]));
@@ -229,6 +243,16 @@ void main() {
       // One bar after it is too little to overrule the digits.
       final src = _score([q(0, '4/4'), q(3), q(4, '4/4'), q(4)]);
       expect(_changes(parser.parse(MeterRepair.repair(src)))[1], '4/4');
+    });
+
+    test('a bar of whole-bar rest is no evidence for its meter', () {
+      // The recogniser writes a multi-measure rest as bars of <rest
+      // measure="yes"/>, as long as the (misread) meter it was given.
+      final src = _score([q(0, '4/4'), q(0), q(3), q(3), q(3)]).replaceAllMapped(
+          RegExp(r'(<measure number="[12]">(?:<attributes>.*?</attributes>)*)'),
+          (m) => '${m[1]}<note><rest measure="yes"/><duration>8</duration></note>');
+      final p = parser.parse(MeterRepair.repair(src));
+      expect(_changes(p), {1: '3/4'});
     });
 
     test('a written time that restates the meter in force is removed', () {
