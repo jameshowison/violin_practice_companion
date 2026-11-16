@@ -822,6 +822,7 @@ class MediaActions {
       await deleteMediaFiles(media);
       await alignments.clear(media.alignmentKey);
     }
+    await deletePieceMediaFolder(pieceId);
     await store.clear(pieceId);
     _ref.read(selectedMediaIdProvider(pieceId).notifier).state = null;
     _ref.invalidate(pieceMediaProvider(pieceId));

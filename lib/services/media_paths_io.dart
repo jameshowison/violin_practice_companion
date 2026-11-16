@@ -124,6 +124,30 @@ Future<void> deleteMediaFiles(PieceMedia media) async {
   }
 }
 
+/// Removes the piece's whole `media/<pieceId>` folder, for when the piece
+/// itself is deleted. [deleteMediaFiles] removes each medium's own folder, but
+/// that leaves the empty folder above them behind, one per deleted piece.
+/// Deleting the parent also catches files no stored row points at any more.
+/// [docs] is for tests; it defaults to the app's documents directory.
+Future<void> deletePieceMediaFolder(String pieceId, {Directory? docs}) async {
+  // An empty id or one with a separator would name `media/` itself or reach
+  // outside it.
+  if (pieceId.isEmpty ||
+      pieceId.contains('/') ||
+      pieceId.contains('\\') ||
+      pieceId == '.' ||
+      pieceId == '..') {
+    return;
+  }
+  try {
+    final root = docs?.path ?? (await getApplicationDocumentsDirectory()).path;
+    final folder = Directory('$root/media/$pieceId');
+    if (await folder.exists()) await folder.delete(recursive: true);
+  } catch (_) {
+    // Disk noise, as in [deleteMediaFiles].
+  }
+}
+
 /// A medium's folder is `media/<pieceId>/<mediaId>`, so the piece id is
 /// recoverable from any of its own refs. Used only by [deleteMediaFiles],
 /// which would otherwise need the piece id threaded through every caller for

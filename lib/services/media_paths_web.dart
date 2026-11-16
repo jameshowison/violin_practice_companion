@@ -61,3 +61,5 @@ Future<String> writeMediaBytes({
     throw UnsupportedError('Importing media is not available on the web.');
 
 Future<void> deleteMediaFiles(PieceMedia media) async {}
+
+Future<void> deletePieceMediaFolder(String pieceId, {Object? docs}) async {}
