@@ -52,6 +52,7 @@ import '../widgets/tempo_controls.dart';
 import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../widgets/time_signature_dialog.dart';
+import '../widgets/fit_to_screen_view.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
 import 'scan_photo_screen.dart';
@@ -523,6 +524,20 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                       displayMode == DisplayMode.tab) ...[
                     // Tab is never laid out by section (its xml carries no
                     // section breaks — see [staffBySectionProvider]).
+                    if (displayMode != DisplayMode.tab &&
+                        ref.watch(staffRendererProvider) ==
+                            StaffRenderer.verovio)
+                      SwitchListTile(
+                        key: const ValueKey('fit_to_screen_toggle'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Fit to screen'),
+                        subtitle: const Text(
+                            'Plain page another phone or tablet can scan'),
+                        value: ref.watch(fitToScreenProvider),
+                        onChanged: (v) =>
+                            ref.read(fitToScreenProvider.notifier).state = v,
+                      ),
                     if (displayMode != DisplayMode.tab &&
                         ref.watch(printedLayoutAvailableProvider))
                       SwitchListTile(
@@ -2394,6 +2409,25 @@ class _NotationView extends ConsumerWidget {
     // Minimap → custom-view navigation, and custom-view scroll → minimap.
     final navTarget = ref.watch(navTargetRunProvider);
     final bottomClearance = ref.watch(notationBottomClearanceProvider);
+    // "Fit to screen": a plain page for another device to scan, in place of
+    // the practice staff (see `fit_to_screen_view.dart`).
+    if ((mode == DisplayMode.staff || mode == DisplayMode.staffFingering) &&
+        ref.watch(staffRendererProvider) == StaffRenderer.verovio &&
+        ref.watch(fitToScreenProvider)) {
+      final title = ref.watch(selectedPieceProvider)?.title ?? '';
+      return ref.watch(fitToScreenXmlProvider).when(
+            skipLoadingOnReload: true,
+            data: (xml) => xml != null
+                ? FitToScreenView(
+                    musicXml: xml,
+                    title: title,
+                    bottomClearance: bottomClearance,
+                  )
+                : const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error: $e')),
+          );
+    }
     // Report the top-most visible run's first measure so the minimap can light
     // its (unfolded) section while scrolling the jianpu/fingering views.
     void onVisibleRun(int i) {

@@ -587,6 +587,30 @@ final printedLayoutProvider = pieceDisplayPref<bool>(
   decode: bool.parse,
 );
 
+/// "Fit to screen": the staff views show the piece as a plain printed page —
+/// a clef on every line, no fingerings, chords, lyrics or washes — sized to
+/// fit the screen, so another device can scan it to share the tune (see
+/// `screen_share_layout.dart`). Off by default; remembered per piece. Never
+/// the tab view.
+final fitToScreenProvider = pieceDisplayPref<bool>(
+  'fitToScreen',
+  false,
+  encode: (v) => '$v',
+  decode: bool.parse,
+);
+
+/// The xml "Fit to screen" engraves: the piece's notes and nothing a scanner
+/// can't read back. The breaks are left to the layout, which sizes the staff
+/// for the screen.
+final fitToScreenXmlProvider = FutureProvider<String?>((ref) async {
+  final source = await ref.watch(pieceMusicXmlProvider.future);
+  if (source == null) return null;
+  var xml = PieceLayout.stripLayoutHints(source);
+  xml = FingeringXmlInjector.stripFingerings(xml);
+  xml = ChordXmlInjector.stripHarmony(xml);
+  return LyricXmlInjector.selectVerse(xml, null);
+});
+
 /// Whether "Layout like printed page" is offered: the piece's MusicXML
 /// records where its printed lines broke (a scan does), and it is engraved
 /// natively.
