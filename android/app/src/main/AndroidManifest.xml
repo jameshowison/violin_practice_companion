@@ -24,6 +24,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- A shared piece (.stringlings, see lib/services/piece_share_bundle.dart)
+                 opened from Files, Quick Share or a mail attachment. Senders rarely
+                 know the type, so octet-stream too; IncomingSharePlugin and the
+                 Dart side refuse anything that isn't a share. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:mimeType="application/x-stringlings"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
         </activity>
         <!-- image_cropper's Android side (uCrop): the scan pipeline's crop step
              (lib/services/omr_service_io.dart) crashes without it. No

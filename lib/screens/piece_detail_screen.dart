@@ -45,6 +45,7 @@ import '../widgets/media_controls.dart';
 import '../widgets/notation_switcher.dart';
 import '../widgets/preamble_preview.dart';
 import '../widgets/print_sheet.dart';
+import '../widgets/share_piece_sheet.dart';
 import '../widgets/section_chip_row.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/tempo_controls.dart';
@@ -426,6 +427,19 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                           builder: (_) => ScanPhotoScreen(
                               pieceId: piece.id, title: piece.title),
                         ));
+                      },
+                    ),
+                  // Sends the piece and its recordings to another device.
+                  if (sharePieceAvailable)
+                    ListTile(
+                      key: const ValueKey('share_piece_drawer_tile'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.ios_share),
+                      title: const Text('Share piece and recordings…'),
+                      onTap: () {
+                        Navigator.of(context).pop(); // the drawer
+                        showSharePieceSheet(context, piece);
                       },
                     ),
                   // Second because it is the other question that decides what

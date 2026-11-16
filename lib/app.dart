@@ -6,6 +6,7 @@ import 'screens/piece_list_screen.dart';
 import 'theme/app_skin.dart';
 import 'theme/skins.dart';
 import 'ui/splash/launch_splash.dart';
+import 'widgets/incoming_share_handler.dart';
 
 class ViolinPracticeApp extends ConsumerWidget {
   const ViolinPracticeApp({super.key});
@@ -27,9 +28,13 @@ class ViolinPracticeApp extends ConsumerWidget {
       // Settings ▸ Appearance. Switching rebuilds the theme only; every
       // screen's state (filters, the open piece) survives it.
       theme: themeFor(ref.watch(appSkinProvider)),
+      navigatorKey: appNavigatorKey,
       home: const PieceListScreen(),
-      // Above the Navigator, so the blink covers the whole first screen.
-      builder: (context, child) => LaunchSplash(child: child!),
+      // Above the Navigator, so the blink covers the whole first screen. The
+      // share handler too, so a piece AirDropped in while any screen is up
+      // can be imported and opened.
+      builder: (context, child) =>
+          IncomingShareHandler(child: LaunchSplash(child: child!)),
     );
   }
 }

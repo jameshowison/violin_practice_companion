@@ -461,6 +461,31 @@ testers need Beta App Review and the test information (description, feedback
 email). TestFlight builds expire after 90 days. Upload when there's something to
 test, not on a schedule.
 
+## Sharing a piece (AirDrop and friends)
+
+In a piece's drawer, **Share piece and recordings…** packs the score, its
+sections and the recordings you tick (each demo's video optional) into one
+`<title>.stringlings` file and opens the system share sheet: AirDrop, Messages,
+Mail, Files, Quick Share. Opening that file on a device with the app imports
+it and opens the piece.
+
+- Format and merge rules: `lib/services/piece_share_bundle.dart` (a zip:
+  `bundle.json`, `score.musicxml`, `sections.json`, `media/<mediaId>/…`).
+  Alignments travel, so a shared recording plays highlighted without realigning.
+- The receiver keeps the sender's piece id, so a second share of the same piece
+  adds only the recordings it lacks. Different music under that id asks
+  Replace / Keep both. A catalog piece the receiver's build lacks arrives under
+  a fresh id.
+- Receiving is `IncomingSharePlugin` (`ios/Runner/*.swift`, registered as a
+  scene delegate; `android/.../*.kt`, VIEW/SEND intents) → `lib/services/incoming_share.dart`
+  → `lib/widgets/incoming_share_handler.dart`. iOS declares the type
+  `name.howison.violinPracticeCompanion.piece` in `Info.plist`.
+- **Testing without AirDrop** (simulators can't): `xcrun simctl openurl
+  dev-iphone-se "file:///abs/path/x.stringlings"` runs the real import path. To
+  get a file the app made, tap Share… and copy it out of the app's
+  `Library/Caches/share_out_*/`. The log prints one `[share] …` line per
+  export and import.
+
 ## Dev library (the same pieces and media on every dev device)
 
 A fresh install starts empty. Rather than re-adding tunes and media by hand, every
