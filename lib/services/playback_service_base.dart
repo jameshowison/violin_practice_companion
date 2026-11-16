@@ -187,7 +187,8 @@ abstract class PlaybackServiceBase {
     _t0 = clockNow() + startLookaheadSeconds + _countInSeconds;
     _schedule = scheduleFrom(d, _startOffset, _endSeconds(d));
     _countInLandingSeconds = _schedule.isEmpty ||
-            _schedule.first.onsetSeconds < _startOffset
+            _schedule.first.onsetSeconds < _startOffset ||
+            _startsOnCountedRest(d)
         ? _startOffset
         : _schedule.first.onsetSeconds;
     prepareStart(_startOffset);
@@ -397,6 +398,18 @@ abstract class PlaybackServiceBase {
     if (p == null) return 0;
     final meter = p.meterAtNumber(_fromMeasure);
     return barCounting(meter.beats, meter.beatType).perBar;
+  }
+
+  /// Whether playback starts on a whole-bar rest, which the highlight counts
+  /// beat by beat ([HighlightEvent.restBeat]). The count-in hands over to it
+  /// at the barline rather than counting on to the first note heard — over
+  /// an opening run of rest bars that sent the dot flying across the screen.
+  bool _startsOnCountedRest(MidiData d) {
+    for (final e in d.highlightEvents) {
+      if (e.onsetSeconds < _startOffset - 1e-6) continue;
+      return e.restBeat != null && e.onsetSeconds < _startOffset + 1e-6;
+    }
+    return false;
   }
 
   /// Whether this player can give a count-in at all. A recording that isn't

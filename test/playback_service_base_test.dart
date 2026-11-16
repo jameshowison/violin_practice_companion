@@ -491,6 +491,39 @@ void main() {
       rested.dispose();
     });
 
+    test('a whole-bar rest takes over from the count at its barline', () async {
+      // An opening rest bar is counted by the highlight, beat by beat, so the
+      // count-in mustn't run on over it to the first note heard.
+      final barRest = NoteEvent(
+          pitch: 'R',
+          midiNumber: 0,
+          octave: 4,
+          noteValue: NoteValue.whole,
+          dotted: false,
+          isRest: true);
+      final rested = _IntroPlaybackService(MidiGenerator.forTest());
+      await rested.loadPieceAtBpm(
+          ParsedPiece(
+            keySignature: 'C',
+            keyFifths: 0,
+            keyMode: KeyMode.major,
+            measures: [
+              Measure(number: 1, notes: [barRest]),
+              Measure(number: 2, notes: [
+                for (final m in [60, 62, 64, 65]) _quarter(m),
+              ]),
+            ],
+          ),
+          60);
+      rested.play(fromMeasure: 1, countIn: plan);
+      expect(rested.countInLandingSeconds, closeTo(0, 1e-9));
+      rested.fakeSeconds = 0.5; // into the rest bar
+      rested.debugTick();
+      expect(rested.countInNotifier.value, isNull);
+      expect(rested.currentHighlightNotifier.value!.restBeat, 0);
+      rested.dispose();
+    });
+
     test('a player that cannot count in starts without one', () async {
       final unaligned = _NoCountPlaybackService(MidiGenerator.forTest());
       await unaligned.loadPieceAtBpm(piece, 60);
