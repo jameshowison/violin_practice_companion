@@ -735,6 +735,13 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   return;
                 }
                 selection.state = picked;
+                // Mid-play, the music moves to the section (and pass) just
+                // picked — tapping a repeated section again switches passes
+                // — rather than carrying on where it was.
+                final player = ref.read(activePlaybackServiceProvider);
+                if (player.playbackState == PlaybackState.playing) {
+                  playSelection(ref, player, countIn: false);
+                }
                 final foldedIdx = layout.runs.indexWhere((r) =>
                     run.firstMeasure >= r.firstMeasure &&
                     run.firstMeasure <= r.lastMeasure);

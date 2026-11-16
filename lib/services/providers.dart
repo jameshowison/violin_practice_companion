@@ -1362,11 +1362,17 @@ class MeasureSelection {
   final int startPerf;
   final int endPerf;
 
+  /// Bars inside the range that the selected pass doesn't play — a first
+  /// ending under a second pass ([SectionRun.skipped]). Not selected, not
+  /// highlighted; playback already skips them by its pinned pass.
+  final Set<int> skipped;
+
   const MeasureSelection(this.startMeasure, this.endMeasure,
       {this.startNote = 0,
       this.endNote = -1,
       this.startPerf = -1,
-      this.endPerf = -1});
+      this.endPerf = -1,
+      this.skipped = const {}});
 
   /// The selection covering exactly [run], mid-bar edges included.
   factory MeasureSelection.ofRun(SectionRun run) => MeasureSelection(
@@ -1374,7 +1380,8 @@ class MeasureSelection {
       startNote: run.startNote,
       endNote: run.endNote,
       startPerf: run.perfStart,
-      endPerf: run.perfEnd < 0 ? -1 : run.perfEnd - 1);
+      endPerf: run.perfEnd < 0 ? -1 : run.perfEnd - 1,
+      skipped: run.skipped);
 
   /// The selection from the start of [first] to the end of [last], pinned to
   /// those passes — e.g. a whole folded repeat, `B¹` through `C²`.
@@ -1383,10 +1390,14 @@ class MeasureSelection {
           startNote: first.startNote,
           endNote: last.endNote,
           startPerf: first.perfStart,
-          endPerf: last.perfEnd < 0 ? -1 : last.perfEnd - 1);
+          endPerf: last.perfEnd < 0 ? -1 : last.perfEnd - 1,
+          // A bar one pass skips and another plays is in the span.
+          skipped: first.skipped.intersection(last.skipped));
 
   bool contains(int measure) =>
-      measure >= startMeasure && measure <= endMeasure;
+      measure >= startMeasure &&
+      measure <= endMeasure &&
+      !skipped.contains(measure);
 
   bool get isSingle => startMeasure == endMeasure;
 
@@ -1416,11 +1427,13 @@ class MeasureSelection {
       other.startNote == startNote &&
       other.endNote == endNote &&
       other.startPerf == startPerf &&
-      other.endPerf == endPerf;
+      other.endPerf == endPerf &&
+      other.skipped.length == skipped.length &&
+      other.skipped.containsAll(skipped);
 
   @override
-  int get hashCode => Object.hash(
-      startMeasure, endMeasure, startNote, endNote, startPerf, endPerf);
+  int get hashCode => Object.hash(startMeasure, endMeasure, startNote,
+      endNote, startPerf, endPerf, Object.hashAllUnordered(skipped));
 }
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);

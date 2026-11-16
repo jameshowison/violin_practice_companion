@@ -1,11 +1,17 @@
 // First/second endings (MusicXML `<ending>` voltas): parsing, and the
 // performance order MIDI playback, the staff unfold and the aligner follow.
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:violin_practice_companion/models/piece_layout.dart';
+import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
+import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:violin_practice_companion/services/providers.dart';
 
 Measure _m(
   int number, {
@@ -252,6 +258,40 @@ void main() {
       expect(m.endings, {1});
       expect(m.repeatEnd, isTrue);
       expect(RegExp('<barline location="right"').allMatches(xml).length, 1);
+    });
+  });
+
+  group("section passes over endings (Devil's Dream)", () {
+    // The sections as marked on the device: A from the start, B from the
+    // e2 pickup at the end of bar 9.
+    final piece = MusicXmlParser().parse(MusicXmlNormalizer.toSoundingPitch(
+        File('test/fixtures/devils_dream.musicxml').readAsStringSync()));
+    final runs = sectionRuns(piece.measures, const [
+      Section(label: 'A', startMeasure: 1, startNote: 0),
+      Section(label: 'B', startMeasure: 9, startNote: 5),
+    ]);
+    final b1 = runs.firstWhere((r) => r.label == 'B' && r.passIndex == 0);
+    final b2 = runs.firstWhere((r) => r.label == 'B' && r.passIndex == 1);
+
+    test('B¹ ends on the first ending, B² on the second', () {
+      expect(b1.lastMeasure, 17);
+      expect(b1.skipped, isEmpty);
+      expect(b2.lastMeasure, 18);
+      expect(b2.skipped, {17});
+    });
+
+    test("B²'s selection leaves the first ending out", () {
+      final sel = MeasureSelection.ofRun(b2);
+      expect(sel.contains(16), isTrue);
+      expect(sel.contains(17), isFalse);
+      expect(sel.contains(18), isTrue);
+      expect(MeasureSelection.ofRuns(b2, b2), sel);
+    });
+
+    test('the whole B repeat keeps both endings', () {
+      final sel = MeasureSelection.ofRuns(b1, b2);
+      expect(sel.contains(17), isTrue);
+      expect(sel.contains(18), isTrue);
     });
   });
 }

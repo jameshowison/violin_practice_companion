@@ -2438,9 +2438,21 @@ class _OverlayPainter extends CustomPainter {
           startPerf: sel.startPerf);
       if (r != null) {
         final fill = Paint()..color = primary.withValues(alpha: 0.16);
-        for (final rect in _rangeRowRects(score, scale, r.startMeasureIndex,
-            r.startNote, r.endMeasureIndex, r.endNote)) {
-          canvas.drawRect(rect, fill);
+        // A pass that skips a bar (a first ending, on the second time
+        // through) is drawn in pieces around it.
+        var from = r.startMeasureIndex, fromNote = r.startNote;
+        for (var i = r.startMeasureIndex; i <= r.endMeasureIndex + 1; i++) {
+          final end = i > r.endMeasureIndex;
+          if (!end && !sel.skipped.contains(measureMap.numberAt(i))) continue;
+          if (i > from) {
+            final last = end ? r.endMeasureIndex : i - 1;
+            for (final rect in _rangeRowRects(score, scale, from, fromNote,
+                last, end ? r.endNote : -1)) {
+              canvas.drawRect(rect, fill);
+            }
+          }
+          from = i + 1;
+          fromNote = 0;
         }
       }
     }

@@ -270,6 +270,26 @@ List<SectionRun> sectionRuns(List<Measure> measures, List<Section> sections) {
         perfEnd: s[2] as int,
         startNote: s[5] as int,
         endNote: s[6] as int,
+        skipped: _skippedIn(measures, order, s[1] as int, s[2] as int,
+            (s[3] as int) < 0 ? (s[4] as int) : s[3] as int, s[4] as int),
       ),
   ]);
+}
+
+/// The bars from [first] to [last] (document order) that the performance
+/// slice [perfStart]..[perfEnd] never plays — a skipped volta. Empty for a
+/// run that wraps round a repeat (its last bar is before its first).
+Set<int> _skippedIn(List<Measure> measures, List<int> order, int perfStart,
+    int perfEnd, int first, int last) {
+  if (perfStart < 0 || last <= first) return const {};
+  final played = {
+    for (var k = perfStart; k < perfEnd && k < order.length; k++)
+      measures[order[k]].number,
+  };
+  final skipped = {
+    for (final m in measures)
+      if (m.number > first && m.number < last && !played.contains(m.number))
+        m.number,
+  };
+  return skipped.isEmpty ? const {} : Set.unmodifiable(skipped);
 }

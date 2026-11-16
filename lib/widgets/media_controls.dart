@@ -614,7 +614,11 @@ class _PickerAction {
 /// the selected bar and ran on to the end of the piece. The meter, minimum and
 /// pickup behind the count are resolved in the providers, which keeps this and
 /// the drawer's readout in agreement. Read at the tap, not watched.
-void _playSelection(WidgetRef ref, PlaybackServiceBase service) {
+///
+/// [countIn] false starts at once: a section picked while the music is
+/// already playing moves playback there without stopping to count again.
+void playSelection(WidgetRef ref, PlaybackServiceBase service,
+    {bool countIn = true}) {
   final selection = ref.read(measureSelectionProvider);
   service.play(
     fromMeasure: ref.read(playbackStartMeasureProvider),
@@ -623,7 +627,7 @@ void _playSelection(WidgetRef ref, PlaybackServiceBase service) {
     toNote: selection?.endNote ?? -1,
     fromIndex: selection?.startPerf ?? -1,
     toIndex: selection?.endPerf ?? -1,
-    countIn: ref.read(resolvedCountInProvider),
+    countIn: countIn ? ref.read(resolvedCountInProvider) : null,
   );
 }
 
@@ -675,7 +679,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
             } else {
               // Paused and stopped both resume with a fresh count-off: the
               // instrument has come down either way.
-              _playSelection(ref, service);
+              playSelection(ref, service);
             }
           },
         ),
@@ -854,7 +858,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                       : () {
                           service.leadInMode =
                               ref.read(recordingLeadInProvider);
-                          _playSelection(ref, service);
+                          playSelection(ref, service);
                         },
                 );
               },

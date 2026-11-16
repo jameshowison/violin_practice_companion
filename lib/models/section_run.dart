@@ -35,6 +35,11 @@ class SectionRun {
   final int startNote;
   final int endNote;
 
+  /// Bars between [firstMeasure] and [lastMeasure] that this pass does NOT
+  /// play: the first ending, on a second pass that skips it (Devil's Dream's
+  /// B² is bars 10–16 then 18). Empty for a run that plays its whole range.
+  final Set<int> skipped;
+
   const SectionRun({
     required this.label,
     required this.passIndex,
@@ -47,6 +52,7 @@ class SectionRun {
     this.perfEnd = -1,
     this.startNote = 0,
     this.endNote = -1,
+    this.skipped = const {},
   });
 
   int get rowEnd => rowStart + rowCount; // exclusive
@@ -81,5 +87,6 @@ class SectionRun {
         perfEnd: perfEnd,
         startNote: startNote,
         endNote: endNote,
+        skipped: skipped,
       );
 }
