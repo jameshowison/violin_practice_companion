@@ -316,6 +316,14 @@ where `<group>` is the container whose
 `xcrun simctl addmedia` is no help here — it only takes photos and videos, into
 the Photos library, not Files.
 
+## Sharing a piece (.stringlings)
+
+AirDrop can't be driven on a simulator, but the import path can:
+`xcrun simctl openurl <sim> "file:///abs/path/x.stringlings"`, then look for the
+`[share] imported …` line in `flutter_run.log`. The share sheet itself is native
+(Marionette can't tap it); the file it was handed is in the app's
+`Library/Caches/share_out_*/`. Format, merge rules: README "Sharing a piece".
+
 ## Dev library (shared pieces and media across dev devices)
 
 `bash scripts/sync_dev_library.sh <device>` syncs the private sibling repo

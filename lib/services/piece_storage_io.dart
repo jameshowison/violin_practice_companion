@@ -130,6 +130,26 @@ class PieceStorage {
     return piece;
   }
 
+  /// Stores a piece under an id it already has — one shared from another
+  /// device (`piece_share_io.dart`), so a later share of the same piece finds
+  /// it here and adds to it rather than making a copy. Overwrites any score
+  /// already stored under [id]; the caller decides whether that is wanted.
+  Future<void> saveScannedPieceAs(
+      String id, String title, String musicXml) async {
+    final dir = await _scannedPiecesDir();
+    await File('${dir.path}/$id$_ext').writeAsString(musicXml);
+    final titles = await _readIndexTitles()..[id] = title;
+    final file = await _indexFile();
+    await file.writeAsString(const JsonEncoder.withIndent('  ').convert({
+      'version': _indexVersion,
+      'pieces': [
+        for (final MapEntry(:key, :value) in titles.entries)
+          {'id': key, 'title': value},
+      ],
+    }));
+    await loadScannedPieces();
+  }
+
   /// Reads a piece by the handle carried on [Piece.musicXmlFilePath].
   ///
   /// Falls back to matching by filename inside the store when the handle itself
