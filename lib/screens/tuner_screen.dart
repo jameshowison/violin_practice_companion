@@ -218,7 +218,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _mandolin = prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
         ref.read(instrumentFeaturesProvider).fretNumbers;
     _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
-    _record = prefs?.getBool(tunerRecordSessionsKey) ?? false;
+    _record = kTunerRecording && (prefs?.getBool(tunerRecordSessionsKey) ?? false);
     _model = TunerModel(_tuning());
     if (!_auto) _model.pinned = _model.tuning.strings[_rung].name;
     WidgetsBinding.instance.addObserver(this);
@@ -469,10 +469,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
 
     return Scaffold(
       appBar: AppBar(
-        // A long press on the title is the developer's recording switch.
+        // A long press on the title is the developer's recording switch, in builds
+        // made with --dart-define=TUNER_RECORDING=true (kTunerRecording).
         title: GestureDetector(
           key: const ValueKey('tuner_title'),
-          onLongPress: _toggleRecording,
+          onLongPress: kTunerRecording ? _toggleRecording : null,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

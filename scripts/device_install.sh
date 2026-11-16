@@ -33,11 +33,15 @@ set -euo pipefail
 SYNC=1
 NO_BUILD=""
 ARGS=()
+BUILD_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --sync) SYNC=1 ;;
     --no-sync) SYNC="" ;;
     --no-build) NO_BUILD=1 ;;
+    # Build-time flags go to flutter build, e.g.
+    # --dart-define=TUNER_RECORDING=true (the tuner's session recording).
+    --dart-define=*) BUILD_ARGS+=("$arg") ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -115,8 +119,8 @@ fi
 # A simulator dev server holds build/ios/; the two contend.
 pkill -f flutter_tools.snapshot 2>/dev/null || true
 
-phase "building (flutter build ios --release)"
-flutter build ios --release
+phase "building (flutter build ios --release ${BUILD_ARGS[*]:-})"
+flutter build ios --release ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}
 
 fi
 

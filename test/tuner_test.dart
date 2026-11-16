@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:string_tuner/string_tuner.dart';
+import 'package:violin_practice_companion/debug/screenshot_mode.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
@@ -361,10 +362,11 @@ void main() {
 
   group('TunerScreen', () {
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
-        {bool deny = false, bool mandolin = false, bool auto = false}) async {
+        {bool deny = false, bool mandolin = false, bool auto = false, bool record = false}) async {
       SharedPreferences.setMockInitialValues({
         if (mandolin) instrumentSetKey: InstrumentSet.violinAndMandolin.name,
         if (auto) tunerAutoStringKey: true,
+        if (record) tunerRecordSessionsKey: true,
       });
       final sp = await SharedPreferences.getInstance();
       final fake = FakeTunerInput(deny: deny);
@@ -589,6 +591,18 @@ void main() {
       expect(status(tester), 'Wrong way! Loosen it instead');
     });
 
+    testWidgets('without TUNER_RECORDING a long press on the title does nothing',
+        (tester) async {
+      await pumpTuner(tester, record: true);
+      expect(find.byKey(const ValueKey('tuner_rec')), findsNothing,
+          reason: 'a saved switch from a recording build is ignored');
+      await tester.longPress(find.byKey(const ValueKey('tuner_title')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
+      expect(find.byKey(const ValueKey('tuner_mark')), findsNothing);
+    }, skip: kTunerRecording);
+
+    // Run with: flutter test --dart-define=TUNER_RECORDING=true test/tuner_test.dart
     testWidgets('a long press on the title switches the session recording', (tester) async {
       final fake = await pumpTuner(tester);
       expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
@@ -615,7 +629,7 @@ void main() {
       expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
       expect(sp.getBool(tunerRecordSessionsKey), isFalse);
       await tester.pump(const Duration(seconds: 3));
-    });
+    }, skip: !kTunerRecording);
 
     testWidgets('A = 442 lives in the settings sheet, is saved and retargets', (tester) async {
       final fake = await pumpTuner(tester);

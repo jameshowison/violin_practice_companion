@@ -505,7 +505,12 @@ the CoreDevice id `devicectl list devices` prints. Install a release build with 
 script and have the feature write what you need to `Documents/` instead — as the
 calibration trace does (`scripts/pull_sync_trace.sh <device>`).
 
-**The tuner records sessions on request.** A long press on the tuner's title
+**The tuner records sessions on request**, in builds made with
+`--dart-define=TUNER_RECORDING=true` only (`kTunerRecording`; App Store and
+TestFlight builds leave it out). For the phone: `bash scripts/device_install.sh Jamz
+--dart-define=TUNER_RECORDING=true`; `dev_run.sh` passes the same flag through.
+Its widget test runs only with `flutter test --dart-define=TUNER_RECORDING=true
+test/tuner_test.dart`. In such a build a long press on the tuner's title
 switches on a developer recording (● REC under the title, and a flag button to
 mark a moment): each listening run's microphone audio as a WAV, plus a CSV of
 what `TunerModel` did with every frame. `bash scripts/pull_tuner_sessions.sh

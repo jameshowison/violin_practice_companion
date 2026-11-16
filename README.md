@@ -594,6 +594,9 @@ xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
 - `SCREENSHOTS=true` (`lib/debug/screenshot_mode.dart`) hides the build stamp,
   the taller debug toolbar and the DEBUG banner. The app stays a debug build,
   so Marionette still drives it.
+- The other build flag there, `TUNER_RECORDING=true`, compiles in the tuner's
+  developer session recording (a long press on the tuner's title). Leave it off
+  for App Store and TestFlight builds.
 - `dev_run.sh` never syncs the dev library onto a `shots-*` sim. Its piece
   list holds only the bundled public-domain pieces, and nothing relabelled
   there leaks back into the library.
