@@ -130,3 +130,16 @@ class TempoSettings {
   int get hashCode =>
       Object.hash(slowPercent, mediumPercent, performance, custom, preset);
 }
+
+/// Whether to ask, when a recording loads, if the piece should follow the
+/// recording's tempo instead of the one [pinnedBpm] set by hand. A hand-set
+/// tempo silently wins over every recording, so Performance stops meaning
+/// "the recording at 1.0x" — on 2026-11-16 a forgotten pin of 118 made a
+/// 79 bpm teacher video play at ~150% and looked like a bug. Not asked when
+/// the two agree to within a bpm: following would change nothing audible.
+bool offerRecordingTempo(int? pinnedBpm, double? recordingBpm) {
+  if (pinnedBpm == null || recordingBpm == null || recordingBpm <= 0) {
+    return false;
+  }
+  return (pinnedBpm - recordingBpm.round()).abs() > 1;
+}

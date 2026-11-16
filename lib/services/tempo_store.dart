@@ -80,4 +80,30 @@ class TempoStore {
       // Ignore, as above.
     }
   }
+
+  String _askedKey(String pieceId) => '${_prefix}askedRecording.$pieceId';
+
+  /// Whether the user has already been asked to follow [mediaId]'s tempo in
+  /// place of [pieceId]'s hand-set one (see `offerRecordingTempo`). Asked once
+  /// per recording, whatever the answer. A failure reads as asked, so a broken
+  /// preferences store can't put the question up on every load.
+  Future<bool> wasAskedAboutRecording(String pieceId, String mediaId) async {
+    try {
+      return ((await _open()).getStringList(_askedKey(pieceId)) ?? const [])
+          .contains(mediaId);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> markAskedAboutRecording(String pieceId, String mediaId) async {
+    try {
+      final p = await _open();
+      final asked = p.getStringList(_askedKey(pieceId)) ?? const <String>[];
+      if (asked.contains(mediaId)) return;
+      await p.setStringList(_askedKey(pieceId), [...asked, mediaId]);
+    } catch (_) {
+      // Ignore, as above.
+    }
+  }
 }

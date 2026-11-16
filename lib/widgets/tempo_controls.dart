@@ -239,6 +239,7 @@ class TempoPresetPicker extends ConsumerWidget {
         perf.bpm *
         100;
     final style = Theme.of(context).textTheme.bodyMedium;
+    final pinned = perf.source == PerformanceSource.piece;
 
     Future<void> onSelected(Object choice) async {
       switch (choice) {
@@ -276,8 +277,11 @@ class TempoPresetPicker extends ConsumerWidget {
 
     String presetLabel(TempoPreset p) => switch (p) {
           TempoPreset.custom => 'Custom (${settings.custom})…',
-          TempoPreset.performance =>
-            '${p.label} (${settings.bpmFor(p, perf.bpm)})',
+          // Says when it's pinned: a hand-set tempo overrides every
+          // recording, and forgotten, it looks like the recording is ignored.
+          TempoPreset.performance => pinned
+              ? '${p.label} (${settings.bpmFor(p, perf.bpm)}, set by hand)'
+              : '${p.label} (${settings.bpmFor(p, perf.bpm)})',
           _ => '${p.label} (${settings.bpmFor(p, perf.bpm)}, '
               '${settings.percentFor(p)}%)',
         };
@@ -328,6 +332,14 @@ class TempoPresetPicker extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // Presets other than Custom are shares of the pinned tempo, so
+            // the pin shows on all of them.
+            if (pinned && settings.preset != TempoPreset.custom)
+              const Padding(
+                key: ValueKey('tempo_pinned'),
+                padding: EdgeInsets.only(left: 2),
+                child: Icon(Icons.push_pin, size: 14),
+              ),
             const Icon(Icons.arrow_drop_down, size: 20),
           ],
         ),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/piece.dart';
 import '../models/piece_media.dart';
+import '../models/tempo_presets.dart' show offerRecordingTempo;
 import '../screens/record_teacher_demo_screen.dart';
 import '../services/audio_output.dart';
 import '../services/audio_score_auto_aligner.dart' show alignmentReviewMessage;
@@ -878,6 +879,50 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
       _result = result;
       _loading = false;
     });
+    if (result.isPlayable) unawaited(_offerRecordingTempo());
+  }
+
+  /// Once per recording, on a piece whose performance tempo was set by hand:
+  /// offer to follow the recording instead (see [offerRecordingTempo]).
+  /// Covers a recording added after the pin, and one that arrives by sync
+  /// onto a device that has a pin nobody remembers making.
+  Future<void> _offerRecordingTempo() async {
+    final pieceId = widget.piece.id;
+    final media = widget.media;
+    final store = ref.read(tempoStoreProvider);
+    // The provider restores from prefs asynchronously; read the store too so
+    // an early first load still sees the pin.
+    final pinned = ref.read(piecePerformanceOverrideProvider(pieceId)) ??
+        await store.loadPiecePerformance(pieceId);
+    final recBpm = _service.recordingBpm;
+    if (!offerRecordingTempo(pinned, recBpm)) return;
+    if (await store.wasAskedAboutRecording(pieceId, media.id)) return;
+    if (!mounted || widget.media.id != media.id) return;
+    await store.markAskedAboutRecording(pieceId, media.id);
+    if (!mounted) return;
+    final rec = recBpm!.round();
+    final follow = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Use this recording's tempo?"),
+        content: Text(
+          'This piece\'s performance tempo was set by hand to $pinned bpm, '
+          'so "${media.label}" (about $rec bpm) is played faster or slower '
+          'than recorded. Follow the recording instead, so Performance '
+          'plays it at its own speed?',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Keep $pinned')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Use recording ($rec)')),
+        ],
+      ),
+    );
+    if (follow != true || !mounted) return;
+    ref.read(piecePerformanceOverrideProvider(pieceId).notifier).set(null);
   }
 
   @override
