@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:string_tuner/string_tuner.dart';
 
 /// One pitch reading from the microphone.
@@ -37,4 +39,9 @@ abstract class TunerInputBase {
 
   /// Stops, and releases the microphone and the worker for good.
   Future<void> dispose();
+
+  /// Called with every chunk of raw audio (mono 16-bit PCM at
+  /// [TunerFrame]'s clock, from the first sample), for the developer's
+  /// session recording (tuner_recording.dart). Null to skip.
+  set onPcm(void Function(Uint8List pcm)? f);
 }

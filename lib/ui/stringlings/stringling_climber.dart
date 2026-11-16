@@ -30,7 +30,8 @@ class ClimberRung {
 /// which way to turn its fine tuner, on the screw head as the player sees it
 /// from behind the violin (flattened, the far side up): clockwise raises the
 /// pitch, so flat shows clockwise and sharp anti-clockwise. Hidden when in tune, idle or
-/// climbing.
+/// climbing. With [wrongWay] (the last turn went the wrong way) it grows,
+/// turns red and beats.
 ///
 /// With [onPick], each rung is a tap target (and a button to screen readers)
 /// for picking that string. Nothing marks the picked one on screen: the
@@ -51,6 +52,8 @@ class StringlingClimber extends StatefulWidget {
     required this.cents,
     this.doubled = false,
     this.fineTuners = false,
+    this.inTune,
+    this.wrongWay = false,
     this.falls = 0,
     this.stretches = 0,
     this.picked,
@@ -68,6 +71,13 @@ class StringlingClimber extends StatefulWidget {
   /// Show the fine-tuner arrow (violin; a mandolin's tuners turn opposite
   /// ways on the two sides of the head, so one arrow would be wrong).
   final bool fineTuners;
+
+  /// In tune, as the tuner judges it (with hysteresis); null to judge by
+  /// [cents] alone, within 3 (the play slider).
+  final bool? inTune;
+
+  /// The last turn went the wrong way: the fine-tuner arrow pulses, red.
+  final bool wrongWay;
 
   /// Bumped (with [target] one rung lower) to make it FALL there instead of
   /// climbing: it lets go, drops, catches the lower string with one hand,
@@ -263,7 +273,7 @@ class _StringlingClimberState extends State<StringlingClimber>
         climb = null;
       }
     }
-    final inTune = climb == null && widget.cents != null && shown.abs() <= 3;
+    final inTune = climb == null && widget.cents != null && (widget.inTune ?? shown.abs() <= 3);
     held = inTune ? held + dt : 0;
     party.update(dt, cents: widget.cents == null ? null : shown, steady: climb == null, inTune: inTune);
     final since = party.since;
@@ -669,7 +679,7 @@ class _ClimberPainter extends CustomPainter {
       final r = math.max(11.0, math.min(22.0, gap * 0.2));
       final ax = math.min(x2 - r - 10, cx0 + rx * 2.4 + r);
       _turnArrow(canvas, Offset(ax, rungY(s.rung) - r * _dialTilt - 10), r,
-          clockwise: s.shown < 0, t: s.still ? 0 : s.t);
+          clockwise: s.shown < 0, t: s.still ? 0 : s.t, wrongWay: w.wrongWay);
     }
 
     if (inTune && s.held > 0.2) {
@@ -823,8 +833,12 @@ class _ClimberPainter extends CustomPainter {
   /// with an arrow running round it the way to turn. The far side of the
   /// head is up the screen, so the arrow's sense on screen is its sense seen
   /// from above, which is how "clockwise" on a fine tuner is meant.
-  void _turnArrow(Canvas canvas, Offset c, double r, {required bool clockwise, required double t}) {
+  void _turnArrow(Canvas canvas, Offset c, double r,
+      {required bool clockwise, required double t, bool wrongWay = false}) {
     final k = _dialTilt;
+    // Turned the wrong way: bigger, red, and beating, to stop the hand.
+    if (wrongWay) r *= 1.25 + 0.12 * math.sin(t * 9);
+    final ink = wrongWay ? const Color(0xFFD7263D) : _ink;
     Offset at(double a, [double rad = 1]) =>
         c + Offset(math.cos(a) * r * rad, math.sin(a) * r * k * rad);
 
@@ -852,7 +866,7 @@ class _ClimberPainter extends CustomPainter {
     canvas.drawPath(
         arc,
         Paint()
-          ..color = _ink
+          ..color = ink
           ..style = PaintingStyle.stroke
           ..strokeWidth = r * 0.24
           ..strokeCap = StrokeCap.round
@@ -870,7 +884,7 @@ class _ClimberPainter extends CustomPainter {
           ..lineTo(tip.dx + out.dx * h * 0.7, tip.dy + out.dy * h * 0.7)
           ..lineTo(tip.dx - out.dx * h * 0.7, tip.dy - out.dy * h * 0.7)
           ..close(),
-        Paint()..color = _ink);
+        Paint()..color = ink);
   }
 
   void _rung(Canvas canvas, double x1, double x2, double y, double thick, Color color,
