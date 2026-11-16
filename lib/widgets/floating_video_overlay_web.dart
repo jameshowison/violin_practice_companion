@@ -9,8 +9,20 @@ import '../services/media_playback_service.dart';
 class FloatingVideoOverlay extends StatelessWidget {
   final MediaPlaybackService service;
 
-  const FloatingVideoOverlay({super.key, required this.service});
+  final double toolbarHeight;
+  final int startMeasure;
+  final int startNote;
+  final int startIndex;
+
+  const FloatingVideoOverlay({
+    super.key,
+    required this.service,
+    required this.toolbarHeight,
+    this.startMeasure = 1,
+    this.startNote = 0,
+    this.startIndex = -1,
+  });
 
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) => const Positioned(width: 0, height: 0, child: SizedBox.shrink());
 }

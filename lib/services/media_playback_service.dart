@@ -767,6 +767,11 @@ class MediaPlaybackService extends PlaybackServiceBase {
           ? 0.0
           : _audioSecForScoreSec(startOffsetSeconds);
 
+  /// Where in the recording a play from [scoreSeconds] would begin — the
+  /// same choice [play] makes — for showing a paused video at that spot.
+  Duration audioPositionForScoreSeconds(double scoreSeconds) => Duration(
+      microseconds: (_seekTargetAudioSec(scoreSeconds) * 1e6).round());
+
   /// Nothing to highlight yet while real playback is still inside an
   /// unmatched intro (see [_seekTargetAudioSec]) — [_scoreSecForAudioSec]
   /// would otherwise extrapolate backward past the first anchor into a

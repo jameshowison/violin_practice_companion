@@ -156,21 +156,10 @@ abstract class PlaybackServiceBase {
     _toMeasure = toMeasure;
     _fromNote = fromNote;
     _toNote = toNote;
-    final pinned = fromIndex >= 0 &&
-        fromIndex < d.measureNumbers.length &&
-        d.measureNumbers[fromIndex] == fromMeasure;
+    final pinned = _isPinned(d, fromMeasure, fromIndex);
     _fromIndex = pinned ? fromIndex : -1;
     _toIndex = pinned && toIndex >= fromIndex ? toIndex : -1;
-    // fromMeasure is a Measure.number, not an array index — map it via the
-    // document-order measureNumbers list so a pickup (number 0) and any
-    // non-1-based numbering resolve correctly. Falls back to the start.
-    final fromIdx = _fromIndex >= 0 ? _fromIndex : d.indexOfMeasure(fromMeasure);
-    _startOffset = d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
-    if (fromIdx >= 0 &&
-        fromNote > 0 &&
-        fromNote < d.measureNoteTimings[fromIdx].length) {
-      _startOffset = d.measureNoteTimings[fromIdx][fromNote].$1;
-    }
+    _startOffset = _startOffsetIn(d, fromMeasure, fromNote, _fromIndex);
     // A player that can't place a count (an unaligned recording has no entry
     // to count back from) starts as if none were asked for — rather than
     // showing a "1" that never advances.
@@ -465,6 +454,37 @@ abstract class PlaybackServiceBase {
   /// [initialHighlightSeconds] is read and [onPlayStarted] runs — for a
   /// subclass whose start depends on both (a recording's lead-in).
   void prepareStart(double startOffsetSeconds) {}
+
+  static bool _isPinned(MidiData d, int fromMeasure, int fromIndex) =>
+      fromIndex >= 0 &&
+      fromIndex < d.measureNumbers.length &&
+      d.measureNumbers[fromIndex] == fromMeasure;
+
+  static double _startOffsetIn(
+      MidiData d, int fromMeasure, int fromNote, int pinnedIndex) {
+    // fromMeasure is a Measure.number, not an array index — map it via the
+    // document-order measureNumbers list so a pickup (number 0) and any
+    // non-1-based numbering resolve correctly. Falls back to the start.
+    final fromIdx =
+        pinnedIndex >= 0 ? pinnedIndex : d.indexOfMeasure(fromMeasure);
+    if (fromIdx >= 0 &&
+        fromNote > 0 &&
+        fromNote < d.measureNoteTimings[fromIdx].length) {
+      return d.measureNoteTimings[fromIdx][fromNote].$1;
+    }
+    return d.measureOnsetSeconds[fromIdx >= 0 ? fromIdx : 0];
+  }
+
+  /// The score time [play] would start from for these arguments, without
+  /// playing — so a paused video can be shown at a newly selected bar. Null
+  /// before a piece is loaded.
+  double? startOffsetFor(
+      {required int fromMeasure, int fromNote = 0, int fromIndex = -1}) {
+    final d = _data;
+    if (d == null || d.measureOnsetSeconds.isEmpty) return null;
+    return _startOffsetIn(d, fromMeasure, fromNote,
+        _isPinned(d, fromMeasure, fromIndex) ? fromIndex : -1);
+  }
 
   /// Score-seconds at which playback actually begins sounding when that is
   /// EARLIER than the count-in — a recording's intro — or null when there is

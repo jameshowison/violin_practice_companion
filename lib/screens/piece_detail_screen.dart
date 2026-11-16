@@ -278,7 +278,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) MeasureEditPanel.confirmClose(context, ref);
       },
-      child: Scaffold(
+      // Over the whole Scaffold, not the body: while playing, the video docks
+      // over the app bar's right-hand actions. Any medium with a video gets
+      // it: a recorded demo, or an imported mp4.
+      child: Stack(children: [
+      Scaffold(
       // The count-off takes over the whole bar while it runs — back arrow,
       // title and icons alike — as one extra line of music above the score.
       appBar: _CountInOverBar(
@@ -351,7 +355,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
           ],
         ),
         actions: [
-          _NotePaletteToggle(compact: useCompact),
+          // No vocabulary button: the key's name on the left of the title
+          // opens it (see [_KeySummary]), which gives the title the width.
           // A phone's bar has no room to spare (the title gives it up first);
           // there Print lives in the drawer only.
           if (!useCompact && printAvailableFor(ref, displayMode))
@@ -793,7 +798,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   displayMode: displayMode,
                   media: mediaList,
                   selectedMedia: selectedMedia,
-                  mediaService: mediaService,
                   )),
                 ]);
               }
@@ -819,11 +823,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                           child: Stack(
                             children: [
                               Positioned.fill(child: notationView),
-                              // Any medium with a video gets the window: a
-                              // recorded demo, or an imported mp4.
-                              if (selectedMedia.video != null &&
-                                  mediaService != null)
-                                FloatingVideoOverlay(service: mediaService),
                             ],
                           ),
                         ),
@@ -859,6 +858,15 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         ),
       ),
     ),
+      if (selectedMedia.video != null && mediaService != null)
+        FloatingVideoOverlay(
+          service: mediaService,
+          toolbarHeight: kShowDevChrome ? 64 : 56,
+          startMeasure: ref.watch(playbackStartMeasureProvider),
+          startNote: ref.watch(playbackStartNoteProvider),
+          startIndex: ref.watch(measureSelectionProvider)?.startPerf ?? -1,
+        ),
+    ]),
     );
   }
 
@@ -1604,10 +1612,6 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
   final List<PieceMedia> media;
   final PieceMedia selectedMedia;
 
-  /// Null exactly when [selectedMedia] is the synthesized score — there is no
-  /// file-backed service in that case.
-  final MediaPlaybackService? mediaService;
-
   const _CompactPieceLayout({
     required this.notationView,
     required this.sectionRow,
@@ -1619,7 +1623,6 @@ class _CompactPieceLayout extends ConsumerStatefulWidget {
     required this.displayMode,
     required this.media,
     required this.selectedMedia,
-    required this.mediaService,
   });
 
   @override
@@ -1798,8 +1801,6 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     return Stack(
       children: [
         Positioned.fill(child: widget.notationView),
-        if (widget.selectedMedia.video != null && widget.mediaService != null)
-          FloatingVideoOverlay(service: widget.mediaService!),
 
         // ── play tray, bottom edge ──
         Positioned(
@@ -2112,6 +2113,7 @@ class _KeySummary extends ConsumerWidget {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
     if (parsed == null) return const SizedBox.shrink();
     final numberMode = ref.watch(noteNumberModeProvider);
+    final expanded = ref.watch(notePaletteExpandedProvider);
     final odd = nonStandardFingerings(parsed,
         numberMode: numberMode,
         fretStyle: ref.watch(fretStyleProvider));
@@ -2121,8 +2123,16 @@ class _KeySummary extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(PieceDetailScreen._formatKey(parsed.keySignature),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(PieceDetailScreen._formatKey(parsed.keySignature),
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            // Says the key opens something: the vocabulary.
+            Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 14),
+          ],
+        ),
         if (odd.isNotEmpty)
           Text(odd.join(' '),
               style: const TextStyle(
@@ -2141,48 +2151,32 @@ class _KeySummary extends ConsumerWidget {
                       .withValues(alpha: 0.6))),
       ],
     );
-    if (!mirror) return body;
-    return ExcludeSemantics(
-      child: IgnorePointer(child: Opacity(opacity: 0, child: body)),
-    );
-  }
-}
-
-/// Folds the note vocabulary in and out. Labelled rather than icon-only because
-/// the panel is folded by default now, so this is the only thing on screen that
-/// says the vocabulary exists.
-class _NotePaletteToggle extends ConsumerWidget {
-  const _NotePaletteToggle({this.compact = false});
-
-  /// A phone's bar has no room for the label, so there it's an icon alone —
-  /// but still there: the vocabulary is as much use on the phone.
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final expanded = ref.watch(notePaletteExpandedProvider);
-    if (compact) {
-      return IconButton(
-        key: const ValueKey('vocabulary_toggle'),
-        tooltip: expanded ? 'Hide vocabulary' : 'Show vocabulary',
-        isSelected: expanded,
-        icon: const Icon(Icons.queue_music_outlined),
-        selectedIcon: const Icon(Icons.queue_music),
-        onPressed: () =>
-            ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
+    if (!mirror) {
+      // Tapping the key folds the note vocabulary in and out — the panel of
+      // every note the piece uses, which is what the key summary previews.
+      return Tooltip(
+        message: expanded ? 'Hide vocabulary' : 'Show vocabulary',
+        child: InkWell(
+          key: const ValueKey('vocabulary_toggle'),
+          borderRadius: BorderRadius.circular(6),
+          onTap: () =>
+              ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: body,
+          ),
+        ),
       );
     }
-    return TextButton.icon(
-      key: const ValueKey('vocabulary_toggle'),
-      onPressed: () =>
-          ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
-      icon: Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18),
-      label: const Text('Vocabulary', style: TextStyle(fontSize: 12)),
-      style: TextButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-      ),
+    // Padded as the real one is, so the title stays centred.
+    return ExcludeSemantics(
+      child: IgnorePointer(
+          child: Opacity(
+              opacity: 0,
+              child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                  child: body))),
     );
   }
 }

@@ -16,6 +16,7 @@ import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import 'tempo_controls.dart';
+import 'video_window_mode.dart';
 
 /// The piece screen's bottom tray: one picker naming what is playing the
 /// piece, and the transport for whatever that is.
@@ -991,6 +992,24 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                     )
                   : const SizedBox.shrink(),
             ),
+            // Shows and hides the video (see FloatingVideoOverlay). Closing
+            // it here is one tap, which matters: docked, it covers the back
+            // button.
+            if (widget.media.video != null)
+              Builder(builder: (context) {
+                final shown = ref.watch(videoWindowModeProvider) !=
+                    VideoWindowMode.hidden;
+                return IconButton(
+                  key: const ValueKey('video_toggle'),
+                  isSelected: shown,
+                  icon: const Icon(Icons.videocam_off_outlined),
+                  selectedIcon: const Icon(Icons.videocam),
+                  tooltip: shown ? 'Hide video' : 'Show video',
+                  // Back where it was: docked, or floating at its last
+                  // position and size.
+                  onPressed: () => shown ? hideVideo(ref) : showVideo(ref),
+                );
+              }),
             const _OutputPickerButton(source: AudioSyncSource.recording),
           ],
         );
