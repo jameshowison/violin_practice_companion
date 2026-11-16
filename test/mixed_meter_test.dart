@@ -221,6 +221,16 @@ void main() {
       expect(MeterRepair.repair(src), src);
     });
 
+    test('an empty bar under a misread time takes the meter after it', () {
+      // A multi-measure rest read as 7/4, then bars of 3/4.
+      final p = parser.parse(MeterRepair.repair(
+          _score([q(0, '7/4'), q(3), q(3), q(3), q(4, '4/4'), q(4)])));
+      expect(_changes(p), {1: '3/4', 5: '4/4'});
+      // One bar after it is too little to overrule the digits.
+      final src = _score([q(0, '4/4'), q(3), q(4, '4/4'), q(4)]);
+      expect(_changes(parser.parse(MeterRepair.repair(src)))[1], '4/4');
+    });
+
     test('a written time that restates the meter in force is removed', () {
       final xml = MeterRepair.repair(
           _score([q(3, '3/4'), q(3), q(3, '3/4'), q(3)]));

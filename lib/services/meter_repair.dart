@@ -30,6 +30,9 @@ import 'measure_xml_editor.dart';
 ///  * Where it put none, the meter changes only after [minRun] bars in a row
 ///    agree on a new length (damaged bars between them don't break the run).
 ///    One odd bar is a reading error, not a change of meter.
+///  * An empty bar under a `<time>` (a multi-measure rest) can't judge the
+///    digits: the meter of the bars after it (two in a row) stands instead.
+///    The recogniser opened a medley's rests with "7/4" before its 3/4 bars.
 ///  * The first meter found is the opening meter, written into the first bar,
 ///    so a pickup (or a scan cropped below the opening system) still starts
 ///    the piece in the right meter.
@@ -100,8 +103,11 @@ class MeterRepair {
         final pickup = bar.units != null &&
             bar.units! < written.units &&
             _nextLength(bars, i) == written.units;
-        final meter =
-            candidate == null || written.units == bar.units || pickup
+        // An empty bar (a multi-measure rest) can't vouch for its digits at
+        // all: the bars that follow it say what they were.
+        final meter = bar.units == 0
+            ? _followingMeter(bars, i, written) ?? written
+            : candidate == null || written.units == bar.units || pickup
                 ? written
                 : candidate;
         if (current == null || meter != current) want[i] = meter;
@@ -141,6 +147,20 @@ class MeterRepair {
     for (var k = i + 1; k < bars.length; k++) {
       final u = bars[k].units;
       if (u != null && u > 0) return u;
+    }
+    return null;
+  }
+
+  /// The meter of the bars after the empty bar [i], when at least two in a
+  /// row agree on it and it isn't [written]'s length; otherwise null.
+  static Meter? _followingMeter(List<_Bar> bars, int i, Meter written) {
+    for (var k = i + 1; k < bars.length; k++) {
+      if (bars[k].written != null) return null;
+      final u = bars[k].units;
+      if (u == null || u == 0) continue;
+      final m = _candidate(u, written);
+      if (m == null || m == written) return null;
+      return _runLength(bars, k, u) >= 2 ? m : null;
     }
     return null;
   }
