@@ -368,4 +368,125 @@ void main() {
       expect(body, contains('[1 D8 :| [2 E8 || F8'));
     });
   });
+
+  group('key changes', () {
+    // G major; D major from bar 3 (mid-line); F major from bar 5, which
+    // opens the second line at the default four bars per line.
+    String bar(int n, String notes, {int? fifths}) =>
+        '<measure number="$n">'
+        '${fifths == null ? '' : '<attributes><key><fifths>$fifths</fifths></key></attributes>'}'
+        '$notes</measure>';
+    final c = _note('C', 5); // C♮ under G
+    final cSharp = _note('C', 5, alter: 1); // C♯ from the D key: no sign
+    final cNat = _note('C', 5, accidental: 'natural'); // a written ♮ in D
+    final bFlat = _note('B', 4, alter: -1); // B♭ from the F key
+    final xml = _score([
+      bar(1, c * 4),
+      bar(2, c * 4),
+      bar(3, cSharp + cNat + cSharp + cSharp, fifths: 2),
+      bar(4, cSharp * 4),
+      bar(5, bFlat * 4, fifths: -1),
+    ].join(), fifths: 1);
+
+    test('the header states the opening key', () {
+      expect(_split(_export(xml)).headers.last, 'K: G');
+    });
+
+    test('a change inside a line is an inline field after the barline', () {
+      final body = _split(_export(xml)).body;
+      // A plain c is now C♯. After the written ♮ the exporter states every
+      // later C in the bar outright (its per-letter rule), so `^c`.
+      expect(body.first, contains('| [K:D] c2 =c2 ^c2 ^c2 | c2 c2 c2 c2 |'));
+      // Before the change a plain c is C♮, as G says.
+      expect(body.first, startsWith('c2 c2 c2 c2 | c2 c2 c2 c2 |'));
+    });
+
+    test('a change at the head of a line is a K: line of its own', () {
+      final body = _split(_export(xml)).body;
+      final at = body.indexOf('K: F');
+      expect(at, greaterThan(0));
+      expect(body[at + 1], startsWith('B2 B2 B2 B2'),
+          reason: 'B♭ is the F key\'s, so it needs no sign');
+      expect(body.any((l) => l.contains('[K:F]')), isFalse);
+    });
+
+    test('a minor tune names its changes in minor', () {
+      final minor = _score([
+        bar(1, _note('A', 4) * 4),
+        bar(2, _note('B', 4) * 4, fifths: 2),
+      ].join(), mode: 'minor');
+      final abc = _export(minor);
+      expect(_split(abc).headers.last, 'K: Am');
+      expect(abc, contains('[K:Bm]'));
+    });
+
+    test('a tie into the new key restates the old pitch', () {
+      final tied = _score([
+        bar(1, _note('A', 4) * 3 +
+            _note('C', 5).replaceFirst('</duration>', '</duration><tie type="start"/>')),
+        bar(2, _note('C', 5).replaceFirst('</duration>', '</duration><tie type="stop"/>') +
+            _note('C', 5, alter: 1) * 3, fifths: 2),
+      ].join());
+      expect(_split(_export(tied)).body.join(' '),
+          contains('| [K:D] =c2 ^c2 ^c2 ^c2 |'));
+    });
+  });
+
+  // test/fixtures/key_change.musicxml is test/fixtures/key_change.abc through
+  // the app's own converter (scripts/abc_to_musicxml.cjs): a `[K:D]` inside
+  // a line and a `K:F` line, with plain letters read in the new key.
+  group('key change round trip', () {
+    final parsed = MusicXmlParser().parse(MusicXmlNormalizer.toSoundingPitch(
+        File('test/fixtures/key_change.musicxml').readAsStringSync()));
+
+    test('imports each change at its bar, in sounding pitch', () {
+      expect([for (final m in parsed.measures) m.keyChange],
+          [1, null, 2, null, -1, null]);
+      expect([for (final m in parsed.measures) m.notes.map((n) => n.pitch).join(' ')], [
+        'C5 C5 C5 C5', // G: a plain c is C♮
+        'C5 C5 C5 C5',
+        'C#5 C5 C5 C5', // [K:D]: c is C♯; =c holds to the barline
+        'C#5 C#5 C#5 C#5',
+        'Bb4 Bb4 Bb4 Bb4', // K:F
+        'Bb4',
+      ]);
+    });
+
+    test('exports the changes back where they were', () {
+      final abc = AbcExporter.export(parsed, title: 'Key Change Exercise');
+      expect(_split(abc).headers.last, 'K: G');
+      final body = _split(abc).body;
+      expect(body.first, contains('| [K:D] c2 =c2 =c2 =c2 | c2 c2 c2 c2'));
+      expect(body, contains('K: F'));
+      expect(body.last, startsWith('B2 B2 B2 B2 | B8'));
+    });
+  });
+
+  // test/fixtures/meter_change.musicxml is test/fixtures/meter_change.abc
+  // through the app's own converter: an inline `[M:3/4]`, an `M:6/8` line
+  // (which abcjs reports only as the next line's meter, never as an
+  // element), `M:C`, and a key and meter change on the same bar.
+  group('meter change round trip', () {
+    final parsed = MusicXmlParser().parse(MusicXmlNormalizer.toSoundingPitch(
+        File('test/fixtures/meter_change.musicxml').readAsStringSync()));
+
+    test('imports each change at its bar', () {
+      expect([for (final m in parsed.measures) m.timeChange?.toString()],
+          ['4/4', '3/4', null, '6/8', null, '4/4', '2/4', null]);
+      expect(parsed.measures[6].keyChange, 2);
+    });
+
+    test('every bar adds up under its own meter', () {
+      expect(parsed.flaggedMeasureNumbers, isEmpty);
+    });
+
+    test('exports the changes back where they were', () {
+      final abc = AbcExporter.export(parsed, title: 'Meter Change Exercise');
+      expect(_split(abc).headers, contains('M: 4/4'));
+      final body = _split(abc).body.join(' ');
+      for (final field in ['[M:3/4]', '[M:6/8]', '[M:4/4]', '[K:D] [M:2/4]']) {
+        expect(body, contains(field));
+      }
+    });
+  });
 }
