@@ -75,8 +75,7 @@ List<double> countInBarlines(List<int> labels, int perBar) => [
 /// With [beatPosition] given, a dot bounces from number to number in time (see
 /// [countInDotOffset]), animated per frame rather than per playback tick. While
 /// [CountInTick.introProgress] is set — a recording's intro is still playing —
-/// a quiet "Intro" and its progress sit at the left end, the count still to
-/// come at the right.
+/// a quiet "Intro" and its progress sit just left of the count still to come.
 class CountInLabel extends StatefulWidget {
   const CountInLabel(
       {super.key, required this.tick, required this.height, this.beatPosition});
@@ -209,7 +208,10 @@ class _CountInLabelState extends State<CountInLabel>
     // The count is right-aligned so the eye travels along it to the end of
     // the line — where the music starts. Scaled down, never clipped: a
     // count that loses its last numbers stops answering "how long have I got?".
+    // The intro sits just left of the count, not at the lane's left end —
+    // where the floating video window rests by default and would hide it.
     return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
         if (introShown != null) ...[
           Column(
@@ -233,14 +235,11 @@ class _CountInLabelState extends State<CountInLabel>
           ),
           SizedBox(width: pad),
         ],
-        Expanded(
-          child: Align(
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: count,
-            ),
+            child: count,
           ),
         ),
       ],

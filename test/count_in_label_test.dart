@@ -84,7 +84,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 
-  testWidgets('the intro sits left, the count still shows on the right',
+  testWidgets('the intro sits just left of the count, both at the right',
       (t) async {
     await t.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -103,7 +103,10 @@ void main() {
     ));
     final intro = t.getRect(find.text('Intro…'));
     final count = t.getRect(find.byType(CustomPaint).last);
-    expect(intro.left, lessThan(100));
+    // Not at the lane's left end, where the floating video rests.
+    expect(intro.left, greaterThan(400));
+    expect(intro.right, lessThan(count.left));
+    expect(count.left - intro.right, lessThan(40));
     expect(count.right, closeTo(800, 1));
   });
 

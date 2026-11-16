@@ -216,6 +216,16 @@ class MediaPlaybackService extends PlaybackServiceBase {
   Duration get heardAudioPosition =>
       Duration(microseconds: (_heardAudioSec() * 1e6).round());
 
+  /// Whether the recording is actually sounding: playing, and not inside a
+  /// count-in's silent wait or the seek before it. True through a count-in
+  /// only when the count is heard over the recording's own intro (a
+  /// from-the-top start) or a preroll — which is when the video should run.
+  bool get isSounding {
+    if (!_player.playing || _seekPending) return false;
+    final endsAt = _leadInEndsAt;
+    return endsAt == null || _wallNow() >= endsAt;
+  }
+
   /// Whether the score highlight is being driven. False for a medium that
   /// plays but could not be aligned.
   bool get isAligned => _anchors.length >= 2;

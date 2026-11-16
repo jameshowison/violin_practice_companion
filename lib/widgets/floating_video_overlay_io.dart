@@ -30,7 +30,8 @@ import 'video_window_mode.dart';
 /// sits in the bar. Kept in sync with [service]'s *real* audio clock via
 /// periodic corrective seeks — not the score-highlight clock, which is
 /// DTW-mapped and runs at a different local rate than the actual recording.
-/// Held still on the starting frame through a count-in.
+/// Held still on the starting frame through a count-in, unless the count is
+/// heard over the recording itself (its intro, from the top).
 ///
 /// Shown for any medium that has one: a recorded teacher demo, where the video
 /// is a separate silent file captured alongside the audio, or an imported
@@ -177,8 +178,10 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   void _resync() {
     final controller = _controller.value;
     if (controller == null || !controller.value.isInitialized) return;
-    if (_heldForCountIn) return;
     final service = widget.service;
+    // Through a count-in the video holds its starting frame while the count
+    // is over silence, and runs once the recording is heard (its intro).
+    if (_heldForCountIn && !service.isSounding) return;
 
     final playing = service.playbackState == PlaybackState.playing;
     if (controller.value.isPlaying != playing) {
