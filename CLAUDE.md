@@ -531,6 +531,9 @@ uv run scripts/push_listing.py --apply     # write what changed
   the (public) listing file; the script prints them as "(from 1Password)".
 - **Fields are plain text.** The script flattens the markdown (bold dropped, `- `
   becomes `•`, line breaks kept); ALL-CAPS lines stand in for headings.
+- **`--apply` also releases that build to external testers:** it adds it to
+  "First round testers" and submits it for Beta App Review (testers are emailed
+  on approval). Run it only once the build has processed; before that it skips.
 - **What to Test belongs to one build** — the number in its heading, `(build 1.0.0+4)`.
   Bump it when a new build is uploaded, or the text lands on the old build.
 - **Subtitle and description/keywords are editable only while a version is in

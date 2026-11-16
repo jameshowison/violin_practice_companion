@@ -450,9 +450,20 @@ a re-trust (see above).
    *external* testers — it refuses the `internal-testing-only` play-along tracks).
 3. Smoke-test on the phone: `scripts/device_install.sh`, then play a piece (the
    synth), calibrate once (the claves), a scan.
-4. `flutter build ipa --release`, then drag `build/ios/ipa/Stringlings.ipa` into
-   Transporter. Processing takes 10–30 minutes; encryption compliance is already
-   answered in `Info.plist`.
+4. `flutter build ipa --release`, then upload with the API key from 1Password
+   (Touch ID prompts; the key goes in as an argument, never to disk — altool
+   can't read `--p8-file-path` from a pipe):
+   ```bash
+   I="op://Private/App Store Connect API"; KID=$(op read "$I/key_id")
+   xcrun altool --upload-app --type ios -f build/ios/ipa/Stringlings.ipa \
+     --apiKey "$KID" --apiIssuer "$(op read "$I/issuer_id")" \
+     --auth-string "$(op read "$I/AuthKey_$KID.p8" | grep -v -- ----- | tr -d '\n')"
+   ```
+   (Or drag the `.ipa` into Transporter.) Processing takes 10–30 minutes;
+   encryption compliance is already answered in `Info.plist`.
+   Once the build shows as processed, `uv run scripts/push_listing.py --apply`
+   writes its What to Test, adds it to the "First round testers" group and
+   submits it for Beta App Review; testers are notified when it's approved.
 5. Tag the commit it was built from with the full version: `git tag -a v1.0.0+4`,
    and push the tag.
 

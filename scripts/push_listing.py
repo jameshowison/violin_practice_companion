@@ -6,7 +6,8 @@
 
     uv run scripts/push_listing.py             # offline preview + length checks, no key
     uv run scripts/push_listing.py --compare   # live vs. new, field by field
-    uv run scripts/push_listing.py --apply     # writes the fields that changed
+    uv run scripts/push_listing.py --apply     # writes the fields that changed, then
+                                               # sends the build to external testers
 
 --compare and --apply need the API key. It lives in 1Password (item "App Store Connect API" in the Private
 vault: key_id, issuer_id, and the AuthKey_<key_id>.p8 attachment). It is read
@@ -28,6 +29,9 @@ LISTING = Path(__file__).resolve().parent.parent / "docs" / "app-store-listing.m
 OP_ITEM = "op://Private/App Store Connect API"
 API = "https://api.appstoreconnect.apple.com"
 LOCALE = "en-US"
+# External testers. --apply adds the build in "What to Test (build …)" to this
+# group and submits it for Beta App Review.
+EXTERNAL_GROUP = "First round testers"
 LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "keywords": 100,
           "description": 4000, "whatsNew": 4000, "notes": 4000}
 # Shown as "(from 1Password)", never printed.
@@ -232,6 +236,8 @@ def main():
         for k, v in want["review"].items():
             show(f"review.{k}", None, v)
         print("  · review.contactPhone, review.contactEmail: from 1Password")
+        print(f"\nExternal testing: --apply adds build {want['build']} to "
+              f"\"{EXTERNAL_GROUP}\" and submits it for Beta App Review")
         print("\nAll fields within their limits. Offline preview: nothing was read from or "
               "sent to App Store Connect.\n--compare diffs against what's live; --apply "
               "writes (both read the key from 1Password).")
@@ -328,6 +334,38 @@ def main():
     diff = changes("betaReview", beta_rev["attributes"], review)
     if diff:
         todo.append(lambda d=diff, i=beta_rev["id"]: asc.patch("betaAppReviewDetails", i, d))
+
+    # Last, so the build's What to Test and the review form above are written
+    # before Apple sees the submission.
+    print(f"\nExternal testing: build {want['build']} to \"{EXTERNAL_GROUP}\"")
+    if build["attributes"]["processingState"] != "VALID":
+        print(f"  · build is {build['attributes']['processingState']}; "
+              "re-run once processing finishes")
+    else:
+        groups = [g for g in asc.get(f"/v1/apps/{app}/betaGroups", limit=50)
+                  if g["attributes"]["name"] == EXTERNAL_GROUP]
+        if not groups:
+            sys.exit(f"no beta group named {EXTERNAL_GROUP!r}")
+        group = groups[0]["id"]
+        in_group = build["id"] in [b["id"] for b in
+                                   asc.get(f"/v1/betaGroups/{group}/builds", limit=200)]
+        if in_group:
+            print("  = in the group")
+        else:
+            print("  ~ add to the group")
+            todo.append(lambda g=group, b=build["id"]: asc.call(
+                "POST", f"/v1/betaGroups/{g}/relationships/builds",
+                json={"data": [{"type": "builds", "id": b}]}))
+        state = asc.call("GET", f"/v1/builds/{build['id']}/buildBetaDetail")[
+            "data"]["attributes"]["externalBuildState"]
+        if state == "READY_FOR_BETA_SUBMISSION":
+            print("  ~ submit for Beta App Review (testers are notified when it's approved)")
+            todo.append(lambda b=build["id"]: asc.call(
+                "POST", "/v1/betaAppReviewSubmissions", json={"data": {
+                    "type": "betaAppReviewSubmissions",
+                    "relationships": {"build": {"data": {"type": "builds", "id": b}}}}}))
+        else:
+            print(f"  = Beta App Review: {state}")
 
     if not todo:
         print("\nEverything already matches.")
