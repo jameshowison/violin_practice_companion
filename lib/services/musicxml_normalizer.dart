@@ -52,21 +52,25 @@ class MusicXmlNormalizer {
     }
     if (_isSoundingLed(doc)) return musicXml;
 
-    final fifths = int.tryParse(doc
-            .findAllElements('key')
-            .firstOrNull
-            ?.findElements('fifths')
-            .firstOrNull
-            ?.innerText
-            .trim() ??
-        '') ??
-        0;
+    int? fifthsOf(XmlElement? key) => int.tryParse(
+        key?.findElements('fifths').firstOrNull?.innerText.trim() ?? '');
+
+    // The key in force, from the first one stated (a scan may state it only
+    // after its opening bars) and then each `<key>` as it is reached: an ABC
+    // key change (`[K:D]`) writes its notes relative to the NEW key.
+    var fifths = fifthsOf(doc.findAllElements('key').firstOrNull) ?? 0;
 
     for (final measureEl in doc.findAllElements('measure')) {
       // An accidental holds for the rest of its bar, on that step in that
       // octave only — a `^F` does not sharpen the F an octave up.
       final barAlters = <String, int>{};
-      for (final noteEl in measureEl.findAllElements('note')) {
+      for (final el in measureEl.childElements) {
+        if (el.name.local == 'attributes') {
+          fifths = fifthsOf(el.findElements('key').firstOrNull) ?? fifths;
+          continue;
+        }
+        if (el.name.local != 'note') continue;
+        final noteEl = el;
         final pitchEl = noteEl.findElements('pitch').firstOrNull;
         if (pitchEl == null) continue; // a rest
         final step = pitchEl.findElements('step').firstOrNull?.innerText.trim();

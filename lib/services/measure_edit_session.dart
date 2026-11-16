@@ -55,8 +55,18 @@ class MeasureEditSession {
   /// [timeChange] is in. The opening meter for the first bar.
   final Meter meterBefore;
 
-  /// Whether this is the piece's first bar, whose meter can be changed but
-  /// not removed.
+  /// The key (`<fifths>`) this bar starts, or null when it carries on in
+  /// [keyBefore]. On the first bar it is the piece's opening key and never
+  /// null. Drafted, unlike the meter: a key fix re-spells the notes of every
+  /// bar it governs, and the score should show that before Save.
+  final int? keyChange;
+  final int? originalKeyChange;
+
+  /// The key in force just before this bar. The opening key for the first.
+  final int keyBefore;
+
+  /// Whether this is the piece's first bar, whose meter and key can be
+  /// changed but not removed.
   final bool isFirstMeasure;
   final bool saving;
 
@@ -77,12 +87,18 @@ class MeasureEditSession {
     this.timeChange,
     this.originalTimeChange,
     this.meterBefore = const Meter(4, 4),
+    this.keyChange,
+    this.originalKeyChange,
+    this.keyBefore = 0,
     this.isFirstMeasure = false,
     this.saving = false,
   });
 
   /// The meter this bar is in, with any pending change.
   Meter get meter => timeChange ?? meterBefore;
+
+  /// The key this bar is in, with any pending change.
+  int get key => keyChange ?? keyBefore;
 
   NoteEvent? get selected =>
       selectedIndex != null && selectedIndex! < notes.length
@@ -110,6 +126,7 @@ class MeasureEditSession {
       repeatStart != originalRepeatStart || repeatEnd != originalRepeatEnd;
   bool get sectionsChanged => !_sameSections(sectionStarts, originalSectionStarts);
   bool get timeChanged => timeChange != originalTimeChange;
+  bool get keyChanged => keyChange != originalKeyChange;
   bool get endingsChanged =>
       endings.length != originalEndings.length ||
       !endings.containsAll(originalEndings);
@@ -118,6 +135,7 @@ class MeasureEditSession {
       repeatsChanged ||
       sectionsChanged ||
       timeChanged ||
+      keyChanged ||
       endingsChanged;
 
   bool get lyricsMoved =>
@@ -125,6 +143,7 @@ class MeasureEditSession {
 
   MeasureEditSession copyWith({
     List<NoteEvent>? notes,
+    List<NoteEvent>? originalNotes,
     int? selectedIndex,
     bool clearSelection = false,
     bool? repeatStart,
@@ -133,13 +152,15 @@ class MeasureEditSession {
     List<Section>? sectionStarts,
     Meter? timeChange,
     bool clearTimeChange = false,
+    int? keyChange,
+    bool clearKeyChange = false,
     bool? saving,
   }) =>
       MeasureEditSession(
         pieceId: pieceId,
         measureNumber: measureNumber,
         notes: notes ?? this.notes,
-        originalNotes: originalNotes,
+        originalNotes: originalNotes ?? this.originalNotes,
         selectedIndex:
             clearSelection ? null : (selectedIndex ?? this.selectedIndex),
         repeatStart: repeatStart ?? this.repeatStart,
@@ -154,6 +175,9 @@ class MeasureEditSession {
             clearTimeChange ? null : (timeChange ?? this.timeChange),
         originalTimeChange: originalTimeChange,
         meterBefore: meterBefore,
+        keyChange: clearKeyChange ? null : (keyChange ?? this.keyChange),
+        originalKeyChange: originalKeyChange,
+        keyBefore: keyBefore,
         isFirstMeasure: isFirstMeasure,
         saving: saving ?? this.saving,
       );
@@ -222,6 +246,7 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     final isFirst = index == 0;
     final timeChange =
         isFirst ? parsed.openingMeter : measure.timeChange;
+    final keyChange = isFirst ? parsed.keyAt(0) : measure.keyChange;
     // Repair the chord invariant up front — OMR output can carry a stray
     // leading <chord/> or a member whose duration drifted from its primary.
     final notes = ChordEditor.normalize(measure.notes);
@@ -243,6 +268,9 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       timeChange: timeChange,
       originalTimeChange: timeChange,
       meterBefore: isFirst ? parsed.openingMeter : parsed.meterAt(index - 1),
+      keyChange: keyChange,
+      originalKeyChange: keyChange,
+      keyBefore: isFirst ? parsed.keyAt(0) : parsed.keyAt(index - 1),
       isFirstMeasure: isFirst,
     );
     return true;
@@ -273,14 +301,16 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     if (s == null) return;
     final parsed = _ref.read(parsedPieceProvider).valueOrNull;
     final draft = _ref.read(measureDraftProvider.notifier);
-    if (!s.notesChanged && !s.repeatsChanged) {
+    final rebuild = s.notesChanged || s.repeatsChanged;
+    if (!rebuild && !s.keyChanged) {
       if (draft.state != null) draft.state = null;
       return;
     }
     draft.state = MeasureDraft(
       pieceId: s.pieceId,
       measureNumber: s.measureNumber,
-      notes: s.notes,
+      notes: rebuild ? s.notes : null,
+      key: s.keyChanged ? (fifths: s.keyChange) : null,
       divisions: parsed?.divisions ?? draft.state?.divisions ?? 1,
       repeatStart: s.repeatStart,
       repeatEnd: s.repeatEnd,
@@ -303,8 +333,9 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
 
   // ── Pitch math ─────────────────────────────────────────────────────────
 
-  int get _keyFifths =>
-      _ref.read(parsedPieceProvider).valueOrNull?.keyFifths ?? 0;
+  // This bar's own key, pending change included — not the piece's opening
+  // key, which a bar after a key change doesn't follow.
+  int get _keyFifths => state?.key ?? 0;
 
   static ({String step, int alter, int octave}) _parse(String pitch) {
     final m = RegExp(r'^([A-G])([#b]?)(\d)$').firstMatch(pitch);
@@ -554,6 +585,65 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
         redraft: false);
   }
 
+  /// Sets the key this bar starts — or with null, makes it carry on in the
+  /// key before it (not on the first bar, which always has one). The bar's
+  /// notes that were following the old key are re-spelt into the new one at
+  /// once, as Save will re-spell them in the file ([KeySignature.rekeyBar]);
+  /// the draft shows the rest of the bars it governs.
+  void setKeyChange(int? fifths) {
+    final s = state;
+    if (s == null) return;
+    if (fifths == null && s.isFirstMeasure) return;
+    final notes = _rekeyed(s, fifths ?? s.keyBefore);
+    // Untouched notes stay "unchanged" when only the key moved: the file is
+    // re-spelt in place on Save, which keeps what rebuilding the bar drops
+    // (slurs, articulations).
+    final untouched = !s.notesChanged;
+    final keyed = fifths == null
+        ? s.copyWith(clearKeyChange: true)
+        : s.copyWith(keyChange: fifths);
+    _update(keyed.copyWith(
+      notes: notes,
+      originalNotes: untouched ? notes : null,
+    ));
+  }
+
+  /// [s]'s notes re-spelt from its key into [to], refingered: the same rule
+  /// [MeasureXmlEditor.setKeyChange] applies to the file.
+  List<NoteEvent> _rekeyed(MeasureEditSession s, int to) {
+    if (s.key == to) return s.notes;
+    // A tie into this bar continues the bar before's last note, which the
+    // change doesn't touch.
+    KeyCarry? carry;
+    final parsed = _ref.read(parsedPieceProvider).valueOrNull;
+    final k =
+        parsed?.measures.indexWhere((m) => m.number == s.measureNumber) ?? -1;
+    if (k > 0) {
+      carry = KeySignature.unchangedCarry(parsed!.measures[k - 1].notes
+          .map(KeySignature.keyedOf)
+          .whereType<KeyedNote>()
+          .lastOrNull);
+    }
+    final keyed = s.notes.map(KeySignature.keyedOf).toList();
+    final (alters, _) =
+        KeySignature.rekeyBar(keyed, s.key, to, carryIn: carry);
+    var changed = false;
+    final out = <NoteEvent>[];
+    for (var i = 0; i < s.notes.length; i++) {
+      final was = keyed[i], a = alters[i];
+      if (was == null || a == null || a == was.alter) {
+        out.add(s.notes[i]);
+        continue;
+      }
+      changed = true;
+      out.add(s.notes[i].copyWith(
+        pitch: _pitchString(was.step, a, was.octave),
+        midiNumber: _midi(was.step, a, was.octave),
+      ));
+    }
+    return changed ? _refingered(s.measureNumber, out) : s.notes;
+  }
+
   // ── Persistence ────────────────────────────────────────────────────────
 
   /// Writes the bar (and the section markers) and closes the session. Throws
@@ -571,6 +661,14 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     try {
       final repo = _ref.read(pieceRepositoryProvider);
       var xml = await repo.loadMusicXml(piece);
+      // The key first: it re-spells the notes of every bar it governs, this
+      // one included, and a rebuilt bar then overwrites its own.
+      if (s.keyChanged) {
+        final f = s.keyChange;
+        xml = f == null
+            ? MeasureXmlEditor.removeKeyChange(xml, s.measureNumber)
+            : MeasureXmlEditor.setKeyChange(xml, s.measureNumber, f);
+      }
       if (s.notesChanged || s.repeatsChanged) {
         xml = MeasureXmlEditor.replaceMeasureNotes(
             xml, s.measureNumber, s.notes, parsed.divisions);

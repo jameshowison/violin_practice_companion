@@ -24,7 +24,8 @@ import 'musicxml_parser.dart';
 /// (`A2-|A2`), stacked chord notes (`[CEG]`), chord symbols (`"Am"`),
 /// forward/backward repeats, first/second endings (`[1`/`[2`),
 /// D.C./D.S./Fine/segno/coda marks, the key
-/// signature with its mode, meter changes, and tuplets (`(3abc`). What does
+/// signature with its mode, key changes (a `K:` line at the head of a line,
+/// `[K:D]` inside one), meter changes, and tuplets (`(3abc`). What does
 /// NOT survive is anything [MusicXmlParser] itself drops — slurs,
 /// grace notes, dynamics and fingerings — and lyrics, which
 /// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
@@ -55,9 +56,12 @@ class AbcExporter {
       ..writeln('T: ${_headerText(title)}')
       ..writeln('M: ${piece.beatsPerMeasure}/${piece.beatType}')
       ..writeln('L: 1/${32 ~/ unit}')
-      ..writeln('K: ${MusicXmlParser.keyName(piece.keyFifths, piece.keyMode)}');
+      ..writeln('K: ${MusicXmlParser.keyName(piece.keyAt(0), piece.keyMode)}');
 
     final meters = piece.meters;
+    // ABC reads a plain letter in whatever key is in force, so every bar is
+    // spelt in its own key and a change is written where it happens.
+    final keys = [for (var i = 0; i < piece.measures.length; i++) piece.keyAt(i)];
     final measures = piece.measures;
     final line = StringBuffer();
 
@@ -69,6 +73,8 @@ class AbcExporter {
 
     for (var i = 0; i < measures.length; i++) {
       final m = measures[i];
+      final keyChanges = i > 0 && keys[i] != keys[i - 1];
+      var keyWritten = false;
       var leading = _leadingBarline(
         isFirst: i == 0,
         previousRepeatEnd: i > 0 && measures[i - 1].repeatEnd,
@@ -97,6 +103,12 @@ class AbcExporter {
         buffer.writeln(line.toString());
         line.clear();
         leading = opening;
+        // A change at the head of a line gets a `K:` line of its own, the
+        // form every ABC reader accepts and a person reads most easily.
+        if (keyChanges) {
+          buffer.writeln('K: ${_keyName(keys[i], piece.keyMode)}');
+          keyWritten = true;
+        }
       }
       write(leading);
       // First/second endings: `[1`, `[2`, `[1,2` where a bracket starts.
@@ -104,10 +116,14 @@ class AbcExporter {
           (i == 0 || !_sameEndings(measures[i - 1].endings, m.endings))) {
         write('[${(m.endings.toList()..sort()).join(',')}');
       }
-      // A meter change is an inline field at the head of its bar.
+      // Mid-line changes are inline fields at the head of their bar: the key
+      // first, in the order a bar's start draws them.
+      if (keyChanges && !keyWritten) {
+        write('[K:${_keyName(keys[i], piece.keyMode)}]');
+      }
       if (i > 0 && meters[i] != meters[i - 1]) write('[M:${meters[i]}]');
       write(_navOpening(m));
-      write(_measureBody(m, piece.keyFifths, unit, _beamUnits(meters[i])));
+      write(_measureBody(m, keys[i], unit, _beamUnits(meters[i])));
       write(_navClosing(m, measures));
     }
     write(measures.isNotEmpty && measures.last.repeatEnd ? ':|' : '|]');
@@ -115,6 +131,13 @@ class AbcExporter {
 
     return buffer.toString();
   }
+
+  /// The name for a key CHANGE of [fifths]. The file stores only the
+  /// signature, so the piece's mode is the best guess: a minor tune's change
+  /// is named in minor (`Bm`), anything else by its major (`D`). Modal names
+  /// stay with the opening key, where the score actually says them.
+  static String _keyName(int fifths, KeyMode pieceMode) => MusicXmlParser
+      .keyName(fifths, pieceMode == KeyMode.minor ? KeyMode.minor : KeyMode.major);
 
   /// The navigation marks that land where a measure begins. A text annotation
   /// must precede a note, so To Coda goes here too — like every mark, the

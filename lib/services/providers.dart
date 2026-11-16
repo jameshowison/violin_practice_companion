@@ -337,23 +337,41 @@ class LibraryActions {
 class MeasureDraft {
   final String pieceId;
   final int measureNumber;
-  final List<NoteEvent> notes;
+
+  /// The bar's notes, or null to leave the file's (a key-only draft, which
+  /// re-spells them in place instead of rebuilding the bar).
+  final List<NoteEvent>? notes;
   final int divisions;
   final bool repeatStart;
   final bool repeatEnd;
 
+  /// A key change at this bar, or null for none: `fifths` is the key it
+  /// starts, or null to remove the change. Applied first, so the notes that
+  /// follow the key move with it across every bar it governs.
+  final ({int? fifths})? key;
+
   const MeasureDraft({
     required this.pieceId,
     required this.measureNumber,
-    required this.notes,
+    this.notes,
     required this.divisions,
     required this.repeatStart,
     required this.repeatEnd,
+    this.key,
   });
 
   String applyTo(String xml) {
-    final withNotes = MeasureXmlEditor.replaceMeasureNotes(
-        xml, measureNumber, notes, divisions);
+    final k = key;
+    if (k != null) {
+      final f = k.fifths;
+      xml = f == null
+          ? MeasureXmlEditor.removeKeyChange(xml, measureNumber)
+          : MeasureXmlEditor.setKeyChange(xml, measureNumber, f);
+    }
+    final n = notes;
+    if (n == null) return xml;
+    final withNotes =
+        MeasureXmlEditor.replaceMeasureNotes(xml, measureNumber, n, divisions);
     return MeasureXmlEditor.setMeasureRepeats(withNotes, measureNumber,
         start: repeatStart, end: repeatEnd);
   }

@@ -314,6 +314,13 @@
           // Where each authored music line begins — a phrase start the
           // section detector can use (see `line_start` below).
           if (elements.length) elements.push({ el_type: 'line_start' });
+          // An `M:` line between music lines reaches abcjs only as the next
+          // line's staff.meter — unlike `[M:]` (and unlike `K:`), it puts no
+          // element in the stream — so it is put there here, at the line's
+          // start. The loop below ignores one that restates the meter.
+          if (elements.length && staff.meter) {
+            elements.push({ el_type: 'meter', type: staff.meter.type, value: staff.meter.value });
+          }
           elements = elements.concat(staff.voices[0]);
         }
       }
@@ -362,6 +369,7 @@
     var noteEls = [];
     for (var ni = 0; ni < elements.length; ni++) if (elements[ni].el_type === 'note') noteEls.push(elements[ni]);
     var lyrics = lyricsXml(noteEls), noteIx = 0;
+    var keyInForce = km.fifths, timeInForce = time;
     for (var ei = 0; ei < elements.length; ei++) {
       var el = elements[ei];
       if (el.el_type === 'note') {
@@ -413,6 +421,31 @@
         // abcjs emits one 'part' element wherever `[P:X]` sits in the source;
         // it lands before the next note, mid-bar if that's where it was put.
         cur.notes += '      <direction placement="above"><direction-type><rehearsal>' + xmlEscape(el.title) + '</rehearsal></direction-type></direction>\n';
+      } else if (el.el_type === 'key') {
+        // A key change: `[K:D]` inline, or a `K:` line (which abcjs reports
+        // at the end of the line before, after its barline). Written where
+        // it falls, so a change at a barline opens the next bar and the
+        // notes after it — written relative to the new key, as ABC does —
+        // are resolved against it by MusicXmlNormalizer. abcjs lists the
+        // cancelling naturals too; keyToFifthsMode counts only ♯ and ♭.
+        var kc = keyToFifthsMode(el, warnings);
+        if (kc.fifths !== keyInForce) {
+          keyInForce = kc.fifths;
+          if (cur.noteCount > 0) warnings.push('key change inside a bar');
+          cur.notes += '      <attributes><key><fifths>' + kc.fifths + '</fifths><mode>' +
+            kc.mode + '</mode></key></attributes>\n';
+        }
+      } else if (el.el_type === 'meter') {
+        // A meter change, `[M:3/4]` or an `M:` line: a <time> where it falls,
+        // which the app reads as Measure.timeChange. Note lengths are
+        // absolute in abcjs, so nothing else moves.
+        var tc = meterToTime(el);
+        if (tc.beats !== timeInForce.beats || tc.beatType !== timeInForce.beatType) {
+          timeInForce = tc;
+          if (cur.noteCount > 0) warnings.push('meter change inside a bar');
+          cur.notes += '      <attributes><time><beats>' + tc.beats + '</beats><beat-type>' +
+            tc.beatType + '</beat-type></time></attributes>\n';
+        }
       } else if (el.el_type === 'line_start') {
         // Not engraved: PieceLayout.stripLayoutHints removes it, and
         // musicxml_parser.dart reads it as Measure.lineStartNote.

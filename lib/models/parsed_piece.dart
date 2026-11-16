@@ -299,6 +299,28 @@ class ParsedPiece {
     return i < 0 ? openingMeter : meterAt(i);
   }
 
+  /// The key (`<fifths>`) in force at document index [index] (clamped to the
+  /// piece): [keyFifths] until the first [Measure.keyChange], then each
+  /// change until the next.
+  int keyAt(int index) {
+    if (measures.isEmpty) return keyFifths;
+    final i = index.clamp(0, measures.length - 1);
+    for (var k = i; k >= 0; k--) {
+      final f = measures[k].keyChange;
+      if (f != null) return f;
+    }
+    return keyFifths;
+  }
+
+  /// Document indices of the bars whose key is set at [index]: from it up to
+  /// (not including) the next [Measure.keyChange].
+  Iterable<int> keySpanFrom(int index) sync* {
+    for (var k = index; k < measures.length; k++) {
+      if (k > index && measures[k].keyChange != null) return;
+      yield k;
+    }
+  }
+
   /// Whether the meter changes anywhere after the opening.
   bool get hasMeterChanges {
     final all = meters;
