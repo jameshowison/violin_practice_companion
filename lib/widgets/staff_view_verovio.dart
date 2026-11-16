@@ -2461,7 +2461,9 @@ class _OverlayPainter extends CustomPainter {
       final mi = at?.index ?? -1;
       final anchor = at == null ? null : score.noteAt(at.index, at.note);
       final restBeat = ev.restBeat;
-      final beatRect = restBeat == null ? null : _restBeatRect(mi, restBeat, ev.restBeats);
+      final beatRect = restBeat == null || at == null
+          ? null
+          : _restBeatRect(mi, at.note, ev.restSlice, ev.restSlices);
       if (beatRect != null) {
         _drawRestBeat(canvas, beatRect, restBeat! + 1, _bandPx(mi));
       } else if (anchor != null) {
@@ -2496,10 +2498,11 @@ class _OverlayPainter extends CustomPainter {
     return (band.bottom - band.top) * scale;
   }
 
-  /// Beat [beat] of [beats] of a whole-bar rest in engraved measure [mi]: an
-  /// equal slice of the bar's width, after any clef/key/time it opens with.
-  /// Null when the measure isn't on screen.
-  Rect? _restBeatRect(int mi, int beat, int beats) {
+  /// Beat [beat] of [beats] of the long rest at [note] in engraved measure
+  /// [mi]: an equal slice of the room the rest has — from the previous note
+  /// (or the bar's start, after any clef/key/time it opens with) to the next
+  /// note (or the bar's end). Null when the measure isn't on screen.
+  Rect? _restBeatRect(int mi, int note, int beat, int beats) {
     final m = score.measureAt(mi);
     if (m == null || beats < 1) return null;
     var left = m.rect.left;
@@ -2510,7 +2513,12 @@ class _OverlayPainter extends CustomPainter {
         left = r.right;
       }
     }
-    final w = (m.rect.right - left) / beats;
+    final prev = note > 0 ? score.noteAt(mi, note - 1) : null;
+    if (prev != null && prev.rect.right > left) left = prev.rect.right;
+    var right = m.rect.right;
+    final next = score.noteAt(mi, note + 1);
+    if (next != null && next.rect.left > left) right = next.rect.left;
+    final w = (right - left) / beats;
     if (w <= 0) return null;
     return _scaled(Rect.fromLTRB(
         left + w * beat, m.rect.top, left + w * (beat + 1), m.rect.bottom));

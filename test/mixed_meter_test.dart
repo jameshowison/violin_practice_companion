@@ -302,16 +302,30 @@ void main() {
           ['1:0', '1:1', '1:2', '1:3', '2:0', '2:1', '2:2', '3:null', '3:null', '3:null']);
       expect([for (final e in ev) e.onsetSeconds],
           [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-      expect(ev.first.restBeats, 4);
-      expect(ev[4].restBeats, 3);
+      expect(ev.first.restSlices, 4);
+      expect(ev[4].restSlices, 3);
     });
 
-    test('a rest that does not fill its bar is one event', () {
-      final piece = parser.parse(_score([q(4, '4/4'), q(4)]).replaceFirst(
-          '<measure number="2">',
-          '<measure number="2"><note><rest/><duration>4</duration><type>half</type></note>'));
+    test('a long rest inside a bar counts its beats by their place in it', () {
+      // 3/4: a pickup bar of half rest + one note, then 4/4 with a half rest
+      // on beats 3–4, and a one-beat rest, which is just a rest.
+      const half = '<note><rest/><duration>4</duration><type>half</type></note>';
+      const quarter = '<note><rest/><duration>2</duration><type>quarter</type></note>';
+      final piece = parser.parse(_score([q(1, '3/4'), q(2, '4/4'), q(3)])
+          .replaceFirstMapped(RegExp(r'(<measure number="1">(?:<attributes>.*?</attributes>)*)'),
+              (m) => '${m[1]}$half')
+          .replaceFirstMapped(RegExp(r'(<measure number="2">(?:<attributes>.*?</attributes>)*)(.*?)</measure>'),
+              (m) => '${m[1]}${m[2]}$half</measure>')
+          .replaceFirstMapped(RegExp(r'(<measure number="3">)'),
+              (m) => '${m[1]}$quarter'));
       final ev = gen.generate(piece, 60).highlightEvents;
-      expect(ev.where((e) => e.restBeat != null), isEmpty);
+      String show(HighlightEvent e) =>
+          '${e.measureNumber}:${e.restBeat == null ? '-' : e.restBeat! + 1}';
+      expect(ev.map(show), [
+        '1:1', '1:2', '1:-', // the pickup's rest counts 1 2, its note is 3
+        '2:-', '2:-', '2:3', '2:4',
+        '3:-', '3:-', '3:-', '3:-',
+      ]);
     });
   });
 

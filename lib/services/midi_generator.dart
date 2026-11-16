@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import '../models/count_in.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 
@@ -28,12 +29,15 @@ class HighlightEvent {
   // notehead, and a bar that opens with one would otherwise have no event to
   // light the bar by); a consumer that wants only struck notes can skip it.
   final bool isTieContinuation;
-  // A whole-bar rest is highlighted beat by beat, so the bars of an opening
-  // rest can be counted: one event per beat of the bar's meter, all with the
-  // rest's [noteIndex]. [restBeat] is this event's beat (0-based) of
-  // [restBeats]; null for every other note and rest.
+  // A rest of two or more beats is highlighted beat by beat, so it can be
+  // counted (an opening run of rest bars, a pickup's half rest): one event
+  // per counted beat, all with the rest's [noteIndex]. [restBeat] is the
+  // beat's place in its BAR (0-based; the number shown is one more), and
+  // [restSlice] of [restSlices] its place in the rest, which is where it is
+  // drawn. Null/0 for every other note and rest.
   final int? restBeat;
-  final int restBeats;
+  final int restSlice;
+  final int restSlices;
 
   const HighlightEvent({
     required this.measureNumber,
@@ -45,7 +49,8 @@ class HighlightEvent {
     this.performanceIndex = 0,
     this.isTieContinuation = false,
     this.restBeat,
-    this.restBeats = 0,
+    this.restSlice = 0,
+    this.restSlices = 0,
   });
 }
 
@@ -59,7 +64,7 @@ class MidiData {
   final double totalDurationSeconds;
   // Per measure (0-indexed), per note (0-indexed): absolute (onsetSecs, offsetSecs)
   final List<List<(double, double)>> measureNoteTimings;
-  final List<HighlightEvent> highlightEvents; // sorted by onset, one entry per note/rest (per beat of a whole-bar rest)
+  final List<HighlightEvent> highlightEvents; // sorted by onset, one entry per note/rest (per beat of a long rest)
 
   const MidiData({
     required this.notes,
@@ -161,16 +166,12 @@ class MidiGenerator {
     for (var oi = 0; oi < order.length; oi++) {
       final idx = order[oi];
       final measure = piece.measures[idx];
-      // A bar of one rest that fills it: counted beat by beat (see
-      // [HighlightEvent.restBeat]).
+      // Counted beats, as the count-in counts them (a 6/8 bar in two), for
+      // numbering long rests (see [HighlightEvent.restBeat]).
       final meter = meters[idx];
-      final barRestBeats = measure.notes.length == 1 &&
-              measure.notes.single.isRest &&
-              meter.beats > 1 &&
-              _ticks(measure.notes.single) * meter.beatType ==
-                  meter.beats * _tpb * 4
-          ? meter.beats
-          : 0;
+      final counting = barCounting(meter.beats, meter.beatType);
+      final beatTicks = counting.unit * _tpb ~/ 8;
+      var barTick = 0; // ticks into the bar, hidden lead rests included
       measureOnsets.add(cursor);
       measureNumbers.add(measure.number);
       int scoreTick = scoreStartTicks[idx];
@@ -179,6 +180,7 @@ class MidiGenerator {
         cursor += t * secsPerTick;
         scoreTick += t;
         perfTick += t;
+        barTick += t;
       }
       final noteTimings = <(double, double)>[];
       // A chord member reuses the primary note's onset/duration/beat and does
@@ -227,19 +229,28 @@ class MidiGenerator {
           }
         }
 
-        if (barRestBeats > 0) {
-          final beatTicks = _ticks(note) ~/ barRestBeats;
-          for (var b = 0; b < barRestBeats; b++) {
+        // A rest of whole counted beats, two or more, starting on a beat.
+        final restTicks = _ticks(note);
+        final slices = note.isRest &&
+                !isChordMember &&
+                beatTicks > 0 &&
+                barTick % beatTicks == 0 &&
+                restTicks % beatTicks == 0
+            ? restTicks ~/ beatTicks
+            : 0;
+        if (slices >= 2) {
+          for (var b = 0; b < slices; b++) {
             highlightEvents.add(HighlightEvent(
               measureNumber: measure.number,
               noteIndex: ni,
               isLong: false,
-              onsetSeconds: onset + dur * b / barRestBeats,
-              offsetSeconds: onset + dur * (b + 1) / barRestBeats,
+              onsetSeconds: onset + dur * b / slices,
+              offsetSeconds: onset + dur * (b + 1) / slices,
               beatPosition: (chordScoreTick + beatTicks * b) / (_tpb * 4),
               performanceIndex: oi,
-              restBeat: b,
-              restBeats: barRestBeats,
+              restBeat: (barTick ~/ beatTicks + b) % counting.perBar,
+              restSlice: b,
+              restSlices: slices,
             ));
           }
         } else {
@@ -258,6 +269,7 @@ class MidiGenerator {
           cursor += dur;
           scoreTick += _ticks(note);
           perfTick += _ticks(note);
+          barTick += _ticks(note);
         }
       }
       measureNoteTimings.add(noteTimings);
