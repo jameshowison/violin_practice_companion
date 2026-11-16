@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/duration_step.dart';
+import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
 import '../services/fingering_mapper.dart';
 import '../services/measure_edit_session.dart';
+import '../services/musicxml_parser.dart';
 import '../services/providers.dart';
 import '../services/tuplet_editor.dart';
+import 'key_signature_dialog.dart';
 import 'measure_edit_row.dart';
 import 'time_signature_dialog.dart';
 
@@ -98,7 +101,9 @@ class MeasureEditPanel extends ConsumerWidget {
             // height is stable.
             Row(
               children: [
-                // First, as a time signature sits at the start of a bar.
+                // First, in the order a bar's start draws them: key, then
+                // time.
+                _KeyCard(session: s),
                 _TimeCard(session: s),
                 if (mismatch)
                   _WarningCard(
@@ -322,6 +327,83 @@ class _TimeCard extends ConsumerWidget {
               Text('${s.meter.beatType}', style: digits),
               const SizedBox(height: 6),
               Text(sets ? 'time' : 'same',
+                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The bar's key signature as a count (`2♯`) over its major key's name,
+/// ahead of the time card. Solid where the key is set — the first bar, or a
+/// bar that changes it — and faded where the bar carries on in the key
+/// before it. Tap to fix a misread key from this bar on; the notes that were
+/// following the old key move with it, and the score shows them before Save.
+class _KeyCard extends ConsumerWidget {
+  final MeasureEditSession session;
+
+  const _KeyCard({required this.session});
+
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final parsed = ref.read(parsedPieceProvider).valueOrNull;
+    if (parsed == null || parsed.measures.isEmpty) return;
+    final index =
+        parsed.measures.indexWhere((m) => m.number == session.measureNumber);
+    final chosen = await showKeySignatureDialog(
+      context,
+      piece: parsed,
+      measureIndex: index < 0 ? 0 : index,
+      current: session.keyChange,
+    );
+    if (chosen == null) return;
+    ref.read(measureEditProvider.notifier).setKeyChange(chosen.fifths);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final s = session;
+    final sets = s.keyChange != null;
+    final color = sets ? cs.onSurface : cs.onSurface.withValues(alpha: 0.38);
+    final signs = KeySignature.signs(s.key);
+    return Semantics(
+      button: true,
+      label: 'Key signature ${signs.isEmpty ? 'with no sharps or flats' : signs}'
+          '${sets ? '' : ', same as before'}',
+      child: InkWell(
+        key: const ValueKey('measure_key_card'),
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _edit(context, ref),
+        child: Container(
+          // Narrower than the time card: on a 375pt phone every point here
+          // comes out of the note row.
+          width: 48,
+          height: 96,
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: s.keyChanged ? cs.primary : cs.outlineVariant,
+                width: s.keyChanged ? 2 : 1),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(KeySignature.label(s.key),
+                  style: TextStyle(
+                      fontSize: 20,
+                      height: 1.0,
+                      fontWeight: FontWeight.w700,
+                      color: color)),
+              const SizedBox(height: 4),
+              Text(MusicXmlParser.keyName(s.key, KeyMode.major),
+                  style: TextStyle(fontSize: 13, color: color)),
+              const SizedBox(height: 6),
+              Text(sets ? 'key' : 'same',
                   style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
             ],
           ),

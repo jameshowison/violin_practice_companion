@@ -1,5 +1,6 @@
 import 'package:xml/xml.dart';
 
+import '../models/key_signature.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 
@@ -459,6 +460,207 @@ class MeasureXmlEditor {
     final at = attributes.children
         .indexWhere((n) => n is XmlElement && after.contains(n.name.local));
     attributes.children.insert(at == -1 ? attributes.children.length : at, time);
+  }
+
+  /// Makes [measureNumber] start the key of [fifths] sharps (+) / flats (−):
+  /// its `<key>` is rewritten if it has one, inserted if not. Setting the
+  /// first bar sets the piece's opening key.
+  ///
+  /// Unlike [setTimeChange] this is not just a relabel. MusicXML stores the
+  /// sounding pitch, and a scan that misread the key wrote its notes in the
+  /// wrong one — so every note that was following the old key, from this bar
+  /// to the next `<key>`, is re-spelt into the new one
+  /// ([KeySignature.rekeyBar]). Notes with a written accidental keep theirs.
+  /// Only `<alter>` is touched, so slurs, articulations and the rest of each
+  /// note survive. Throws [ArgumentError] when no measure has that number.
+  static String setKeyChange(String musicXml, int measureNumber, int fifths) {
+    if (fifths < -7 || fifths > 7) {
+      throw ArgumentError('Key of $fifths fifths is not a key signature');
+    }
+    final doc = XmlDocument.parse(musicXml);
+    var found = false;
+    for (final part in doc.findAllElements('part')) {
+      final measures = part.findElements('measure').toList();
+      final i = measures
+          .indexWhere((m) => m.getAttribute('number') == '$measureNumber');
+      if (i < 0) continue;
+      found = true;
+      _pinOpeningKey(part);
+      final from = _keyAt(measures, i);
+      final existing = measures[i]
+          .findElements('attributes')
+          .expand((a) => a.findElements('key'))
+          .firstOrNull;
+      if (existing != null) {
+        _setChildText(existing, 'fifths', '$fifths');
+      } else {
+        _insertKey(_attributesFor(measures[i]), fifths);
+      }
+      _rekeySpan(measures, i, from, fifths);
+    }
+    if (!found) throw ArgumentError('No measure $measureNumber');
+    return doc.toXmlString();
+  }
+
+  /// Removes the key change at [measureNumber], so the bar carries on in the
+  /// key before it, re-spelling the notes it governed back into that key (see
+  /// [setKeyChange]). The first measure keeps its `<key>`: [setKeyChange]
+  /// edits the opening key instead. Unchanged when the bar states no `<key>`.
+  static String removeKeyChange(String musicXml, int measureNumber) {
+    final doc = XmlDocument.parse(musicXml);
+    var changed = false;
+    for (final part in doc.findAllElements('part')) {
+      final measures = part.findElements('measure').toList();
+      final i = measures
+          .indexWhere((m) => m.getAttribute('number') == '$measureNumber');
+      if (i <= 0) continue;
+      final hasOwn = measures[i]
+          .findElements('attributes')
+          .any((a) => a.findElements('key').isNotEmpty);
+      if (!hasOwn) continue;
+      _pinOpeningKey(part);
+      final from = _keyAt(measures, i);
+      final to = _keyAt(measures, i - 1);
+      for (final attributes
+          in measures[i].findElements('attributes').toList()) {
+        for (final k in attributes.findElements('key').toList()) {
+          k.remove();
+        }
+        if (attributes.childElements.isEmpty) attributes.remove();
+      }
+      _rekeySpan(measures, i, from, to);
+      changed = true;
+    }
+    return changed ? doc.toXmlString() : musicXml;
+  }
+
+  /// The `<fifths>` [measure] states, or null when it states none.
+  static int? _ownKey(XmlElement measure) => int.tryParse(measure
+          .findElements('attributes')
+          .expand((a) => a.findElements('key'))
+          .expand((k) => k.findElements('fifths'))
+          .firstOrNull
+          ?.innerText
+          .trim() ??
+      '');
+
+  /// The key in force at [measures]`[i]`, as [MusicXmlParser] reads it: the
+  /// last stated up to it, else the part's first, else C.
+  static int _keyAt(List<XmlElement> measures, int i) {
+    for (var k = i; k >= 0; k--) {
+      final f = _ownKey(measures[k]);
+      if (f != null) return f;
+    }
+    for (final m in measures) {
+      final f = _ownKey(m);
+      if (f != null) return f;
+    }
+    return 0;
+  }
+
+  /// Writes the key [part] opens in into its first measure when that states
+  /// none — the parser reads a later bar's `<key>` as the opening key too, so
+  /// changing that later one must not silently re-key the bars before it. See
+  /// [_pinOpeningMeter].
+  static void _pinOpeningKey(XmlElement part) {
+    final measures = part.findElements('measure').toList();
+    if (measures.isEmpty || _ownKey(measures.first) != null) return;
+    for (final m in measures) {
+      final f = _ownKey(m);
+      if (f == null) continue;
+      _insertKey(_attributesFor(measures.first), f);
+      return;
+    }
+  }
+
+  /// Inserts a `<key>` into [attributes] where MusicXML's sequence puts it:
+  /// after `<divisions>`, before `<time>` and the rest.
+  static void _insertKey(XmlElement attributes, int fifths) {
+    const after = {
+      'time', 'staves', 'part-symbol', 'instruments', 'clef', 'staff-details',
+      'transpose', 'directive', 'measure-style',
+    };
+    final key = XmlDocument.parse('<key><fifths>$fifths</fifths></key>')
+        .rootElement
+        .copy();
+    final at = attributes.children
+        .indexWhere((n) => n is XmlElement && after.contains(n.name.local));
+    attributes.children.insert(at == -1 ? attributes.children.length : at, key);
+  }
+
+  /// Re-spells, from [from] to [to], the notes of the bars whose key is the
+  /// one set at [measures]`[i]`: up to the next bar stating its own `<key>`.
+  static void _rekeySpan(List<XmlElement> measures, int i, int from, int to) {
+    if (from == to) return;
+    KeyCarry? carry;
+    // A tie into the first bar continues a note the change doesn't touch.
+    if (i > 0) {
+      final before = measures[i - 1]
+          .findElements('note')
+          .map(_keyedNote)
+          .whereType<KeyedNote>()
+          .lastOrNull;
+      if (before != null) {
+        carry = (
+          step: before.step,
+          octave: before.octave,
+          oldAlter: before.alter,
+          newAlter: before.alter,
+        );
+      }
+    }
+    for (var k = i; k < measures.length; k++) {
+      if (k > i && _ownKey(measures[k]) != null) break;
+      final notes = measures[k].findElements('note').toList();
+      final keyed = notes.map(_keyedNote).toList();
+      final (alters, last) =
+          KeySignature.rekeyBar(keyed, from, to, carryIn: carry);
+      carry = last;
+      for (var n = 0; n < notes.length; n++) {
+        final was = keyed[n], now = alters[n];
+        if (was == null || now == null || now == was.alter) continue;
+        _setAlter(notes[n].getElement('pitch')!, now);
+      }
+    }
+  }
+
+  /// A `<note>` as [KeySignature.rekeyBar] reads it; null for a rest, an
+  /// unpitched note, or a microtonal alter it shouldn't guess about.
+  static KeyedNote? _keyedNote(XmlElement note) {
+    final pitch = note.getElement('pitch');
+    if (pitch == null) return null;
+    final step = pitch.getElement('step')?.innerText.trim();
+    final octave = int.tryParse(pitch.getElement('octave')?.innerText.trim() ?? '');
+    final alterText = pitch.getElement('alter')?.innerText.trim();
+    final alterD = alterText == null ? 0.0 : double.tryParse(alterText);
+    if (step == null || octave == null || alterD == null) return null;
+    if (alterD != alterD.roundToDouble()) return null;
+    final written = note.getElement('accidental')?.innerText.trim() ?? '';
+    return (
+      step: step,
+      octave: octave,
+      alter: alterD.round(),
+      written: written.isNotEmpty,
+      tieStop: note
+          .findElements('tie')
+          .any((t) => t.getAttribute('type') == 'stop'),
+    );
+  }
+
+  /// Sets [pitch]'s `<alter>` to [alter]: removed for 0, inserted after
+  /// `<step>` where the schema puts it.
+  static void _setAlter(XmlElement pitch, int alter) {
+    final existing = pitch.getElement('alter');
+    if (alter == 0) {
+      existing?.remove();
+    } else if (existing != null) {
+      existing.innerText = '$alter';
+    } else {
+      final step = pitch.getElement('step');
+      final el = XmlElement(XmlName.parts('alter'), [], [XmlText('$alter')]);
+      final at = step == null ? 0 : pitch.children.indexOf(step) + 1;
+      pitch.children.insert(at, el);
+    }
   }
 
   /// Sets [element]'s `<$name>` child to [text], creating it if absent.
