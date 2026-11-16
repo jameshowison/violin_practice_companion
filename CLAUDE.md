@@ -101,6 +101,29 @@ work based on an unmerged branch must `git checkout -b <name> <sha>` first and c
 pinned git tag, not from `../homr_flutter`; nor does it have the models, so run
 `bash scripts/fetch_omr_models.sh` there before anything that scans.
 
+## Parallel Claude sessions
+
+One worktree per session: `claude --worktree`, or `git worktree add ../vpc-<topic>
+-b <topic>` (mind the two worktree traps above). Never two sessions editing the
+main checkout: their diffs mix and a `git add -A` commits the other's half-done
+work. A `SessionStart` hook (`.claude/hooks/parallel_session_check.sh`) warns when
+another session is already in this checkout. If you get that warning, stop before
+your first edit and offer a worktree.
+
+The simulators, pipes and devices are shared, so each session running the app needs
+**its own simulator and its own pipe**:
+```bash
+bash scripts/dev_run.sh dev-iphone-se                              # session A
+FLUTTER_FIFO=/tmp/flutter_ctl_ipad bash scripts/dev_run.sh dev-ipad # session B
+echo r > /tmp/flutter_ctl_ipad                                     # B reloads its own
+```
+`dev_run.sh` kills only the run and pipe holder on its own `FLUTTER_FIFO`, and
+refuses if another run already holds the device (`--takeover` overrides). The log
+is per-worktree (`flutter_run.log` is relative), and Marionette connects per VM
+Service URL, so both are fine. Still global, and still one session at a time:
+`device_install.sh` (kills every `flutter run`), dev-library sync of a device the
+other session is on, and `pkill -f flutter_tools.snapshot` by hand.
+
 ## Android emulator
 
 Two AVDs, named like the simulators, both Pixel 8a profiles (1080×2400, 4 cores):

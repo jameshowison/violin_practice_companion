@@ -7,5 +7,19 @@
       "Bash(/opt/homebrew/Caskroom/flutter/3.44.0/flutter/bin/cache/dart-sdk/bin/dart analyze *)"
     ]
   },
-  "enabledPlugins": {}
+  "enabledPlugins": {},
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/parallel_session_check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
