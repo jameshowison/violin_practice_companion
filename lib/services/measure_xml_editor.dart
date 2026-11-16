@@ -240,6 +240,7 @@ class MeasureXmlEditor {
       _insertTime(_attributesFor(measure), beats, beatType);
     }
     if (!found) throw ArgumentError('No measure $measureNumber');
+    doc.findAllElements('part').forEach(_fitBarRests);
     return doc.toXmlString();
   }
 
@@ -268,7 +269,9 @@ class MeasureXmlEditor {
         if (attributes.childElements.isEmpty) attributes.remove();
       }
     }
-    return changed ? doc.toXmlString() : musicXml;
+    if (!changed) return musicXml;
+    doc.findAllElements('part').forEach(_fitBarRests);
+    return doc.toXmlString();
   }
 
   /// Writes the meter [part] opens in into its first measure, if that has no
@@ -378,6 +381,8 @@ class MeasureXmlEditor {
       final next = idx + 1 < measures.length ? measures[idx + 1] : null;
 
       if (idx == 0 && next != null) _carryAttributes(target, next);
+      // A meter change on the deleted bar still governs the bars after it.
+      if (idx > 0 && next != null) _carryTime(target, next);
       if (_hasRepeat(target, 'forward') && next != null) {
         _addRepeat(next, forward: true);
       }
@@ -388,6 +393,7 @@ class MeasureXmlEditor {
 
       part.children.remove(target);
       _renumberMeasures(part);
+      _fitBarRests(part);
       deleted = true;
     }
 
@@ -444,6 +450,57 @@ class MeasureXmlEditor {
   /// Merges [from]'s `<attributes>` children into [to], skipping any tag [to]
   /// already states (its own value is the more specific one) and re-sorting the
   /// result into schema order.
+  /// Moves [from]'s `<time>` onto [to] when [to] states none of its own.
+  static void _carryTime(XmlElement from, XmlElement to) {
+    final time = from
+        .findElements('attributes')
+        .expand((a) => a.findElements('time'))
+        .firstOrNull;
+    if (time == null) return;
+    final hasOwn = to
+        .findElements('attributes')
+        .any((a) => a.findElements('time').isNotEmpty);
+    if (hasOwn) return;
+    final beats = int.tryParse(time.getElement('beats')?.innerText.trim() ?? '');
+    final beatType =
+        int.tryParse(time.getElement('beat-type')?.innerText.trim() ?? '');
+    if (beats == null || beatType == null) return;
+    _insertTime(_attributesFor(to), beats, beatType);
+  }
+
+  /// Gives every whole-bar rest (`<rest measure="yes"/>`) in [part] the
+  /// `<duration>` of the meter in force, so that changing a meter, or deleting
+  /// the bar that changed it, doesn't leave it the old bar's length — Verovio
+  /// squeezes a whole-bar rest that doesn't fill its bar almost to nothing.
+  static void _fitBarRests(XmlElement part) {
+    var divisions = 1;
+    var beats = 4, beatType = 4;
+    for (final measure in part.findElements('measure')) {
+      for (final a in measure.findElements('attributes')) {
+        divisions =
+            int.tryParse(a.getElement('divisions')?.innerText.trim() ?? '') ??
+                divisions;
+        final t = a.getElement('time');
+        final b = int.tryParse(t?.getElement('beats')?.innerText.trim() ?? '');
+        final bt =
+            int.tryParse(t?.getElement('beat-type')?.innerText.trim() ?? '');
+        if (b != null && bt != null && b > 0 && bt > 0) {
+          beats = b;
+          beatType = bt;
+        }
+      }
+      final ticks = beats * 4 * divisions;
+      if (ticks % beatType != 0) continue; // not a whole number of ticks
+      for (final note in measure.findElements('note')) {
+        if (note.getElement('rest')?.getAttribute('measure') != 'yes') continue;
+        final d = note.getElement('duration');
+        if (d != null) {
+          d.innerText = '${ticks ~/ beatType}';
+        }
+      }
+    }
+  }
+
   static void _carryAttributes(XmlElement from, XmlElement to) {
     final donors = from.findElements('attributes').toList();
     if (donors.isEmpty) return;

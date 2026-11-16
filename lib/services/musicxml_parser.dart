@@ -44,7 +44,13 @@ class MusicXmlParser {
     final beatType = opening.beatType;
 
     final measures = <Measure>[];
+    var meterInForce = opening;
     for (final measureEl in doc.findAllElements('measure')) {
+      meterInForce = _meterOf(measureEl
+              .findElements('attributes')
+              .expand((a) => a.findElements('time'))
+              .firstOrNull) ??
+          meterInForce;
       final numberStr = measureEl.getAttribute('number') ?? '1';
       final number = int.tryParse(numberStr) ?? measures.length + 1;
       final notes = <NoteEvent>[];
@@ -124,8 +130,9 @@ class MusicXmlParser {
         var noteValue = _parseNoteValue(typeStr);
         // A whole-bar rest lasts the bar whatever its <type> says: often none
         // (MuseScore, the scanner's multi-measure rests), or "whole" in 3/4.
-        // Its <duration> is the bar's real length.
-        final barRest = _barRestValue(noteEl, divisions);
+        // So it takes the length of the meter in force — not its <duration>,
+        // which goes stale when the bar's meter is edited.
+        final barRest = _barRestValue(noteEl, meterInForce, divisions);
         if (barRest != null) (noteValue, dotted) = barRest;
 
         int midiNumber = 0;
@@ -374,17 +381,24 @@ class MusicXmlParser {
     }
   }
 
-  /// The value of a `<rest measure="yes"/>` from its `<duration>`, or null
-  /// when [noteEl] isn't one or its length has no single (dotted) value.
-  static (NoteValue, bool)? _barRestValue(XmlElement noteEl, int divisions) {
+  /// The value of a `<rest measure="yes"/>`: a full bar of [meter] (or, if
+  /// that has no single (dotted) value, of its `<duration>`). Null when
+  /// [noteEl] isn't one or neither length has such a value.
+  static (NoteValue, bool)? _barRestValue(
+      XmlElement noteEl, Meter meter, int divisions) {
     if (noteEl.findElements('rest').firstOrNull?.getAttribute('measure') != 'yes') {
       return null;
     }
     final d = int.tryParse(
         noteEl.findElements('duration').firstOrNull?.innerText.trim() ?? '');
-    if (d == null || d <= 0 || divisions <= 0) return null;
-    // In sixteenths, so 6/8 (a dotted half) and the like stay exact.
-    final q = d * 4 / divisions;
+    return _valueOfSixteenths(meter.units / 2) ??
+        (d == null || d <= 0 || divisions <= 0
+            ? null
+            : _valueOfSixteenths(d * 4 / divisions));
+  }
+
+  /// The single note value, plain or dotted, [q] sixteenths long.
+  static (NoteValue, bool)? _valueOfSixteenths(num q) {
     return switch (q) {
       16 => (NoteValue.whole, false),
       24 => (NoteValue.whole, true),

@@ -118,6 +118,28 @@ void main() {
   });
 
   group('MeasureXmlEditor', () {
+    String withBarRests(String xml, List<int> bars) => xml.replaceAllMapped(
+        RegExp(r'(<measure number="(\d+)">(?:<attributes>.*?</attributes>)*)'),
+        (m) => bars.contains(int.parse(m[2]!))
+            ? '${m[1]}<note><rest measure="yes"/><duration>6</duration></note>'
+            : m[0]!);
+
+    test('a meter change resizes the whole-bar rests it governs', () {
+      // Bars 1–2 rest in 3/4, then music; bar 1 becomes 4/4.
+      final src = withBarRests(_score([q(0, '3/4'), q(0), q(4), q(4)]), [1, 2]);
+      final xml = MeasureXmlEditor.setTimeChange(src, 1, beats: 4, beatType: 4);
+      expect(RegExp(r'<duration>8</duration></note>').allMatches(xml).length, 2);
+      final p = parser.parse(xml);
+      expect(p.flaggedMeasureNumbers, isEmpty);
+      expect(p.measures[1].notes.single.noteValue, NoteValue.whole);
+    });
+
+    test('deleting the bar a meter changes on keeps the change', () {
+      final src = _score([q(4, '4/4'), q(4), q(3, '3/4'), q(3), q(3)]);
+      final p = parser.parse(MeasureXmlEditor.deleteMeasure(src, 3));
+      expect(_changes(p), {1: '4/4', 3: '3/4'});
+    });
+
     test('setTimeChange inserts a change at a bar without one', () {
       final xml = MeasureXmlEditor.setTimeChange(
           _score([q(3, '3/4'), q(3), q(4), q(4)]), 3,
