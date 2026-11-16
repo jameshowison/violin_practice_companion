@@ -1181,6 +1181,17 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                           ),
                         ),
                       ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _EndingPainter(
+                              score: score,
+                              scale: scale,
+                              withNameRow: widget.showNoteNames,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1266,6 +1277,8 @@ void paintStaffScore(
     noteNames: showNoteNames ? noteNames : const [],
     withNameRow: showNoteNames,
   ).paint(canvas, size);
+  _EndingPainter(score: score, scale: scale, withNameRow: showNoteNames)
+      .paint(canvas, size);
 }
 
 /// SVG note id → notehead fill (`#rrggbb`) for every entry in [noteNames] with a
@@ -2300,6 +2313,110 @@ class _ChordLanePainter extends CustomPainter {
       old.noteNames != noteNames ||
       old.withNameRow != withNameRow ||
       old.keySignature != keySignature;
+}
+
+/// The top of the drawn annotation rows on system [line], in screen px: the
+/// chord/name bar where the score has that row, else the fingering channel.
+/// Null when the system carries neither — nothing drawn to clear.
+///
+/// The chord bar's placement mirrors [_ChordLanePainter._barFor]; the bar row
+/// is claimed on every system once the score has one, so this clears it even
+/// on a system whose chords happen to carry over from the one before.
+double? annotationTopOn(
+  EngravedScore score,
+  int line,
+  double scale,
+  double width, {
+  bool withNameRow = false,
+}) {
+  final stack = annotationStackOf(score, scale, withNameRow: withNameRow);
+  final channel =
+      fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
+  if (stack.barHeight > 0) {
+    final register = score.chordRegister(line);
+    final double? barBottom = channel != null
+        ? channel.top - stack.gap
+        : register == null
+            ? null
+            : register * scale - stack.gap;
+    if (barBottom != null) return barBottom - stack.barHeight;
+  }
+  return channel?.top;
+}
+
+/// First/second-ending brackets, redrawn above the annotation rows.
+///
+/// Verovio places a volta over its own fingerings, which follow the notes;
+/// the app flattens them into one row per system at the highest of them, so
+/// in an ending over low notes the row ran straight through Verovio's
+/// bracket. The engraver cuts Verovio's ink ([VerovioEngraver.stripEndings])
+/// and keeps its geometry ([EngravedScore.endings]); this draws the same
+/// bracket — same width, hook height, label and right hook — lifted, when it
+/// has to be, to sit a gap above the rows. Where no row is drawn it stays
+/// exactly where Verovio put it.
+class _EndingPainter extends CustomPainter {
+  _EndingPainter({
+    required this.score,
+    required this.scale,
+    this.withNameRow = false,
+  });
+
+  final EngravedScore score;
+  final double scale;
+  final bool withNameRow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (score.endings.isEmpty) return;
+    final space = score.staffSpaceViewBox * scale;
+    final gap = space * 0.4;
+    final stroke = Paint()
+      ..color = Colors.black
+      ..strokeWidth = math.max(1.0, space * 0.1)
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke;
+    for (final e in score.endings) {
+      final r = Rect.fromLTRB(e.rect.left * scale, e.rect.top * scale,
+          e.rect.right * scale, e.rect.bottom * scale);
+      final rowTop = annotationTopOn(score, e.line, scale, size.width,
+          withNameRow: withNameRow);
+      final lift =
+          rowTop == null ? 0.0 : math.max(0.0, r.bottom - (rowTop - gap));
+      final box = r.translate(0, -lift);
+      final path = Path()
+        ..moveTo(box.left, box.bottom)
+        ..lineTo(box.left, box.top)
+        ..lineTo(box.right, box.top);
+      if (e.closedRight) path.lineTo(box.right, box.bottom);
+      canvas.drawPath(path, stroke);
+      if (e.label.isEmpty) continue;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: e.label,
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: box.height * 0.95,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Times New Roman',
+            fontFamilyFallback: const ['serif'],
+            height: 1.0,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      tp.paint(
+          canvas,
+          Offset(box.left + space * 0.35,
+              box.bottom - tp.height + space * 0.05));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_EndingPainter old) =>
+      old.score != score ||
+      old.scale != scale ||
+      old.withNameRow != withNameRow;
 }
 
 /// The horizontal extent of a note-level run, split per system line.

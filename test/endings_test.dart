@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'dart:ui' show Rect, Size;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
@@ -12,6 +14,7 @@ import 'package:violin_practice_companion/services/measure_xml_editor.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/providers.dart';
+import 'package:violin_practice_companion/services/verovio_engraver.dart';
 
 Measure _m(
   int number, {
@@ -292,6 +295,58 @@ void main() {
       final sel = MeasureSelection.ofRuns(b1, b2);
       expect(sel.contains(17), isTrue);
       expect(sel.contains(18), isTrue);
+    });
+  });
+
+  group('engraved volta brackets', () {
+    // Real Verovio 6.2.0 output for Devil's Dream at the probe settings
+    // (scale 40, pageWidth 1975, svgBoundingBoxes on).
+    final svg = File('test/fixtures/verovio_ending.svg').readAsStringSync();
+
+    test('label and right hook are read off each bracket', () {
+      expect(VerovioEngraver.endingLabelOf(svg, 'bfctvg7'), '1');
+      expect(VerovioEngraver.endingClosedOf(svg, 'bfctvg7'), isTrue);
+      expect(VerovioEngraver.endingLabelOf(svg, 'c1qs7xee'), '2');
+      expect(VerovioEngraver.endingClosedOf(svg, 'c1qs7xee'), isFalse);
+    });
+
+    test("the ink is cut and nothing else is", () {
+      final before = VerovioEngraver.stripBoundingBoxes(svg);
+      final after = VerovioEngraver.stripEndings(before);
+      expect(after, isNot(contains('class="ending')));
+      expect(after, isNot(contains('voltaBracket')));
+      expect('class="measure"'.allMatches(after).length,
+          'class="measure"'.allMatches(before).length);
+      expect('class="note"'.allMatches(after).length,
+          'class="note"'.allMatches(before).length);
+    });
+
+    test('endings survive the engrave disk cache', () {
+      const score = EngravedScore(
+        viewBox: Size(100, 100),
+        svg: '',
+        bboxById: {},
+        measures: [],
+        notes: [],
+        measureLine: [],
+        lineBands: [],
+        lineContent: [],
+        pageWidthUnits: 1975,
+        renderMs: 0,
+        endings: [
+          EngravedEnding(
+              line: 3,
+              rect: Rect.fromLTRB(72, 416, 229, 430),
+              label: '1',
+              closedRight: true),
+        ],
+      );
+      final back = EngravedScore.fromJson(score.toJson());
+      expect(back.endings, hasLength(1));
+      expect(back.endings.single.line, 3);
+      expect(back.endings.single.rect, const Rect.fromLTRB(72, 416, 229, 430));
+      expect(back.endings.single.label, '1');
+      expect(back.endings.single.closedRight, isTrue);
     });
   });
 }

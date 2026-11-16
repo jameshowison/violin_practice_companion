@@ -69,6 +69,7 @@ class VerovioEngraver {
       'fing',
       'harm',
       'keyAccid',
+      'ending',
     },
   );
 
@@ -263,7 +264,8 @@ class VerovioEngraver {
   /// before it. 2: notes under spilling ink go to the bar they start in.
   /// 3: measure rects end where the next bar on the system begins.
   /// 4: grace notes take no noteIndex.
-  static const _diskFormat = 4;
+  /// 5: volta brackets are recorded ([EngravedScore.endings]) and their ink cut.
+  static const _diskFormat = 5;
 
   /// [_keyFor], made stable across launches (`String.hashCode` is not
   /// guaranteed to be) and safe as a file name.
@@ -625,6 +627,18 @@ class VerovioEngraver {
     ];
     final fingAnchors = anchorsOf('fing');
     final harmAnchors = anchorsOf('harm');
+    // Volta brackets: Verovio's box (exact — paths, not text) plus what to
+    // redraw, read from the raw SVG before [stripEndings] cuts the ink.
+    final endings = <EngravedEnding>[
+      for (final h in hits)
+        if (h.type == 'ending')
+          EngravedEnding(
+            line: lineForY(h.bbox.bottom),
+            rect: h.bbox,
+            label: endingLabelOf(svg, h.id),
+            closedRight: endingClosedOf(svg, h.id),
+          ),
+    ];
 
     // The measuring boxes have served their purpose (above); out they go before
     // any other surgery, so everything downstream — and everything the renderer
@@ -634,6 +648,7 @@ class VerovioEngraver {
     // After the hit map: the anchors are already recorded, and the reserved
     // space stays. See [stripAnnotationGlyphs].
     processedSvg = stripAnnotationGlyphs(processedSvg);
+    processedSvg = stripEndings(processedSvg);
     if (stripRepeatClefs)
       processedSvg = clefKeySigFirstSystemOnly(processedSvg);
     if (tabFingerLabels != null) {
@@ -660,9 +675,43 @@ class VerovioEngraver {
       lineContent: lineContent,
       fingAnchors: fingAnchors,
       harmAnchors: harmAnchors,
+      endings: endings,
       pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
     );
+  }
+
+  /// The ending group [id]'s number as engraved (`1`, `2`, `1, 2`): the text of
+  /// its innermost `<tspan>`. Empty when there is none.
+  @visibleForTesting
+  static String endingLabelOf(String svg, String id) {
+    final body = _groupBody(svg, id);
+    if (body == null) return '';
+    final m = RegExp(r'<tspan[^>]*>([^<]+)</tspan>').firstMatch(body);
+    return m?.group(1)?.trim() ?? '';
+  }
+
+  /// Whether the ending group [id] closes with a hook on its right: Verovio
+  /// draws one vertical stroke for an open (`discontinue`) bracket and two
+  /// for a closed one.
+  @visibleForTesting
+  static bool endingClosedOf(String svg, String id) {
+    final body = _groupBody(svg, id);
+    if (body == null) return false;
+    var verticals = 0;
+    for (final m in RegExp(r'd="M(-?[\d.]+) -?[\d.]+ L(-?[\d.]+) -?[\d.]+"')
+        .allMatches(body)) {
+      if (m.group(1) == m.group(2)) verticals++;
+    }
+    return verticals >= 2;
+  }
+
+  /// The markup inside the `<g id="[id]">` group, balanced; null if absent.
+  static String? _groupBody(String svg, String id) {
+    final open = svg.indexOf('<g id="$id"');
+    if (open < 0) return null;
+    final close = _matchCloseG(svg, open);
+    return close < 0 ? null : svg.substring(open, close);
   }
 
   /// Index of the measure whose bbox contains [box]'s center, else the nearest
@@ -993,6 +1042,14 @@ class VerovioEngraver {
   ///
   /// Must run AFTER the hit map parse, which is why it lives here in
   /// `_buildScore` rather than in `_engraveNow`.
+  /// Cuts Verovio's volta brackets. The staff view redraws them above the
+  /// annotation rows from [EngravedScore.endings]: Verovio places a bracket
+  /// over its own (per-note) fingerings, but the app flattens those into one
+  /// row per system, which can sit higher and run through the bracket. The
+  /// space Verovio reserved for the bracket stays, as with the annotations.
+  static String stripEndings(String svg) =>
+      _removeGroups(svg, _allGroupRanges(svg, 'ending'));
+
   static String stripAnnotationGlyphs(String svg) => _removeGroups(svg, [
     ..._allGroupRanges(svg, 'fing'),
     ..._allGroupRanges(svg, 'harm'),
@@ -1330,6 +1387,23 @@ class VerovioEngraver {
 /// rather than quietly moving the annotations.
 typedef AnnotationAnchor = ({int line, double x, double y});
 
+/// One volta bracket as Verovio engraved it: its box (viewBox coords, from
+/// the paths, so exact), the system [line] it sits over, the number it shows
+/// and whether it closes with a hook on the right.
+class EngravedEnding {
+  final int line;
+  final Rect rect;
+  final String label;
+  final bool closedRight;
+
+  const EngravedEnding({
+    required this.line,
+    required this.rect,
+    required this.label,
+    required this.closedRight,
+  });
+}
+
 /// One engraved page: the renderer-ready SVG plus geometric anchors in page
 /// viewBox coordinates. Domain-free — anchors carry document indices, which the
 /// widget maps to model measure numbers via its `measureNumbers` list.
@@ -1378,6 +1452,10 @@ class EngravedScore {
   final List<AnnotationAnchor> fingAnchors;
   final List<AnnotationAnchor> harmAnchors;
 
+  /// Verovio's volta brackets (first/second endings), whose ink is cut from
+  /// [svg] for the staff view to redraw — see [VerovioEngraver.stripEndings].
+  final List<EngravedEnding> endings;
+
   /// The Verovio `pageWidth` (MEI units) this score was laid out for. Together
   /// with the achieved measures-per-line it yields the piece's scale-invariant
   /// `unitsPerMeasure` — see `staff_zoom.dart`.
@@ -1397,6 +1475,7 @@ class EngravedScore {
     required this.pageWidthUnits,
     this.fingAnchors = const [],
     this.harmAnchors = const [],
+    this.endings = const [],
     required this.renderMs,
     this.meterSigs = const [],
     this.keyAccids = const [],
@@ -1421,6 +1500,10 @@ class EngravedScore {
         'content': [for (final b in lineContent) [b.top, b.bottom]],
         'fing': [for (final a in fingAnchors) [a.line, a.x, a.y]],
         'harm': [for (final a in harmAnchors) [a.line, a.x, a.y]],
+        'end': [
+          for (final e in endings)
+            [e.line, ..._rectOut(e.rect), e.label, e.closedRight ? 1 : 0],
+        ],
         'pw': pageWidthUnits,
         'ms': renderMs,
       };
@@ -1461,6 +1544,15 @@ class EngravedScore {
       lineContent: [for (final b in l('content')) band(b)],
       fingAnchors: [for (final a in l('fing')) anchor(a)],
       harmAnchors: [for (final a in l('harm')) anchor(a)],
+      endings: [
+        for (final e in (j['end'] as List<dynamic>? ?? const []))
+          EngravedEnding(
+            line: e[0] as int,
+            rect: _rectIn(e as List<dynamic>, 1),
+            label: e[5] as String,
+            closedRight: e[6] == 1,
+          ),
+      ],
       pageWidthUnits: j['pw'] as int,
       renderMs: j['ms'] as int,
     );
