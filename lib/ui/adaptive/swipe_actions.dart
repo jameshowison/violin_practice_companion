@@ -34,7 +34,11 @@ class SwipeAction {
 /// the button has to be tapped. A child's stray swipe can't delete anything,
 /// and the delete still asks first. Put rows that should close each other
 /// under one [AppSwipeGroup].
-class AppSwipeActions extends StatelessWidget {
+///
+/// An open row closes on a tap anywhere outside it (the app bar, the tabs,
+/// the search field), as rows do in Mail. The tap still does whatever it
+/// would have done there.
+class AppSwipeActions extends StatefulWidget {
   const AppSwipeActions({
     super.key,
     required this.child,
@@ -48,12 +52,38 @@ class AppSwipeActions extends StatelessWidget {
   final SwipeAction? trailing;
   final bool enabled;
 
+  @override
+  State<AppSwipeActions> createState() => _AppSwipeActionsState();
+}
+
+class _AppSwipeActionsState extends State<AppSwipeActions>
+    with TickerProviderStateMixin {
   static const _extent = 84.0;
+
+  // Ours rather than the Slidable's, so a tap outside can close it. Made on
+  // first use: rows that never swipe (Android, Select mode) never need one.
+  SlidableController? _made;
+  SlidableController get _controller => _made ??= SlidableController(this);
+
+  @override
+  void dispose() {
+    _made?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled || !isCupertino(context)) return child;
-    return LayoutBuilder(builder: (context, c) {
+    final child = widget.child;
+    final leading = widget.leading;
+    final trailing = widget.trailing;
+    if (!widget.enabled || !isCupertino(context)) return child;
+    // Around the whole row, revealed button included, so tapping the
+    // button is inside and only taps elsewhere close it.
+    return TapRegion(
+      onTapOutside: (_) {
+        if (_controller.ratio != 0) _controller.close();
+      },
+      child: LayoutBuilder(builder: (context, c) {
       final ratio = (_extent / c.maxWidth).clamp(0.15, 0.5);
       ActionPane? pane(SwipeAction? a) => a == null
           ? null
@@ -72,12 +102,14 @@ class AppSwipeActions extends StatelessWidget {
               ],
             );
       return Slidable(
+        controller: _controller,
         groupTag: AppSwipeGroup.tag,
         startActionPane: pane(leading),
         endActionPane: pane(trailing),
         child: child,
       );
-    });
+    }),
+    );
   }
 }
 

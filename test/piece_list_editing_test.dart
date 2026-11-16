@@ -213,6 +213,18 @@ void main() {
     expect(find.text('Delete "Soldier\'s Joy"?'), findsOneWidget);
   });
 
+  testWidgets('iOS: a tap outside an open row closes it', (tester) async {
+    await pumpList(tester, platform: TargetPlatform.iOS);
+    await tester.drag(row('sj'), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('swipe_delete_sj')), findsOneWidget);
+
+    await tester.tap(find.text('Pieces')); // the app bar title
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('swipe_delete_sj')), findsNothing);
+    expect(row('sj'), findsOneWidget);
+  });
+
   testWidgets('Android rows do not swipe', (tester) async {
     await pumpList(tester);
     await tester.drag(row('sj'), const Offset(-120, 0));
