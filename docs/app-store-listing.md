@@ -71,14 +71,15 @@ Stringlings also has a tuner for getting strings in tune. It's an early version,
 
 This is a beta. Use the screenshot-and-feedback option in TestFlight, and tell us what you expected to see.
 
-## What to Test (build 1.0.0+4)
+## What to Test (build 1.0.0+5)
 
 Thank you for trying Stringlings. Please try these with music your child is actually learning:
 
-1. Photograph a page of music. Are the notes right? Are the fingerings where you'd expect them?
-2. Choose a short section and play it. Does the highlighting keep up with the sound?
-3. Record your teacher playing a piece, then play a section of that recording. Does it start and stop on the right notes?
-4. Anything confusing, slow or broken: send a screenshot from TestFlight and say what you were trying to do.
+1. Photograph a page of music. Are the notes right? Are the fingerings where you'd expect them? New in this build: pieces that change time signature, triplets, and first and second endings should come through as printed.
+2. Choose a short section and play it. Does the highlighting keep up with the sound? Try the new play modes (Once, Loop, Through) and the speed control.
+3. Record your teacher playing a piece, then play a section of that recording. Does it start and stop on the right notes? The video can now sit in the title bar, float, or be hidden.
+4. New: share a piece and its recordings with another device using AirDrop (Share piece and recordings… in the piece's menu).
+5. Anything confusing, slow or broken: send a screenshot from TestFlight and say what you were trying to do.
 
 Also try the tuner. It's a first draft: does it settle on the note quickly, and does it agree with the tuner you normally use?
 
