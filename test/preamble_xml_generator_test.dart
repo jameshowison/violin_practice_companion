@@ -43,4 +43,17 @@ void main() {
     final rest = XmlDocument.parse(out).findAllElements('note').single;
     expect(rest.findElements('duration').single.innerText, '8');
   });
+
+  test('a piece that changes meter has no time signature in the title bar', () {
+    final out = buildPreambleXml(_score('<attributes><divisions>2</divisions>'
+            '<key><fifths>1</fifths></key>'
+            '<time><beats>4</beats><beat-type>4</beat-type></time>'
+            '<clef><sign>G</sign><line>2</line></clef></attributes>')
+        .replaceFirst('</measure>',
+            '</measure><measure number="2"><attributes><time><beats>3</beats>'
+                '<beat-type>4</beat-type></time></attributes></measure>'));
+    final a = _attributes(out);
+    expect(a.findElements('time'), isEmpty);
+    expect(a.findElements('clef'), hasLength(1));
+  });
 }

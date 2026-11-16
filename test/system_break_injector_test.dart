@@ -390,5 +390,19 @@ void main() {
       expect(second.findElements('clef').single.getAttribute('print-object'), 'no');
       expect(second.findElements('time').single.getAttribute('print-object'), 'no');
     });
+
+    test('a piece that changes meter keeps its time signature on bar 1', () {
+      final xml = _score([_splitAttributesMeasure3_4(), _measure('2', 3)])
+          .replaceFirst('<measure number="2">',
+              '<measure number="2"><attributes><time><beats>4</beats>'
+                  '<beat-type>4</beat-type></time></attributes>');
+      final first = XmlDocument.parse(hideFirstSystemPreamble(xml))
+          .findAllElements('measure')
+          .first;
+      final time = first.findAllElements('time').single;
+      final clef = first.findAllElements('clef').single;
+      expect(time.getAttribute('print-object'), isNull);
+      expect(clef.getAttribute('print-object'), 'no');
+    });
   });
 }

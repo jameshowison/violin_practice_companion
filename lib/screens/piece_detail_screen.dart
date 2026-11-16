@@ -2031,8 +2031,10 @@ class _DrawerTab extends StatelessWidget {
 
 // ── Piece identity + note vocabulary (app bar controls, palette staff below) ──
 
-/// The meter, on the title line: the opening meter, with "…" when the piece
-/// changes meter later. A label only — the meter is edited bar by bar from
+/// The meter, on the title line — only for a piece in one meter. A piece
+/// that changes meter has none here: its opening time signature is engraved
+/// on bar 1, where the later changes read against it. A label only — the
+/// meter is edited bar by bar from
 /// the measure editor's time-signature card, which is where a change belongs
 /// once a piece can move between 3/4 and 4/4.
 ///
@@ -2048,12 +2050,12 @@ class _KeyMeterButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parsed = ref.watch(parsedPieceProvider).valueOrNull;
-    if (parsed == null) return const SizedBox.shrink();
+    if (parsed == null || parsed.hasMeterChanges) return const SizedBox.shrink();
     final body = Padding(
       key: mirror ? null : const ValueKey('piece_meter_label'),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       child: Text(
-        '${parsed.openingMeter}${parsed.hasMeterChanges ? ' …' : ''}',
+        '${parsed.openingMeter}',
         style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
       ),
     );

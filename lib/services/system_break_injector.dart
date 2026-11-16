@@ -408,8 +408,16 @@ String freezeSystemBreaks(String musicXml, Set<int> breakMeasureNumbers) {
 /// the clef/key/time out of the untouched piece XML for a small standalone
 /// preview shown next to the piece title instead — so it must run against a
 /// copy of the XML from before this stripping, not after.
+///
+/// A piece that changes meter keeps its opening time signature on bar 1: one
+/// meter in the title bar would misdescribe it, and the changes later in the
+/// score read against the one they change from.
 String hideFirstSystemPreamble(String musicXml) {
   final doc = XmlDocument.parse(musicXml);
+  final hidden = [
+    'clef',
+    if (!changesMeter(doc)) 'time',
+  ];
   for (final part in doc.findAllElements('part')) {
     // Every block, not the first: a scanned piece can split measure 1's
     // attributes, divisions in one and clef/key/time in the next.
@@ -417,12 +425,24 @@ String hideFirstSystemPreamble(String musicXml) {
         part.findElements('measure').firstOrNull?.findElements('attributes') ??
             const <XmlElement>[];
     for (final attributes in blocks) {
-      for (final name in ['clef', 'time']) {
+      for (final name in hidden) {
         attributes.findElements(name).firstOrNull?.setAttribute('print-object', 'no');
       }
     }
   }
   return doc.toXmlString();
+}
+
+/// Whether [doc] states more than one meter in its `<time>`s.
+bool changesMeter(XmlDocument doc) {
+  String? first;
+  for (final t in doc.findAllElements('time')) {
+    final m = '${t.getElement('beats')?.innerText.trim()}/'
+        '${t.getElement('beat-type')?.innerText.trim()}';
+    first ??= m;
+    if (m != first) return true;
+  }
+  return false;
 }
 
 /// The clef/time/divisions in effect at whatever measure was last [update]d —

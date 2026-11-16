@@ -1,5 +1,7 @@
 import 'package:xml/xml.dart';
 
+import 'system_break_injector.dart' show changesMeter;
+
 /// Builds a minimal one-measure MusicXML carrying only the piece's opening
 /// clef, key, and time signature — no real notes — for a small standalone
 /// engrave shown next to the piece title in the app bar.
@@ -14,15 +16,20 @@ import 'package:xml/xml.dart';
 /// note. Confirmed headlessly against the bundled wasm toolkit: an invisible
 /// rest and no note at all produced the identical tight auto-cropped viewBox
 /// (435×258 at scale 100), while a visible rest widened it to 467×258.
+///
+/// A piece that changes meter shows no time signature here: it is engraved
+/// on bar 1 instead (see `hideFirstSystemPreamble`).
 String buildPreambleXml(String musicXml) {
-  final firstMeasure =
-      XmlDocument.parse(musicXml).findAllElements('measure').first;
+  final doc = XmlDocument.parse(musicXml);
+  final firstMeasure = doc.findAllElements('measure').first;
+  final mixed = changesMeter(doc);
   // Merged, not just the first block: a scanned (OMR) piece can open with a
   // divisions-only `<attributes>` and put key/time/clef in a second one, and
   // reading only the first engraved a bare five-line staff.
   final attributes = XmlElement(XmlName.parts('attributes'), [], [
     for (final block in firstMeasure.findElements('attributes'))
-      for (final child in block.childElements) child.copy(),
+      for (final child in block.childElements)
+        if (!(mixed && child.name.local == 'time')) child.copy(),
   ]);
 
   final divisions = int.tryParse(
