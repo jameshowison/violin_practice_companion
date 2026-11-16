@@ -1,3 +1,5 @@
+import 'duration_step.dart';
+
 enum NoteValue { whole, half, quarter, eighth, sixteenth }
 
 /// The church modes, declared in rotation order from the relative major, so
@@ -137,6 +139,13 @@ class NoteEvent {
   /// follow each other in performance.
   final bool tieStop;
 
+  /// The note's tuplet ratio — MusicXML `<time-modification>`: [actual] notes
+  /// in the time of [normal]. A triplet eighth is `(actual: 3, normal: 2)` and
+  /// lasts two-thirds of a plain eighth. Null for a note outside any tuplet.
+  /// A tuplet group is a run of consecutive notes carrying one (see
+  /// [tupletGroups]).
+  final ({int actual, int normal})? tuplet;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -156,7 +165,17 @@ class NoteEvent {
     this.lyrics = const {},
     this.tieStart = false,
     this.tieStop = false,
+    this.tuplet,
   });
+
+  /// How long this note lasts, in 32nd-note units (quarter = 8), its tuplet
+  /// applied: a triplet eighth is 8/3. Exact for a whole group, so sum it
+  /// over a bar and round once — see [unitsOf].
+  double get units {
+    final base = thirtySecondUnits(noteValue, dotted).toDouble();
+    final t = tuplet;
+    return t == null ? base : base * t.normal / t.actual;
+  }
 
   NoteEvent copyWith({
     String? pitch,
@@ -177,6 +196,8 @@ class NoteEvent {
     Map<int, Lyric>? lyrics,
     bool? tieStart,
     bool? tieStop,
+    ({int actual, int normal})? tuplet,
+    bool clearTuplet = false,
     bool clearScoreFinger = false,
   }) =>
       NoteEvent(
@@ -200,5 +221,58 @@ class NoteEvent {
         lyrics: lyrics ?? this.lyrics,
         tieStart: tieStart ?? this.tieStart,
         tieStop: tieStop ?? this.tieStop,
+        tuplet: clearTuplet ? null : (tuplet ?? this.tuplet),
       );
+}
+
+/// The time [notes] take, in 32nd-note units, tuplets applied. Chord members
+/// add none: they sound with the note before them. Rounded once at the end, so
+/// a whole triplet group counts exactly (three triplet eighths are 8, a
+/// quarter) and a broken one comes out as near as a bar total can be.
+int unitsOf(Iterable<NoteEvent> notes) {
+  var sum = 0.0;
+  for (final n in notes) {
+    if (!n.isChord) sum += n.units;
+  }
+  return sum.round();
+}
+
+/// Index ranges (start inclusive, end exclusive) of the tuplet groups in
+/// [notes]: runs of consecutive notes with the same [NoteEvent.tuplet], each
+/// closed once it has filled its time — `actual` of its shortest value, so
+/// three triplet eighths, or a triplet quarter and eighth. Chord members ride
+/// with their primary note.
+List<(int, int)> tupletGroups(List<NoteEvent> notes) {
+  final groups = <(int, int)>[];
+  int? start;
+  var nominal = 0;
+  var shortest = 0;
+  void close(int end) {
+    groups.add((start!, end));
+    start = null;
+    nominal = 0;
+    shortest = 0;
+  }
+
+  for (var i = 0; i < notes.length; i++) {
+    final n = notes[i];
+    if (n.isChord && i > 0) continue;
+    final t = n.tuplet;
+    // A run ends unfinished at a plain note or a different ratio.
+    if (start != null && t != notes[start!].tuplet) close(i);
+    if (t == null) continue;
+    start ??= i;
+    final u = thirtySecondUnits(n.noteValue, n.dotted);
+    nominal += u;
+    if (shortest == 0 || u < shortest) shortest = u;
+    if (nominal >= t.actual * shortest) {
+      var end = i + 1;
+      while (end < notes.length && notes[end].isChord) {
+        end++;
+      }
+      close(end);
+    }
+  }
+  if (start != null) close(notes.length);
+  return groups;
 }

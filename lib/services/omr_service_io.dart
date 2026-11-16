@@ -13,6 +13,7 @@ import 'package:pdfx/pdfx.dart';
 import 'meter_repair.dart';
 import 'omr_service_base.dart';
 import 'title_recognizer.dart';
+import 'tuplet_repair.dart';
 
 /// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
 /// (document scanner, photo library, or file/PDF) → crop each page to the
@@ -76,8 +77,10 @@ class OmrService implements OmrServiceBase {
       }),
     );
     // The recogniser misreads time-signature digits far more often than note
-    // values: re-derive the meters from the bars. See MeterRepair.
-    return OmrScanResult(musicXml: MeterRepair.repair(musicXml), title: title);
+    // values: re-derive the meters from the bars (MeterRepair). Then, against
+    // those meters, drop the triplets it made out of fingerings (TupletRepair).
+    final repaired = TupletRepair.repair(MeterRepair.repair(musicXml));
+    return OmrScanResult(musicXml: repaired, title: title);
   }
 
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

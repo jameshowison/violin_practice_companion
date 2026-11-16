@@ -23,8 +23,9 @@ import 'musicxml_parser.dart';
 /// Pitches (with octave marks), rests, note lengths including dots, ties
 /// (`A2-|A2`), stacked chord notes (`[CEG]`), chord symbols (`"Am"`),
 /// forward/backward repeats, D.C./D.S./Fine/segno/coda marks, the key
-/// signature with its mode, and the meter. What does NOT survive is anything [MusicXmlParser] itself drops — slurs,
-/// tuplets, grace notes, dynamics, voltas, and fingerings — and lyrics, which
+/// signature with its mode, meter changes, and tuplets (`(3abc`). What does
+/// NOT survive is anything [MusicXmlParser] itself drops — slurs,
+/// grace notes, dynamics, voltas, and fingerings — and lyrics, which
 /// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
 /// round-trip of the document, and [AbcExporter.lossyFeatureNote] says so in the
 /// words the export dialog shows the user.
@@ -34,9 +35,9 @@ class AbcExporter {
   /// Shown under the exported text so nobody is surprised when a re-import comes
   /// back plainer than it went out.
   static const String lossyFeatureNote =
-      'Notes, ties, chord symbols, repeats, D.C./D.S. marks, key and time signature '
+      'Notes, ties, triplets, chord symbols, repeats, D.C./D.S. marks, key and time signature '
       'are exported. '
-      'Slurs, triplets, grace notes, lyrics and fingerings are not.';
+      'Slurs, grace notes, lyrics and fingerings are not.';
 
   /// The ABC document for [piece], titled [title].
   ///
@@ -163,8 +164,13 @@ class AbcExporter {
     // result is a few redundant signs and zero ambiguity.
     final altered = <String>{};
     final body = StringBuffer();
-    var position = 0;
+    var position = 0.0;
     var lastBeat = 0;
+    // `(3abc`: a tuplet is written at its notes' printed lengths behind a
+    // `(p` marker, as in the score.
+    final tupletStarts = {
+      for (final g in tupletGroups(measure.notes)) g.$1: measure.notes[g.$1].tuplet!,
+    };
 
     for (var i = 0; i < measure.notes.length; i++) {
       final note = measure.notes[i];
@@ -191,6 +197,13 @@ class AbcExporter {
       // bar that goes off the grid (a dotted quarter in 4/4) still breaks at
       // every following beat instead of running together to the barline.
       final beat = position ~/ beamUnits;
+      final t = tupletStarts[i];
+      // `(3` is a triplet's own default; anything else states its ratio.
+      final tuplet = t == null
+          ? ''
+          : t.actual == 3 && t.normal == 2
+              ? '(3'
+              : '(${t.actual}:${t.normal}';
       if (body.isNotEmpty && (beat != lastBeat || prefix.isNotEmpty)) {
         body.write(' ');
       }
@@ -198,9 +211,9 @@ class AbcExporter {
       // ties every note of the group, which is the common case for a tied
       // double-stop.
       final tie = group.any((n) => n.tieStart) ? '-' : '';
-      body.write('$prefix$head${_lengthToken(units, unit)}$tie');
+      body.write('$prefix$tuplet$head${_lengthToken(units, unit)}$tie');
       lastBeat = beat;
-      position += units;
+      position += note.units;
     }
     return body.toString();
   }

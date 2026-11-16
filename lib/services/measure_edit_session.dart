@@ -10,6 +10,7 @@ import '../models/section.dart';
 import 'chord_editor.dart';
 import 'fingering_mapper.dart';
 import 'measure_xml_editor.dart';
+import 'tuplet_editor.dart';
 import 'providers.dart';
 
 /// The bar being edited in place on the piece screen (open gaps:
@@ -432,6 +433,16 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       sectionStarts: ChordEditor.normalizeMarkers(
           notes, s.sectionStarts, s.measureNumber),
     ));
+  }
+
+  /// Makes the selected note and the next two a triplet, or undoes the
+  /// triplet it is in. See [TupletEditor].
+  void toggleTriplet() {
+    final s = state;
+    final i = s?.selectedIndex;
+    if (s == null || i == null) return;
+    if (TupletEditor.blockedReason(s.notes, i) != null) return;
+    _update(s.copyWith(notes: TupletEditor.toggle(s.notes, i)));
   }
 
   void insert() {

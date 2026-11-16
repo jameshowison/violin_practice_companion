@@ -189,6 +189,7 @@ class MusicXmlParser {
           lyrics: lyrics,
           tieStart: !isRest && tieTypes.contains('start'),
           tieStop: !isRest && tieTypes.contains('stop'),
+          tuplet: _tupletOf(noteEl),
         ));
         pendingChord = null;
       }
@@ -271,6 +272,22 @@ class MusicXmlParser {
       beatsPerMeasure: beatsPerMeasure,
       beatType: beatType,
     );
+  }
+
+  /// A note's `<time-modification>` as a tuplet ratio; null for none, or for
+  /// a 1:1 that changes nothing.
+  static ({int actual, int normal})? _tupletOf(XmlElement note) {
+    final tm = note.findElements('time-modification').firstOrNull;
+    if (tm == null) return null;
+    final actual = int.tryParse(
+        tm.findElements('actual-notes').firstOrNull?.innerText.trim() ?? '');
+    final normal = int.tryParse(
+        tm.findElements('normal-notes').firstOrNull?.innerText.trim() ?? '');
+    if (actual == null || normal == null || actual < 1 || normal < 1) {
+      return null;
+    }
+    if (actual == normal) return null;
+    return (actual: actual, normal: normal);
   }
 
   /// A `<time>` element's meter; null for none, or one without numbers

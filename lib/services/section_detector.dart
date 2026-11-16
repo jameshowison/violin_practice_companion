@@ -185,16 +185,17 @@ class SectionDetector {
   /// The tail of [notes] as long as [pickup], from its first sounding note;
   /// null if no note boundary falls exactly there.
   static int? _pickupTail(List<NoteEvent> notes, int pickup) {
-    var tail = 0;
+    // Exact lengths, so a pickup of triplets matches the bar it completes.
+    var tail = 0.0;
     var j = notes.length;
-    while (j > 0 && tail < pickup) {
+    while (j > 0 && tail < pickup - 1e-6) {
       j--;
-      if (!notes[j].isChord) tail += _units(notes[j]);
+      if (!notes[j].isChord) tail += notes[j].units;
     }
     while (j > 0 && notes[j].isChord) {
       j--; // a chord's members start with its primary note
     }
-    if (tail != pickup) return null;
+    if ((tail - pickup).abs() > 1e-6) return null;
     while (j < notes.length && notes[j].isRest) {
       j++;
     }

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/duration_step.dart';
+import '../models/note_event.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
 import '../services/fingering_mapper.dart';
 import '../services/measure_edit_session.dart';
 import '../services/providers.dart';
+import '../services/tuplet_editor.dart';
 import 'measure_edit_row.dart';
 import 'time_signature_dialog.dart';
 
@@ -75,10 +77,7 @@ class MeasureEditPanel extends ConsumerWidget {
     final expectedUnits = meter.units;
     // Chord members add no time (see Measure.actualUnits) — skip them so a
     // chord doesn't read as several sequential notes in the beat total.
-    final actualUnits = s.notes.fold<int>(
-        0,
-        (sum, n) =>
-            n.isChord ? sum : sum + thirtySecondUnits(n.noteValue, n.dotted));
+    final actualUnits = unitsOf(s.notes);
     final mismatch = s.measureNumber != 0 && actualUnits != expectedUnits;
     final actualBeats = actualUnits * meter.beatType / 32;
     final cs = Theme.of(context).colorScheme;
@@ -473,6 +472,10 @@ class _ControlPanel extends ConsumerWidget {
                 ),
               ],
             ),
+            // A triplet is a duration: three in the time of two. Here rather
+            // than a group of its own, which pushed the row past an iPad.
+            const SizedBox(width: 6),
+            _tripletToggle(context, ctl),
           ]),
           _divider(context),
           // Stacking sits next to DURATION because the two interact: joining a
@@ -600,6 +603,30 @@ class _ControlPanel extends ConsumerWidget {
         stacked ? 'unstack' : 'stack',
         active: stacked,
         onTap: stacked || blocked == null ? ctl.toggleStack : null,
+      ),
+    );
+  }
+
+  // Make the selected note and the next two a triplet, or undo the one it's
+  // in. Filled while the note IS in a triplet; disabled, with the reason as
+  // the tooltip, when the three notes aren't alike.
+  Widget _tripletToggle(BuildContext context, MeasureEditController ctl) {
+    final i = session.selectedIndex;
+    final inOne = TupletEditor.groupOf(session.notes, i) != null;
+    final blocked = TupletEditor.blockedReason(session.notes, i);
+    return Tooltip(
+      message: inOne
+          ? 'Undo the triplet — the three notes go back to their full length.'
+          : (blocked ??
+              'Make this note and the next two a triplet: three in the time '
+                  'of two.'),
+      child: _squareToggle(
+        context,
+        const Text('3', style: _accGlyph),
+        inOne ? 'undo' : 'triplet',
+        key: const ValueKey('triplet_toggle'),
+        active: inOne,
+        onTap: blocked == null ? ctl.toggleTriplet : null,
       ),
     );
   }

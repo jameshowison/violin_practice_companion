@@ -1,6 +1,5 @@
 import 'package:xml/xml.dart';
 
-import '../models/duration_step.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
 
@@ -28,8 +27,58 @@ class MeasureXmlEditor {
   /// from the note value, dot, and the score's [divisions] (divisions per
   /// quarter note); a quarter note is 8 thirty-second units, so
   /// `duration = units * divisions / 8`.
-  static XmlElement buildNoteElement(NoteEvent note, int divisions) =>
-      XmlDocument.parse(_noteXml(note, divisions)).rootElement.copy();
+  ///
+  /// A tuplet note carries its `<time-modification>`, and [tupletStart] /
+  /// [tupletStop] draw the bracket over its group (see [tupletGroups]).
+  static XmlElement buildNoteElement(NoteEvent note, int divisions,
+          {bool tupletStart = false, bool tupletStop = false}) =>
+      XmlDocument.parse(_noteXml(note, divisions,
+              tupletStart: tupletStart, tupletStop: tupletStop))
+          .rootElement
+          .copy();
+
+  /// The smallest multiple of [divisions] at which every one of [notes] has a
+  /// whole-number `<duration>`: a triplet eighth needs divisions divisible by
+  /// 3. [divisions] itself when it already serves.
+  static int divisionsFor(Iterable<NoteEvent> notes, int divisions) {
+    for (var k = 1; k <= 12; k++) {
+      final d = divisions * k;
+      final fits = notes.every((n) {
+        final dur = n.units * d / 8;
+        return (dur - dur.round()).abs() < 1e-9;
+      });
+      if (fits) return d;
+    }
+    return divisions;
+  }
+
+  /// The `<divisions>` in force at [measure]: the last one stated in its part
+  /// up to and including it. Null when none is.
+  static int? _divisionsAt(XmlElement measure) {
+    final part = measure.parentElement;
+    if (part == null) return null;
+    int? divisions;
+    for (final m in part.findElements('measure')) {
+      for (final a in m.findElements('attributes')) {
+        final d = int.tryParse(
+            a.findElements('divisions').firstOrNull?.innerText.trim() ?? '');
+        if (d != null) divisions = d;
+      }
+      if (identical(m, measure)) break;
+    }
+    return divisions;
+  }
+
+  /// Multiplies every `<divisions>` and `<duration>` in [doc] by [factor]:
+  /// the same music, counted finer, so a tuplet can be written exactly.
+  static void _scaleDivisions(XmlDocument doc, int factor) {
+    for (final tag in const ['divisions', 'duration']) {
+      for (final el in doc.findAllElements(tag)) {
+        final v = int.tryParse(el.innerText.trim());
+        if (v != null) el.innerText = '${v * factor}';
+      }
+    }
+  }
 
   /// Replaces the visible notes of `<measure number="$measureNumber">` with
   /// [notes], leaving `<attributes>`/`<print>`/`<barline>` and any hidden
@@ -47,11 +96,23 @@ class MeasureXmlEditor {
   static String replaceMeasureNotes(
       String musicXml, int measureNumber, List<NoteEvent> notes, int divisions) {
     final doc = XmlDocument.parse(musicXml);
+
     final measureEl = doc.findAllElements('measure').firstWhere(
           (m) => m.getAttribute('number') == '$measureNumber',
           orElse: () =>
               throw ArgumentError('Measure $measureNumber not found in MusicXML'),
         );
+    // The divisions in force at this bar, as the DOCUMENT states them. The
+    // caller's figure comes from a parse that may have been of a draft, already
+    // counted finer than this file is.
+    divisions = _divisionsAt(measureEl) ?? divisions;
+    // A triplet in a score counted in quarters or eighths has no whole-number
+    // duration: count the whole score finer first.
+    final needed = divisionsFor(notes, divisions);
+    if (needed != divisions) {
+      _scaleDivisions(doc, needed ~/ divisions);
+      divisions = needed;
+    }
 
     final children = measureEl.children;
     bool isNote(XmlNode n) => n is XmlElement && n.name.local == 'note';
@@ -95,10 +156,17 @@ class MeasureXmlEditor {
       insertIndex = lastNoteIdx == -1 ? children.length : lastNoteIdx + 1;
     }
 
+    final groups = tupletGroups(notes);
+    final starts = {for (final g in groups) g.$1};
+    // The bracket closes on the group's last primary note, not a chord member.
+    final stops = {
+      for (final g in groups) notes.lastIndexWhere((n) => !n.isChord, g.$2 - 1),
+    };
     children.insertAll(insertIndex, [
       for (var i = 0; i < notes.length; i++) ...[
         ...?graceBefore[i]?.map((g) => g.copy()),
-        buildNoteElement(notes[i], divisions),
+        buildNoteElement(notes[i], divisions,
+            tupletStart: starts.contains(i), tupletStop: stops.contains(i)),
       ],
     ]);
     return doc.toXmlString();
@@ -494,7 +562,8 @@ class MeasureXmlEditor {
   static String _escape(String s) =>
       s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
-  static String _noteXml(NoteEvent n, int divisions) {
+  static String _noteXml(NoteEvent n, int divisions,
+      {bool tupletStart = false, bool tupletStop = false}) {
     final dur = _durationDivisions(n, divisions);
     final type = _typeName(n.noteValue);
     final dot = n.dotted ? '<dot/>' : '';
@@ -514,15 +583,27 @@ class MeasureXmlEditor {
     final technical = n.scoreFinger != null
         ? '<technical><fingering>${n.scoreFinger}</fingering></technical>'
         : '';
-    final fingering = (tied.isEmpty && technical.isEmpty)
+    final t = n.tuplet;
+    // After <accidental>, before <notations>, in MusicXML's <note> order.
+    final timeMod = t == null
         ? ''
-        : '<notations>$tied$technical</notations>';
+        : '<time-modification><actual-notes>${t.actual}</actual-notes>'
+            '<normal-notes>${t.normal}</normal-notes></time-modification>';
+    final bracket = t == null
+        ? ''
+        : '${tupletStart ? '<tuplet type="start" bracket="yes"/>' : ''}'
+            '${tupletStop ? '<tuplet type="stop"/>' : ''}';
+    final fingering = (tied.isEmpty && technical.isEmpty && bracket.isEmpty)
+        ? ''
+        : '<notations>$tied$bracket$technical</notations>';
     // Last in MusicXML's <note> order. Written for rests too: a syllable whose
     // note was made a rest in the editor stays put (and the editor warns)
     // rather than vanishing on save.
     final lyrics = _lyricsXml(n);
     if (n.isRest) {
-      return '<note><rest/><duration>$dur</duration><type>$type</type>$dot$lyrics</note>';
+      final restNotations = bracket.isEmpty ? '' : '<notations>$bracket</notations>';
+      return '<note><rest/><duration>$dur</duration><type>$type</type>$dot'
+          '$timeMod$restNotations$lyrics</note>';
     }
     // A chord member's marker comes first in MusicXML's <note> child order,
     // before <pitch>. Rests are never chord members.
@@ -537,14 +618,14 @@ class MeasureXmlEditor {
         '<type>$type</type>'
         '$dot'
         '$accidental'
+        '$timeMod'
         '$fingering'
         '$lyrics'
         '</note>';
   }
 
   static int _durationDivisions(NoteEvent n, int divisions) {
-    final units = thirtySecondUnits(n.noteValue, n.dotted); // quarter = 8
-    final dur = (units * divisions / 8).round();
+    final dur = (n.units * divisions / 8).round(); // quarter = 8 units
     return dur < 1 ? 1 : dur;
   }
 

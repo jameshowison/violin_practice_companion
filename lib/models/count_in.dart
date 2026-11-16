@@ -1,4 +1,5 @@
 import 'duration_step.dart';
+import 'note_event.dart';
 import 'parsed_piece.dart';
 
 /// The count-off before playback starts, so there is time to get the instrument
@@ -96,9 +97,7 @@ int pickupUnitsOf(
   final barUnits = beatsPerMeasure * 32 ~/ beatType;
   var units = 0;
   if (fromNote > 0 && fromNote < measure.notes.length) {
-    for (final n in measure.notes.skip(fromNote)) {
-      if (!n.isChord) units += thirtySecondUnits(n.noteValue, n.dotted);
-    }
+    units = unitsOf(measure.notes.skip(fromNote));
   } else {
     units = measure.actualUnits;
     for (final hidden in measure.hiddenLeadNotes) {

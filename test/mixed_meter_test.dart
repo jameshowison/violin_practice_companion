@@ -170,13 +170,22 @@ void main() {
 
     test('corrects misread digits from the bars under them', () {
       // Bar 3 starts four-beat bars, but was read as 3/4; bar 6 is a one-bar
-      // 2/4 read as 4/4.
+      // 2/4 read as 2/2-length "3/4" — wrong either way, and not a pickup.
       final p = parser.parse(MeterRepair.repair(_score([
-        q(3, '3/4'), q(3), q(4, '3/4'), q(4), q(4), q(2, '4/4'), q(4), q(4),
+        q(3, '3/4'), q(3), q(4, '3/4'), q(4), q(4), q(2, '3/4'), q(4), q(4),
         q(4),
       ])));
       expect(_changes(p), {1: '3/4', 3: '4/4', 6: '2/4', 7: '4/4'});
       expect(p.flaggedMeasureNumbers, isEmpty);
+    });
+
+    test('a pickup under its own time signature keeps it', () {
+      // Barbara Allen: a 3-beat pickup, then bars of 3/2.
+      final src = _score([q(3, '3/2'), q(6), q(6), q(6), q(3)]);
+      expect(MeterRepair.repair(src), src);
+      // And a new section's pickup into a meter change.
+      final mid = _score([q(3, '3/4'), q(3), q(3), q(2, '4/4'), q(4), q(4)]);
+      expect(MeterRepair.repair(mid), mid);
     });
 
     test('finds an unmarked change after a run of bars', () {

@@ -131,6 +131,12 @@ class ChordEditor {
       if (out[i].noteValue != p.noteValue || out[i].dotted != p.dotted) {
         out[i] = out[i].copyWith(noteValue: p.noteValue, dotted: p.dotted);
       }
+      // A member shares its primary's stem, so its tuplet too.
+      if (out[i].tuplet != p.tuplet) {
+        out[i] = p.tuplet == null
+            ? out[i].copyWith(clearTuplet: true)
+            : out[i].copyWith(tuplet: p.tuplet);
+      }
     }
     return out;
   }
@@ -202,6 +208,7 @@ class ChordEditor {
               dotted: n.dotted,
               isRest: false,
               lyrics: n.lyrics,
+              tuplet: n.tuplet,
             );
     } else {
       // A rest is never tied.
@@ -315,6 +322,7 @@ class ChordEditor {
         noteValue: from.noteValue,
         dotted: from.dotted,
         isRest: false,
+        tuplet: from.tuplet,
         displayAccidental: displayAccidental,
         chordSymbol: from.chordSymbol,
         isChord: from.isChord,

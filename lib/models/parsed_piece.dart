@@ -1,4 +1,3 @@
-import 'duration_step.dart';
 import 'note_event.dart';
 
 /// A time signature: [beats] of [beatType] notes per bar.
@@ -147,10 +146,9 @@ class Measure {
   /// they sound at the primary note's onset and occupy no time of their own, so
   /// counting them would inflate the bar and falsely flag it (a two-note chord
   /// of quarters in 4/4 would read as 5 beats, not 4).
-  int get actualUnits => notes.fold<int>(
-      0,
-      (sum, n) =>
-          n.isChord ? sum : sum + thirtySecondUnits(n.noteValue, n.dotted));
+  ///
+  /// Tuplets count at their real length: three triplet eighths are a quarter.
+  int get actualUnits => unitsOf(notes);
 
   /// True when this measure is shorter than a full bar — the hallmark of a
   /// pickup/anacrusis.

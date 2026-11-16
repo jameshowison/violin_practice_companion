@@ -238,7 +238,11 @@ class _NoteEditCard extends StatelessWidget {
       NoteValue.eighth: '8th',
       NoteValue.sixteenth: '16th',
     };
-    return '${abbr[n.noteValue]}${n.dotted ? '•' : ''}';
+    // "8th ·3": a triplet eighth, so a false triplet from a scan is visible
+    // on the card, not only as a bracket on the staff.
+    final t = n.tuplet;
+    final tuplet = t == null ? '' : ' ·${t.actual}';
+    return '${abbr[n.noteValue]}${n.dotted ? '•' : ''}$tuplet';
   }
 }
 

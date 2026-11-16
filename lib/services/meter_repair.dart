@@ -22,7 +22,11 @@ import 'measure_xml_editor.dart';
 ///    triplet) and is no evidence either way. It stays as it is, for the
 ///    measure editor to flag.
 ///  * Where the recogniser put a `<time>`, the meter changes there: to what it
-///    read if that fits the bar, otherwise to what the bar's length says.
+///    read if that fits the bar, otherwise to what the bar's length says —
+///    unless the bar is a pickup into what it read (shorter, the next bar
+///    full): Barbara Allen opens with a 3-beat pickup under its 3/2. That
+///    leaves a genuine one-bar 2/4 misread as 4/4 flagged rather than fixed;
+///    a wrong relabel would print time signatures that aren't there.
 ///  * Where it put none, the meter changes only after [minRun] bars in a row
 ///    agree on a new length (damaged bars between them don't break the run).
 ///    One odd bar is a reading error, not a change of meter.
@@ -89,10 +93,17 @@ class MeterRepair {
       final candidate = _candidate(bar.units, current);
       if (bar.written != null) {
         final written = bar.written!;
-        // A damaged bar can't judge the digits, so they stand.
-        final meter = candidate == null || written.units == bar.units
-            ? written
-            : candidate;
+        // The digits stand when the bar can't judge them (damaged), when it
+        // agrees, or when it is a pickup INTO the written meter: shorter, with
+        // the next bar the full length. A song's opening anacrusis, or a new
+        // section's, carries the time signature of the bars after it.
+        final pickup = bar.units != null &&
+            bar.units! < written.units &&
+            _nextLength(bars, i) == written.units;
+        final meter =
+            candidate == null || written.units == bar.units || pickup
+                ? written
+                : candidate;
         if (current == null || meter != current) want[i] = meter;
         current = meter;
         continue;
@@ -123,6 +134,15 @@ class MeterRepair {
       }
     }
     return plan;
+  }
+
+  /// The length of the first bar after [i] that has one.
+  static int? _nextLength(List<_Bar> bars, int i) {
+    for (var k = i + 1; k < bars.length; k++) {
+      final u = bars[k].units;
+      if (u != null && u > 0) return u;
+    }
+    return null;
   }
 
   /// The meter a bar of [units] is evidence for, or null if none.

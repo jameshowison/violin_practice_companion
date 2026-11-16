@@ -245,7 +245,11 @@ class MidiGenerator {
       NoteValue.eighth => _tpb ~/ 2,
       NoteValue.sixteenth => _tpb ~/ 4,
     };
-    return note.dotted ? (base * 3) ~/ 2 : base;
+    final ticks = note.dotted ? (base * 3) ~/ 2 : base;
+    // A tuplet note lasts normal/actual of its written value: a triplet
+    // eighth is 2/3 of an eighth (160 ticks at 480 per quarter).
+    final t = note.tuplet;
+    return t == null ? ticks : (ticks * t.normal / t.actual).round();
   }
 
   static bool _isLongerThanQuarter(NoteEvent note) {
