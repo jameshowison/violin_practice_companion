@@ -706,6 +706,47 @@ support web, so `omr_service.dart` conditional-imports a stub on web
 OMR accuracy on Suzuki Book 1 (homr_flutter, 2026-06-09): **17/18 perfect**
 (SER=0%). Full findings in `homr_flutter/docs/omr_evaluation/`.
 
+### Time signatures: the model reads only the bottom digit
+
+homr's transformer has no token for a time signature's top digit, only
+`timeSignature/<denominator>`. Its training-data converters read MusicXML
+`<beat-type>` and kern `*M3/4`'s denominator and never `<beats>`
+(upstream `training/omr_datasets/music_xml_parser.py:624`, the kern and Lieder
+converters likewise). That was a deliberate choice. Commit `712d207`
+(2024-06-24) dropped the full `timeSignature-4/4`-style tokens to shrink the
+vocabulary: "we can easily infer the numerator from the number of notes in a
+measure. The transformer doesn't seem to make a lot of use from the time
+signature information." Upstream `Vocabulary.md` says the beats are
+"reconstructed from the median measure length". The author calls it "a
+shortcut" in liebharc/homr#167. Common time (C) is read as 4/4.
+
+What follows from that, and what we do about it:
+
+- **The top digit is computed, never read.** Since homr_flutter 0.3.0, each
+  time signature the model sees starts a stretch, and its top digit is that
+  stretch's median bar length. Upstream takes one median over the whole piece,
+  which made a 3/4 + 4/4 medley "7/4". A time signature over nothing but rests
+  has no bars to measure, so it gets common time for its denominator (4/4,
+  2/2, 6/8), since 0.3.2.
+- **The app checks the result against the bars.** `MeterRepair`
+  (`lib/services/meter_repair.dart`) fixes digits that don't fit the bars under
+  them and removes restatements.
+- **What it can't do:** a meter that has no rhythm to measure (rests only)
+  can be wrong, and an unmarked one-bar change (a lone 2/4) is left flagged
+  for the measure editor.
+
+To actually read the digits, two routes exist, neither built:
+
+1. **Retrain with a numerator token.** The OurTextScores fork of homr adds
+   `timeSignatureBeats_<n>` before the existing `/d` token, so old checkpoints
+   still load (`release/v11-minimal`, `homr/transformer/vocabulary.py:17`). Its
+   weights are private, so this means fine-tuning homr's checkpoint ourselves.
+2. **OCR the digits.** homr's segmentation has no time-signature class (the
+   digits fall into background), but the transformer's per-token attention
+   gives a rough position for the `timeSignature/d` token. Our port discards it
+   (`transformer_runner.dart`). Kept, it would locate a crop for the app's
+   text recogniser, the one that reads titles.
+
 ## Licence
 
 GPL-3.0-or-later (see `LICENSE`). You may use, modify, and redistribute this
