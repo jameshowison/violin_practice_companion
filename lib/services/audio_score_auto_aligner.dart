@@ -64,8 +64,8 @@ class AutoAlignmentResult {
 const String alignmentReviewMessage =
     'Some measures may be highlighted slightly early or late. If the score '
     "doesn't quite match what was played, check for an extra or missing "
-    'measure, or a first/second ending (not currently supported: repeat both '
-    'endings out as plain measures instead), then tap Realign. Otherwise the '
+    'measure, or a first/second ending that isn\'t marked (mark it in the '
+    'measure editor), then tap Realign. Otherwise the '
     'recording itself may be hard to follow — a quiet one, or one with a lot '
     'of background hum, gives the aligner less to work with. Playback is '
     'usable either way.';

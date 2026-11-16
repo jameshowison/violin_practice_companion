@@ -772,6 +772,34 @@ To actually read the digits, two routes exist, neither built:
    (`transformer_runner.dart`). Kept, it would locate a crop for the app's
    text recogniser, the one that reads titles.
 
+## Thanks to MusicXML
+
+The whole app runs on [MusicXML](https://www.w3.org/2021/06/musicxml40/),
+created by Michael Good at Recordare and now developed in the open by the W3C
+Music Notation Community Group. Our thanks to them. One format carries a tune
+from scanner (homr), ABC importer and measure editor to engraver (Verovio),
+playback and sharing, and none of these parts has to know about the others.
+
+First and second endings show how well the format works. A volta is not a
+special kind of measure. It is a mark on the barline,
+`<ending number="1" type="start"/>` on the first bar under the bracket and
+`type="stop"` (closed hook) or `"discontinue"` (open end) on the last, and it
+sits next to the `<repeat>` that sends the player back. So:
+
+- homr's `voltaStart`/`voltaStop` tokens became `<ending>` elements, with no
+  agreement needed between the projects beyond the format;
+- the ABC importer turns abcjs's `startEnding`/`endEnding` bar flags into the
+  same elements, and the exporter writes them back as `[1` and `[2`;
+- the measure editor's "ending" toggle writes the same elements, rebuilding
+  the brackets over the part;
+- Verovio draws the brackets from the markup, with no app code;
+- `ParsedPiece.performanceOrder` reads `number="1, 2"` as "play this bar on
+  passes 1 and 2", and MIDI playback, the minimap and the recording aligner
+  all follow from that.
+
+Adding endings meant teaching each part to read or write one documented
+element. None of them needed changes to the others.
+
 ## Licence
 
 GPL-3.0-or-later (see `LICENSE`). You may use, modify, and redistribute this

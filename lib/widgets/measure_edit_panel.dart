@@ -505,6 +505,21 @@ class _ControlPanel extends ConsumerWidget {
             const SizedBox(width: 4),
             _squareToggle(context, Text(':|', style: _accGlyph), 'end',
                 active: s.repeatEnd, onTap: ctl.toggleRepeatEnd),
+            const SizedBox(width: 4),
+            // First/second ending (volta): tap to step none → 1. → 2. → none.
+            // Saved with the bar; mark bar 8 "1." and bar 9 "2." and the
+            // score draws the brackets and playback takes each once.
+            _squareToggle(
+                context,
+                Text(
+                    s.endings.isEmpty
+                        ? '⌐'
+                        : '${(s.endings.toList()..sort()).join(',')}.',
+                    style: _accGlyph),
+                'ending',
+                key: const ValueKey('measure_ending_toggle'),
+                active: s.endings.isNotEmpty,
+                onTap: ctl.cycleEnding),
           ]),
         ],
       ),

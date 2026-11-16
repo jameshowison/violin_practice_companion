@@ -34,6 +34,12 @@ class MeasureEditSession {
   final bool originalRepeatStart;
   final bool originalRepeatEnd;
 
+  /// The volta bracket(s) this bar sits under — `{1}` a first ending, `{2}` a
+  /// second, empty for none ([Measure.endings]). Written on Save, not
+  /// drafted: brackets span bars, so the whole part's endings are rewritten.
+  final Set<int> endings;
+  final Set<int> originalEndings;
+
   /// The whole piece's section start markers. They live outside the MusicXML
   /// (a sidecar), so they're tracked apart from the note/repeat edits.
   final List<Section> sectionStarts;
@@ -64,6 +70,8 @@ class MeasureEditSession {
     required this.repeatEnd,
     required this.originalRepeatStart,
     required this.originalRepeatEnd,
+    this.endings = const {},
+    this.originalEndings = const {},
     required this.sectionStarts,
     required this.originalSectionStarts,
     this.timeChange,
@@ -102,8 +110,15 @@ class MeasureEditSession {
       repeatStart != originalRepeatStart || repeatEnd != originalRepeatEnd;
   bool get sectionsChanged => !_sameSections(sectionStarts, originalSectionStarts);
   bool get timeChanged => timeChange != originalTimeChange;
+  bool get endingsChanged =>
+      endings.length != originalEndings.length ||
+      !endings.containsAll(originalEndings);
   bool get isDirty =>
-      notesChanged || repeatsChanged || sectionsChanged || timeChanged;
+      notesChanged ||
+      repeatsChanged ||
+      sectionsChanged ||
+      timeChanged ||
+      endingsChanged;
 
   bool get lyricsMoved =>
       ChordEditor.lyricsMayBeMisaligned(originalNotes, notes);
@@ -114,6 +129,7 @@ class MeasureEditSession {
     bool clearSelection = false,
     bool? repeatStart,
     bool? repeatEnd,
+    Set<int>? endings,
     List<Section>? sectionStarts,
     Meter? timeChange,
     bool clearTimeChange = false,
@@ -130,6 +146,8 @@ class MeasureEditSession {
         repeatEnd: repeatEnd ?? this.repeatEnd,
         originalRepeatStart: originalRepeatStart,
         originalRepeatEnd: originalRepeatEnd,
+        endings: endings ?? this.endings,
+        originalEndings: originalEndings,
         sectionStarts: sectionStarts ?? this.sectionStarts,
         originalSectionStarts: originalSectionStarts,
         timeChange:
@@ -218,6 +236,8 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       repeatEnd: measure.repeatEnd,
       originalRepeatStart: measure.repeatStart,
       originalRepeatEnd: measure.repeatEnd,
+      endings: measure.endings,
+      originalEndings: measure.endings,
       sectionStarts: sections,
       originalSectionStarts: List.of(sections),
       timeChange: timeChange,
@@ -489,6 +509,21 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     _update(s.copyWith(repeatEnd: !s.repeatEnd));
   }
 
+  /// Steps this bar's volta through none → first ending → second ending →
+  /// none. A bar under some other bracket (`1, 2`, or a third ending) goes
+  /// to none. Applied on Save, not drafted.
+  void cycleEnding() {
+    final s = state;
+    if (s == null) return;
+    final e = s.endings;
+    final Set<int> next = e.isEmpty
+        ? const {1}
+        : (e.length == 1 && e.first == 1)
+            ? const {2}
+            : const {};
+    _update(s.copyWith(endings: next), redraft: false);
+  }
+
   /// Sets (or with an empty [label], clears) the section marker at the
   /// selected note. Applied on Save, not drafted: markers aren't MusicXML.
   void setSectionMarker(String label) {
@@ -541,6 +576,10 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
             xml, s.measureNumber, s.notes, parsed.divisions);
         xml = MeasureXmlEditor.setMeasureRepeats(xml, s.measureNumber,
             start: s.repeatStart, end: s.repeatEnd);
+      }
+      if (s.endingsChanged) {
+        xml = MeasureXmlEditor.setMeasureEndings(
+            xml, s.measureNumber, s.endings);
       }
       if (s.timeChanged) {
         final m = s.timeChange;

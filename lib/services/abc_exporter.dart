@@ -22,10 +22,11 @@ import 'musicxml_parser.dart';
 ///
 /// Pitches (with octave marks), rests, note lengths including dots, ties
 /// (`A2-|A2`), stacked chord notes (`[CEG]`), chord symbols (`"Am"`),
-/// forward/backward repeats, D.C./D.S./Fine/segno/coda marks, the key
+/// forward/backward repeats, first/second endings (`[1`/`[2`),
+/// D.C./D.S./Fine/segno/coda marks, the key
 /// signature with its mode, meter changes, and tuplets (`(3abc`). What does
 /// NOT survive is anything [MusicXmlParser] itself drops — slurs,
-/// grace notes, dynamics, voltas, and fingerings — and lyrics, which
+/// grace notes, dynamics and fingerings — and lyrics, which
 /// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
 /// round-trip of the document, and [AbcExporter.lossyFeatureNote] says so in the
 /// words the export dialog shows the user.
@@ -35,7 +36,7 @@ class AbcExporter {
   /// Shown under the exported text so nobody is surprised when a re-import comes
   /// back plainer than it went out.
   static const String lossyFeatureNote =
-      'Notes, ties, triplets, chord symbols, repeats, D.C./D.S. marks, key and time signature '
+      'Notes, ties, triplets, chord symbols, repeats and endings, D.C./D.S. marks, key and time signature '
       'are exported. '
       'Slurs, grace notes, lyrics and fingerings are not.';
 
@@ -73,6 +74,12 @@ class AbcExporter {
         previousRepeatEnd: i > 0 && measures[i - 1].repeatEnd,
         repeatStart: m.repeatStart,
       );
+      // A volta runs until a `||`, a repeat or the next ending, so a last
+      // ending followed by more music is closed with a double bar.
+      if (leading == '|' && i > 0 && measures[i - 1].endings.isNotEmpty &&
+          m.endings.isEmpty) {
+        leading = '||';
+      }
       if (i > 0 && i % measuresPerLine == 0) {
         // Wrapping splits the barline across the break: the part that closes
         // the bar above stays with it, and only a repeat-open leads the new
@@ -92,6 +99,11 @@ class AbcExporter {
         leading = opening;
       }
       write(leading);
+      // First/second endings: `[1`, `[2`, `[1,2` where a bracket starts.
+      if (m.endings.isNotEmpty &&
+          (i == 0 || !_sameEndings(measures[i - 1].endings, m.endings))) {
+        write('[${(m.endings.toList()..sort()).join(',')}');
+      }
       // A meter change is an inline field at the head of its bar.
       if (i > 0 && meters[i] != meters[i - 1]) write('[M:${meters[i]}]');
       write(_navOpening(m));
@@ -136,6 +148,9 @@ class AbcExporter {
   /// `|:` belongs to the bar it opens: emitting trailing barlines instead would
   /// produce `… | |: …` whenever a repeat starts mid-tune, and would have no
   /// place to collapse a back-to-back `:|` + `|:` into the conventional `::`.
+  static bool _sameEndings(Set<int> a, Set<int> b) =>
+      a.length == b.length && a.containsAll(b);
+
   static String _leadingBarline({
     required bool isFirst,
     required bool previousRepeatEnd,

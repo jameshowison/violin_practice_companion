@@ -188,13 +188,140 @@ class MeasureXmlEditor {
         );
 
     // Drop the forward/backward repeat barlines we manage; leave any non-repeat
-    // barlines in place.
-    measureEl.children.removeWhere((n) => _isRepeatBarline(n, 'forward'));
-    measureEl.children.removeWhere((n) => _isRepeatBarline(n, 'backward'));
+    // barlines in place. A volta bracket shares the repeat's barline, so its
+    // `<ending>` is kept and put back.
+    final kept = <(bool, XmlElement)>[];
+    for (final n in measureEl.children.toList()) {
+      if (_isRepeatBarline(n, 'forward') || _isRepeatBarline(n, 'backward')) {
+        final b = n as XmlElement;
+        final left = (b.getAttribute('location') ?? 'right') == 'left';
+        for (final e in b.findElements('ending')) {
+          kept.add((left, e.copy()));
+        }
+        b.remove();
+      }
+    }
 
     if (start) _addRepeat(measureEl, forward: true);
     if (end) _addRepeat(measureEl, forward: false);
+    for (final (left, e) in kept) {
+      _addEnding(measureEl, e.getAttribute('number') ?? '1',
+          e.getAttribute('type') ?? 'start',
+          left: left);
+    }
     return doc.toXmlString();
+  }
+
+  /// Puts `<measure number="$measureNumber">` under the volta bracket(s)
+  /// [endings] (`{1}` a first ending, `{2}` a second, empty for none).
+  ///
+  /// A bracket spans bars, so this rewrites every `<ending>` in the part:
+  /// each run of adjacent bars under the same numbers becomes one bracket,
+  /// `start` on its first bar's left barline and a closing mark on its last
+  /// bar's right one — `stop` (a closed hook) unless it is the last bracket of
+  /// its group with no `:|`, which stays open (`discontinue`), as printed
+  /// second endings are. Marking bar 8 as ending 1 and bar 9 as ending 2 is
+  /// all a score needs. Idempotent. Throws [ArgumentError] when no measure
+  /// has that number.
+  static String setMeasureEndings(
+      String musicXml, int measureNumber, Set<int> endings) {
+    final doc = XmlDocument.parse(musicXml);
+    final target = doc.findAllElements('measure').firstWhere(
+          (m) => m.getAttribute('number') == '$measureNumber',
+          orElse: () =>
+              throw ArgumentError('Measure $measureNumber not found in MusicXML'),
+        );
+    final part = target.parentElement!;
+    final measures = part.findElements('measure').toList();
+
+    // Read every bar's brackets as the parser does, then clear them.
+    final sets = <Set<int>>[];
+    Set<int>? open;
+    for (final m in measures) {
+      Set<int>? here;
+      var closes = false;
+      for (final b in m.findElements('barline')) {
+        for (final e in b.findElements('ending')) {
+          final type = e.getAttribute('type');
+          final nums = {
+            for (final d in RegExp(r'\d+')
+                .allMatches(e.getAttribute('number') ?? ''))
+              int.parse(d.group(0)!),
+          }..remove(0);
+          if (type == 'start') {
+            open = nums.isEmpty ? {1} : nums;
+            here = open;
+          } else {
+            here ??= open ?? (nums.isEmpty ? {1} : nums);
+            closes = true;
+          }
+        }
+      }
+      sets.add(here ?? open ?? const {});
+      if (closes) open = null;
+    }
+    for (final m in measures) {
+      for (final b in m.findElements('barline').toList()) {
+        b.children.removeWhere(
+            (n) => n is XmlElement && n.name.local == 'ending');
+        if (b.childElements.isEmpty) b.remove();
+      }
+    }
+    sets[measures.indexOf(target)] = endings;
+
+    bool same(Set<int> a, Set<int> b) =>
+        a.length == b.length && a.containsAll(b);
+    var i = 0;
+    while (i < measures.length) {
+      if (sets[i].isEmpty) {
+        i++;
+        continue;
+      }
+      var j = i;
+      while (j + 1 < measures.length && same(sets[j + 1], sets[i])) {
+        j++;
+      }
+      final number = (sets[i].toList()..sort()).join(', ');
+      final lastOfGroup = j + 1 >= measures.length || sets[j + 1].isEmpty;
+      final closed = !lastOfGroup || _hasRepeat(measures[j], 'backward');
+      _addEnding(measures[i], number, 'start', left: true);
+      _addEnding(measures[j], number, closed ? 'stop' : 'discontinue',
+          left: false);
+      i = j + 1;
+    }
+    return doc.toXmlString();
+  }
+
+  /// Adds `<ending number type>` to [measure]'s left or right barline,
+  /// creating the barline if needed, ahead of any `<repeat>` (schema order).
+  static void _addEnding(XmlElement measure, String number, String type,
+      {required bool left}) {
+    final location = left ? 'left' : 'right';
+    var barline = measure.findElements('barline').where((b) =>
+        (b.getAttribute('location') ?? 'right') == location).firstOrNull;
+    if (barline == null) {
+      barline = XmlElement(XmlName.parts('barline'), [
+        XmlAttribute(XmlName.parts('location'), location),
+      ]);
+      if (left) {
+        final printIdx = measure.children
+            .indexWhere((n) => n is XmlElement && n.name.local == 'print');
+        measure.children.insert(printIdx == -1 ? 0 : printIdx + 1, barline);
+      } else {
+        measure.children.add(barline);
+      }
+    }
+    final ending = XmlElement(XmlName.parts('ending'), [
+      XmlAttribute(XmlName.parts('number'), number),
+      XmlAttribute(XmlName.parts('type'), type),
+    ]);
+    final repeatIdx = barline.children
+        .indexWhere((n) => n is XmlElement && n.name.local == 'repeat');
+    if (repeatIdx == -1) {
+      barline.children.add(ending);
+    } else {
+      barline.children.insert(repeatIdx, ending);
+    }
   }
 
   /// Makes [measureNumber] start a new meter: its `<time>` becomes
@@ -419,6 +546,23 @@ class MeasureXmlEditor {
   /// a bar that already carries one can't double it up.
   static void _addRepeat(XmlElement measure, {required bool forward}) {
     if (_hasRepeat(measure, forward ? 'forward' : 'backward')) return;
+    // A barline already on that edge (a volta's) takes the repeat itself:
+    // two barlines on one edge is not MusicXML.
+    final edge = forward ? 'left' : 'right';
+    final existing = measure.findElements('barline').where((b) =>
+        (b.getAttribute('location') ?? 'right') == edge).firstOrNull;
+    if (existing != null) {
+      existing.children.removeWhere(
+          (n) => n is XmlElement && n.name.local == 'bar-style');
+      existing.children.insert(
+          0,
+          XmlElement(XmlName.parts('bar-style'), [],
+              [XmlText(forward ? 'heavy-light' : 'light-heavy')]));
+      existing.children.add(XmlElement(XmlName.parts('repeat'), [
+        XmlAttribute(XmlName.parts('direction'), forward ? 'forward' : 'backward'),
+      ]));
+      return;
+    }
     if (forward) {
       final barline = XmlDocument.parse(
               '<barline location="left"><bar-style>heavy-light</bar-style>'

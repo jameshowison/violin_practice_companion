@@ -330,11 +330,30 @@
     var measures = [];
     var cur = { notes: '', noteCount: 0, repeatStart: false, repeatEnd: false };
     var pendingForwardRepeat = false;
+    // First/second endings. abcjs puts `startEnding` ("1", "2", "1,2") on the
+    // barline a volta opens AFTER (`|1`, `:|2`, `[1`), and `endEnding` on the
+    // barline that closes the one before it. They become MusicXML
+    // <ending type="start"> on the first bar under the bracket and
+    // type="stop"/"discontinue" on the last.
+    var pendingEnding = null, openEnding = null;
     function flush() {
       cur.repeatStart = cur.repeatStart || pendingForwardRepeat;
       pendingForwardRepeat = false;
+      if (pendingEnding) { cur.endingStart = pendingEnding; pendingEnding = null; }
       measures.push(cur);
       cur = { notes: '', noteCount: 0, repeatStart: false, repeatEnd: false };
+    }
+    // "1,2" / "1-3" -> "1, 2" / "1, 2, 3", MusicXML's list form.
+    function endingNumber(s) {
+      var out = [];
+      String(s).split(',').forEach(function (part) {
+        var r = part.trim().split('-');
+        var a = parseInt(r[0], 10), b = r.length > 1 ? parseInt(r[1], 10) : a;
+        if (isNaN(a)) return;
+        if (isNaN(b) || b < a) b = a;
+        for (var k = a; k <= b; k++) out.push(k);
+      });
+      return out.length ? out.join(', ') : '1';
     }
     // abcjs marks beam groups on note elements via startBeam/endBeam. Track an
     // open group and emit MusicXML <beam> begin/continue/end so beamed notes
@@ -374,9 +393,22 @@
           else measures[measures.length - 1].notes += barNav;
         }
         // bar_dbl_repeat (`::` / `:||:`) closes one strain and opens the next.
-        if (el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat') cur.repeatEnd = true;
+        var closesRepeat = el.type === 'bar_right_repeat' || el.type === 'bar_dbl_repeat';
+        if (closesRepeat) cur.repeatEnd = true;
+        // Close the open volta on the bar this barline ends: a closed hook
+        // when a repeat or another ending follows, open otherwise (as a
+        // printed last ending is).
+        if (openEnding && (el.endEnding || el.startEnding)) {
+          var closing = hasContent ? cur : measures[measures.length - 1];
+          if (closing) {
+            closing.endingStop = openEnding;
+            closing.endingStopType = (closesRepeat || el.startEnding) ? 'stop' : 'discontinue';
+          }
+          openEnding = null;
+        }
         if (hasContent) flush();
         if (el.type === 'bar_left_repeat' || el.type === 'bar_dbl_repeat') pendingForwardRepeat = true;
+        if (el.startEnding) pendingEnding = openEnding = endingNumber(el.startEnding);
       } else if (el.el_type === 'part') {
         // abcjs emits one 'part' element wherever `[P:X]` sits in the source;
         // it lands before the next note, mid-bar if that's where it was put.
@@ -389,6 +421,11 @@
       // ignore other non-note/bar/part elements (chord symbols live on notes)
     }
     if (cur.noteCount > 0) flush();
+    if (openEnding && measures.length) {
+      var lastM = measures[measures.length - 1];
+      lastM.endingStop = openEnding;
+      lastM.endingStopType = lastM.repeatEnd ? 'stop' : 'discontinue';
+    }
 
     // Build MusicXML. First (anacrusis) measure is numbered 1 and may be short;
     // the app treats a short first measure as a pickup.
@@ -425,9 +462,20 @@
         out += '        <clef><sign>G</sign><line>2</line></clef>\n';
         out += '      </attributes>\n';
       }
-      if (m.repeatStart) out += '      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n';
+      // One barline per edge, children in schema order: bar-style, ending, repeat.
+      if (m.repeatStart || m.endingStart) {
+        out += '      <barline location="left">' +
+          (m.repeatStart ? '<bar-style>heavy-light</bar-style>' : '') +
+          (m.endingStart ? '<ending number="' + m.endingStart + '" type="start"/>' : '') +
+          (m.repeatStart ? '<repeat direction="forward"/>' : '') + '</barline>\n';
+      }
       out += m.notes;
-      if (m.repeatEnd) out += '      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n';
+      if (m.repeatEnd || m.endingStop) {
+        out += '      <barline location="right">' +
+          (m.repeatEnd ? '<bar-style>light-heavy</bar-style>' : '') +
+          (m.endingStop ? '<ending number="' + m.endingStop + '" type="' + m.endingStopType + '"/>' : '') +
+          (m.repeatEnd ? '<repeat direction="backward"/>' : '') + '</barline>\n';
+      }
       out += '    </measure>\n';
     }
     out += '  </part>\n</score-partwise>\n';

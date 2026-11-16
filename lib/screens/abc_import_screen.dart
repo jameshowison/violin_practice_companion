@@ -166,8 +166,8 @@ class _AbcImportScreenState extends ConsumerState<AbcImportScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Single-voice tunes work best. Triplets and 1st/2nd '
-                      'endings are approximated.',
+                      'Single-voice tunes work best. Triplets are '
+                      'approximated.',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.hintColor),
                     ),

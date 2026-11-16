@@ -61,6 +61,24 @@ void main() {
     expect(piece.measures.any((m) => m.repeatEnd), isTrue);
   });
 
+  test('keeps the |1 and :|2 endings, and plays each once', () {
+    // The B strain closes `|1 … :|2 …||`: bars 17 and 18 in this numbering.
+    expect([for (final m in piece.measures) if (m.endings.isNotEmpty) m.number],
+        [17, 18]);
+    expect(piece.measures[16].endings, {1});
+    expect(piece.measures[17].endings, {2});
+    final order = [
+      for (final i in ParsedPiece.performanceOrder(piece.measures))
+        piece.measures[i].number,
+    ];
+    expect(order, [
+      1, // pickup
+      for (var n = 2; n <= 9; n++) n, for (var n = 2; n <= 9; n++) n,
+      for (var n = 10; n <= 17; n++) n, for (var n = 10; n <= 16; n++) n,
+      18,
+    ]);
+  });
+
   test('every visible note carries a real pitch or rest (no parse gaps)', () {
     final notes = piece.allNotes;
     expect(notes, isNotEmpty);

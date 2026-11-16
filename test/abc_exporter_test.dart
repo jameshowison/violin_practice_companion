@@ -347,4 +347,25 @@ void main() {
       expect(body, contains('!coda! G2'));
     });
   });
+
+  group('endings', () {
+    test("Devil's Dream keeps its |1 and :|2 endings on the way out", () {
+      final xml = MusicXmlNormalizer.toSoundingPitch(
+          File('test/fixtures/devils_dream.musicxml').readAsStringSync());
+      final body = _split(_export(xml)).body.join(' ');
+      expect(body, contains('[1 '));
+      expect(body, contains(':| [2 '));
+      expect(RegExp(r'\[1 ').allMatches(body).length, 1);
+    });
+
+    test('a second ending followed by more music is closed with ||', () {
+      final abc = _export(_score('''
+<measure number="1">${_note('C', 4, type: 'whole')}</measure>
+<measure number="2"><barline location="left"><ending number="1" type="start"/></barline>${_note('D', 4, type: 'whole')}<barline location="right"><bar-style>light-heavy</bar-style><ending number="1" type="stop"/><repeat direction="backward"/></barline></measure>
+<measure number="3"><barline location="left"><ending number="2" type="start"/></barline>${_note('E', 4, type: 'whole')}<barline location="right"><ending number="2" type="discontinue"/></barline></measure>
+<measure number="4">${_note('F', 4, type: 'whole')}</measure>'''));
+      final body = _split(abc).body.join(' ');
+      expect(body, contains('[1 D8 :| [2 E8 || F8'));
+    });
+  });
 }
