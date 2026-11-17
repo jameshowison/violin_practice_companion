@@ -368,7 +368,7 @@ class MeasureXmlEditor {
       _insertTime(_attributesFor(measure), beats, beatType);
     }
     if (!found) throw ArgumentError('No measure $measureNumber');
-    doc.findAllElements('part').forEach(_fitBarRests);
+    doc.findAllElements('part').forEach(fitBarRests);
     return doc.toXmlString();
   }
 
@@ -398,7 +398,7 @@ class MeasureXmlEditor {
       }
     }
     if (!changed) return musicXml;
-    doc.findAllElements('part').forEach(_fitBarRests);
+    doc.findAllElements('part').forEach(fitBarRests);
     return doc.toXmlString();
   }
 
@@ -722,7 +722,7 @@ class MeasureXmlEditor {
 
       part.children.remove(target);
       _renumberMeasures(part);
-      _fitBarRests(part);
+      fitBarRests(part);
       deleted = true;
     }
 
@@ -818,7 +818,7 @@ class MeasureXmlEditor {
   /// `<duration>` of the meter in force, so that changing a meter, or deleting
   /// the bar that changed it, doesn't leave it the old bar's length — Verovio
   /// squeezes a whole-bar rest that doesn't fill its bar almost to nothing.
-  static void _fitBarRests(XmlElement part) {
+  static void fitBarRests(XmlElement part) {
     var divisions = 1;
     var beats = 4, beatType = 4;
     for (final measure in part.findElements('measure')) {

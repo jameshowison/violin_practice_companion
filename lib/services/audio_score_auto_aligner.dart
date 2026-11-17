@@ -166,14 +166,31 @@ class AudioScoreAutoAligner {
     // quarter-note-beat count — scale that to fit the real duration.
     final quarterBeatCount =
         _midiGenerator.generate(piece, 60).totalDurationSeconds;
-    final estimatedBpm =
+    var estimatedBpm =
         (60 * quarterBeatCount / realDurationSeconds).round().clamp(20, 400);
 
-    final reference = ScoreChromaReferenceBuilder(_midiGenerator)
+    var reference = ScoreChromaReferenceBuilder(_midiGenerator)
         .build(piece, estimatedBpm, realChroma.hopSeconds);
 
-    final dtwResult = _dtw.align(reference.frames, window.frames,
+    var dtwResult = _dtw.align(reference.frames, window.frames,
         openBegin: true, openEnd: true);
+
+    // The tempo above counts every second of the window as the tune, so a
+    // spoken intro makes it too slow (61 for a true 85 on a teacher video
+    // that talks for 27 s first). Where the audio gives no evidence — rests,
+    // a run of repeated notes — the path keeps the reference's pace (see
+    // [DtwAligner.stepPenalty]), so that pace has to be the performer's: read
+    // it off the first pass and, if it is clearly different, align again.
+    final foundBpm = _pathTempo(reference, dtwResult.path, estimatedBpm,
+        realChroma.hopSeconds);
+    if (foundBpm != null &&
+        (foundBpm - estimatedBpm).abs() > 0.05 * estimatedBpm) {
+      estimatedBpm = foundBpm;
+      reference = ScoreChromaReferenceBuilder(_midiGenerator)
+          .build(piece, estimatedBpm, realChroma.hopSeconds);
+      dtwResult = _dtw.align(reference.frames, window.frames,
+          openBegin: true, openEnd: true);
+    }
 
     final anchors = <ScoreAudioAnchor>[];
     final referenceFrames = <int>[];
@@ -415,6 +432,28 @@ class AudioScoreAutoAligner {
     final placed = a1.audioSec - firstScore * pace;
     if (placed < 0) return anchors;
     return [ScoreAudioAnchor(a0.scoreMs, placed), ...anchors.skip(1)];
+  }
+
+  /// The tempo the performer took, read off a first-pass [path]: the median,
+  /// over bars, of how long the recording took per second of [reference] —
+  /// a median so that the bars the path got wrong don't move it. Null when
+  /// there are too few bars to judge.
+  int? _pathTempo(ScoreChromaReference reference, List<(int, int)> path,
+      int referenceBpm, double hopSeconds) {
+    final onsets = reference.measureOnsetSeconds;
+    final paces = <double>[];
+    for (var i = 0; i + 1 < onsets.length; i++) {
+      final a = _targetFrameFor(path, (onsets[i] / hopSeconds).round());
+      final b = _targetFrameFor(path, (onsets[i + 1] / hopSeconds).round());
+      final scoreSeconds = onsets[i + 1] - onsets[i];
+      if (a == null || b == null || scoreSeconds <= 0) continue;
+      paces.add((b - a) * hopSeconds / scoreSeconds);
+    }
+    if (paces.length < 4) return null;
+    paces.sort();
+    final median = paces[paces.length ~/ 2];
+    if (!(median > 0)) return null;
+    return (referenceBpm / median).round().clamp(20, 400);
   }
 
   static bool _isSilent(Float64List v) => !v.any((x) => x > 0);

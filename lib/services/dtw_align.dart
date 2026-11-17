@@ -87,9 +87,28 @@ class DtwAligner {
   /// docs/audio-sync-dtw-interior-gaps.md.
   final double skipPenaltyPerFrame;
 
+  /// Extra cost of a non-diagonal step: holding a reference frame over
+  /// another target frame, or a target frame over another reference frame.
+  ///
+  /// Without it, where the audio gives no evidence the path may warp freely,
+  /// and a score's rests give none: a rest's reference frame is all zero, so
+  /// it costs 1 against every target frame and is the same price wherever it
+  /// lands. On a solo teacher video of a 2/4 piece (four bars of rest, then
+  /// bars of repeated G–D eighths) the rests soaked up whatever audio matched
+  /// worst, the G–D bars after them slipped a whole bar late, and two bars
+  /// stretched to 5.4 and 6.0 s against a steady 1.41. With this charge the
+  /// path keeps the local tempo through stretches it can't see, and those
+  /// bars land within 0.1 s of their onsets.
+  ///
+  /// It is small next to a typical match cost (~0.3), so a real tempo change
+  /// still pays for itself; Galopede, Gundagai, Lightly Row and Salt Creek
+  /// align as before.
+  final double stepPenalty;
+
   const DtwAligner({
     this.bandFraction = 0.25,
     this.skipPenaltyPerFrame = 0.18,
+    this.stepPenalty = 0.05,
   });
 
   /// [openBegin]/[openEnd] allow the path to skip leading and/or trailing
@@ -165,7 +184,8 @@ class DtwAligner {
       final prevRow = cost[i - 1];
       for (var j = jLo; j <= jHi; j++) {
         final d = _cosineDistance(refFrame, target[j - 1]);
-        final best = _min3(prevRow[j], costRow[j - 1], prevRow[j - 1]);
+        final best = _min3(prevRow[j] + stepPenalty,
+            costRow[j - 1] + stepPenalty, prevRow[j - 1]);
         costRow[j] = d + best;
       }
     }
@@ -199,8 +219,8 @@ class DtwAligner {
       // Only the "up" move (decrementing i) is legal once j hits 0 — guard
       // diag/left so the open-begin loop can't index target[-1].
       final diag = j > 0 ? cost[i - 1][j - 1] : double.infinity;
-      final up = cost[i - 1][j];
-      final left = j > 0 ? cost[i][j - 1] : double.infinity;
+      final up = cost[i - 1][j] + stepPenalty;
+      final left = j > 0 ? cost[i][j - 1] + stepPenalty : double.infinity;
       if (diag <= up && diag <= left) {
         i--;
         j--;

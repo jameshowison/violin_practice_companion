@@ -74,7 +74,20 @@ class AudioChromaExtractor {
     this.maxFrequencyHz = 2600,
     this.noiseSubtractionFactor = 1.5,
     this.noisePercentile = 0.10,
+    this.silenceGate = 0.001,
   });
+
+  /// Frames whose in-band energy is below this fraction of the recording's
+  /// 95th-percentile frame energy (0.001 is 30 dB down) become all-zero:
+  /// silence, which matches no note (0 disables).
+  ///
+  /// Noise subtraction alone leaves something in a quiet frame, and
+  /// normalizing makes it unit length, so a decaying open string reads as a
+  /// full-strength note. On a teacher video that rang its last D for four
+  /// seconds after the final bar, the closing bars of repeated Ds spread over
+  /// that ring and every bar from the last rests on landed 1-2 s late. Gated,
+  /// the ring is silence, and the open end skips it.
+  final double silenceGate;
 
   /// Decodes a whole WAV file's bytes and extracts its chroma sequence.
   ChromaSequence extractFromWavBytes(Uint8List wavBytes) {
@@ -92,10 +105,21 @@ class AudioChromaExtractor {
         : null;
 
     final frames = <Float64List>[];
+    final energies = <double>[];
     STFT(fftSize, window).run(samples, (chunk) {
       final magnitudes = chunk.discardConjugates().magnitudes();
       frames.add(_toChroma(magnitudes, binHz, noise));
+      if (silenceGate > 0) energies.add(_bandEnergy(magnitudes, binHz));
     }, hopSize);
+    if (silenceGate > 0 && energies.isNotEmpty) {
+      final sorted = [...energies]..sort();
+      final loud = sorted[((sorted.length - 1) * 0.95).round()];
+      for (var f = 0; f < frames.length; f++) {
+        if (energies[f] < silenceGate * loud) {
+          frames[f].fillRange(0, kChromaBins, 0);
+        }
+      }
+    }
 
     return ChromaSequence(frames, hopSize / sampleRate);
   }
@@ -137,6 +161,19 @@ class AudioChromaExtractor {
       profile[bin] = sorted[rank];
     }
     return profile;
+  }
+
+  /// A frame's energy within the folded band, before noise subtraction.
+  double _bandEnergy(Float64List magnitudes, double binHz) {
+    final minBin =
+        (minFrequencyHz / binHz).ceil().clamp(1, magnitudes.length - 1);
+    final maxBin =
+        (maxFrequencyHz / binHz).floor().clamp(1, magnitudes.length - 1);
+    var e = 0.0;
+    for (var bin = minBin; bin <= maxBin; bin++) {
+      e += magnitudes[bin] * magnitudes[bin];
+    }
+    return e;
   }
 
   Float64List _toChroma(

@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
+import 'bar_rest_repair.dart';
 import 'meter_repair.dart';
 import 'omr_service_base.dart';
 import 'title_recognizer.dart';
@@ -77,9 +78,13 @@ class OmrService implements OmrServiceBase {
       }),
     );
     // The recogniser misreads time-signature digits far more often than note
-    // values: re-derive the meters from the bars (MeterRepair). Then, against
-    // those meters, drop the triplets it made out of fingerings (TupletRepair).
-    final repaired = TupletRepair.repair(MeterRepair.repair(musicXml));
+    // values: re-derive the meters from the bars (MeterRepair). Its whole
+    // rests are whole-bar rests, which say nothing about the meter, so they
+    // are marked first and sized to their bars after (BarRestRepair). Then,
+    // against those meters, drop the triplets it made out of fingerings
+    // (TupletRepair).
+    final repaired = TupletRepair.repair(BarRestRepair.fit(
+        MeterRepair.repair(BarRestRepair.mark(musicXml))));
     return OmrScanResult(musicXml: repaired, title: title);
   }
 

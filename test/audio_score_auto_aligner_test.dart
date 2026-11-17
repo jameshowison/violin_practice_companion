@@ -151,9 +151,13 @@ void main() {
             double? skipPenaltyPerFrame}) =>
         AudioScoreAutoAligner(
           midiGenerator: MidiGenerator.forTest(),
+          // The step penalty off: these tones are steady, so it has nothing
+          // to tell apart and would only blur the skip penalty's effect,
+          // which is what this group demonstrates.
           dtw: skipPenaltyPerFrame == null
               ? null
-              : DtwAligner(skipPenaltyPerFrame: skipPenaltyPerFrame),
+              : DtwAligner(
+                  skipPenaltyPerFrame: skipPenaltyPerFrame, stepPenalty: 0),
         ).align(
           piece,
           wav,
