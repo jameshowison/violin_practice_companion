@@ -457,7 +457,9 @@ class _ClimberPainter extends CustomPainter {
         ? fc.from // don't give the fall or the fling away before it lands
         : w.target.clamp(0, n - 1);
     final idle = w.cents == null;
-    final inTune = !climbing && !idle && s.shown.abs() <= 3;
+    // The tuner's own verdict when there is one (it waits for a pluck to
+    // settle, and holds to ±5¢), so the picture and the status line agree.
+    final inTune = !climbing && !idle && (w.inTune ?? s.shown.abs() <= 3);
 
     // Rungs and their labels.
     for (var i = 0; i < n; i++) {
@@ -620,6 +622,8 @@ class _ClimberPainter extends CustomPainter {
       } else {
         offset = l.offset(s.shown);
         p = math.min(1.0, s.shown.abs() / 50);
+        // Joy (under 0.08) only when in tune, and always when in tune.
+        if (w.inTune != null) p = inTune ? math.min(p, 0.079) : math.max(p, 0.08);
         dir = s.shown < 0 ? -1 : 1;
       }
     }
