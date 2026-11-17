@@ -10,8 +10,8 @@ import Flutter
 /// See `lib/services/audio_decoder_io.dart`.
 ///
 /// Registered by hand from `AppDelegate` rather than being a pub package: it
-/// is about thirty lines of AVFoundation and exists only to serve this app's
-/// one alignment pipeline.
+/// is a little AVFoundation that exists only to serve this app's alignment
+/// pipeline — and, on the same channel, `shrinkVideo` (below).
 public class AudioDecoderPlugin: NSObject, FlutterPlugin {
   private static let channelName = "violin_practice_companion/audio_decoder"
 
@@ -82,7 +82,7 @@ public class AudioDecoderPlugin: NSObject, FlutterPlugin {
   }
 
   /// Reads the file's first audio track, asking AVFoundation to convert it on
-  /// the way out to 32-bit float, mono, non-interleaved, at the track's own
+  /// the way out to 32-bit float, mono, at the track's own
   /// sample rate. Letting the reader do the mixdown avoids hand-written
   /// channel maths and gets whatever resampling quality the platform has.
   private func decode(path: String) throws -> Decoded {

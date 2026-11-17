@@ -6,8 +6,8 @@
 #   bash scripts/pull_dev_library.sh "Hazel iPad"                # physical device
 #   bash scripts/pull_dev_library.sh dev-iphone ../lib --dry-run # print the plan only
 #
-# Three-way merge per item (a file, a media row, a title, a piece's number
-# display setting, a cached alignment, the library blob)
+# Three-way merge per item (a file, a media row, a title, a piece's synced
+# display setting (numbers, fretStyle), a cached alignment, the library blob)
 # between the library (L), the device (D) and the device's base (B, what it
 # held at its last sync — `devLibrary.base` in its prefs):
 #

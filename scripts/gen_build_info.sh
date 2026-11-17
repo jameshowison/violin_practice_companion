@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Generates lib/build_info.dart with the current git hash and time.
-# Run before every full flutter run restart so the simulator shows which build is live.
+# Run before every reload or restart so the simulator shows which build is live
+# (CLAUDE.md, "Verify the build is live"); dev_run.sh runs it for a full relaunch.
 # lib/build_info.dart is .gitignored — no commit needed.
 
 set -euo pipefail

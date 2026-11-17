@@ -22,7 +22,8 @@ import kotlin.concurrent.thread
  * `lib/services/audio_decoder_io.dart`.
  *
  * Registered by hand from [MainActivity] rather than being a pub package: it
- * serves this app's one alignment pipeline and nothing else.
+ * serves this app's one alignment pipeline, plus `shrinkVideo` on the same
+ * channel (handed to [VideoShrinker]).
  */
 class AudioDecoderPlugin(messenger: BinaryMessenger, context: Context) :
     MethodChannel.MethodCallHandler {

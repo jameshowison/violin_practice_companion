@@ -1,7 +1,9 @@
-// THROWAWAY spike harness (branch: spike/verovio-rendering). NOT for merge.
+// Spike harness from the Verovio migration (merged with f8855a1, which made
+// Verovio + jovial_svg the app's staff renderer); kept as a dev entrypoint.
 //
 // Proves out on-device Verovio rendering vs. the OSMD WebView:
-//   - fidelity: Verovio SVG rendered through flutter_svg (BoxFit, no WebView)
+//   - fidelity: Verovio SVG rendered through jovial_svg by default, or the
+//               flutter_svg probe path (BoxFit, no WebView)
 //   - reflow:   re-engrave at two page widths via setOptionsJson(pageWidth)
 //   - bboxes:   renderPageWithHitMap -> tap a note -> native colored overlay
 //   - cursor:   renderToTimemap + getElementsAtTime dumped to logs
