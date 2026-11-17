@@ -9,7 +9,7 @@ import '../models/piece_media.dart';
 ///
 /// Deliberately not the whole list. The synthesized score and the bundled
 /// tracks are derived from the piece itself (see
-/// `PieceRepository.mediaFor`), so storing them would be keeping a second
+/// `MediaCatalog.mediaFor`), so storing them would be keeping a second
 /// copy of something the build already knows, free to disagree with it after
 /// an app update that changes which tracks ship.
 class PieceMediaStore {

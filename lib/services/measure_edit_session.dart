@@ -620,7 +620,7 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     final notes = _rekeyed(s, fifths ?? s.keyBefore);
     // Untouched notes stay "unchanged" when only the key moved: the file is
     // re-spelt in place on Save, which keeps what rebuilding the bar drops
-    // (slurs, articulations).
+    // (`<stem>`, the printed beams — see [MeasureXmlEditor]).
     final untouched = !s.notesChanged;
     final keyed = fifths == null
         ? s.copyWith(clearKeyChange: true)

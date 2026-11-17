@@ -27,10 +27,10 @@ class ChromaSequence {
 /// windowed STFT (pure Dart, via `package:fftea`), folding FFT magnitude
 /// bins into 12 pitch classes by an A440-referenced log-frequency mapping.
 ///
-/// Input must be WAV (decoded via `package:wav`, also pure Dart) — there is
-/// no reliable pure-Dart mp3 decoder, so tracks used for alignment are
-/// shipped/converted to WAV. See docs/plan note in the audio-score-auto-align
-/// branch history for why this was chosen over per-platform native decoders.
+/// Input is mono PCM ([extractFromSamples]): WAV bytes are decoded here via
+/// `package:wav` ([extractFromWavBytes]); anything else is decoded first by
+/// the per-platform `AudioDecoder` (audio_decoder.dart), which is how the
+/// bundled tracks' `melody.mp3` and imported media are aligned.
 ///
 /// Two deliberate choices keep a real, imperfect room recording usable; see
 /// docs/audio-sync-dtw-interior-gaps.md for the measurements behind both.
@@ -77,7 +77,7 @@ class AudioChromaExtractor {
   /// Band folded into chroma. The default lower edge is just under G3
   /// (196 Hz), the lowest note on both violin and mandolin, so no real
   /// fundamental is excluded — but mains hum and handling rumble, which live
-  /// below it, are. The upper edge sits above E7 (2637 Hz); higher partials
+  /// below it, are. The upper edge sits just under E7 (2637 Hz); higher partials
   /// contribute mostly bow/pick noise and broadband room tone.
   final double minFrequencyHz;
   final double maxFrequencyHz;

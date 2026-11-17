@@ -36,8 +36,8 @@ class MediaAlignment {
 /// Replaces `AudioSyncAnchorsStore` and the anchor half of
 /// `TeacherRecordingStore`, which held the same JSON under two different keys
 /// for no reason beyond having been written at different times. The key is the
-/// alignment key and not the media id precisely so a piece's `mix`, `melody`
-/// and `chords` — three mixes of one session, one timeline — keep sharing a
+/// alignment key and not the media id precisely so a piece's bundled `melody`
+/// and `chords` — two takes of one session, one timeline — keep sharing a
 /// single cached alignment, which is the behaviour the old store documented
 /// and which would otherwise have been lost in the merge.
 class MediaAlignmentStore {

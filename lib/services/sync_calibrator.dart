@@ -104,7 +104,9 @@ class SyncCalibrator {
 
   // The first switch to play-and-record after launch could come up deaf — on
   // the simulator it heard none of the clicks, then every one on the next
-  // try. So hearing nothing at all earns one automatic retry.
+  // try. (That was when just_audio's first play() still left the session in
+  // .playback, so every mic start switched it back; now it rarely switches.)
+  // So hearing nothing at all earns one automatic retry.
   static Future<CalibrationResult> _withRetry(
       AudioSyncSource source, _PlayClicks play) async {
     final first = await _measure(source, play);
@@ -268,10 +270,11 @@ class SyncCalibrator {
     return result;
   }
 
-  /// Plays a moment of silence in ordinary playback mode, before the mic
-  /// comes on. From cold, an AirPlay speaker (a Sonos Roam) didn't play the
-  /// clip at all — "never finished" — but calibrated fine straight after
-  /// something had played to it. This is that something.
+  /// Plays a moment of silence before the mic comes on (in the same
+  /// play-and-record session; only the mic is off). From cold, an AirPlay
+  /// speaker (a Sonos Roam) didn't play the clip at all — "never finished" —
+  /// but calibrated fine straight after something had played to it. This is
+  /// that something.
   static Future<void> _wakeSpeaker() async {
     final path = await writeCalibrationClip(
         CalibrationClip.silenceWavBytes(1.5),

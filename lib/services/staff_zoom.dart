@@ -302,9 +302,10 @@ const int verovioPageMarginTopDefault = 50;
 const int verovioPageMarginTopMax = 500;
 
 /// The ceiling the staff-spacing preference and the annotation reserve share.
-/// Not a Verovio limit — `spacingSystem` keeps working above this — but the gap
-/// it buys is already most of a system's height at 48, and the sum of preference
-/// plus reserve has to stop somewhere it cannot push the score off the page.
+/// Also Verovio's own maximum for `spacingSystem` (0..48 in 6.2): above it the
+/// option is rejected with a logged error and the previous value stays, so the
+/// clamp is required, not just tidy. The gap it buys is already most of a
+/// system's height at 48.
 const int verovioSpacingSystemMax = 48;
 
 // ── Asking Verovio for the annotation stack's room ───────────────────────────
@@ -477,11 +478,12 @@ const double spacesPerPageMarginTopUnit = 1 / 18;
 /// draws its own rows on, and therefore needs the room reserved.
 ///
 /// A property of the SCORE, not of any display preference — which is the whole
-/// point. The annotated view injects `<fingering>` placeholders and keeps
-/// `<harmony>` unconditionally (see `_keepHarmonyForAnnotated`), the plain staff
-/// view strips both, and the tab view keeps `<harmony>` alone. So this asks
-/// exactly the right question of each of the three, and no toggle the user can
-/// reach changes the answer — a chord-symbol switch stays a repaint.
+/// point. The annotated view injects `<fingering>` placeholders; under the
+/// native renderer every view keeps `<harmony>` unless the instrument has no
+/// chords at all (`_stripHarmonyFor` in `providers.dart`), and the tab view
+/// carries no `<fingering>`. So this asks exactly the right question of each of
+/// the three, and no toggle on the piece screen changes the answer — a
+/// chord-symbol switch stays a repaint.
 bool scoreReservesAnnotationRoom(String musicXml) =>
     musicXml.contains('<fingering') || musicXml.contains('<harmony');
 
@@ -540,7 +542,7 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
 /// a hairline gap — 2.56 + 3.16 + 0.31 = 6.03 staff spaces. Verovio's own
 /// reservation at its default spacing is a good deal less than that (1.84 to 4.06
 /// across the fixtures), which is why the engrave now ASKS for the difference —
-/// see [annotationRoomSpaces]. This shrink is the net underneath that: it catches
+/// see [annotationReserveFor]. This shrink is the net underneath that: it catches
 /// a score tighter than any measured one, and the bottom half of the
 /// staff-spacing slider, where the user has explicitly asked for a tight page.
 /// Both rows scale down together, in proportion, rather than one absorbing the
@@ -597,7 +599,7 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
 /// Worth keeping now that the channel is MEASURED rather than derived from a
 /// fraction — the clamp used to fire routinely, because `laneSqueeze` scaled every
 /// lane in the score by its tightest gap, and that is how the fingering row ended
-/// up at a 5px font. Against [annotationChannel] it only fires where the room
+/// up at a 5px font. Against [annotationStackFor] it only fires where the room
 /// genuinely is not there, and then it degrades quietly instead of colliding.
 double annotationFontSizeIn({
   required double staffSpacePx,
@@ -931,9 +933,13 @@ int measuresPerLineForWidth(double widthPx) {
 /// Note that the page's *capacity in systems* is scale-invariant: zooming in
 /// shrinks the page width in MEI units but leaves both the page height and a
 /// system's height in units alone. So the long-standing 60000 floor holds a great
-/// many systems at any zoom and this rarely binds — it is insurance for a
-/// pathologically long piece at a low measures-per-line, not a routine
-/// adjustment.
+/// many systems at any zoom and this rarely binds.
+///
+/// But 60000 is also Verovio's MAXIMUM `pageHeight` (6.2: 100..60000). A value
+/// above it is rejected with a logged error and the previous engrave's setting
+/// stays, so the `ceiling` above 60000 buys nothing: a piece that really needed
+/// more would still lose its overflow. (Measured headlessly with
+/// `web/verovio/verovio-toolkit-wasm.js`.)
 ///
 /// [systemHeightPx] is in pixels at [measuredAtScale] (see [predictedHeightPx]),
 /// hence the `* 100 / scale` conversion into MEI units.

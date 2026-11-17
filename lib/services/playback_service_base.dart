@@ -118,8 +118,8 @@ abstract class PlaybackServiceBase {
 
   /// Same as [loadPiece], but generates [_data] at an explicit [bpm] instead
   /// of the current tempo — for a subclass whose "tempo" isn't the metronome
-  /// tempo slider at all (e.g. AudioSyncPlaybackService's arbitrary internal
-  /// generation scale, only known once its own calibration has run).
+  /// tempo slider at all (e.g. MediaPlaybackService's arbitrary internal
+  /// generation scale, only known once its alignment has been loaded).
   Future<void> loadPieceAtBpm(ParsedPiece piece, int bpm) async {
     _stopInternal();
     _disposeAndClearNotifiers();
@@ -137,7 +137,7 @@ abstract class PlaybackServiceBase {
   /// takes the first occurrence.
   ///
   /// [countIn], when given, is counted off before the first note sounds; null
-  /// starts immediately. Only the Play/Rewind buttons ask for a count — a loop
+  /// starts immediately. Only the Play buttons ask for a count — a loop
   /// repeat and a tempo change both re-enter [play] mid-practice, where counting
   /// in again would be an interruption rather than a service.
   void play({
@@ -324,8 +324,8 @@ abstract class PlaybackServiceBase {
   /// Current position on the playback timeline, in score-seconds, or null if
   /// playback hasn't truly started (nothing to advance to yet). Default:
   /// [clockNow] elapsed since [play]/[_t0]. Override to drive the cursor
-  /// from a different clock — see AudioSyncPlaybackService, which maps real
-  /// audio file position through a calibration curve instead.
+  /// from a different clock — see MediaPlaybackService, which maps real
+  /// audio file position through its alignment anchors instead.
   double? currentPlaybackSeconds() {
     final t0 = _t0;
     if (t0 == null) return null;
@@ -380,7 +380,7 @@ abstract class PlaybackServiceBase {
 
   /// Score-seconds position used only to pick the "current" highlight event —
   /// [currentPlaybackSeconds] plus [highlightLeadSeconds] by default. Override
-  /// (see AudioSyncPlaybackService) when the real clock this runs on isn't
+  /// (see MediaPlaybackService) when the real clock this runs on isn't
   /// score-seconds itself: looking ahead has to happen in that real clock's
   /// own units *before* it's mapped to score-seconds, not by padding the
   /// already-mapped score-seconds value, since a fixed score-seconds pad is a
@@ -393,14 +393,14 @@ abstract class PlaybackServiceBase {
 
   /// The playback-timeline position (score-seconds) the most recent [play]
   /// call was given — exposed read-only for a subclass that needs it without
-  /// duplicating [play]'s own bookkeeping (see AudioSyncPlaybackService).
+  /// duplicating [play]'s own bookkeeping (see MediaPlaybackService).
   double get startOffsetSeconds => _startOffset;
 
   /// Score-seconds position used to seed the highlight the instant [play] is
   /// called, before the first tick has run. Default mirrors the steady-state
   /// highlight target: [startOffsetSeconds] plus the lead. Override when
   /// playback won't actually begin at [startOffsetSeconds]'s mapped real
-  /// position — see AudioSyncPlaybackService, which can seek earlier than
+  /// position — see MediaPlaybackService, which can seek earlier than
   /// that to let a recording's own intro play, so the initial highlight must
   /// reflect "nothing has sounded yet" (null) rather than jumping straight to
   /// the first note.

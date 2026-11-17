@@ -6,10 +6,9 @@ import 'staff_zoom.dart' show StaffOrientation;
 /// override.
 ///
 /// A view preference, not musical content, so it deliberately does NOT live on
-/// the [Piece] model or go through [PieceRepository]: that storage layer is
-/// `dart:io`-only (`piece_storage_web.dart` throws `UnsupportedError`), and web
-/// is the current shipping target. `shared_preferences` covers
-/// iOS/Android/macOS/Web from one API, so no conditional-import split is needed.
+/// the [Piece] model or go through [PieceRepository]. `shared_preferences`
+/// covers iOS/Android/macOS/Web from one API, so no conditional-import split is
+/// needed.
 ///
 /// Absent key ⇒ null ⇒ auto (see `autoMeasuresPerLine` in `staff_zoom.dart`).
 ///

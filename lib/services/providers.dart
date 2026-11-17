@@ -82,8 +82,8 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 ///
 /// Deliberately knows nothing about the library. Filtering hidden pieces inside
 /// `loadAll()` would make the repository depend on `shared_preferences` (so it
-/// could not run headless), would force this into a family so all four
-/// `ref.invalidate(piecesProvider)` sites had to care about a flag unrelated to
+/// could not run headless), would force this into a family so every
+/// `ref.invalidate(piecesProvider)` site had to care about a flag unrelated to
 /// importing a score, and would leave the hidden-pieces sheet — which needs
 /// everything, with hidden marked — without a source. See [visiblePiecesProvider].
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
@@ -507,7 +507,7 @@ final staffOrientationProvider = StateProvider<StaffOrientation>(
 /// visible reflow on every piece that has a saved zoom.
 ///
 /// [locked]: guarantee [value] exactly, via explicit MusicXML system breaks
-/// (`insertSystemBreaksEvery`) and `breaks: 'encoded'`, rather than Verovio's
+/// (`insertSystemBreaks`) and `breaks: 'encoded'`, rather than Verovio's
 /// own approximate auto-breaking. Only meaningful alongside a non-null
 /// [value] — [MeasuresPerLineNotifier.commit] forces it false whenever
 /// [value] is cleared back to auto.

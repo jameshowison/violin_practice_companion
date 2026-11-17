@@ -19,8 +19,8 @@ class PcmAudio {
 /// Before this existed the app could analyse WAV and nothing else — there is
 /// no reliable pure-Dart mp3 decoder, so `audio_chroma_features.dart` decoded
 /// WAV via `package:wav` and every alignable medium had to BE a WAV. That is
-/// why bundled folders ship a `melody.wav` next to their mp3s, and why the
-/// teacher-demo capture once recorded a silent video and a separate WAV
+/// why bundled folders once shipped a `melody.wav` next to their mp3s, and why
+/// the teacher-demo capture once recorded a silent video and a separate WAV
 /// rather than one ordinary movie file (as it now does).
 ///
 /// That constraint is invisible as long as the app supplies all the audio

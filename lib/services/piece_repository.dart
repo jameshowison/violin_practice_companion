@@ -73,7 +73,7 @@ class PieceRepository {
   /// The audio folder (`assets/library/<folder>/audio/`, see
   /// [bundledAudioDir]) holding this piece's Play Along tracks, or null if it
   /// has none. Non-null-ness alone is "does Play Along exist for this piece" —
-  /// per-track alignment state is separate, see [AudioSyncAnchorsStore]. A
+  /// alignment state is separate, see `MediaAlignmentStore`. A
   /// lookup rather than a [Piece] field because a dev-library piece can have
   /// bundled tracks too (the catalog's `audioOnly`), keyed by its opaque id.
   Future<String?> audioSyncFolderFor(String id) async =>

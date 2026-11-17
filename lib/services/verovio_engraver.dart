@@ -138,27 +138,33 @@ class VerovioEngraver {
   ///   system. [staffScaleProbe] is the un-zoomed baseline.
   /// - [pageHeightUnits]: must exceed the engraved content height — only page 1
   ///   is ever rendered, so anything below the page bottom is silently dropped.
-  ///   `adjustPageHeight` crops the slack, so over-provisioning is free. Compute
-  ///   with `pageHeightUnitsFor`.
-  /// - [mnumInterval]: Verovio's bar-number interval. **0 (the default) draws
-  ///   none**, which is what every view here wants: an engraved bar number sits
-  ///   in the same strip of whitespace the annotation lanes are drawn in, so it
-  ///   lands on top of the fingering row. The reader's position cues are the
-  ///   section minimap and the A/B part markers, neither of which collides with
-  ///   anything. Kept as a parameter because it is a legitimate Verovio option,
-  ///   not because anything passes it.
+  ///   `adjustPageHeight` crops the slack, so over-provisioning is free — up to
+  ///   Verovio's maximum of 60000: a larger value is rejected (logged, not
+  ///   thrown) and the previous setting stays. Compute with
+  ///   `pageHeightUnitsFor`.
+  /// - [mnumInterval]: Verovio's bar-number interval. 0 (the default) does NOT
+  ///   draw none: it numbers the first bar of each system (measured headlessly:
+  ///   Old Joe Clark, 7 systems, 7 `mNum` groups). No view wants them, since an
+  ///   engraved bar number sits in the same strip of whitespace the annotation
+  ///   lanes are drawn in, so [stripMeasureNumbers] cuts them from the SVG
+  ///   whatever this is. The reader's position cues are the section minimap and
+  ///   the A/B part markers, neither of which collides with anything. Kept as a
+  ///   parameter because it is a legitimate Verovio option, not because
+  ///   anything passes it.
   /// - [spacingSystem]: vertical gap between systems in MEI units, passed to
-  ///   Verovio verbatim. Compose it with `verovioSpacingSystemForEngrave`: the
-  ///   "Staff spacing" preference, plus the annotation-room reserve when the
-  ///   score carries annotations to reserve for.
+  ///   Verovio verbatim: the "Staff spacing" preference
+  ///   (`verovioSpacingSystemFor`) plus the annotation-room reserve
+  ///   (`annotationReserveFor`), clamped to 48 — composed by the caller
+  ///   (`staff_view_verovio.dart`).
   /// - [pageMarginTop]: the page's top margin in MEI units — the room system 0's
   ///   annotation rows are drawn in, there being no system above it to borrow
-  ///   from. Compose with `verovioPageMarginTopForEngrave`.
+  ///   from. Callers pass [verovioPageMarginTopDefault] plus the reserve's
+  ///   `pageMarginTopUnits`, clamped to 500 (`verovioPageMarginTopMax`).
   /// - [breaks]: Verovio's line-breaking mode. `'auto'` (the default) lets
   ///   Verovio choose its own break points, which is what every zoom level
   ///   solves a `scale` to approximately steer (see `staff_zoom.dart`).
   ///   `'encoded'` instead honors explicit `<print new-system="yes"/>` markers
-  ///   already present in [musicXml] (see `insertSystemBreaksEvery`) — the
+  ///   already present in [musicXml] (see `insertSystemBreaks`) — the
   ///   mechanism behind a guaranteed-exact "lock to N measures per line".
   /// - [minLastJustification]: Verovio's threshold (fraction of the page) at
   ///   or above which the LAST system is stretched to the full width; null
@@ -721,8 +727,6 @@ class VerovioEngraver {
     return close < 0 ? null : svg.substring(open, close);
   }
 
-  /// Index of the measure whose bbox contains [box]'s center, else the nearest
-  /// by horizontal center (notes can sit a hair outside the staff bbox).
   /// A measure's ink box [rect], cut off where the [next] measure starts when
   /// that one is on the same system.
   ///
@@ -751,7 +755,9 @@ class VerovioEngraver {
   /// Farmer's "Allegro giocoso" did exactly that, claiming bar 1's opening G
   /// for the pickup — which slid every fingering, string line and highlight in
   /// bar 1 one note over. So of the measures whose ink covers the note, the
-  /// owner is the one that STARTED last at or before it.
+  /// owner is the one that STARTED last at or before it. A note inside no
+  /// measure's box goes to the nearest by horizontal centre on its system
+  /// (notes can sit a hair outside the staff bbox); -1 if none overlaps.
   @visibleForTesting
   static int measureIndexFor(Rect box, List<MeasureAnchor> measures) {
     final c = box.center;
@@ -843,9 +849,6 @@ class VerovioEngraver {
     ..._allGroupRanges(svg, 'measureNum'),
   ]);
 
-  /// Removes Verovio's engraved fingerings and chord symbols, keeping the space
-  /// they reserved.
-  ///
   /// Prefix Verovio puts on the id of every box it emits for `svgBoundingBoxes`.
   static const _bboxIdPrefix = 'bbox-';
 
@@ -1105,6 +1108,17 @@ class VerovioEngraver {
       .replaceAll(_bboxGroupWithRect, '')
       .replaceAll(_bboxGroupEmpty, '');
 
+  /// Cuts Verovio's volta brackets. The staff view redraws them above the
+  /// annotation rows from [EngravedScore.endings]: Verovio places a bracket
+  /// over its own (per-note) fingerings, but the app flattens those into one
+  /// row per system, which can sit higher and run through the bracket. The
+  /// space Verovio reserved for the bracket stays, as with the annotations.
+  static String stripEndings(String svg) =>
+      _removeGroups(svg, _allGroupRanges(svg, 'ending'));
+
+  /// Removes Verovio's engraved fingerings and chord symbols, keeping the space
+  /// they reserved.
+  ///
   /// The elements are injected precisely so Verovio will lay them out and grow
   /// the page for them; their INK is then unwanted, because the app draws its own
   /// coloured chips and bars in that space. Cutting the glyphs out of the SVG
@@ -1114,14 +1128,6 @@ class VerovioEngraver {
   ///
   /// Must run AFTER the hit map parse, which is why it lives here in
   /// `_buildScore` rather than in `_engraveNow`.
-  /// Cuts Verovio's volta brackets. The staff view redraws them above the
-  /// annotation rows from [EngravedScore.endings]: Verovio places a bracket
-  /// over its own (per-note) fingerings, but the app flattens those into one
-  /// row per system, which can sit higher and run through the bracket. The
-  /// space Verovio reserved for the bracket stays, as with the annotations.
-  static String stripEndings(String svg) =>
-      _removeGroups(svg, _allGroupRanges(svg, 'ending'));
-
   static String stripAnnotationGlyphs(String svg) => _removeGroups(svg, [
     ..._allGroupRanges(svg, 'fing'),
     ..._allGroupRanges(svg, 'harm'),
@@ -1512,8 +1518,10 @@ class EngravedScore {
   /// touch with zero gap/overlap. Index with [measureLine].
   final List<({double top, double bottom})> lineBands;
 
-  /// Per system line, the RAW content extent (viewBox coords) — the union of that
-  /// line's measure boxes. Unlike [lineBands] these are not tiled, so
+  /// Per system line, the RAW content extent (viewBox coords) — Verovio's own
+  /// boxes ([VerovioEngraver.systemInkBoxes], lyrics included) when the SVG
+  /// carries them, else the union of that line's measure boxes
+  /// (`lineContentOf`). Unlike [lineBands] these are not tiled, so
   /// `lineContent[l].top - lineContent[l-1].bottom` is the true whitespace
   /// between two systems.
   final List<({double top, double bottom})> lineContent;

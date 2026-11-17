@@ -7,7 +7,7 @@ import 'package:wav/wav.dart';
 
 import 'audio_decoder_base.dart';
 
-/// Decodes through the host platform: `AVAssetReader` on iOS/macOS,
+/// Decodes through the host platform: `AVAssetReader` on iOS,
 /// `MediaExtractor`+`MediaCodec` on Android (see
 /// `ios/Runner/AudioDecoderPlugin.swift` and
 /// `android/app/src/main/kotlin/.../AudioDecoderPlugin.kt`). Both hand back
@@ -24,9 +24,11 @@ class AudioDecoder implements AudioDecoderBase {
 
   const AudioDecoder();
 
-  /// Linux and Windows have no plugin; they still decode WAV, which is what
-  /// every bundled analysis track is, so bundled Play Along keeps working
-  /// there and only imported non-WAV media is affected.
+  /// Linux and Windows have no plugin; they still decode WAV, but nothing
+  /// else, and bundled tracks are analysed from `melody.mp3`. macOS answers
+  /// true here, but no plugin is registered there either (`macos/Runner` has
+  /// no AudioDecoderPlugin), so its decodes end in [MissingPluginException]
+  /// and return null.
   @override
   bool get isSupported => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
 

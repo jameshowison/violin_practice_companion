@@ -26,9 +26,10 @@ import 'musicxml_parser.dart';
 /// D.C./D.S./Fine/segno/coda marks, the key
 /// signature with its mode, key changes (a `K:` line at the head of a line,
 /// `[K:D]` inside one), meter changes, and tuplets (`(3abc`). What does
-/// NOT survive is anything [MusicXmlParser] itself drops — slurs,
-/// grace notes, dynamics and fingerings — and lyrics, which
-/// the parser keeps but this doesn't yet write as `w:` lines. This is a lossy export of the *tune*, not a
+/// NOT survive is anything [MusicXmlParser] itself drops — grace notes and
+/// dynamics — and what the parser keeps but this doesn't write: slurs (held
+/// only opaquely, in [NoteEvent.carriedNotations]), fingerings, and lyrics,
+/// not yet written as `w:` lines. This is a lossy export of the *tune*, not a
 /// round-trip of the document, and [AbcExporter.lossyFeatureNote] says so in the
 /// words the export dialog shows the user.
 class AbcExporter {

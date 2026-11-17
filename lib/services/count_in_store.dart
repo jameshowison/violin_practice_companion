@@ -7,7 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// (and same `shared_preferences` reasoning) as [StaffZoomStore], which is
 /// per-piece only because zoom depends on how dense that particular score is.
 ///
-/// Absent key ⇒ null ⇒ auto (one bar, floored — see `countInBeats`). A stored 0
+/// Absent key ⇒ null ⇒ the default minimum, [countInMinBeats] (whole bars less
+/// the pickup — see `countInPlan`). A stored 0
 /// means the user turned the count-in off, which is why absent and 0 have to
 /// stay tellable apart.
 class CountInStore {

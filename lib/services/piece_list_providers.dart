@@ -44,7 +44,8 @@ final allPieceMetaProvider = FutureProvider<Map<String, PieceMeta>>((ref) async 
 /// Which pieces have a recording to play along with: bundled tracks, or media
 /// the user imported or recorded.
 ///
-/// Cheaper than [pieceMediaProvider] per row, which also loads alignments.
+/// Cheaper than [pieceMediaProvider] per row, which also runs the legacy
+/// media migrations.
 /// The list invalidates this when it comes back from a piece, since that is
 /// where media gets added or removed.
 final recordedPiecesProvider = FutureProvider<Set<String>>((ref) async {
@@ -62,7 +63,7 @@ final recordedPiecesProvider = FutureProvider<Set<String>>((ref) async {
 /// Pieces deleted moments ago whose Undo snackbar is still up.
 ///
 /// Deleting is deferred: the piece leaves the list at once, and the files go
-/// only when the snackbar closes without Undo (see `deletePiecesWithUndo`).
+/// only when the snackbar closes without Undo (see `PieceActions.delete`).
 /// Killing the app inside that window therefore keeps the piece, which is the
 /// safe way round. Session-only on purpose.
 final pendingDeletesProvider = StateProvider<Set<String>>((_) => const {});

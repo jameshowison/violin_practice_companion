@@ -231,7 +231,8 @@ class PlaybackService extends PlaybackServiceBase {
     if (!_midiReady) return;
     // A note tied over into the start bar comes back from the shared schedule
     // struck at the start, so it sounds on the first tick — which comes after
-    // any count-in: [onTick] only runs once the cursor reaches the start.
+    // any count-in: [onTick] only runs once the cursor is within the output
+    // latency ([strikeAheadSeconds]) of the start.
     _byOnset = scheduledNotes;
     _byOffset = List.of(_byOnset)
       ..sort((a, b) => a.offsetSeconds.compareTo(b.offsetSeconds));

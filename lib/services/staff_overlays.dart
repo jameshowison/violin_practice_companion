@@ -61,15 +61,18 @@ StaffOverlays staffOverlaysFor(
       : sectionTintRegions(
           measureMap, sections, sectionColors, parsed.measures);
   // Chord runs as labelled bars in a lane above the staff — the native renderer
-  // owns the chord label now (the XML providers strip `<harmony>` for it), so
-  // this list is the only thing that puts chords on the score.
+  // owns the chord label now (the XML keeps `<harmony>` only so Verovio
+  // reserves the row; its glyphs are cut from the SVG — see
+  // `_stripHarmonyFor`), so this list is the only thing that puts chords on
+  // the score.
   final chordRuns = (parsed == null || !read(showChordsProvider))
       ? const <ChordRunRegion>[]
       : chordRunRegions(measureMap, parsed);
   // Fingering labels as chips in a channel between the notes and the chord
   // lane. Built for the annotation view only, and — like the chord runs — this
   // list is now the ONLY thing that puts fingerings on the score: the XML
-  // provider strips them so Verovio engraves none.
+  // provider swaps them for placeholders that only reserve the row, and their
+  // glyphs are cut from the SVG (`VerovioEngraver.stripAnnotationGlyphs`).
   final StringColourStyle style =
       colourStyle ?? read<StringColourStyle>(stringColourStyleProvider);
   final annotations = (parsed == null || mode != DisplayMode.staffFingering)

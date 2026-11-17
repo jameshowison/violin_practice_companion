@@ -70,9 +70,9 @@ class MediaMigration {
   /// Converts a legacy teacher recording into a user medium, if one exists and
   /// this piece has no user media yet.
   ///
-  /// Returns the migrated medium, or null when there was nothing to do. The
-  /// caller appends it to the piece's list; the files themselves are not
-  /// moved — see `mediaFolderFor`.
+  /// Returns the migrated medium, or null when there was nothing to do. It is
+  /// saved here as the piece's media list, so the caller has nothing to
+  /// append; the files themselves are not moved — see `mediaFolderFor`.
   Future<PieceMedia?> migrateTeacherRecording(String pieceId) async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey('pieceMedia.$pieceId')) return null;
@@ -111,9 +111,9 @@ class MediaMigration {
   static String bundledlessAlignmentKey(String pieceId, String mediaId) =>
       'media:$pieceId:$mediaId';
 
-  /// The alignment key shared by a piece's bundled `mix`/`melody`/`chords`.
+  /// The alignment key shared by a piece's bundled `melody`/`chords`.
   /// Keyed on the AUDIO FOLDER, not the piece, because the folder is what the
-  /// three tracks actually have in common.
+  /// tracks actually have in common.
   static String bundledAlignmentKey(String audioFolder) =>
       'bundled:$audioFolder';
 

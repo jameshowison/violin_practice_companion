@@ -133,8 +133,8 @@ class MediaImporter {
       // a recorded demo.
       analysis: ref,
       video: isVideo ? ref : null,
-      // Audio and video are the same file here, so there is nothing to offset —
-      // unlike a capture, where two recorders are started back to back.
+      // Audio and video are the same file here, so there is nothing to offset
+      // (as with a recorded demo now; the old two-recorder capture needed one).
       avOffsetMs: 0,
     ));
   }

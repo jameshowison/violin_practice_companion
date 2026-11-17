@@ -320,7 +320,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// Loads [media] for [piece], aligning it first if nothing is cached.
   ///
   /// Alignment runs at most once per [PieceMedia.alignmentKey] — so a piece's
-  /// three bundled mixes cost one alignment between them, and switching
+  /// two bundled tracks cost one alignment between them, and switching
   /// between them afterwards is just a different file on the same timeline.
   Future<MediaLoadResult> load({
     required ParsedPiece piece,
@@ -809,9 +809,9 @@ class MediaPlaybackService extends PlaybackServiceBase {
     return _scoreSecForAudioSec(audioSec + highlightLeadSeconds);
   }
 
-  /// Always seeks first — the underlying native player is not recreated by a
-  /// Dart-level hot restart, so without an explicit seek it resumes wherever
-  /// a previous run left it rather than actually starting over.
+  /// Always seeks first — the one player is reused for every play-through,
+  /// so without an explicit seek it resumes wherever the previous one left
+  /// it rather than actually starting over.
   ///
   /// With a count-in, the seek and any silent wait come from the play-through's
   /// [LeadInPlan] (see [prepareStart]), and the audio starts only once the

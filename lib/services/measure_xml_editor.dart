@@ -963,10 +963,11 @@ class MeasureXmlEditor {
     }
   }
 
-  /// A minimal single-measure `<score-partwise>` for the live edit preview.
-  /// Same structure proven to render with `StaffView` + the palette OSMD
-  /// bridge (`PaletteXmlGenerator`): one part/measure with a synthesized
-  /// `<attributes>` (divisions/key/time/treble clef) followed by [notes].
+  /// A minimal single-measure `<score-partwise>`, once the measure editor's
+  /// live preview; since the editor works in place in the whole piece
+  /// (399f8aa) only tests call it. Same structure as `PaletteXmlGenerator`'s:
+  /// one part/measure with a synthesized `<attributes>` (divisions/key/time/
+  /// treble clef) followed by [notes].
   static String buildSingleMeasurePreviewXml(
       List<NoteEvent> notes, ParsedPiece parsed,
       {bool repeatStart = false, bool repeatEnd = false}) {

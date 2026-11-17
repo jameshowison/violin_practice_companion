@@ -43,9 +43,10 @@ import '../models/section.dart';
 /// break, and the lines within a section are left to the caller (the
 /// section-aware layout plans those against measured widths).
 ///
-/// Every break also hides the clef/key/time Verovio would otherwise
-/// auto-repeat at the new system (`<clef print-object="no">` etc., carrying
-/// the current inherited values), UNLESS this measure already states its own
+/// Every break also hides the clef/time Verovio would otherwise auto-repeat
+/// at the new system (`<clef print-object="no">` etc., carrying the current
+/// inherited values; the key signature is left to repeat, see
+/// [hideFirstSystemPreamble]), UNLESS this measure already states its own
 /// (a genuine change, which should stay visible). This is not cosmetic:
 /// Verovio only skips RESERVING the horizontal space for a repeated
 /// clef/key/time when it's marked non-printing before layout runs — engraving

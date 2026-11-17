@@ -20,7 +20,10 @@ class ScoreAudioAnchor {
 }
 
 class AutoAlignmentResult {
-  /// One anchor per performed measure, sorted by [ScoreAudioAnchor.audioSec].
+  /// One anchor per performed measure, plus those
+  /// [AudioScoreAutoAligner.restsAbsorbPauses] adds inside a paused run where
+  /// the music starts and stops sounding; sorted by
+  /// [ScoreAudioAnchor.audioSec].
   final List<ScoreAudioAnchor> anchors;
 
   /// The arbitrary tempo the reference timeline (and hence [anchors]'
@@ -91,9 +94,10 @@ class AudioScoreAutoAligner {
   /// [wavBytes] is a whole WAV file's bytes for the recording to align
   /// against [piece].
   ///
-  /// The WAV-shaped entry point, kept because every bundled analysis track and
-  /// every in-app capture is a WAV, and because it is what the alignment
-  /// regression tests drive. Anything the user brought with them arrives
+  /// The WAV-shaped entry point, kept for media that are still WAV (teacher
+  /// demos recorded before the capture became one video with sound) and
+  /// because it is what the alignment regression tests drive. Everything else
+  /// — the bundled tracks' `melody.mp3`, today's captures, imports — arrives
   /// through [alignPcm] instead, already decoded.
   AutoAlignmentResult align(
     ParsedPiece piece,

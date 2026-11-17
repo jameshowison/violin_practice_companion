@@ -11,8 +11,9 @@ class DtwResult {
   /// are the discovered unmatched intro/outro.
   final List<(int, int)> path;
 
-  /// Mean per-step cost along the optimal path — cosine distance, so 0 is a
-  /// perfect frame-for-frame match and 2 is the worst possible. There's no
+  /// Mean per-step cost along the optimal path — cosine distance (plus the
+  /// attack term, when [DtwAligner.align] was given onsets), so 0 is a
+  /// perfect frame-for-frame match and 2 is the worst possible cosine. There's no
   /// built-in pass/fail threshold: DTW always returns *some* alignment, so
   /// this is only a rough smell test (e.g. for logging), not a guarantee.
   final double averageCost;
@@ -348,8 +349,9 @@ class DtwAligner {
     // cancelled two Float32-rounded quantities, so the residue scaled with
     // [skipPenaltyPerFrame] — at 0.18 a genuinely perfect match reported an
     // averageCost of ~7e-9 instead of 0. This also makes averageCost exactly
-    // what its doc comment claims: the mean per-step cosine distance, with no
-    // contribution from the skip regularizer at either boundary.
+    // what its doc comment claims: the mean per-step distance (cosine, plus
+    // any attack term), with no contribution from the skip regularizer at
+    // either boundary.
     var matchCost = 0.0;
     for (final (r, t) in orderedPath) {
       matchCost += distance(r, t);

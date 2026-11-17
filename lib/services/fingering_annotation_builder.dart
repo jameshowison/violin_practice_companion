@@ -131,12 +131,13 @@ const int maxFirstPositionFret = 7;
 
 /// The fingering labels to draw, in score order, after density filtering.
 ///
-/// This replaces what [FingeringXmlInjector] does for the OSMD fallback: under
-/// the native renderer the labels are NOT engraved into the MusicXML (Verovio
-/// would place each one against its notehead, which is what made them ride up
-/// and down with pitch and inflate the measure bbox that the chord lane's
-/// whitespace is measured from). Drawing them in a lane instead makes the level
-/// flat by construction and hands the vertical budget back to the chord lane.
+/// This replaces what [FingeringXmlInjector.inject] does for the OSMD fallback:
+/// under the native renderer the real labels are NOT engraved into the MusicXML
+/// (Verovio would place each one against its notehead, which is what made them
+/// ride up and down with pitch). Only a fixed placeholder is, to reserve the
+/// row, and its glyph is cut from the SVG — see
+/// [FingeringXmlInjector.injectPlaceholders]. Drawing the labels in a lane
+/// instead makes the level flat by construction.
 ///
 /// [measureMap] is the engraved order (index → measure number, split bars
 /// included), matching [chordRunRegions].
@@ -257,8 +258,8 @@ List<FingeringAnnotation> fingeringAnnotations(
 ///
 /// [numberMode] and [fretStyle] matter because they can change which string a
 /// note is played on — under [FretStyle.openStrings] a run can end where the
-/// fingering alone would have continued. Resolved through the same [_shown] the
-/// labels use, so the runs and the chips can never disagree.
+/// fingering alone would have continued. Resolved through the same [shownNumber]
+/// the labels use, so the runs and the chips can never disagree.
 List<StringRunRegion> stringRunRegions(
   EngravedMeasureMap measureMap,
   ParsedPiece parsed, {

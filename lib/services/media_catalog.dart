@@ -48,8 +48,8 @@ class MediaCatalog {
   }
 
   /// Everything [pieceId] can be played by, in the order the picker shows it:
-  /// the synthesized score first, then any bundled tracks, then the user's own
-  /// media oldest-first.
+  /// the synthesized score first (sounding, then [PieceMedia.silent]), then
+  /// any bundled tracks, then the user's own media oldest-first.
   ///
   /// [audioFolder] is the piece's `assets/library/<folder>/audio/`, or null if it has
   /// none — see `PieceRepository.audioSyncFolderFor`.

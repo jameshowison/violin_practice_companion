@@ -497,7 +497,8 @@ class SectionDetector {
   // ── Segmentation (no authored labels) ───────────────────────────────────────
 
   /// Split the measures into strains. Primary signal: repeat brackets (each `|:`
-  /// starts a strain). Fallback: equal blocks of 8 then 4 bars.
+  /// starts a strain); then authored ABC lines, double barlines and a scan's
+  /// printed lines. Fallback: equal blocks of 8 then 4 bars.
   static _Strains? _segment(
       List<Measure> measures) {
     if (measures.length < 2) return null;
@@ -809,8 +810,8 @@ class SectionDetector {
   // ── Fingerprint + matching ──────────────────────────────────────────────────
 
   /// One token string per measure (its note sequence) so near-match can compare
-  /// tails. Chord symbols and ornaments are already absent from the model, so the
-  /// melodic content is pre-normalized.
+  /// tails. A token is pitch, note value and dot only, so chord symbols
+  /// (`NoteEvent.chordSymbol`) and ornaments never enter the comparison.
   static List<String> _fingerprint(List<Measure> strain) => [
         for (final m in strain) [for (final n in m.notes) _noteToken(n)].join(','),
       ];
