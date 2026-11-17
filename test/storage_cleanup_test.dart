@@ -106,6 +106,18 @@ void main() {
       expect(stray.existsSync(), isFalse);
     });
 
+    test("the dev-library sync's file record doesn't keep an orphan alive",
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'pieceMedia.p': row,
+        'devLibrary.base':
+            '{"file:teacher_recordings/We+Wish practice video.mp4":"123:456"}',
+      });
+      final stray = put(docs, 'teacher_recordings/We+Wish practice video.mp4');
+      await cleanup().sweep();
+      expect(stray.existsSync(), isFalse);
+    });
+
     test('with no media rows at all, nothing is touched', () async {
       // What a device whose preferences were lost looks like.
       final file = put(docs, 'media/p/m1/source.mov');

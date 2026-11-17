@@ -185,6 +185,9 @@ class StorageCleanup {
   /// video waiting for its swap, and whatever a future store adds. The cost is
   /// only that an odd reference keeps a file alive.
   ///
+  /// Except the dev-library sync's own bookkeeping, which names every file
+  /// it has ever synced.
+  ///
   /// Refuses to run when there are no media rows at all: that is what a
   /// device whose preferences were lost but whose Documents survived looks
   /// like, and there every file would read as unreferenced.
@@ -198,6 +201,11 @@ class StorageCleanup {
     if (!keys.any((k) => k.startsWith('pieceMedia.'))) return;
     final everything = StringBuffer();
     for (final key in keys) {
+      // The dev-library sync's record of every file it has ever seen
+      // (`devLibrary.base`) says nothing about whether a medium still uses
+      // one, and would otherwise keep every orphan on a dev device alive. A
+      // file deleted here is then dropped from the library by the next pull.
+      if (key.startsWith('devLibrary.')) continue;
       final value = prefs.get(key);
       if (value is String) {
         everything.writeln(value);
