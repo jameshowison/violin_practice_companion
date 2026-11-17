@@ -1,8 +1,9 @@
 // Synthetic robustness coverage for the alignment pipeline.
 //
 // Every other real-recording alignment test in this repo depends on a
-// gitignored asset (`assets/library/*/audio/`, `docs/photos_no_share/`), so on a fresh
-// clone none of them run. This one synthesizes its recordings from the score
+// gitignored asset (`assets/library/*/audio/`, `docs/photos_no_share/`) or on
+// the private companion checkout (`test/support/restricted_fixtures.dart`), so
+// on a fresh clone none of them run. This one synthesizes its recordings from the score
 // itself, so it always runs, and its ground truth is exact by construction
 // rather than timed by ear.
 //
@@ -239,7 +240,8 @@ void main() {
     // ignore: avoid_print
     print('${'WORST CASE'.padRight(24)}${perPenaltyWorst.map((v) => v.toStringAsFixed(2).padLeft(8)).join()}');
 
-    // 0.25s is about a quarter note at these tempos — comfortably above the
+    // 0.25s is well under a quarter note at these tempos (0.67s at 90 bpm,
+    // 0.4s at 150) — comfortably above the
     // ~0.05s the default achieves, and far below the 0.29s/5.0s that a
     // mis-set penalty produces on these same conditions.
     expect(perPenaltyWorst.first, lessThan(0.25),

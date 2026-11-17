@@ -33,7 +33,8 @@ NoteEvent _n(int midi, NoteValue v) => NoteEvent(
 void main() {
   final wavFile = restrictedFile(kSaltCreekMelodyWav) ?? File('kSaltCreekMelodyWav-missing');
   if (!wavFile.existsSync()) {
-    // Author-supplied asset, gitignored — skip gracefully where absent.
+    // Author-supplied asset in the private restricted checkout — skip
+    // gracefully where absent.
     test('salt creek auto-align (skipped: melody.wav not present)', () {});
     return;
   }
@@ -109,15 +110,15 @@ void main() {
           greaterThanOrEqualTo(result.anchors[i - 1].audioSec));
     }
     // Open-begin DTW (see docs/audio-sync-dtw-open-boundaries.md) now
-    // discovers this recording's real ~3.46s lead-in instead of forcing
-    // measure 1 onto audioSec 0 — confirmed genuine by the independent,
-    // chroma-free onset detector below (anchor 1 lands within 0.1s of a real
-    // detected onset). Measure 1 is itself six repeats of the same pitch (A),
+    // discovers this recording's real lead-in (anchor 1 at ~2.39s, measured
+    // 2026-11-17; ~3.46s when first written) instead of forcing measure 1
+    // onto audioSec 0 — checked by the independent, chroma-free onset
+    // detector below. Measure 1 is itself six repeats of the same pitch (A),
     // so exactly which of several nearby real onsets gets picked within it is
-    // inherently ambiguous — that's why this alignment also comes back with
-    // hasCompressedAnchors true (measure 2's anchor lands suspiciously close
-    // to measure 1's), which is the existing, correct "ask a human to check"
-    // signal for this kind of ambiguity, not a regression to fix here.
+    // inherently ambiguous. This alignment once came back with
+    // hasCompressedAnchors true for that reason (the "ask a human to check"
+    // signal, not a regression); as of 2026-11-17 it comes back false, and
+    // nothing here asserts either way.
     expect(result.anchors.first.audioSec, lessThan(5.0));
     expect(result.anchors.last.audioSec, lessThan(wavBytes.length / 44100 / 2));
 

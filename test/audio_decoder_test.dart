@@ -19,8 +19,8 @@ import 'support/restricted_fixtures.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // `assets/library/*/audio/` is gitignored, so the two tests that need real audio skip
-  // when it isn't present — the same pattern as lightly_row_intro_align_test.
+  // The recording lives in the private restricted checkout, so the two tests that need
+  // real audio skip when it isn't present — the same pattern as lightly_row_intro_align_test.
   final wavFile = restrictedFile(kLightlyRowMelodyWav) ?? File('kLightlyRowMelodyWav-missing');
   final xmlFile = File('assets/library/lightly_row/score.musicxml');
   final haveAudio = wavFile.existsSync() && xmlFile.existsSync();

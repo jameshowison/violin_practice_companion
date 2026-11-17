@@ -14,7 +14,13 @@
 // went unnoticed when the penalty was first raised because nothing covered
 // this recording. See docs/audio-sync-dtw-interior-gaps.md.
 //
-// `assets/library/*/audio/` is gitignored, so this skips gracefully where the recording
+// Since `refineFirstAnchor` (applied when no content start is given), the
+// result no longer shows this: at 0.4 anchor 0 is re-placed near 6.5s (see
+// the second test), so the first test alone no longer catches a raised
+// penalty.
+//
+// The recording is read from the private restricted checkout
+// (`restrictedFile(kLightlyRowMelodyWav)`), so this skips gracefully where it
 // is absent.
 import 'dart:io';
 

@@ -13,7 +13,9 @@ import 'package:violin_practice_companion/services/piece_share_bundle.dart';
 import 'package:violin_practice_companion/services/piece_share_io.dart';
 import 'package:violin_practice_companion/services/piece_storage_io.dart';
 
-/// A teacher demo as the recorder writes it: separate audio and video.
+/// A teacher demo as the recorder wrote it before b13b197: separate audio and
+/// video. (New demos are one video with sound, like [importedMp4]; these old
+/// ones still exist on devices and still have to share.)
 PieceMedia demo(String pieceId, String id, {String label = 'Teacher demo'}) =>
     PieceMedia(
       id: id,

@@ -242,9 +242,10 @@ void main() {
     // Old Joe Clark as the annotated view really engraves it: a `<fingering>`
     // placeholder on every non-rest note (the fingering table covers every
     // playable pitch, so `injectPlaceholders` reaches all 78) and its 8
-    // `<harmony>` kept, at the engraver's probe options PLUS the reserve —
-    // `spacingSystem` 4 + annotationSpacingSystemUnits, `pageMarginTop`
-    // 50 + annotationPageMarginTopUnits.
+    // `<harmony>` kept, at the engraver's probe options PLUS the reserve as it
+    // stood when the fixture was recorded — `spacingSystem` 4 and
+    // `pageMarginTop` 50, each plus the then-constant reserve's units (since
+    // replaced by `annotationReserveFor`; see `fixtureReserveSpaces` below).
     //
     // This piece because it is the one every number in this design was measured
     // against, and because it carries BOTH rows, which is the binding case: the

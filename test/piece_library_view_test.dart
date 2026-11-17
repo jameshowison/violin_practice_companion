@@ -84,9 +84,9 @@ void main() {
 
     test('a collection whose pieces are all hidden does not claim to be empty',
         () {
-      // The seeded install opens with "OMR demos" holding ten hidden pieces.
-      // Saying "No pieces in OMR demos yet" there is simply false, and it sends
-      // the user to Manage instead of to the show-hidden footer.
+      // The retired OMR-demos seed opened with "OMR demos" holding ten hidden
+      // pieces. Saying "No pieces in OMR demos yet" there is simply false, and
+      // it offers Manage instead of the show-hidden footer.
       final s = libraryEmptyState(
           hasAnyPieces: true, collectionName: 'OMR demos', hiddenCount: 10);
 
@@ -103,7 +103,7 @@ void main() {
     });
 
     test('an empty library is an onboarding problem, so it does not', () {
-      // The Scan and Import FABs are already on screen.
+      // Scan and Import are already on screen, behind the app bar's + button.
       final s = libraryEmptyState(
           hasAnyPieces: false, collectionName: null, hiddenCount: 0);
 

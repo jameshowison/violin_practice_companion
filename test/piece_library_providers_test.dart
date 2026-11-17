@@ -50,9 +50,10 @@ void main() {
 
   /// Settles the library's async build so `valueOrNull` is populated.
   ///
-  /// Note this also runs the first-launch seeding, so the library already holds
-  /// the "OMR demos" collection — hence [newCollection] below rather than
-  /// reaching for `collectionsProvider.single`.
+  /// Note this also runs the first-launch seeding. That no longer creates the
+  /// "OMR demos" collection (see the last test below), but [newCollection]
+  /// still picks the one it made rather than reaching for
+  /// `collectionsProvider.single`.
   Future<PieceLibraryNotifier> library(ProviderContainer c) async {
     await c.read(libraryProvider.future);
     return c.read(libraryProvider.notifier);

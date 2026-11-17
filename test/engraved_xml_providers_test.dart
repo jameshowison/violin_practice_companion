@@ -43,8 +43,9 @@ void main() {
 
   test('stripping <harmony> would cost the chord bars their register', () {
     // Guards the shape of the bug rather than the symptom: with no `<harmony>`
-    // there is no `<harm>` to engrave, so `harmRegister` is null on every system
-    // and `_ChordLanePainter` skips every segment it is handed.
+    // there is no `<harm>` to engrave, so `harmAnchors` is empty, the annotation
+    // stack gives the chord bar no height (`withChordBar` is false), and the
+    // bars `_ChordLanePainter` places at `chordRegister` are drawn zero-tall.
     final stripped = sourceXml.replaceAll(RegExp(r'<harmony[\s\S]*?</harmony>'), '');
     expect(RegExp('<harmony').allMatches(stripped), isEmpty);
     expect(scoreReservesAnnotationRoom(stripped), isFalse,

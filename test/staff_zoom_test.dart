@@ -415,7 +415,7 @@ void main() {
     });
 
     test('a lane too short clamps the type instead of overflowing it', () {
-      const short = 6.0; // e.g. a heavy laneSqueeze
+      const short = 6.0; // e.g. a very tight inter-system gap
       final f = annotationFontSizeIn(
           staffSpacePx: space, laneHeightPx: short, laneTypeShare: 0.78);
       expect(f, lessThan(annotationFontSizeFor(space)));

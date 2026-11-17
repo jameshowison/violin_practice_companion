@@ -10,9 +10,10 @@ import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// The two tunes seeded from `docs/wellerman.abc`.
 ///
-/// Old Joe Clark is the only bundled fixture carrying `<harmony>`, so it is the
-/// only piece a fresh install has that exercises the chord lane and the "New
-/// chords" diagrams — worth pinning as shipped, not merely as converter output.
+/// Old Joe Clark carries `<harmony>` (as does Lightly Row, whose chords are
+/// only A and E), and is the bundled piece that exercises the chord lane and
+/// the "New chords" diagrams in a modal key — worth pinning as shipped, not
+/// merely as converter output.
 /// `old_joe_clark_test.dart` covers the conversion; this covers the asset that
 /// conversion produced. The Wellerman is chordless, and is here for its key.
 ///

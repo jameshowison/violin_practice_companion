@@ -5,7 +5,8 @@ import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/fingering_mapper.dart';
 
 // Test fingering logic inline without asset loading.
-// Mirrors the algorithm in fingering_mapper.dart.
+// Mirrors only the open-or-4th-finger swap in fingering_mapper.dart (its
+// step 4); the real mapper is tested against the table in _realMapperTests.
 
 typedef FingeringEntry = ({String string, String finger, Map<String, String>? alt});
 
@@ -27,7 +28,7 @@ typedef FingeringEntry = ({String string, String finger, Map<String, String>? al
 
 void main() {
   _realMapperTests();
-  // G4 = MIDI 62: G-string finger 4, alt D-string open (finger "0")
+  // D4 = MIDI 62 as G-string finger 4 ("G4" below), alt D-string open (finger "0")
   final g4Entry = (
     string: 'G',
     finger: '4',
@@ -46,8 +47,7 @@ void main() {
     expect(r.finger, '0');
   });
 
-  // D4 = MIDI 62 on D string is open: primary open, alt fingered
-  // G-string open (MIDI 55)
+  // G3 = MIDI 55: the open G string, no alt
   final g3Open = (
     string: 'G',
     finger: '0',

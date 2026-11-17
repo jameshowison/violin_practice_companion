@@ -8,11 +8,13 @@ import 'package:violin_practice_companion/widgets/chord_swatch.dart';
 
 /// The annotation stack: how tall the chord bar and the fingering row are.
 ///
-/// Replaces the old lane-reservation suite. That tested a reserve asked of
-/// Verovio in MEI units, a lane height taken as a fraction of the system's ink
-/// extent, and a `laneSqueeze` that scaled every lane in the score by its
-/// tightest gap. None of those exist — the annotations are engraved, so Verovio
-/// reserves their space itself and the app reads back the baselines it chose.
+/// Replaces the old lane-reservation suite. That tested a worst-case constant
+/// reserve, a lane height taken as a fraction of the system's ink extent, and a
+/// `laneSqueeze` that scaled every lane in the score by its tightest gap. None of
+/// those exist — the annotations are engraved, so Verovio reserves space for them
+/// and the app reads back the baselines it chose. Verovio reserves less than the
+/// two rows want, so the engrave still asks for the difference in MEI units, but
+/// now measured per score ([annotationReserveFor], tested below).
 ///
 /// What is left to pin down is the SHARING, and it has bitten twice now:
 ///
@@ -77,7 +79,7 @@ void main() {
   group('when the room is short', () {
     // Measured on Old Joe Clark BEFORE the engrave asked for the room: 3.67 staff
     // spaces at the tightest system against the 6.03 the two rows want. That used
-    // to be the normal case; with `annotationRoomSpaces` reserved it is the edge
+    // to be the normal case; with `annotationReserveFor`'s reserve it is the edge
     // one, reachable through the bottom of the staff-spacing slider or a score
     // tighter than any bundled piece.
     final tight = space * 3.67;
@@ -144,8 +146,9 @@ void main() {
   group('staff spacing no longer touches the row', () {
     // The old design folded an annotation reserve into spacingSystem and floored
     // it, which is what put a dead zone at the bottom of the slider: every value
-    // below the default engraved the same gap. Verovio reserves the row itself
-    // now, so the preference maps straight through over its whole range.
+    // below the default engraved the same gap. The reserve is now a separate
+    // addend on top (see 'annotationReserveFor' below), so the preference maps
+    // straight through over its whole range.
     test('the slider is monotone across its whole range, with no dead zone', () {
       var previous = -1;
       final distinct = <int>{};
@@ -200,10 +203,10 @@ void main() {
     });
 
     test('asks for nothing when the layout already has room', () {
-      // The case a worst-case constant cannot express. Note that no fixture
-      // measured so far actually reaches it — every layout tried is short by
-      // 1.4 to 1.8 spaces — so this is the function being correct rather than a
-      // behaviour observed on the device.
+      // The case a worst-case constant cannot express. Among the fixtures above,
+      // the fingering-only `the_wellerman` (3.57) and
+      // `homr_05_o_come_little_children` (3.32) already exceed the 3.16 a lone
+      // fingering row wants, so the headless measurements do reach it.
       final r = annotationReserveFor(
         interSystemRoomSpaces: 6.20,
         firstSystemRoomSpaces: 6.10,

@@ -126,8 +126,9 @@ void main() {
   // The same recording, with the ground truth above handed to the aligner as a
   // content window instead of left for it to infer. See
   // docs/audio-sync-next-steps.md item 3: the figures are the author's, by
-  // ear, and are exactly what a user would type into the picker's "where is
-  // the tune?" dialog after watching themselves record it.
+  // ear, and are exactly what a user would type into the "Tune starts at" /
+  // "Tune ends at" fields of the "Realign to the score?" dialog
+  // (lib/widgets/media_controls.dart) after watching themselves record it.
   test('being told where the tune is beats inferring it, on Galopede', () {
     final golden = musicXmlFile.readAsStringSync();
     final piece =

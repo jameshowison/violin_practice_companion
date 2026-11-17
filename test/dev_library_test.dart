@@ -122,7 +122,8 @@ void main() {
     expect(again.written + again.deleted + again.kept, 0);
   });
 
-  // What the app does at launch: skip the merge when nothing new is staged.
+  // The launch-time skip on its own: skip the merge when nothing new is staged.
+  // (The app also deletes settled staging; that is [appLaunch] below.)
   Future<DevLibraryReport?> launch() =>
       DevLibraryIngester(root: docs, skipUnchanged: true).ingest();
 
