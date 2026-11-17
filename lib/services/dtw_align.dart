@@ -117,7 +117,10 @@ class DtwAligner {
   /// the closing bars went from ~1 s late to within 0.1 s of their onsets,
   /// and the anchors on Gundagai's real fiddle recording within 100 ms of an
   /// onset rose from 27 to 29 of 33. 0.3 is the middle of the range that
-  /// helped; 0.15 left half the drift, 0.6 started to disturb bars 2-11.
+  /// helped (on a 22 kHz conversion, at a spread of one frame): 0.15 left
+  /// half the drift, 0.6 started to disturb bars 2-11. The caller passes a
+  /// spread fixed in seconds (`onsetSpreadFrames`), so the weight means the
+  /// same at any sample rate.
   final double onsetWeight;
 
   const DtwAligner({
@@ -141,6 +144,7 @@ class DtwAligner {
     bool openEnd = false,
     Float64List? referenceOnsets,
     Float64List? targetOnsets,
+    int onsetSpreadFrames = 1,
   }) {
     final n = reference.length;
     final m = target.length;
@@ -151,8 +155,8 @@ class DtwAligner {
         targetOnsets != null &&
         referenceOnsets.length == n &&
         targetOnsets.length == m;
-    final ro = useOnsets ? _smear(referenceOnsets) : null;
-    final to = useOnsets ? _smear(targetOnsets) : null;
+    final ro = useOnsets ? _smear(referenceOnsets, onsetSpreadFrames) : null;
+    final to = useOnsets ? _smear(targetOnsets, onsetSpreadFrames) : null;
     double distance(int i, int j) {
       final d = _cosineDistance(reference[i], target[j]);
       if (ro == null) return d;
@@ -285,14 +289,18 @@ class DtwAligner {
     return 1.0 - dot;
   }
 
-  /// [v] spread one frame either side (half strength), so an attack a frame
-  /// off on either side still mostly matches.
-  static Float64List _smear(Float64List v) {
+  /// [v] spread [radius] frames either side, tapering linearly, so an attack
+  /// a frame or two off still mostly matches.
+  static Float64List _smear(Float64List v, int radius) {
     final out = Float64List(v.length);
     for (var i = 0; i < v.length; i++) {
-      var x = v[i];
-      if (i > 0 && v[i - 1] * 0.5 > x) x = v[i - 1] * 0.5;
-      if (i + 1 < v.length && v[i + 1] * 0.5 > x) x = v[i + 1] * 0.5;
+      var x = 0.0;
+      for (var k = -radius; k <= radius; k++) {
+        final at = i + k;
+        if (at < 0 || at >= v.length) continue;
+        final y = v[at] * (1 - k.abs() / (radius + 1));
+        if (y > x) x = y;
+      }
       out[i] = x;
     }
     return out;

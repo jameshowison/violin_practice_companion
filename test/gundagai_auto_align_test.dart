@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -98,13 +99,17 @@ void main() {
           reason: 'bar ${i + 2} lasts ${lengths[i].toStringAsFixed(2)}s '
               'against a median ${median.toStringAsFixed(2)}s');
     }
-    // Holding the ties is the score the fiddler actually played, so it should
-    // match the recording about as well as re-striking every tied note. Not
-    // strictly better: the cost now counts attacks (DtwAligner.onsetWeight),
-    // and the fiddler changes bow on some tied notes, which sounds like a
-    // re-strike — the untied score came out 0.0003 cheaper. What matters is
-    // the bar lengths above, which ties are what fix.
-    expect(r.averageDtwCost,
-        lessThanOrEqualTo(untiedResult.averageDtwCost + 0.002));
+    // Holding the ties is the score the fiddler actually played, so its
+    // pitches should match the recording at least as well as re-striking
+    // every tied note. Compared on pitch alone: with the attack term
+    // (DtwAligner.onsetWeight) the untied score comes out slightly cheaper,
+    // because the fiddler changes bow on some tied notes, which sounds like a
+    // re-strike — a fact about bowing, not about which score is right.
+    final pitchOnly = AudioScoreAutoAligner(
+        midiGenerator: MidiGenerator.forTest(),
+        dtw: const DtwAligner(onsetWeight: 0));
+    expect(pitchOnly.align(piece, wavBytes).averageDtwCost,
+        lessThanOrEqualTo(
+            pitchOnly.align(untied, wavBytes).averageDtwCost + 1e-9));
   }, timeout: const Timeout(Duration(minutes: 3)));
 }

@@ -176,7 +176,8 @@ class AudioScoreAutoAligner {
         openBegin: true,
         openEnd: true,
         referenceOnsets: reference.onsets,
-        targetOnsets: window.onsets);
+        targetOnsets: window.onsets,
+        onsetSpreadFrames: _onsetSpreadFrames(realChroma.hopSeconds));
 
     // The tempo above counts every second of the window as the tune, so a
     // spoken intro makes it too slow (61 for a true 85 on a teacher video
@@ -195,7 +196,8 @@ class AudioScoreAutoAligner {
           openBegin: true,
           openEnd: true,
           referenceOnsets: reference.onsets,
-          targetOnsets: window.onsets);
+          targetOnsets: window.onsets,
+        onsetSpreadFrames: _onsetSpreadFrames(realChroma.hopSeconds));
     }
 
     final anchors = <ScoreAudioAnchor>[];
@@ -491,6 +493,16 @@ class AudioScoreAutoAligner {
     if (_isSilent(outgoing) || _isSilent(incoming)) return false;
     return _dot(outgoing, incoming) <= 0.9;
   }
+
+  /// How far either side an attack is spread before attacks are compared
+  /// (see [DtwAligner.onsetWeight]): a fixed ~46 ms, whatever the frame rate.
+  /// In frames it would depend on the sample rate — the hop is a sample
+  /// count — and at 44.1 kHz, half the frame length of 22.05, each attack
+  /// then counted for half as much: tuned on a 22 kHz conversion of Trepak,
+  /// the attack term all but fixed its closing bars, and on the iPad, which
+  /// decodes the video at 44.1, it left them a second late.
+  static int _onsetSpreadFrames(double hopSeconds) =>
+      math.max(1, (0.046 / hopSeconds).round());
 
   static bool _isSilent(Float64List v) => !v.any((x) => x > 0);
 
