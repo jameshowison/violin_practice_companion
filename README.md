@@ -135,8 +135,8 @@ and `flutter build web` ships the file if it's there
 What differs from iOS: scanning (OMR) is not available, so add pieces with
 **Import from ABC** on the piece list. The Verovio worker and WASM toolkit that
 render notation in the browser are already vendored in `web/`; there is no extra
-setup step. pdf.js is not vendored: `web/index.html` loads it from jsdelivr, so
-the web build fetches it over the network.
+setup step. So is pdf.js (4.6.82, in `web/pdfjs/`), so the web build loads
+nothing from another host; `test/no_network_test.dart` keeps it that way.
 
 ## Simulator names
 

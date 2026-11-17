@@ -33,13 +33,17 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs' type='module'></script>
+  <!-- pdf.js 4.6.82 (pdfjs-dist, Apache-2.0), vendored in pdfjs/ so the app
+       loads nothing from the network; see web/pdfjs/LICENSE. -->
+  <script src='pdfjs/pdf.min.mjs' type='module'></script>
   <script type='module'>
   var { pdfjsLib } = globalThis;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.mjs';
 
-  var pdfRenderOptions = {
-    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/cmaps/',
+  // A global, not a module-scoped var: pdfx reads globalThis.pdfRenderOptions and
+  // otherwise falls back to cMaps on jsdelivr.
+  globalThis.pdfRenderOptions = {
+    cMapUrl: 'pdfjs/cmaps/',
     cMapPacked: true,
   }
   </script>
