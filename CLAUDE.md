@@ -355,7 +355,8 @@ description in the README, "Dev library". What an agent needs to know:
 
 - **Pull then push, three-way.** `pull_dev_library.sh` (Python) takes device
   changes into the library; `push_dev_library.sh` stages the library in
-  `Documents/dev_library/`; the app merges it at launch
+  `Documents/dev_library/`; the app merges it at launch (deleting the
+  staging once a merge has no conflicts)
   (`lib/services/dev_library_io.dart`, via `devLibraryProvider`, awaited by
   `piecesProvider` and `libraryProvider`) and records its base in the
   `devLibrary.base` pref. The fingerprints in the Dart and Python halves must

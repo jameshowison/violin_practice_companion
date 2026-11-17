@@ -539,7 +539,9 @@ bash scripts/dev_run.sh dev-ipad              # sync, then start the dev server 
 A sync takes the device's changes into the library (new pieces, edited scores,
 sections, imported media, recorded demos, collections), commits them in the
 library repo, and stages the library back onto the device, which merges it when
-the app next launches. Sync each device in turn and each sees the other's work.
+the app next launches. A merge with no conflicts then deletes the staged copy
+(`Documents/dev_library/`), so a dev device doesn't hold the library twice.
+Sync each device in turn and each sees the other's work.
 Pushing the library repo to GitHub is a separate, manual step.
 
 What syncs: everything a user makes, with the same ids on every device — the

@@ -162,6 +162,46 @@ void main() {
     expect((await launch())?.conflicts, ['file:$score']);
   });
 
+  // What the app actually constructs (see devLibraryProvider).
+  Future<DevLibraryReport?> appLaunch() => DevLibraryIngester(
+          root: docs, skipUnchanged: true, deleteStagingWhenSettled: true)
+      .ingest();
+
+  test('a settled merge deletes the staging copy, and the next launch is quiet',
+      () async {
+    await stageLibrary(
+      files: {score: xml('Tune'), 'media/p/m1/source.mp3': 'audio'},
+      titles: {'tune_1': 'Tune'},
+      media: {'p': [row('m1')]},
+    );
+    expect((await appLaunch())?.conflicts, isEmpty);
+    expect(await stage().exists(), isFalse,
+        reason: 'a second copy of the whole library is dead weight');
+    expect(read('media/p/m1/source.mp3'), 'audio');
+    expect(await mediaIds('p'), ['m1']);
+    expect(await appLaunch(), isNull);
+
+    // The next push stages afresh and merges as usual against the base.
+    await stageLibrary(
+      files: {score: xml('Tune, edited'), 'media/p/m1/source.mp3': 'audio'},
+      titles: {'tune_1': 'Tune'},
+      media: {'p': [row('m1')]},
+    );
+    final report = await appLaunch();
+    expect(report?.conflicts, isEmpty);
+    expect(read(score), xml('Tune, edited'));
+  });
+
+  test('a merge with a conflict keeps the staging copy to retry', () async {
+    await stageLibrary(files: {score: xml('Tune')});
+    await launch();
+    await write(docs, score, xml('Device edit'));
+    await stageLibrary(files: {score: xml('Library edit')});
+    await bumpStagingClock();
+    expect((await appLaunch())?.conflicts, ['file:$score']);
+    expect(await stage().exists(), isTrue);
+  });
+
   test('library changed, device untouched: the library is applied', () async {
     await stageLibrary(files: {score: xml('Tune')}, media: {'p': [row('m1')]});
     await ingest();

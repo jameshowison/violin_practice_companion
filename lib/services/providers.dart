@@ -99,7 +99,8 @@ final piecesProvider = FutureProvider<List<Piece>>((ref) async {
 final devLibraryProvider = FutureProvider<void>((ref) async {
   try {
     await LaunchTiming.span('devLibrary ingest',
-        DevLibraryIngester(skipUnchanged: true).ingest);
+        DevLibraryIngester(skipUnchanged: true, deleteStagingWhenSettled: true)
+            .ingest);
   } catch (e) {
     // ignore: avoid_print
     print('[dev_library] failed: $e');

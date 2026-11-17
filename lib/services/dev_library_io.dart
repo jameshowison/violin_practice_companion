@@ -62,11 +62,22 @@ class DevLibraryIngester {
   /// [skipUnchanged]: return at once when the staging folder is exactly as it
   /// was at the last conflict-free ingest — see [_stagedStamp]. What the app
   /// does at launch; tests that re-ingest the same staging leave it off.
-  DevLibraryIngester({Directory? root, this.skipUnchanged = false})
-      : _root = root;
+  ///
+  /// [deleteStagingWhenSettled]: once an ingest ends with no conflicts, delete
+  /// the staging folder. What the app does at launch: by then every staged
+  /// file is either in Documents or deliberately not, and the base records
+  /// the library, so the copy is dead weight — a whole second library, on an
+  /// iPad several hundred MB of video. The next push stages afresh. With a
+  /// conflict it stays, so each launch retries until a pull settles it.
+  DevLibraryIngester({
+    Directory? root,
+    this.skipUnchanged = false,
+    this.deleteStagingWhenSettled = false,
+  }) : _root = root;
 
   Directory? _root;
   final bool skipUnchanged;
+  final bool deleteStagingWhenSettled;
 
   static const _baseKey = 'devLibrary.base';
 
@@ -153,6 +164,14 @@ class DevLibraryIngester {
         ? await prefs.setString(_stampKey, stamp)
         : await prefs.remove(_stampKey);
     debugPrint('[dev_library] $report');
+    if (deleteStagingWhenSettled && report.conflicts.isEmpty) {
+      try {
+        await stage.delete(recursive: true);
+      } catch (e) {
+        // Left for next launch; the stamp makes that a quick skip.
+        debugPrint('[dev_library] could not delete staging: $e');
+      }
+    }
     return report;
   }
 
