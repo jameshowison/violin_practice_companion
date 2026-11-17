@@ -35,9 +35,9 @@ echo "R" > /tmp/flutter_ctl   # hot restart (resets all state)
 tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 ```
 
-**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, or **any file under `assets/`** (HTML, JS, JSON, images). Relaunch with `bash scripts/dev_run.sh <sim>`, which kills only this session's run and recreates its fifo — never `pkill -f flutter_tools.snapshot`, which kills every session's run.
+**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, a new file under `assets/`, or an asset that **native code** reads (below). Relaunch with `bash scripts/dev_run.sh <sim>`, which kills only this session's run and recreates its fifo — never `pkill -f flutter_tools.snapshot`, which kills every session's run.
 
-> **Why assets need a full restart on iOS:** Hot restart only re-executes the Dart VM — it does NOT rebuild or reinstall the native `.app` bundle. Static assets (including `osmd_bridge.html` and any JS files) are bundled into the `.app` at `flutter run` time and read from there by WKWebView. A hot restart will always serve the old asset. Always do a full restart after editing anything in `assets/`.
+> **Which asset edits need a full restart:** a hot restart re-syncs assets that Dart reads through `rootBundle` — measured 2026-11-17: an edit to `assets/engine/licenses/abcjs.txt` showed on the licence page after `R`, with no relaunch. It does NOT rebuild or reinstall the native `.app`, so anything native code reads from the bundle keeps the old copy: the OSMD WebView's `osmd_bridge.html` and its JS (WKWebView loads them from the `.app`), and any file a plugin opens by path, such as the OMR models. Adding a new asset file is untested; relaunch for that.
 
 **Before a full restart, regenerate build info** — `scripts/dev_run.sh` does this for
 you, so a full relaunch is just:
