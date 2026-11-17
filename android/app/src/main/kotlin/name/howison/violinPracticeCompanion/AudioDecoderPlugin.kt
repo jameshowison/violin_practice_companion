@@ -90,8 +90,10 @@ class AudioDecoderPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCallH
         }
 
         extractor.selectTrack(trackIndex)
-        val sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-        val channels =
+        // The container's claim. Only a starting guess: see the output-format
+        // branch below, which replaces both with what the decoder emits.
+        var sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+        var channels =
             if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
                 format.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceAtLeast(1)
             } else {
@@ -146,7 +148,22 @@ class AudioDecoderPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCallH
                         // Devices differ on whether they emit 16-bit or float
                         // PCM, and the real answer only arrives here — the
                         // input format does not state it.
-                        pcmEncoding = AudioFormatEncoding.of(codec.outputFormat)
+                        val out = codec.outputFormat
+                        pcmEncoding = AudioFormatEncoding.of(out)
+                        // HE-AAC (SBR) and parametric stereo are signalled
+                        // at HALF the rate and with one channel in the
+                        // container, and decode to twice the rate and two
+                        // channels. Trusting the container there reports
+                        // 22.05 kHz for 44.1 kHz PCM, which stretches every
+                        // alignment anchor by 2x — a wrong-but-plausible
+                        // result rather than a failure.
+                        if (out.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                            sampleRate = out.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        }
+                        if (out.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                            channels = out.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                                .coerceAtLeast(1)
+                        }
                     }
                 }
             }

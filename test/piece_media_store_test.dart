@@ -278,6 +278,25 @@ void main() {
       expect(await MediaAlignmentStore().load('k'), isNull);
     });
 
+    test('an entry from another aligner version reads as never aligned',
+        () async {
+      const pairs = '"anchors":[{"scoreMs":0.0,"audioSec":0.0},'
+          '{"scoreMs":1000.0,"audioSec":1.0}]';
+      useStore({
+        'mediaAlignment.old':
+            '{"generationBpm":100,"alignerVersion":${MediaAlignmentStore.alignerVersion - 1},$pairs}',
+        'mediaAlignment.new':
+            '{"generationBpm":100,"alignerVersion":${MediaAlignmentStore.alignerVersion + 1},$pairs}',
+        // Unversioned entries predate versioning and are grandfathered.
+        'mediaAlignment.unversioned': '{"generationBpm":100,$pairs}',
+      });
+      final store = MediaAlignmentStore();
+      expect(await store.load('old'), isNull);
+      expect(await store.load('new'), isNull);
+      expect(await store.isAligned('old'), isFalse);
+      expect(await store.load('unversioned'), isNotNull);
+    });
+
     test('unparseable saved data reads as never aligned', () async {
       useStore({'mediaAlignment.k': 'not json'});
       expect(await MediaAlignmentStore().load('k'), isNull);

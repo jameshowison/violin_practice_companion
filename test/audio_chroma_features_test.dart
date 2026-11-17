@@ -118,6 +118,25 @@ void main() {
       expect(chroma.hopSeconds, closeTo(1024 / 44100, 1e-9));
     });
 
+    test('frames last the same time at 22.05, 44.1 and 48 kHz', () {
+      // Frame-counted constants downstream (DTW penalties, refinement
+      // windows) only mean one thing if a frame is one duration.
+      // No noise subtraction: a steady sine is in every frame, so the noise
+      // profile would be the tone itself.
+      const extractor = AudioChromaExtractor(noiseSubtractionFactor: 0);
+      for (final rate in const [22050, 44100, 48000]) {
+        final chroma = extractor
+            .extractFromWavBytes(_sineWavBytes(440, 1.0, sampleRate: rate));
+        expect(chroma.hopSeconds, closeTo(1024 / 44100, 0.0001),
+            reason: '$rate Hz');
+        expect(_argmax(chroma.frames[chroma.frames.length ~/ 2]), 9,
+            reason: '$rate Hz still hears A');
+      }
+      expect(extractor.fftSizeFor(22050), 2048);
+      expect(extractor.fftSizeFor(44100), 4096);
+      expect(extractor.fftSizeFor(48000), 4096);
+    });
+
     test('every frame is L2-normalized (or all-zero for pure silence)', () {
       final bytes = _sineWavBytes(440, 0.5);
       final chroma = const AudioChromaExtractor().extractFromWavBytes(bytes);

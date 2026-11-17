@@ -41,8 +41,38 @@ class ChromaSequence {
 /// of that hum and near-identical to every other frame's. The alignment that
 /// came out put its first anchor 19s after the first note.
 class AudioChromaExtractor {
+  /// STFT window and hop, in samples AT [referenceSampleRate]. Audio at any
+  /// other rate is analysed with both scaled to the same durations (see
+  /// [hopSizeFor]), so a frame is ~23 ms whatever the file's rate.
+  ///
+  /// Before, they were fixed sample counts, so a 22.05 kHz file got frames
+  /// twice as long as a 44.1 kHz one, and every frame-counted constant
+  /// downstream — the DTW skip and step penalties, the refinement windows —
+  /// meant something different per file. The attack term tuned on a 22 kHz
+  /// conversion and broken on the iPad's native 44.1 kHz decode (bec1079)
+  /// was one instance; Android, whose decoders report 48 kHz for most AAC,
+  /// would have been the next.
   final int fftSize;
   final int hopSize;
+
+  /// The rate [fftSize] and [hopSize] are stated at. 44.1 kHz because it is
+  /// what every alignment fixture and most imported files are, so their
+  /// analysis is bit-for-bit what it was before the scaling existed.
+  static const double referenceSampleRate = 44100;
+
+  /// [hopSize] scaled to [sampleRate].
+  int hopSizeFor(double sampleRate) =>
+      math.max(1, (hopSize * sampleRate / referenceSampleRate).round());
+
+  /// [fftSize] scaled to [sampleRate], rounded to the nearest power of two
+  /// (the FFT's fast path): 2048 at 22.05 kHz, 4096 at 44.1 and 48 kHz. The
+  /// window's length in time only sets frequency resolution, which stays
+  /// within 10% of the reference; the hop, which sets frame timing, is exact.
+  int fftSizeFor(double sampleRate) {
+    final target = fftSize * sampleRate / referenceSampleRate;
+    final exponent = (math.log(math.max(target, 16)) / math.ln2).round();
+    return 1 << exponent;
+  }
 
   /// Band folded into chroma. The default lower edge is just under G3
   /// (196 Hz), the lowest note on both violin and mandolin, so no real
@@ -103,10 +133,12 @@ class AudioChromaExtractor {
 
   /// Extracts chroma directly from mono PCM samples in `[-1, 1]`.
   ChromaSequence extractFromSamples(Float64List samples, double sampleRate) {
+    final fftSize = fftSizeFor(sampleRate);
+    final hopSize = hopSizeFor(sampleRate);
     final window = Window.hanning(fftSize);
     final binHz = sampleRate / fftSize;
     final noise = noiseSubtractionFactor > 0
-        ? _noiseProfile(samples, window)
+        ? _noiseProfile(samples, window, fftSize, hopSize)
         : null;
 
     final frames = <Float64List>[];
@@ -190,7 +222,8 @@ class AudioChromaExtractor {
   /// Per-bin [noisePercentile] magnitude over a decimated pass of the whole
   /// recording. Costs a second STFT pass rather than retaining every frame's
   /// spectrum, which for a few minutes of audio would run to tens of MB.
-  Float64List? _noiseProfile(Float64List samples, Float64List window) {
+  Float64List? _noiseProfile(
+      Float64List samples, Float64List window, int fftSize, int hopSize) {
     final totalFrames = (samples.length - fftSize) ~/ hopSize + 1;
     if (totalFrames < 2) return null;
     final stride = (totalFrames / _noiseProfileFrames).ceil();
