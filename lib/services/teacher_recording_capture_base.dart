@@ -1,19 +1,15 @@
-import 'dart:typed_data';
-
 import 'package:flutter/widgets.dart';
 
-/// Records a silent video clip and a synchronized WAV mic recording of a
-/// teacher demonstrating a piece ("teacher demo").
+/// Records a teacher demonstrating a piece ("teacher demo") as one video
+/// with sound, which is then stored and aligned exactly as an imported video
+/// is: the one file is the medium's audio, analysis source and video.
 ///
-/// Video and audio are captured by two independent recorders rather than as
-/// one video-with-audio file. That was originally forced: the app could decode
-/// WAV and nothing else, so the DTW alignment needed its own dedicated WAV
-/// capture whatever the video contained. [AudioDecoder] has since removed the
-/// constraint — an imported mp4 is now aligned straight from its own audio
-/// track — but the two-recorder capture is kept, because a WAV written by the
-/// mic recorder is a better analysis source than a compressed track muxed into
-/// a video, and because the AV offset it measures is already handled
-/// everywhere downstream.
+/// It used to be two recorders, a silent video and a separate WAV from the
+/// mic, because the app could once decode WAV and nothing else. Once
+/// `AudioDecoder` could read a video's own audio track that bought nothing: an
+/// imported phone video aligns as well, and one file has no offset between
+/// picture and sound to estimate from two start times. The WAV recorder
+/// (`record`) also set its own audio session over the app's.
 ///
 /// Gated to iOS/Android — see teacher_recording_capture_io.dart for why.
 abstract class TeacherRecordingCaptureBase {
@@ -34,39 +30,32 @@ abstract class TeacherRecordingCaptureBase {
   /// Switches to the next available camera (e.g. front/rear).
   Future<void> flipCamera();
 
-  /// Starts video (silent) and mic-audio (WAV) recording together into
-  /// [mediaId]'s own folder under [pieceId], noting each stream's own start
-  /// time for the AV-offset calculation [stop] returns.
+  /// Starts recording video with sound, to be kept in [mediaId]'s own folder
+  /// under [pieceId].
   ///
   /// The medium's id is supplied rather than derived from the piece so that a
   /// second take is a second medium instead of overwriting the first — which
   /// is what happened while a piece could hold exactly one recording.
   Future<void> start(String pieceId, String mediaId);
 
-  /// Stops both recordings and returns their persisted paths, the raw WAV
-  /// bytes (for immediate DTW alignment, without a second file read), and
-  /// the measured AV offset.
+  /// Stops recording and moves the video into the medium's folder.
   Future<TeacherRecordingCaptureResult> stop();
 
   Future<void> dispose();
 }
 
-/// [avOffsetMs] is video-start-minus-audio-start, in milliseconds: during
-/// synced playback, video position = audio position + [avOffsetMs].
+/// Where [TeacherRecordingCaptureBase.stop] put the recording.
 ///
-/// Both paths are **relative to the documents directory**, ready to go
-/// straight into a [MediaRef]. They used to be absolute, and were persisted
-/// that way — see [MediaRef]'s doc comment for what that cost.
+/// [videoRelativePath] is **relative to the documents directory**, ready to go
+/// straight into a `MediaRef` (absolute paths were once persisted — see
+/// `MediaRef`'s doc comment for what that cost); [videoPath] is the same file,
+/// absolute, for decoding it straight away.
 class TeacherRecordingCaptureResult {
   final String videoRelativePath;
-  final String audioRelativePath;
-  final int avOffsetMs;
-  final Uint8List wavBytes;
+  final String videoPath;
 
   const TeacherRecordingCaptureResult({
     required this.videoRelativePath,
-    required this.audioRelativePath,
-    required this.avOffsetMs,
-    required this.wavBytes,
+    required this.videoPath,
   });
 }

@@ -5,19 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/piece.dart';
 import '../models/piece_media.dart';
+import '../services/audio_decoder.dart';
 import '../services/audio_score_auto_aligner.dart';
 import '../services/media_alignment_store.dart';
 import '../services/media_migration.dart';
 import '../services/piece_media_store.dart';
 import '../services/providers.dart';
 import '../services/teacher_recording_capture.dart';
+import '../services/video_shrinker.dart';
 
 enum _Stage { initializing, preview, recording, aligning, error }
 
-/// Full-screen capture flow: live camera preview → record (video-only) +
-/// mic (WAV) together → run the same DTW alignment the bundled Play Along
-/// tracks use ([AudioScoreAutoAligner]) → persist, or offer a re-record if
-/// the alignment looks uncertain. See teacher_recording_capture_base.dart
+/// Full-screen capture flow: live camera preview → record video with sound →
+/// run the same DTW alignment the bundled Play Along tracks use
+/// ([AudioScoreAutoAligner]) on its audio track → persist, or offer a
+/// re-record if the alignment looks uncertain. See teacher_recording_capture_base.dart
 /// for why this is iOS/Android only.
 class RecordTeacherDemoScreen extends ConsumerStatefulWidget {
   final Piece piece;
@@ -92,9 +94,15 @@ class _RecordTeacherDemoScreenState
       final parsed = await ref.read(parsedPieceProvider.future);
       if (parsed == null || !mounted) return;
 
+      // The video's own audio track, decoded at its native rate — the same
+      // path an imported video takes (MediaPlaybackService._runAlignment).
+      final pcm = await const AudioDecoder().decodeFile(result.videoPath);
+      if (pcm == null || pcm.samples.isEmpty) {
+        throw StateError("Couldn't read the sound in that recording.");
+      }
       final aligner =
           AudioScoreAutoAligner(midiGenerator: ref.read(midiGeneratorProvider));
-      final aligned = aligner.align(parsed, result.wavBytes);
+      final aligned = aligner.alignPcm(parsed, pcm);
       if (!mounted) return;
 
       if (aligned.hasCompressedAnchors) {
@@ -125,24 +133,24 @@ class _RecordTeacherDemoScreenState
 
   /// Turns a finished capture into a [PieceMedia] plus its alignment row.
   ///
-  /// The recording is its own analysis source: the mic capture is already WAV,
-  /// which is exactly what the aligner wants, so no decode is involved.
+  /// Stored as an imported video is (MediaImporter.importPath): the one file
+  /// is audio, analysis source and video, with nothing to offset.
   Future<PieceMedia> _persist(
     TeacherRecordingCaptureResult result,
     AutoAlignmentResult aligned,
   ) async {
     final pieceId = widget.piece.id;
     final mediaId = _mediaId!;
-    final audio = MediaRef.appFile(result.audioRelativePath);
+    final file = MediaRef.appFile(result.videoRelativePath);
     final media = PieceMedia(
       id: mediaId,
       label: await _nextLabel(pieceId),
       kind: MediaKind.recorded,
       alignmentKey: MediaMigration.bundledlessAlignmentKey(pieceId, mediaId),
-      audio: audio,
-      analysis: audio,
-      video: MediaRef.appFile(result.videoRelativePath),
-      avOffsetMs: result.avOffsetMs,
+      audio: file,
+      analysis: file,
+      video: file,
+      avOffsetMs: 0,
     );
 
     await ref.read(mediaAlignmentStoreProvider).save(
@@ -154,6 +162,8 @@ class _RecordTeacherDemoScreenState
           ),
         );
     await ref.read(pieceMediaStoreProvider).add(pieceId, media);
+    // As after an import; at 720p the shrinker normally leaves it as is.
+    VideoShrinker.instance.enqueue(pieceId, media);
     return media;
   }
 

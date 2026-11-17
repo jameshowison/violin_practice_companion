@@ -1,4 +1,4 @@
-// iOS/Android uses `camera` + `record`; web is a stub (see
+// iOS/Android uses `camera`; web is a stub (see
 // teacher_recording_capture_base.dart for why the feature is gated).
 export 'teacher_recording_capture_base.dart';
 export 'teacher_recording_capture_io.dart'

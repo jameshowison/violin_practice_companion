@@ -3,16 +3,16 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:record/record.dart';
 
 import 'media_paths.dart';
 import 'teacher_recording_capture_base.dart';
 
-/// Mobile implementation: `camera` records video-only (`enableAudio: false`
-/// — see [TeacherRecordingCaptureBase]'s doc comment), `record` captures mic
-/// audio straight to WAV via [AudioEncoder.wav]. Both are started back to
-/// back, not atomically, so [stop] reports the measured gap between their
-/// actual start times rather than assuming zero.
+/// Mobile implementation: `camera` records video with sound (AAC), the one
+/// file a teacher demo keeps — see [TeacherRecordingCaptureBase].
+///
+/// The camera asks for the audio session the app already runs in
+/// (play-and-record, A2DP, AirPlay, default to speaker), so recording leaves
+/// playback as it was; the `record` plugin this replaced set its own.
 ///
 /// iOS/Android only: `camera` (pubspec.yaml) declares no macOS support, and
 /// recordings are persisted as real file-system paths under the app's
@@ -21,20 +21,11 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
   CameraController? _controller;
   List<CameraDescription> _cameras = const [];
   int _lensIndex = 0;
-  final AudioRecorder _recorder = AudioRecorder();
 
-  DateTime? _videoStartedAt;
-  DateTime? _audioStartedAt;
-
-  // Both forms are kept: the recorders need somewhere real to write, and what
-  // gets persisted must be relative (see [MediaRef]). Deriving the absolute
-  // path once at [start] and the relative one at [stop] would mean resolving
-  // the documents directory twice and trusting it not to have moved in
-  // between.
+  // Both forms are kept: the file must be moved somewhere real, and what gets
+  // persisted must be relative (see [MediaRef]).
   String? _videoRelativePath;
-  String? _audioRelativePath;
   String? _videoPath;
-  String? _audioPath;
 
   @override
   bool get isSupported => Platform.isIOS || Platform.isAndroid;
@@ -53,11 +44,14 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
     _lensIndex =
         cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
     if (_lensIndex < 0) _lensIndex = 0;
-    await _openController(cameras[_lensIndex]);
-    final micGranted = await _recorder.hasPermission();
-    if (!micGranted) {
-      throw StateError(
-          'Microphone permission is required to record a teacher demo.');
+    try {
+      await _openController(cameras[_lensIndex]);
+    } on CameraException catch (e) {
+      if (e.code.startsWith('AudioAccess')) {
+        throw StateError(
+            'Microphone permission is required to record a teacher demo.');
+      }
+      rethrow;
     }
   }
 
@@ -65,8 +59,10 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
     await _controller?.dispose();
     final controller = CameraController(
       description,
-      ResolutionPreset.medium,
-      enableAudio: false,
+      // 720p: what an imported video is shrunk to (VideoShrinker), so a
+      // demo and an import end up alike.
+      ResolutionPreset.high,
+      enableAudio: true,
     );
     await controller.initialize();
     _controller = controller;
@@ -98,42 +94,19 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
     final folder = Directory(await resolveMediaPath(relativeFolder));
     await folder.create(recursive: true);
     _videoRelativePath = '$relativeFolder/video.mp4';
-    _audioRelativePath = '$relativeFolder/audio.wav';
     _videoPath = await resolveMediaPath(_videoRelativePath!);
-    _audioPath = await resolveMediaPath(_audioRelativePath!);
-
     await controller.startVideoRecording();
-    _videoStartedAt = DateTime.now();
-    // AUDIO SESSION — untested since the speaker sync calibration (Nov 2026);
-    // suspect this first if playback misbehaves after a teacher demo. The app
-    // runs in ONE session for its whole life — play-and-record, A2DP and
-    // AirPlay allowed, no HFP (AudioCalibrationPlugin.applyAppSession) —
-    // because switching sessions broke playback three ways (synth silent,
-    // recording silent, AirPlay muted until a volume press). `record` sets
-    // its OWN: play-and-record with .allowBluetooth (HFP) and no .allowAirPlay,
-    // and does not put ours back. So after a demo: a Bluetooth speaker may
-    // stay in call mode, AirPlay may have moved to the built-in speaker, and
-    // the players may need rebuilding (restartAudio). Calibration re-applies
-    // the app session if it finds it changed; plain playback does not. Fix
-    // candidates: re-apply the app session after stop() and restartAudio()
-    // the players, or `_recorder.manageAudioSession(false)` to keep ours.
-    await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav),
-        path: _audioPath!);
-    _audioStartedAt = DateTime.now();
   }
 
   @override
   Future<TeacherRecordingCaptureResult> stop() async {
     final controller = _controller;
     final videoPath = _videoPath;
-    final audioPath = _audioPath;
-    if (controller == null || videoPath == null || audioPath == null) {
+    if (controller == null || videoPath == null) {
       throw StateError('start() was not called before stop().');
     }
 
     final xfile = await controller.stopVideoRecording();
-    await _recorder.stop();
-
     final dest = File(videoPath);
     if (await dest.exists()) await dest.delete();
     await File(xfile.path).copy(videoPath);
@@ -141,25 +114,14 @@ class TeacherRecordingCapture implements TeacherRecordingCaptureBase {
     // leaves an orphaned temp file, not a broken recording.
     unawaited(File(xfile.path).delete().catchError((_) => File(xfile.path)));
 
-    final wavBytes = await File(audioPath).readAsBytes();
-
-    final videoStart = _videoStartedAt;
-    final audioStart = _audioStartedAt;
-    final avOffsetMs = (videoStart == null || audioStart == null)
-        ? 0
-        : videoStart.difference(audioStart).inMilliseconds;
-
     return TeacherRecordingCaptureResult(
       videoRelativePath: _videoRelativePath!,
-      audioRelativePath: _audioRelativePath!,
-      avOffsetMs: avOffsetMs,
-      wavBytes: wavBytes,
+      videoPath: videoPath,
     );
   }
 
   @override
   Future<void> dispose() async {
     await _controller?.dispose();
-    await _recorder.dispose();
   }
 }

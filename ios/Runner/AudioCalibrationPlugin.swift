@@ -239,8 +239,8 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
     .allowBluetoothA2DP, .allowAirPlay, .defaultToSpeaker,
   ]
 
-  /// Applies the app's session; true if it wasn't already in place (the
-  /// teacher-demo recorder sets its own).
+  /// Applies the app's session; true if it wasn't already in place
+  /// (something else set its own, as the teacher-demo recorder once did).
   @discardableResult
   static func applyAppSession() -> Bool {
     let s = AVAudioSession.sharedInstance()
