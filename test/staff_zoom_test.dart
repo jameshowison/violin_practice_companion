@@ -713,62 +713,11 @@ void main() {
     });
   });
 
-  group('pageHeightUnitsFor', () {
-    // Only page 1 is ever rendered, so a page too short silently clips the
-    // bottom of the score. Note the page's capacity IN SYSTEMS is
-    // scale-invariant (zoom shrinks the page width in MEI units but leaves the
-    // height and a system's unit height alone), so the floor covers ordinary
-    // pieces at any zoom — this is insurance for the long tail.
-    const systemH = 180.0; // px at staffScaleProbe ⇒ 450 MEI units
-    test('an ordinary piece stays on the pre-zoom floor', () {
-      expect(
-        pageHeightUnitsFor(
-            measureCount: 8, measuresPerLine: 4, systemHeightPx: systemH),
-        60000,
-      );
-    });
-
-    test('a very long piece at one bar per line outgrows the floor', () {
-      final tall = pageHeightUnitsFor(
-          measureCount: 200, measuresPerLine: 1, systemHeightPx: systemH);
-      // 200 systems x 450 units x 1.5 headroom = 135000.
-      expect(tall, 135000);
-    });
-
-    test('more measures per line means fewer systems means a shorter page', () {
-      final at2 = pageHeightUnitsFor(
-          measureCount: 400, measuresPerLine: 2, systemHeightPx: systemH);
-      final at8 = pageHeightUnitsFor(
-          measureCount: 400, measuresPerLine: 8, systemHeightPx: systemH);
-      expect(at8, lessThan(at2));
-    });
-
-    test('converts px→MEI units by the scale it was measured at', () {
-      // The same physical system measured at scale 80 reads twice as many px,
-      // so it must convert back to the same MEI units — and hence the same page.
-      expect(
-        pageHeightUnitsFor(
-            measureCount: 200,
-            measuresPerLine: 1,
-            systemHeightPx: systemH * 2,
-            measuredAtScale: staffScaleProbe * 2),
-        pageHeightUnitsFor(
-            measureCount: 200, measuresPerLine: 1, systemHeightPx: systemH),
-      );
-    });
-
-    test('degenerate inputs yield the floor', () {
-      expect(
-        pageHeightUnitsFor(
-            measureCount: 0, measuresPerLine: 4, systemHeightPx: systemH),
-        60000,
-      );
-      expect(
-        pageHeightUnitsFor(
-            measureCount: 8, measuresPerLine: 0, systemHeightPx: systemH),
-        60000,
-      );
-    });
+  test('the page height is Verovio\'s maximum, never above it', () {
+    // Verovio 6.2 rejects pageHeight > 60000 and keeps its previous value (on
+    // a fresh toolkit the ~A4 default, one printed page), so a "bigger" page
+    // would hold LESS music. See `verovioPageHeightMax`.
+    expect(verovioPageHeightMax, 60000);
   });
 
   group('predictedHeightPx', () {

@@ -585,7 +585,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           probe != null &&
           !req.locked &&
           (scale - staffScaleProbe).abs() < 0.05 &&
-          _pageHeightFor(target) == _probePageHeightUnits &&
           _reserveSpacingUnits == 0 &&
           _reservePageMarginUnits == 0;
       var score = reusable
@@ -593,7 +592,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           : await _engraveAt(
               req.widthPx,
               scale,
-              measuresPerLine: target,
               spacingSystem: (req.spacingUnits + _reserveSpacingUnits).clamp(
                 0,
                 verovioSpacingSystemMax,
@@ -629,7 +627,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           score = await _engraveAt(
             req.widthPx,
             scale,
-            measuresPerLine: target,
             spacingSystem: (req.spacingUnits + _reserveSpacingUnits).clamp(
               0,
               verovioSpacingSystemMax,
@@ -775,7 +772,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     final score = await _engraveAt(
       req.widthPx,
       scale,
-      measuresPerLine: math.max(1, (_measureCount / lines).ceil()),
       spacingSystem: spacing,
       pageMarginTopReserve: _reservePageMarginUnits,
       breaks: 'encoded',
@@ -836,22 +832,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     return _unitsPerMeasure < before; // false on the first observation
   }
 
-  // The calibration probe's option set is deliberately the pre-zoom one, so an
-  // un-zoomed piece reuses the engraver cache entry it always had.
-  static const _probePageHeightUnits = 60000;
-
-  /// Page height for a [measuresPerLine] layout. Only page 1 is ever rendered,
-  /// so the page must hold every system — and zooming in multiplies them.
-  int _pageHeightFor(int measuresPerLine) => pageHeightUnitsFor(
-    measureCount: _measureCount,
-    measuresPerLine: measuresPerLine,
-    systemHeightPx: _systemHeightPx,
-  );
-
   Future<EngravedScore> _engraveAt(
     double widthPx,
     double scale, {
-    int? measuresPerLine,
     required int spacingSystem,
     int pageMarginTopReserve = 0,
     String breaks = 'auto',
@@ -873,9 +856,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         0,
         verovioPageMarginTopMax,
       ),
-      pageHeightUnits: measuresPerLine == null
-          ? _probePageHeightUnits
-          : _pageHeightFor(measuresPerLine),
       // mnumInterval is left at its 0 default, which still numbers each
       // system's first bar; VerovioEngraver.stripMeasureNumbers cuts those out.
       // They were drawn into the same whitespace the annotation lanes use, so

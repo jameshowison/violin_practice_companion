@@ -923,44 +923,23 @@ int measuresPerLineForWidth(double widthPx) {
   return 2; // phone
 }
 
-/// Verovio `pageHeight` (MEI units) big enough to hold the whole score on page
-/// one.
+/// Verovio `pageHeight` (MEI units) for every engrave: its MAXIMUM.
 ///
-/// This matters: the engraver only ever renders page 1, so anything past the
-/// page bottom is silently dropped, and `adjustPageHeight` then crops the slack —
-/// so over-provisioning is free but under-provisioning loses music.
+/// The engraver only ever renders page 1, so anything past the page bottom
+/// spills onto a page that is never drawn; `adjustPageHeight` then crops the
+/// slack, so asking for the most Verovio allows costs nothing.
 ///
-/// Note that the page's *capacity in systems* is scale-invariant: zooming in
-/// shrinks the page width in MEI units but leaves both the page height and a
-/// system's height in units alone. So the long-standing 60000 floor holds a great
-/// many systems at any zoom and this rarely binds.
-///
-/// But 60000 is also Verovio's MAXIMUM `pageHeight` (6.2: 100..60000). A value
-/// above it is rejected with a logged error and the previous engrave's setting
-/// stays, so the `ceiling` above 60000 buys nothing: a piece that really needed
-/// more would still lose its overflow. (Measured headlessly with
+/// Verovio 6.2 accepts 100..60000 (the native verovio_flutter 0.3.1 build
+/// bundles 6.2.1 with the same option code). A larger value is REJECTED, with
+/// only a logged error, and the option keeps whatever it held before — on a
+/// fresh toolkit that is the ~A4 default of 2970, one printed page. So never
+/// ask for more: an earlier version computed a page "big enough" for long
+/// pieces, up to 2000000, and any piece that needed more than 60000 got one A4
+/// page of music instead. (Measured headlessly with
 /// `web/verovio/verovio-toolkit-wasm.js`.)
 ///
-/// [systemHeightPx] is in pixels at [measuredAtScale] (see [predictedHeightPx]),
-/// hence the `* 100 / scale` conversion into MEI units.
-int pageHeightUnitsFor({
-  required int measureCount,
-  required int measuresPerLine,
-  required double systemHeightPx,
-  double measuredAtScale = staffScaleProbe,
-}) {
-  const floor = 60000; // the pre-zoom fixed value, kept as the minimum
-  const ceiling = 2000000;
-  if (measureCount <= 0 ||
-      measuresPerLine <= 0 ||
-      systemHeightPx <= 0 ||
-      measuredAtScale <= 0) {
-    return floor;
-  }
-  final lines = (measureCount / measuresPerLine).ceil();
-  final systemHeightUnits = systemHeightPx * 100 / measuredAtScale;
-  // 1.5x headroom absorbs per-system slack (chord symbols, high/low ledger
-  // lines, the inter-system gap) that the average smooths away.
-  final needed = (lines * systemHeightUnits * 1.5).ceil();
-  return needed.clamp(floor, ceiling);
-}
+/// A system's height in units doesn't change with zoom, so 60000 holds well
+/// over a hundred ordinary systems at any zoom. A score that still doesn't fit
+/// is logged by [VerovioEngraver] (`[engrave] page overflow`), not clipped
+/// silently.
+const int verovioPageHeightMax = 60000;

@@ -12,6 +12,7 @@ import 'staff_zoom.dart'
         staffHeightUnits,
         staffScaleProbe,
         systemLinesOf,
+        verovioPageHeightMax,
         verovioPageMarginTopDefault;
 
 /// Native staff engraving via the Verovio toolkit (FFI worker isolate).
@@ -136,12 +137,6 @@ class VerovioEngraver {
   /// - [scale]: Verovio's percentage scale. Because [widthPx] pins the page
   ///   width, this simultaneously sets glyph size and how many measures fit per
   ///   system. [staffScaleProbe] is the un-zoomed baseline.
-  /// - [pageHeightUnits]: must exceed the engraved content height — only page 1
-  ///   is ever rendered, so anything below the page bottom is silently dropped.
-  ///   `adjustPageHeight` crops the slack, so over-provisioning is free — up to
-  ///   Verovio's maximum of 60000: a larger value is rejected (logged, not
-  ///   thrown) and the previous setting stays. Compute with
-  ///   `pageHeightUnitsFor`.
   /// - [mnumInterval]: Verovio's bar-number interval. 0 (the default) does NOT
   ///   draw none: it numbers the first bar of each system (measured headlessly:
   ///   Old Joe Clark, 7 systems, 7 `mNum` groups). No view wants them, since an
@@ -175,7 +170,6 @@ class VerovioEngraver {
     String musicXml, {
     required double widthPx,
     double scale = staffScaleProbe,
-    int pageHeightUnits = 60000,
     int mnumInterval = 0,
     int spacingSystem = 12,
     int pageMarginTop = verovioPageMarginTopDefault,
@@ -191,7 +185,7 @@ class VerovioEngraver {
     // the returned object, so they must not share an entry.
     final variant =
         '${stripRepeatClefs ? 1 : 0}${tabMode ? 1 : 0}'
-        '|$pageHeightUnits|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
+        '|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
         '|${tight ? 1 : 0}|'
         '${minLastJustification == null ? '' : 'mlj$minLastJustification|'}'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
@@ -207,7 +201,6 @@ class VerovioEngraver {
           musicXml,
           widthPx: widthPx,
           scale: scale,
-          pageHeightUnits: pageHeightUnits,
           mnumInterval: mnumInterval,
           spacingSystem: spacingSystem,
           pageMarginTop: pageMarginTop,
@@ -300,7 +293,6 @@ class VerovioEngraver {
     String musicXml, {
     required double widthPx,
     required double scale,
-    required int pageHeightUnits,
     required int mnumInterval,
     required int spacingSystem,
     required int pageMarginTop,
@@ -328,8 +320,9 @@ class VerovioEngraver {
       // page 1). That's invisible in landscape (wide → few systems → fits) but
       // clips the bottom of the score in portrait (narrow → many systems), and
       // zooming in makes it far easier to hit. A generous page guarantees one
-      // page; adjustPageHeight then crops the slack. See `pageHeightUnitsFor`.
-      'pageHeight': pageHeightUnits,
+      // page; adjustPageHeight then crops the slack. It has to be Verovio's
+      // maximum and no more — see `verovioPageHeightMax`.
+      'pageHeight': verovioPageHeightMax,
       'adjustPageHeight': true,
       'breaks': breaks,
       'footer': 'none',
@@ -370,6 +363,15 @@ class VerovioEngraver {
 
     final res = await svc.renderPageWithHitMap(1, config: _hitMapConfig);
     final tRender = sw.elapsedMilliseconds;
+    // Only page 1 is drawn, so a second page is music the reader never sees.
+    // That takes more systems than `verovioPageHeightMax` holds (a very long
+    // piece, zoomed far in), and there is no larger page to ask for, so at
+    // least say so rather than clip in silence.
+    final pages = await svc.pageCount;
+    if (pages > 1) {
+      debugPrint('[engrave] page overflow: $pages pages, only page 1 drawn '
+          '(scale=$scale width=${widthPx.round()})');
+    }
     var hitMap = res.hitMap;
     // Verovio draws a note's lyric INSIDE the note's group, so with lyrics the
     // hit map's note (and measure) boxes take in the syllable and, for a held

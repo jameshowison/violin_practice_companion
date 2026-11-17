@@ -211,8 +211,6 @@ Future<PrintLayout> layoutScoreForPrint(
     maxScale: _scaleForStaffMm(printMaxStaffHeightMm),
     linesPerSection: job.linesPerSection,
   );
-  final systemHeightPx = probe.systemHeightViewBox +
-      reserveSpacing * spacesPerSpacingSystemUnit * probe.staffSpaceViewBox;
   final firstPageH = printableH - _titleHeight - _footerHeight;
   final pageH = printableH - _footerHeight;
 
@@ -225,12 +223,6 @@ Future<PrintLayout> layoutScoreForPrint(
       spacingSystem: spacing,
       pageMarginTop: (verovioPageMarginTopDefault + reserveMargin)
           .clamp(0, verovioPageMarginTopMax),
-      pageHeightUnits: pageHeightUnitsFor(
-        measureCount: probe.measures.length,
-        measuresPerLine:
-            math.max(1, (probe.measures.length / solved.lines).ceil()),
-        systemHeightPx: systemHeightPx,
-      ),
       breaks: 'encoded',
       minLastJustification: solved.minLastJustification,
     );
