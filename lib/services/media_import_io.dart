@@ -7,6 +7,7 @@ import 'audio_decoder_base.dart';
 import 'media_migration.dart';
 import 'media_paths.dart';
 import 'piece_media_store.dart';
+import 'storage_cleanup_io.dart';
 
 /// The outcome of an import attempt, so the caller can tell "user changed
 /// their mind" from "that file is no good" and say the right thing.
@@ -81,12 +82,17 @@ class MediaImporter {
       );
     }
 
-    return importPath(
+    final result = await importPath(
       pieceId: pieceId,
       sourcePath: sourcePath,
       filename: filename,
       now: DateTime.now(),
     );
+    // The picker hands over its own copy of the file (in tmp/ on iOS, the
+    // cache on Android) and never deletes it: 159 MB for one video, on top of
+    // the copy just made. A file picked in place is not a copy and is kept.
+    await StorageCleanup.instance.deleteScratch(sourcePath);
+    return result;
   }
 
   /// The half of [pickAndImport] that does not involve a picker — the copy and

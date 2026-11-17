@@ -13,6 +13,7 @@ import 'package:pdfx/pdfx.dart';
 import 'bar_rest_repair.dart';
 import 'meter_repair.dart';
 import 'omr_service_base.dart';
+import 'storage_cleanup_io.dart';
 import 'title_recognizer.dart';
 import 'tuplet_repair.dart';
 
@@ -133,7 +134,12 @@ class OmrService implements OmrServiceBase {
 
     final pages = <Uint8List>[];
     for (final path in result.images) {
-      pages.add(await (await _resolveToFile(path)).readAsBytes());
+      final file = await _resolveToFile(path);
+      pages.add(await file.readAsBytes());
+      // The scanner writes each page loose into Documents (iOS) and never
+      // removes it; the bytes are all the pipeline needs from here on.
+      await StorageCleanup.instance.deleteScratch(path);
+      await StorageCleanup.instance.deleteScratch(file.path);
     }
     return pages;
   }
@@ -157,6 +163,7 @@ class OmrService implements OmrServiceBase {
     final pages = <Uint8List>[];
     for (final file in picked) {
       pages.add(await file.readAsBytes());
+      await StorageCleanup.instance.deleteScratch(file.path); // picker's copy
     }
     return pages;
   }
@@ -176,6 +183,7 @@ class OmrService implements OmrServiceBase {
       final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
       if (bytes == null) continue; // unreadable entry — skip rather than abort the whole selection
 
+      await StorageCleanup.instance.deleteScratch(file.path); // picker's copy
       final isPdf = (file.extension ?? '').toLowerCase() == 'pdf';
       if (isPdf) {
         pages.addAll(await _rasterizeAllPdfPages(bytes));
@@ -234,7 +242,9 @@ class OmrService implements OmrServiceBase {
 
     final title = pageCount > 1 ? 'Crop to Music — Page ${pageIndex + 1} of $pageCount' : 'Crop to Music';
 
-    final cropped = await ImageCropper().cropImage(
+    final CroppedFile? cropped;
+    try {
+      cropped = await ImageCropper().cropImage(
       sourcePath: source.path,
       // Lossless: this is the recogniser's input, and JPEG ringing around
       // thin staff lines is exactly what a threshold has to see through.
@@ -264,8 +274,13 @@ class OmrService implements OmrServiceBase {
         ),
       ],
     );
+    } finally {
+      await StorageCleanup.instance.deleteScratch(source.path);
+    }
     if (cropped == null) return null;
-    return cropped.readAsBytes();
+    final bytes = await cropped.readAsBytes();
+    await StorageCleanup.instance.deleteScratch(cropped.path); // cropper's output
+    return bytes;
   }
 
   /// On iOS the scanner returns a direct file path; on Android it returns a

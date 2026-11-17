@@ -522,6 +522,19 @@ Measured: decoded audio identical to the original, offset by at most 0.8 ms.
   deleted the launch after that. Swapping mid-session would reload whatever
   is playing. The log prints `[video_shrink] …` lines.
 
+## What the app cleans up after itself
+
+The file picker, photo picker, image cropper and document scanner each leave a
+scratch copy of whatever they hand over, and never delete it. On one iPad that
+was ~330 MB (a 159 MB picked video, scan pages in three directories).
+`lib/services/storage_cleanup_io.dart` deletes each copy as soon as it has been
+read. Thirty seconds after launch it also sweeps anything over a day old: old
+scratch files, and media files no stored preference names (it does nothing if
+there are no media rows at all). Kept scan pages
+(`scan_sources/`) are re-encoded as JPEG at quality 92 after each scan, and
+older PNGs are converted at launch. Log lines: `[cleanup] …`,
+`[scan_sources] …`.
+
 ## Dev library (the same pieces and media on every dev device)
 
 A fresh install starts empty. Rather than re-adding tunes and media by hand, every

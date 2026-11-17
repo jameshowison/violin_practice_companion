@@ -369,11 +369,13 @@ description in the README, "Dev library". What an agent needs to know:
   per launch when a library is staged.
 - **Don't sync a device someone is editing on** — the sync terminates the app.
   It also kills a `flutter run` on that simulator; restart with `dev_run.sh`.
-- **Diagnosing a bad scan:** the recogniser's exact input is
-  `scan_sources/<pieceId>/page_<n>_crop.*` (`ScanSourceStore`). Sync the
-  device and read it from `../violin_dev_library/scan_sources/`. For a piece
-  scanned before that existed, image_cropper's leftover output may still be in
-  the app's `tmp/` (`devicectl device info files … --subdirectory tmp`).
+- **Diagnosing a bad scan:** the recogniser's input is
+  `scan_sources/<pieceId>/page_<n>_crop.jpg` (`ScanSourceStore`), re-encoded
+  as JPEG 92 after the scan, so close to but not bit-exactly what OMR saw.
+  Sync the device and read it from `../violin_dev_library/scan_sources/`.
+  The plugins' own scratch copies (picker, cropper, scanner) are deleted once
+  read, and `StorageCleanup` sweeps leftovers over a day old at launch, so
+  don't expect to find any in `tmp/`.
 - A device's first sync uploads everything on it; on `dev-ipad`, which holds
   its own copies of tunes under other ids, that means duplicates.
 

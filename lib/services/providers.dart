@@ -469,7 +469,7 @@ final measuresPerRowProvider = StateProvider<int>((_) => 4);
 // width and drives the jianpu/fingering row layout.
 
 final scanSourceStoreProvider = Provider<ScanSourceStore>(
-  (_) => ScanSourceStore(),
+  (_) => ScanSourceStore(compressInBackground: true),
 );
 
 /// How many original page photos a scanned piece kept (0 for one that wasn't

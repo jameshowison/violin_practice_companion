@@ -60,6 +60,9 @@ dependencies:
   image_picker: ^1.1.2
   file_picker: ^8.1.4
   pdfx: ^2.9.1
+  # Pure Dart (every platform). Re-encodes kept scan pages as JPEG
+  # (scan_source_store_io.dart); already in the tree via homr_flutter.
+  image: ^4.8.0
   # Used only in omr_service_io.dart to detect a simulator/emulator, where the
   # VisionKit document camera is unavailable and would hard-crash the app.
   device_info_plus: ^11.1.1

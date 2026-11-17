@@ -10,6 +10,7 @@ import 'services/bundled_licenses.dart';
 import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
+import 'services/storage_cleanup.dart';
 import 'services/verovio_engraver.dart';
 import 'services/video_shrinker.dart';
 
@@ -67,5 +68,6 @@ Future<void> main() async {
     LaunchTiming.mark('first frame');
     VerovioEngraver.instance.warmUp();
     VideoShrinker.instance.scheduleLaunchPass();
+    StorageCleanup.instance.scheduleLaunchSweep();
   });
 }
