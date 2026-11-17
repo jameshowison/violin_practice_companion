@@ -110,8 +110,8 @@ class _BpmDialogState extends State<_BpmDialog> {
             const SizedBox(height: 8),
             // The presets' tempos, marked where they fall on the track.
             // Medium goes above and the other two below: the defaults are
-            // only 20 bpm apart, too close for three labels in one row on a
-            // phone-width dialog.
+            // only 20% of the performance tempo apart, too close for three
+            // labels in one row on a phone-width dialog.
             LayoutBuilder(builder: (context, box) {
               final track = box.maxWidth - 2 * _inset;
               double xOf(int bpm) =>

@@ -64,9 +64,10 @@ const int fingeringJumpSpan = 2;
 ///
 /// `all` is 0 rather than "no filter" so that every note scores at or above it —
 /// a plain repeat scores exactly 0. `fewer` at 1 therefore drops exactly the
-/// repeats. `least` at 3 keeps string changes outright, and keeps the
-/// combinations that add up (an L/H finger at a measure start, a jump after a
-/// rest) while dropping either signal on its own.
+/// repeats. `least` at 3 keeps string changes outright, and also a jump or an
+/// L/H finger whenever the label changed too (2 + 1, which a jump always
+/// does); an L/H finger repeating the previous label scores 2 and drops, and
+/// the 1-point landmarks show only in combination.
 int fingeringScoreThreshold(FingeringDensity density) => switch (density) {
       FingeringDensity.all => 0,
       FingeringDensity.fewer => 1,

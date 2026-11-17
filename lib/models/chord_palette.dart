@@ -84,7 +84,7 @@ typedef ChordRunRegion = ({
   int startNote,
   int endMeasureIndex,
   int endNote,
-  String label, // "I (A)" — degree-primary, matching the engraver's _harmLabel
+  String label, // "I (A)" — degree-primary, as the engraver once drew it
   int? degree, // 0..6, or null when the chord name won't analyze
   bool minorQuality, // picks the dimmer shade of [degree]'s hue
 });

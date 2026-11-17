@@ -112,8 +112,9 @@ class NoteEvent {
   /// Chord symbol that begins at this note, as a display string built from the
   /// MusicXML `<harmony>` that immediately precedes it (e.g. `'A'`, `'E7'`,
   /// `'Am7'`, `'D/F#'`). Null when no chord starts here. Populated by
-  /// [MusicXmlParser]; consumed by the chord-symbol display (see
-  /// [ChordXmlInjector]).
+  /// [MusicXmlParser]; consumed by the chord bars (`chordRunRegions`) and the
+  /// footer diagrams (`pieceChordShapesProvider`). The engraved symbols come
+  /// from the xml's own `<harmony>`, not from this (see [ChordXmlInjector]).
   final String? chordSymbol;
 
   /// True when this note is a *chord member* — a MusicXML `<note>` carrying a

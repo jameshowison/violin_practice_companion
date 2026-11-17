@@ -58,13 +58,15 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   final List<SectionTintRegion> sectionTints;
 
   /// Chord runs, drawn as labelled colored bars in a lane above each system. This
-  /// renderer owns the chord label entirely — the callers strip `<harmony>` from
-  /// the XML so Verovio engraves no `<harm>` text to duplicate it.
+  /// renderer owns the chord label entirely — the callers keep `<harmony>` so
+  /// Verovio reserves the row, and its `<harm>` ink is cut back out of the SVG
+  /// ([VerovioEngraver.stripAnnotationGlyphs]), so nothing duplicates it.
   final List<ChordRunRegion> chordRuns;
 
   /// Fingering labels, drawn as coloured chips in a channel between the notes and
   /// the chord lane. As with the chords, this renderer owns them entirely — the
-  /// callers strip `<fingering>` from the XML so Verovio engraves none.
+  /// callers inject `<fingering>` only so Verovio reserves the row, and its ink
+  /// is cut back out (see [_FingeringLanePainter]).
   ///
   /// Changing this list re-paints but never re-engraves, so the density slider
   /// and the colour toggle are instant.
@@ -598,7 +600,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
               ),
               pageMarginTopReserve: _reservePageMarginUnits,
               // Guaranteed-exact mode: the xml already carries explicit system
-              // breaks (`insertSystemBreaksEvery`, via `measuresPerLineProvider`
+              // breaks (`insertSystemBreaks`, via `measuresPerLineProvider`
               // locked); tell Verovio to honor them instead of computing its
               // own. The probe stays 'auto' — it exists only to measure the
               // natural per-measure width, and encoded breaks don't change that.
@@ -874,9 +876,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       pageHeightUnits: measuresPerLine == null
           ? _probePageHeightUnits
           : _pageHeightFor(measuresPerLine),
-      // mnumInterval is left at its 0 default — no engraved bar numbers. They
-      // were drawn into the same whitespace the annotation lanes use, so they
-      // landed on top of the fingering row.
+      // mnumInterval is left at its 0 default, which still numbers each
+      // system's first bar; VerovioEngraver.stripMeasureNumbers cuts those out.
+      // They were drawn into the same whitespace the annotation lanes use, so
+      // they landed on top of the fingering row.
       tabMode: widget.tabMode,
       tabFingerLabels: widget.tabFingerLabels,
       stripRepeatClefs: !widget.tabMode,
@@ -1477,15 +1480,6 @@ class _UnderlayPainter extends CustomPainter {
       old.sectionTints != sectionTints;
 }
 
-/// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
-/// per fingering label, every chip on a system at the same height.
-///
-/// The room the tightest system offers for the annotation stack, in screen px:
-/// from the previous system's ink down to that system's own annotation register.
-///
-/// Score-wide MINIMUM, deliberately, because [annotationStackFor] has to give one
-/// answer for every system — see there for why uniformity matters more here than
-/// letting each system use what it happens to have.
 /// The room the annotation stack has, in staff spaces, split by what Verovio
 /// charges for it: system 0's comes out of `pageMarginTop`, everything else out
 /// of `spacingSystem`. `infinity` means "no system of that kind draws anything",
@@ -1538,6 +1532,12 @@ double annotationWantSpaces(
   return (full.barHeight + full.channelHeight + full.gap) / space;
 }
 
+/// The room the tightest system offers for the annotation stack, in screen px:
+/// from the previous system's ink down to that system's own annotation register.
+///
+/// Score-wide MINIMUM, deliberately, because [annotationStackFor] has to give one
+/// answer for every system — see there for why uniformity matters more here than
+/// letting each system use what it happens to have.
 double _annotationBudget(EngravedScore score, double scale) {
   var budget = double.infinity;
   for (var l = 0; l < score.lineCount; l++) {
@@ -1598,6 +1598,9 @@ Rect? fingeringChannelOn(
   return Rect.fromLTRB(0, bottom - h, width, bottom);
 }
 
+/// Drawn in the channel BETWEEN the notes and the chord lane: one coloured chip
+/// per fingering label, every chip on a system at the same height.
+///
 /// The flat level is the entire point. These labels used to be engraved by
 /// Verovio as `<fing>` elements, which places each one above its own notehead —
 /// so the fingering rose and fell with the melody and had to be read as a
@@ -1871,7 +1874,8 @@ class _FingeringLanePainter extends CustomPainter {
             ];
 
   /// The type size for chips in [channel] (the WHOLE fingering channel, not
-  /// what the staff asks for, capped by what the channel can host.
+  /// the chip band): what the staff asks for, capped by what the channel can
+  /// host.
   ///
   /// The cap cuts both ways — it keeps a tall channel (a wide-ranging melody, or
   /// a generous staff spacing) from inflating the chips past "slightly larger

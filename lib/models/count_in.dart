@@ -29,10 +29,10 @@ const countInMaxBeats = 8;
 ///
 /// [labels] is the whole sequence as bar-relative beat numbers (`[1,2,3]`, or
 /// `[1,2,3,4,1,2]` for a count that runs two bars), and [index] is the position
-/// in it being counted now. [startMeasure] is the measure playback will begin on,
-/// which is what anchors the display to a system (see `StaffViewVerovio`) — a
-/// count-in for a practice range starting at bar 30 must not appear over bar 1,
-/// eight systems away.
+/// in it being counted now. [startMeasure] is the measure playback will begin on.
+/// It once anchored an in-score display to that measure's system; the count now
+/// shows over the title in the app bar (`CountInLabel`, from
+/// `piece_detail_screen.dart`), which doesn't read it.
 ///
 /// [totalBeats] is the count's length in counted beats — fractional when a
 /// sub-beat pickup cuts the last one short — which is where the bouncing dot

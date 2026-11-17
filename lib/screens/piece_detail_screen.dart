@@ -1099,7 +1099,7 @@ class _MeasuresPerLineSlider extends ConsumerWidget {
 }
 
 /// Guarantees the measures-per-line count above exactly, via explicit
-/// MusicXML system breaks (`insertSystemBreaksEvery`) and Verovio's
+/// MusicXML system breaks (`insertSystemBreaks`) and Verovio's
 /// `breaks: 'encoded'`, instead of the ordinary `scale`-solved approximation
 /// (see `_MeasuresPerLineSlider`'s "≈N" readout). Only meaningful against an
 /// explicit value, so it's disabled on "Auto".
@@ -1273,12 +1273,6 @@ class _FingeringDensityPolicyPicker extends ConsumerWidget {
   }
 }
 
-/// Violin fingering vs mandolin fret, for the tab staff and the annotation
-/// view's fingering channel alike — one preference, so the same control appears
-/// in both sections of the drawer showing the same value.
-/// Which lyric verse the staff and annotated views engrave, or none. Only
-/// shown for a piece that has lyrics. Experimental: a change re-engraves, so
-/// the page can reflow — see [lyricVerseProvider].
 /// Runs section detection again over the open piece (see
 /// [PieceRepository.redetectSections]) and, once confirmed, replaces its
 /// sections. The only way an existing piece gets a newer detector: import is
@@ -1437,6 +1431,9 @@ class _ClearSectionsButton extends ConsumerWidget {
   }
 }
 
+/// Which lyric verse the staff and annotated views engrave, or none. Only
+/// shown for a piece that has lyrics. Experimental: a change re-engraves, so
+/// the page can reflow — see [lyricVerseProvider].
 class _LyricVersePicker extends ConsumerWidget {
   const _LyricVersePicker();
 
@@ -1463,6 +1460,8 @@ class _LyricVersePicker extends ConsumerWidget {
   }
 }
 
+/// Violin fingering vs mandolin fret, for every view alike — one preference,
+/// one control, near the top of the drawer.
 class _NoteNumberPicker extends ConsumerWidget {
   const _NoteNumberPicker();
 

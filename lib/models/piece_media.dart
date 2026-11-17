@@ -85,9 +85,10 @@ class MediaRef {
     final name = json['storage'];
     final storage = MediaStorage.values.where((s) => s.name == name).firstOrNull;
     if (storage == null) return null;
-    // An absolute path can only have come from a pre-[MediaRef] build; it is
-    // repaired on the way in rather than being allowed to propagate. See
-    // `MediaMigration.relativizeLegacyPath`.
+    // An absolute path can only have come from a pre-[MediaRef] build. It is
+    // not repaired here: `MediaMigration.relativizeLegacyPath` repairs it
+    // once, when the legacy recording store is migrated into MediaRef rows;
+    // this passes whatever path it is given through as is.
     return MediaRef._(storage, path);
   }
 
@@ -247,8 +248,9 @@ String anchorsFingerprint(Iterable<(double, double)> anchors) {
 /// relate, and nothing about how to play them. `MediaPlaybackService` is the
 /// one thing that reads it.
 class PieceMedia {
-  /// Unique within a piece. Bundled ids are the variant name (`mix`); user
-  /// media get a generated id that also names their folder on disk.
+  /// Unique within a piece. Bundled ids are `bundled_<variant>`
+  /// (`bundled_melody`); user media get a generated id that also names their
+  /// folder on disk.
   final String id;
 
   final String label;
@@ -271,10 +273,11 @@ class PieceMedia {
   /// audio-only media.
   final MediaRef? video;
 
-  /// Milliseconds the video's start leads the audio's, measured at capture
-  /// time. [TeacherRecordingCapture] starts the camera and the microphone back
-  /// to back rather than atomically, so this is the measured gap, not an
-  /// assumed zero. Always 0 when audio and video are the same file.
+  /// Milliseconds the video's start leads the audio's. Nonzero only for a
+  /// teacher demo recorded as a silent video plus a separate WAV, where it was
+  /// estimated at capture time; [TeacherRecordingCapture] now records one
+  /// video with sound, stored like an import. Always 0 when audio and video
+  /// are the same file.
   final int avOffsetMs;
 
   /// Where the tune itself starts and ends inside [analysis], in seconds of
@@ -295,8 +298,8 @@ class PieceMedia {
 
   /// The key this medium's anchors are cached under.
   ///
-  /// Deliberately not the media id: a piece's `mix`/`melody`/`chords` are
-  /// three mixes of ONE recording session and share a single timeline, so they
+  /// Deliberately not the media id: a piece's bundled `melody`/`chords` are
+  /// two mixes of ONE recording session and share a single timeline, so they
   /// share one alignment and the user only ever waits for it once. Every other
   /// kind of medium has a timeline of its own and so gets its own key.
   final String alignmentKey;
@@ -413,7 +416,8 @@ class PieceMedia {
   /// Every one of [audio], [analysis] and [video] that names [from], pointed
   /// at [to] instead, for when a medium's file is replaced by a smaller copy
   /// of itself (see `video_shrinker_io.dart`). An imported video is all three
-  /// at once; a recorded demo's video is only [video].
+  /// at once, and so is a teacher demo recorded as one file; an older demo
+  /// (silent video plus WAV) has the video only in [video].
   ///
   /// The [alignmentKey] is kept: the replacement carries the same audio, so
   /// the cached anchors still describe it.

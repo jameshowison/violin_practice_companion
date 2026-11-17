@@ -2,7 +2,7 @@
 /// a button, then tap it. On other platforms rows don't swipe (it is rare on
 /// Android), and the same actions are reached by press and hold.
 ///
-/// Part of `lib/ui/adaptive/`, the only place that branches on platform.
+/// Part of `lib/ui/adaptive/`, the only place the UI branches on platform.
 library;
 
 import 'package:flutter/material.dart';

@@ -8,7 +8,8 @@ import '../theme/app_skin.dart';
 import '../theme/skins.dart';
 import 'thanks_screen.dart';
 
-/// The policy the App Store and Google Play listings point at (docs/privacy.md).
+/// The privacy policy, docs/privacy.md, on GitHub. The App Store listing links
+/// the stringlings.app copy instead, built from the same file (build_site.py).
 const privacyPolicyUrl =
     'https://github.com/jameshowison/violin_practice_companion/blob/main/docs/privacy.md';
 const issueTrackerUrl =

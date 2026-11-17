@@ -4,8 +4,8 @@
 /// wording or the button treatment of a destructive action. Each one is the
 /// established in-app pattern, generalised rather than invented:
 /// [showTextEntryDialog] from `_editSectionMarker` in `measure_edit_panel.dart`
-/// and [confirmDestructive] from `_confirmAndDelete` in
-/// `piece_detail_screen.dart`.
+/// and [confirmDestructive] from `_confirmAndDelete` (then in
+/// `piece_detail_screen.dart`, now in `section_minimap.dart`).
 library;
 
 import 'package:flutter/material.dart';
@@ -95,9 +95,10 @@ class _TextEntryDialogState extends State<_TextEntryDialog> {
       );
 }
 
-/// The house confirm for anything irreversible: an error-tinted confirm button
-/// and body copy that ends by saying so. There is no undo anywhere in this app,
-/// which is exactly why the dialog has to carry the weight.
+/// The house confirm for anything destructive: an error-tinted confirm button
+/// and body copy that says what goes. Undo is rare in this app (a piece delete
+/// gets a few seconds of it from a snackbar, see `PieceActions.delete`), which
+/// is why the dialog has to carry the weight.
 Future<bool> confirmDestructive(
   BuildContext context, {
   required String title,

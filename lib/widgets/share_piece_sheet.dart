@@ -76,8 +76,9 @@ class _SharePieceSheetState extends ConsumerState<_SharePieceSheet> {
     if (mounted) setState(() => _bytes = bytes);
   }
 
-  /// A separate video file: a teacher demo records one beside its audio. An
-  /// imported .mp4 is its own audio, so leaving the video out saves nothing.
+  /// A separate video file: an older teacher demo recorded one beside a WAV.
+  /// An imported .mp4, or a demo recorded now, is its own audio, so leaving
+  /// the video out saves nothing.
   static bool _hasSeparateVideo(PieceMedia m) =>
       m.video != null && m.video != m.audio;
 

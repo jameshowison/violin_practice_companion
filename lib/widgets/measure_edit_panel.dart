@@ -266,8 +266,6 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// Beat-mismatch / lyrics warning, sized to match a note card so it sits flush
-/// at the left of the note row.
 /// The bar's time signature, drawn as one (3 over 4), ahead of its notes.
 /// Solid where the meter is set — the first bar, or a bar that changes it —
 /// and faded where the bar just carries on in the meter before it. Tap to
@@ -415,6 +413,8 @@ class _KeyCard extends ConsumerWidget {
   }
 }
 
+/// Beat-mismatch / lyrics warning, sized to match a note card so it sits flush
+/// at the left of the note row.
 class _WarningCard extends StatelessWidget {
   final IconData icon;
   final String title;

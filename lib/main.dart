@@ -21,14 +21,14 @@ Future<void> main() async {
   } else {
     WidgetsFlutterBinding.ensureInitialized();
   }
-  // Opened before the first frame so per-piece display settings read
-  // synchronously — see [sharedPreferencesProvider]. A failure just means
-  // session-only settings, as before they were saved.
   // Before any player exists, or just_audio's first play() switches the iOS
   // session to .playback — see configureAppAudioSession.
   await configureAppAudioSession();
   // Puts the bundled fonts, JS, soundfont and homr models on the licence page.
   registerBundledLicenses();
+  // Opened before the first frame so per-piece display settings read
+  // synchronously — see [sharedPreferencesProvider]. A failure just means
+  // session-only settings, as before they were saved.
   SharedPreferences? prefs;
   try {
     prefs = await SharedPreferences.getInstance();

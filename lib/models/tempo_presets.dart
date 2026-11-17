@@ -1,7 +1,7 @@
 /// The synthesized playback's tempo, chosen from named practice speeds.
 ///
 /// Three speeds a violinist actually practises at — slow, working, and the
-/// piece's real tempo — plus a typed-in custom value. The bpm behind each name
+/// piece's real tempo — plus a custom value. The bpm behind each name
 /// is a setting, so "Slow" can mean whatever slow means for this player.
 enum TempoPreset { slow, medium, performance, custom }
 
@@ -22,9 +22,9 @@ extension TempoPresetLabel on TempoPreset {
       };
 }
 
-/// Lowest and highest tempo the custom field and the preset settings accept —
-/// a mechanical metronome's range, which also keeps the tempo slider's marks
-/// far enough apart to label.
+/// Lowest and highest tempo the custom tempo dialog and the preset settings
+/// accept — a mechanical metronome's range, which also keeps the tempo
+/// slider's marks far enough apart to label.
 const minBpm = 40;
 const maxBpm = 208;
 

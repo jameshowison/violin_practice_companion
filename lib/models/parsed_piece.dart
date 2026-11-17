@@ -73,8 +73,9 @@ class Measure {
   final int? lineStartNote;
 
   /// This measure opens a printed line: a `<print new-system="yes">` in the
-  /// stored score, which only an OMR scan writes (the page's own layout; the
-  /// app adds its line breaks to the engrave copy, never the file). A
+  /// stored score: an OMR scan writes them, and several bundled scores carry
+  /// them from their source encoding (the page's own layout; the app adds
+  /// its line breaks to the engrave copy, never the file). A
   /// phrase-start hint for [SectionDetector].
   final bool systemStart;
 

@@ -9,9 +9,11 @@ import '../services/providers.dart';
 /// Debug-only Marionette extension `realignAll`: recomputes the cached
 /// alignment of every recording in the library with the running build.
 ///
-/// Alignments are cached per device and never invalidated when the aligner
-/// changes, so devices drift apart. Realign on one device, then let the dev
-/// library sync carry the results everywhere (see README, "Dev library").
+/// Alignments are cached per device and invalidated only when
+/// `MediaAlignmentStore.alignerVersion` is bumped, so an aligner change that
+/// doesn't bump it leaves devices drifting apart. Realign on one device, then
+/// let the dev library sync carry the results everywhere (see README, "Dev
+/// library").
 ///
 /// Returns at once; progress is one `[realign]` log line per alignment key,
 /// then `[realign] done …`. Pass `pieceId` to realign just that piece.

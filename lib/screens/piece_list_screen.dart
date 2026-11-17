@@ -194,7 +194,6 @@ class PieceListScreen extends ConsumerWidget {
   }
 }
 
-/// The icon and the app's name, top left of the tablet piece list.
 /// The app icon in the AppBar's corner. Tapping it puts the list back where
 /// it starts at launch: no search, no filters, the launch tab, scrolled to
 /// the top.
@@ -234,6 +233,7 @@ class _HomeButton extends ConsumerWidget {
   }
 }
 
+/// The icon and the app's name, top left of the tablet piece list.
 class _AppBadge extends StatelessWidget {
   const _AppBadge();
 

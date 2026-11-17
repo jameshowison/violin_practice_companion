@@ -17,7 +17,8 @@ import '../services/piece_activity_store.dart' show PieceActivity;
 /// one is picked, then that book in its own order; [all] is every piece.
 enum PieceTab { recent, books, all }
 
-/// How a selected book is ordered on the All tab.
+/// How a selected book is ordered on the Books and All tabs (Recents always
+/// sorts by last opened).
 enum BookSort { book, az }
 
 /// What the list is narrowed by. Session state; nothing here is stored.

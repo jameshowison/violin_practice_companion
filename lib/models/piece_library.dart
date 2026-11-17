@@ -486,13 +486,15 @@ Set<String> collectionIdsOf(PieceLibrary lib, String pieceId) => {
 /// [collectionId] is given, only that collection's members, in its hand-set
 /// order.
 ///
-/// With no collection the input order is returned untouched — "All" IS the
-/// repository's order (fixtures first, then user pieces oldest-first), so there
-/// is deliberately no second ordering to keep in sync with the first.
+/// With no collection the input order (the repository's: fixtures first, then
+/// user pieces oldest-first) is returned untouched. The piece list's tabs then
+/// sort it themselves (A–Z, book order or Recents: see `filterPieces` in
+/// `piece_filter.dart`).
 ///
 /// IDs in a collection with no matching piece are skipped, not errors. An
-/// unknown [collectionId] yields an empty list; `resolveActiveCollection` in
-/// `piece_library_view.dart` keeps the UI from ever asking for one.
+/// unknown [collectionId] yields an empty list. (`resolveActiveCollection` in
+/// `piece_library_view.dart` guards against one but has had no caller in `lib/`
+/// since the Manage screen was retired.)
 List<Piece> applyLibrary(
   PieceLibrary lib,
   List<Piece> pieces, {

@@ -9,6 +9,8 @@ import 'stringlings_art.g.dart';
 /// Android launch_background.xml), which shows the same icon tile at the same
 /// size, centred on the same paper colour. So the first Flutter frame looks
 /// identical to the native screen and the only visible change is the blink.
+/// Not on Android 12+, which draws its own splash (the adaptive icon in a
+/// circle, on the paper colour: values-v31/styles.xml) instead.
 /// Change the art in scripts/app_icon/stringlings_icon.mjs, not here.
 ///
 /// The app is built underneath from the first frame ([child] is always in the

@@ -11,7 +11,9 @@ int measuresPerRowForWidth(double widthPx) {
 }
 
 /// Pre-computed row layout for a piece. A single instance is derived once
-/// (in [pieceLayoutProvider]) and shared by all notation views.
+/// (in [pieceLayoutProvider]) and shared by the Flutter-drawn notation views
+/// (jianpu, fingering, combined). The Verovio staff and tab views don't use
+/// these rows; the engraver lays out its own systems.
 ///
 /// The layout is always **folded** — the score is shown as written, with repeat
 /// barlines intact. The unfolded "where are we in the whole piece" view lives in

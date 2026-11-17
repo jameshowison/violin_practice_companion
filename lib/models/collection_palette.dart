@@ -3,10 +3,11 @@ import 'package:flutter/painting.dart';
 import 'piece_library.dart';
 import 'section_palette.dart';
 
-/// One colour per collection, for the filter chips' dots.
+/// One colour per collection, for the dots in the Keywords checkbox picker
+/// (`PieceActions.editKeywords`).
 ///
 /// Reuses [SectionPalette.swatches] rather than defining its own — the seven
-/// hues are already tuned to be distinct and muted against the indigo scheme,
+/// hues are already tuned to be distinct and muted (against the old indigo scheme),
 /// and a second, subtly-different set of "identity colours" in the same app
 /// would read as a mistake. Sibling of `section_palette.dart` and
 /// `chord_palette.dart`.

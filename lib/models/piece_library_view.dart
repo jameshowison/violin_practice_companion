@@ -77,8 +77,9 @@ String _searchText(String s) => s
 /// What an empty list should say, and whether it offers a way out.
 ///
 /// Genuinely different situations, so different messages: an empty filter is a
-/// curation problem (send them to Manage), an empty library is an onboarding one
-/// (the Scan/Import FABs are already on screen, so no button), and an all-hidden
+/// curation problem (`offerManage`; the Manage screen it pointed to is retired
+/// and the piece list ignores the flag), an empty library is an onboarding one
+/// (the add-piece button is already on screen, so no button), and an all-hidden
 /// list is neither — the "show hidden" footer is the way out, so the message
 /// must not claim the pieces don't exist.
 ///

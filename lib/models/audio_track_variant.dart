@@ -6,8 +6,9 @@ import 'piece_catalog.dart';
 enum AudioTrackVariant { melody, chords }
 
 extension AudioTrackVariantX on AudioTrackVariant {
-  /// The filename stem (`melody.mp3`, `chords.mp3`) and the key
-  /// this variant's calibration is stored under.
+  /// The filename stem (`melody.mp3`, `chords.mp3`) and the suffix of the
+  /// bundled medium's id (`bundled_melody`). Not a calibration key: every
+  /// variant shares one alignment key (see `MediaCatalog.bundledMediaFor`).
   String get id => name;
 
   String get label => switch (this) {

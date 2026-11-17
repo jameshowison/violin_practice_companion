@@ -6,8 +6,9 @@ import '../splash/stringlings_art.g.dart';
 /// The app icon as a tile: the generated art, with its eyes painted on top so
 /// they can blink ([big] and [little] are how open each stringling's eyes are,
 /// 1 = open, 0 = shut). The launch splash draws it at [kLaunchTileSize] with
-/// [shadow], as the native launch image does; the iPad piece list draws a
-/// small one beside the app's name.
+/// [shadow], as the native launch image does; the piece list draws a small
+/// one as its home button in the AppBar (beside the app's name on a wide
+/// layout).
 class StringlingsTile extends StatelessWidget {
   const StringlingsTile({
     super.key,

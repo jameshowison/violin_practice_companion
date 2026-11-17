@@ -33,9 +33,9 @@ import 'video_window_mode.dart';
 /// Held still on the starting frame through a count-in, unless the count is
 /// heard over the recording itself (its intro, from the top).
 ///
-/// Shown for any medium that has one: a recorded teacher demo, where the video
-/// is a separate silent file captured alongside the audio, or an imported
-/// mp4/mov, where the same file supplies both and the AV offset is zero.
+/// Shown for any medium that has one: an imported mp4/mov or a recorded
+/// teacher demo, where the same file supplies both and the AV offset is zero
+/// (an older demo may still be a silent video beside a separate WAV).
 class FloatingVideoOverlay extends ConsumerStatefulWidget {
   final MediaPlaybackService service;
 
