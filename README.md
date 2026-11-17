@@ -133,9 +133,10 @@ and `flutter build web` ships the file if it's there
 (`--remove` deletes it).
 
 What differs from iOS: scanning (OMR) is not available, so add pieces with
-**Import from ABC** on the piece list. Everything needed to render notation in the browser
-(the Verovio worker and WASM toolkit, pdf.js) is already vendored in `web/`;
-there is no extra setup step.
+**Import from ABC** on the piece list. The Verovio worker and WASM toolkit that
+render notation in the browser are already vendored in `web/`; there is no extra
+setup step. pdf.js is not vendored: `web/index.html` loads it from jsdelivr, so
+the web build fetches it over the network.
 
 ## Simulator names
 
@@ -189,7 +190,7 @@ xcrun simctl list devices -j | grep -B2 dev-ipad     # deviceTypeIdentifier
 ```
 
 `flutter -d` matches an exact name or a **name prefix**, not a substring — so
-`-d dev-ip` is ambiguous across the two, and `-d ipad` matches neither.
+`-d dev-ip` is ambiguous across all three `dev-ip…` names, and `-d ipad` matches neither.
 
 ## From a cold Mac to the app on the iPad simulator
 
@@ -240,11 +241,12 @@ build fails without it. It puts the git hash + timestamp in the AppBar on debug
 builds, which is how you tell which build is actually live.
 
 **5. Launch the dev server** on the iPad. The helper script does the fifo dance
-from `CLAUDE.md` (kill any existing run, boot the device, open the control
-pipe):
+from `CLAUDE.md` (kill the previous run on its own pipe, boot the device, sync
+the dev library, open the control pipe; it refuses if another session's run
+already holds the device, unless `--takeover`):
 
 ```bash
-bash scripts/dev_run.sh dev-ipad     # omit the argument for dev-iphone
+bash scripts/dev_run.sh dev-ipad     # omit the argument for dev-iphone-se
 ```
 
 Or by hand, if you want the run in your own shell:
@@ -287,7 +289,7 @@ A full relaunch (steps 4–5 again) is needed for changes to `main()`,
 `pubspec.yaml`, or **anything under `assets/`** — assets are baked into the
 `.app` at `flutter run` time, so a hot restart will keep serving the old one.
 
-To screenshot the running iPad, including the notation WebView, see
+To screenshot the running iPad from outside the app, see
 [Screenshots & UI debugging](#screenshots--ui-debugging-ios-simulator) below —
 `xcrun simctl io dev-ipad screenshot shot.png`.
 
@@ -366,7 +368,7 @@ came to test rather than by reading the stamp.
 
 ### A new device: "This provisioning profile cannot be installed on this device"
 
-The free-team profile lists the device UDIDs it covers, and a device Xcode has
+A development profile (free team or paid) lists the device UDIDs it covers, and a device Xcode has
 never built for is not among them. `flutter build ios` doesn't register devices,
 so have Xcode do it once, targeting the new device by UDID
 (`xcrun devicectl device info details --device "<name>" | grep udid`):
@@ -592,13 +594,15 @@ so don't sync while you're mid-edit on the device.
 
 ## Screenshots & UI debugging (iOS Simulator)
 
-The staff is rendered by OSMD inside a `WKWebView` (a Flutter "platform view").
-Tools that screenshot via Flutter's `RepaintBoundary.toImage()` — including the
-Marionette MCP used for agent-driven UI inspection — capture platform views as
-**blank white** (a Flutter engine limitation; see `CLAUDE.md`). So they can
-verify the surrounding Flutter chrome but **not** the notation itself.
+The staff is engraved by Verovio and drawn by jovial_svg in Flutter's own
+pipeline (`lib/widgets/staff_view_verovio.dart`, the default
+`staffRendererProvider`), so Marionette's screenshots include the notation.
+The legacy OSMD renderer, kept only as a code-level fallback and not used on
+iOS, draws inside a `WKWebView` (a Flutter "platform view"), which
+`RepaintBoundary.toImage()` captures as **blank white** (a Flutter engine
+limitation).
 
-To capture what's actually on screen, including the WebView, screenshot the
+To capture exactly what's on screen, outside the app, screenshot the
 simulator's framebuffer directly:
 
 ```bash
@@ -618,8 +622,8 @@ sips -r 90 screenshot.png
 For a quick manual capture you can also use Simulator.app → **File ▸ Save
 Screen** (⌘S), which writes a PNG to the Desktop.
 
-This is the only reliable way to verify staff/notation rendering — beaming,
-accidentals, the playback cursor — that the WebView draws.
+This was the only way to see the notation under the OSMD WebView; it remains
+the way to capture native UI (pickers, alerts) that Marionette can't see.
 
 Catching something that only lasts a moment (the count-in, the cursor on a fast
 note) needs the capture running *before* you trigger it — a single screenshot
@@ -673,7 +677,7 @@ xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
 
 - **Android**: F-Droid (pending submission) or direct APK
 - **Web**: self-host the `build/web` output; works as an installable PWA
-- **iOS**: TestFlight (internal testing; App Store to follow), or build from
+- **iOS**: TestFlight (internal and external testers; App Store to follow), or build from
   source with your own developer account. With a free account a build expires
   after 7 days — see [Installing on a physical device](#installing-on-a-physical-device)
 
@@ -706,7 +710,7 @@ and `docs/plan.md` for the remaining roadmap.
 | `dev/` | dev-only entrypoints (e.g. `flutter run -t dev/verovio_harness.dart`) | no |
 | `scripts/` | dev tooling: device install, dev-library sync, content cleanup, OMR evaluation | no |
 | `docs/` | design notes, plans, our own ABC sources | no |
-| `packages/` | vendored dependencies (`jovial_svg`) | yes, as code |
+| `packages/` | vendored `jovial_svg`, and our own `string_tuner` | yes, as code |
 
 **The soundfont** is not committed. Download GeneralUser GS (S. Christian
 Collins, schristiancollins.com) and cut it down to the two sounds the app plays,
@@ -735,7 +739,7 @@ homr_flutter:
   git:
     url: https://github.com/jameshowison/homr_flutter.git
     path: packages/homr_flutter
-    ref: v0.2.0
+    ref: v0.4.0
 ```
 
 A fresh clone needs nothing next to it: `flutter pub get` fetches the tag.
@@ -872,13 +876,18 @@ permits the combination, with that part keeping its own terms.
 
 ## Profile run (logged to a file)
 
-To install and run on the `dev-iphone` simulator in **profile** mode while
-capturing all output to a file an agent can read back, run this from the repo
-root:
+iOS simulators run **debug builds only** (flutter_tools' simulator device
+supports no other mode), so profile mode needs the physical phone or macOS. To
+run in **profile** mode while capturing all output to a file an agent can read
+back, run this from the repo root:
 
 ```bash
-flutter run --profile -d dev-iphone 2>&1 | tee flutter_profile.log
+flutter run --profile -d JamzJamzJamzz 2>&1 | tee flutter_profile.log
 ```
+
+On Wi-Fi a `flutter run` on the phone can stall (see `CLAUDE.md`), so use the
+cable; for timing work see the `ios-flutter-timing` skill
+(`.claude/skills/ios-flutter-timing/SKILL.md`).
 
 - `--profile` builds the release-grade engine with profiling enabled (no debug
   asserts, no hot reload, and the debug-only Marionette binding is disabled).
@@ -886,6 +895,6 @@ flutter run --profile -d dev-iphone 2>&1 | tee flutter_profile.log
   and to `flutter_profile.log`, so the agent can `tail`/`grep` that file (e.g.
   `tail -n 50 flutter_profile.log`) without watching the live session.
 
-Swap in another device name from `flutter devices` (e.g. `-d dev-ipad`, or
-`-d macos`) as needed. The plain debug dev-server pattern (hot reload via a
+Swap in another physical device from `flutter devices` (or `-d macos`) as
+needed. The plain debug dev-server pattern (hot reload via a
 fifo) lives in `CLAUDE.md`.
