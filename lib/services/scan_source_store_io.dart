@@ -158,7 +158,17 @@ class ScanSourceStore {
       return 'png';
     }
     if (b.length >= 3 && b[0] == 0xff && b[1] == 0xd8 && b[2] == 0xff) return 'jpg';
-    if (b.length >= 12 && String.fromCharCodes(b.sublist(8, 12)) == 'HEIC') return 'heic';
+    // HEIF is an ISO-BMFF box: bytes 4..8 are `ftyp`, then the major brand,
+    // which is lowercase (`heic`, `heix`, `mif1`, ...).
+    if (b.length >= 12 &&
+        String.fromCharCodes(b.sublist(4, 8)) == 'ftyp' &&
+        _heifBrands.contains(String.fromCharCodes(b.sublist(8, 12)))) {
+      return 'heic';
+    }
     return 'bin';
   }
+
+  static const _heifBrands = {
+    'heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'mif1', 'msf1',
+  };
 }

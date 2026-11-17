@@ -37,6 +37,25 @@ void main() {
         png);
   });
 
+  test('a HEIC page is named .heic, by its lowercase ftyp brand', () async {
+    // What an iPhone photo starts with: box size, `ftyp`, major brand.
+    Uint8List heif(String brand) => Uint8List.fromList(
+        [0, 0, 0, 0x18, ...'ftyp'.codeUnits, ...brand.codeUnits, 0, 0, 0, 0]);
+    await ScanSourceStore(root: docs).save('tune_1', [
+      ScanSourcePage(original: heif('heic'), cropped: jpg),
+      ScanSourcePage(original: heif('mif1'), cropped: jpg),
+      ScanSourcePage(original: heif('HEIC'), cropped: jpg),
+    ]);
+    expect(names('tune_1'), [
+      'page_1_crop.jpg',
+      'page_1_original.heic',
+      'page_2_crop.jpg',
+      'page_2_original.heic',
+      'page_3_crop.jpg',
+      'page_3_original.bin', // not a real brand
+    ]);
+  });
+
   test('delete removes them, and is a no-op for a piece never scanned',
       () async {
     final store = ScanSourceStore(root: docs);
