@@ -28,8 +28,11 @@ void main() {
 
   tearDown(() => root.delete(recursive: true));
 
-  StorageCleanup cleanup() => StorageCleanup(
-      documents: docs, scratchDirectories: [tmp, cache], now: () => now);
+  StorageCleanup cleanup({bool byPath = false}) => StorageCleanup(
+      documents: docs,
+      scratchDirectories: [tmp, cache],
+      now: () => now,
+      assetsLoadByPath: () async => byPath);
 
   File put(Directory dir, String rel, {DateTime? modified, int bytes = 10}) {
     final f = File('${dir.path}/$rel')..createSync(recursive: true);
@@ -124,5 +127,16 @@ void main() {
       await cleanup().sweep();
       expect(file.existsSync(), isTrue);
     });
+  });
+
+  test('sweep removes the plugins\' old asset copies only once assets load '
+      'by path', () async {
+    final sf = put(cache, 'generaluser_gs.sf2', modified: recent, bytes: 100);
+    final other = put(cache, 'other.sf2', modified: old);
+    await cleanup().sweep();
+    expect(sf.existsSync(), isTrue, reason: 'still the live copy (macOS)');
+    await cleanup(byPath: true).sweep();
+    expect(sf.existsSync(), isFalse);
+    expect(other.existsSync(), isTrue);
   });
 }

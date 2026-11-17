@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'bundled_asset_path.dart';
 import 'scan_source_store_io.dart';
 
 /// Removes the files the app's plugins leave behind, and media files nothing
@@ -23,9 +26,11 @@ class StorageCleanup {
     Directory? documents,
     List<Directory>? scratchDirectories,
     DateTime Function()? now,
+    Future<bool> Function()? assetsLoadByPath,
   })  : _documents = documents,
         _scratch = scratchDirectories,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _assetsLoadByPath = assetsLoadByPath ?? _probeAssetsLoadByPath;
 
   static final StorageCleanup instance = StorageCleanup();
 
@@ -39,6 +44,22 @@ class StorageCleanup {
   Directory? _documents;
   List<Directory>? _scratch;
   final DateTime Function() _now;
+  final Future<bool> Function() _assetsLoadByPath;
+
+  /// The copies plugins made of bundled assets in the cache directory, under
+  /// the asset's bare file name, before the app loaded them by path
+  /// ([bundledAssetPath]). The soundfont's was the stale 31 MB full bank.
+  static const supersededAssetCopies = {'generaluser_gs.sf2'};
+
+  /// Whether this platform hands out asset paths, so nothing reads the
+  /// plugins' old copies any more (where it doesn't, as on macOS, they are
+  /// still the live copies and are kept). The soundfont is the probe: it is
+  /// loaded at every launch anyway, and small.
+  static Future<bool> _probeAssetsLoadByPath() async {
+    final patch = jsonDecode(await rootBundle
+        .loadString('assets/engine/lookup_tables/midi_patch.json')) as Map;
+    return await bundledAssetPath(patch['soundfontAsset'] as String) != null;
+  }
 
   Future<Directory> _docs() async =>
       _documents ??= await getApplicationDocumentsDirectory();
@@ -151,6 +172,20 @@ class StorageCleanup {
       } catch (e) {
         debugPrint('[cleanup] could not sweep ${dir.path}: $e');
       }
+    }
+
+    // 1b. Plugins' old copies of bundled assets, now read in place. Any age:
+    //     nothing loads them once assets load by path.
+    try {
+      final cache = Directory(cacheDir);
+      if (await cache.exists() && await _assetsLoadByPath()) {
+        for (final name in supersededAssetCopies) {
+          final f = File('$cacheDir/$name');
+          if (await f.exists()) await remove(f, 'superseded asset copy');
+        }
+      }
+    } catch (e) {
+      debugPrint('[cleanup] could not check asset copies: $e');
     }
 
     // 2. Document-scanner output loose in Documents.

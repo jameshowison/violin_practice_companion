@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show MethodChannel, rootBundle;
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
+import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'audio_output.dart';
+import 'bundled_asset_path.dart';
 import 'playback_service_base.dart';
 import 'midi_generator.dart';
 
@@ -119,8 +121,16 @@ class PlaybackService extends PlaybackServiceBase {
       _program = j['violin'] as int;
       _velocity = j['noteVelocity'] as int? ?? 90;
       final sfPath = j['soundfontAsset'] as String;
-      _sfId = await _midi.loadSoundfontAsset(
-          assetPath: sfPath, bank: 0, program: _program);
+      // Loaded by path where the platform has one, not with
+      // loadSoundfontAsset: that copies into the cache under the bare file
+      // name and reuses whatever is there, so devices went on loading the old
+      // 31 MB bank after the 0.9 MB subset replaced it (bundled_asset_path_io).
+      final sfFile = await bundledAssetPath(sfPath);
+      _sfId = sfFile != null
+          ? await FlutterMidiProPlatform.instance.loadSoundfont(sfFile, 0, _program)
+          : await _midi.loadSoundfontAsset(
+              assetPath: sfPath, bank: 0, program: _program);
+      debugPrint('[midi] soundfont ${sfFile ?? '$sfPath (copied)'}');
       await _midi.selectInstrument(
           sfId: _sfId!, channel: _channel, bank: 0, program: _program);
       _midiReady = true;

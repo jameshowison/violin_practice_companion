@@ -10,6 +10,7 @@ class MainActivity : FlutterActivity() {
     private var contentResolver: ContentResolverPlugin? = null
     private var textRecognition: TextRecognitionPlugin? = null
     private var incomingShare: IncomingSharePlugin? = null
+    private var bundledAsset: BundledAssetPlugin? = null
 
     // Registered by hand because it is app-local rather than a pub package —
     // GeneratedPluginRegistrant only knows about pubspec dependencies. See
@@ -22,6 +23,8 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         textRecognition = TextRecognitionPlugin(flutterEngine.dartExecutor.binaryMessenger)
         incomingShare = IncomingSharePlugin(
+            flutterEngine.dartExecutor.binaryMessenger, applicationContext)
+        bundledAsset = BundledAssetPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
     }
 
@@ -47,6 +50,8 @@ class MainActivity : FlutterActivity() {
         textRecognition = null
         incomingShare?.dispose()
         incomingShare = null
+        bundledAsset?.dispose()
+        bundledAsset = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }
