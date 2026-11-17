@@ -29,7 +29,13 @@ class AudioDecoder implements AudioDecoderBase {
   /// tracks are analysed from `melody.mp3`. Add a platform here only once its
   /// plugin is registered.
   @override
-  bool get isSupported => Platform.isIOS || Platform.isAndroid;
+  bool get isSupported =>
+      debugPlatformSupported ?? (Platform.isIOS || Platform.isAndroid);
+
+  /// Lets a host test exercise the channel contract with a mocked plugin,
+  /// whatever machine it runs on. Null outside tests.
+  @visibleForTesting
+  static bool? debugPlatformSupported;
 
   @override
   Future<PcmAudio?> decodeFile(String absolutePath) async {

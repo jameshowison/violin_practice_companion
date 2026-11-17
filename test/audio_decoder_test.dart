@@ -32,7 +32,13 @@ void main() {
     messenger.setMockMethodCallHandler(AudioDecoder.channel, handler);
   }
 
-  tearDown(() => mockChannel(null));
+  // The channel is mocked, so the host may stand in for a phone; without
+  // this the decoder rightly refuses (macOS/Linux have no plugin).
+  setUp(() => AudioDecoder.debugPlatformSupported = true);
+  tearDown(() {
+    mockChannel(null);
+    AudioDecoder.debugPlatformSupported = null;
+  });
 
   group('the native contract', () {
     test('widens the platform\'s Float32 samples to what the extractor wants',
