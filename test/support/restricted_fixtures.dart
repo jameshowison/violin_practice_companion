@@ -45,3 +45,7 @@ const kVerovioVerseSvg = 'fixtures/svg/verovio_verse.svg';
 // mp3s, which it decodes natively (audio_decoder_*.dart) to align.
 const kLightlyRowMelodyWav = 'fixtures/audio/lightly_row/melody.wav';
 const kSaltCreekMelodyWav = 'fixtures/audio/salt_creek/melody.wav';
+// A teacher's practice video (talking intro, twelve identical bars of rest
+// and A, a long page-turn pause in a rest) and the scan it was aligned to.
+const kHanukkahTeacherWav = 'fixtures/audio/sounds_of_hanukkah/teacher_video.wav';
+const kHanukkahScore = 'fixtures/audio/sounds_of_hanukkah/score.musicxml';

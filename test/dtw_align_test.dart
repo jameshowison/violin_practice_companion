@@ -189,11 +189,19 @@ void main() {
             ...List.filled(10, atDistance(0.10)),
           ];
 
-          final starved = const DtwAligner(skipPenaltyPerFrame: 1e-3)
+          final starved = const DtwAligner(
+                  skipPenaltyPerFrame: 1e-3, maxReferenceStride: null)
               .align(reference, target, openBegin: true, openEnd: true);
           expect(starved.path.first.$2, 10);
           expect(starved.path.last.$2, 10,
               reason: 'the whole window collapses onto target frame 10');
+
+          // The stride cap rules that shape out whatever the penalty: ten
+          // reference frames at most two to a target frame need at least five.
+          final capped = const DtwAligner(skipPenaltyPerFrame: 1e-3)
+              .align(reference, target, openBegin: true, openEnd: true);
+          expect(capped.path.last.$2 - capped.path.first.$2,
+              greaterThanOrEqualTo(4));
 
           // At the calibrated penalty the surrounding content matches better
           // (0.10) than declining it costs (0.18), so it is all explained.

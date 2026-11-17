@@ -123,11 +123,35 @@ class DtwAligner {
   /// same at any sample rate.
   final double onsetWeight;
 
+  /// The most reference frames one target frame may take up: how much faster
+  /// than the reference the recording may locally run. Null is unlimited.
+  ///
+  /// A performer can stop for as long as they like (a page turn, talking in
+  /// a rest), so the target side stays unlimited. But nobody plays a passage
+  /// at three times the tempo of the rest of the piece, and the reference's
+  /// tempo is the performer's own by the second pass. Unlimited, the path
+  /// could use vertical moves to stack a run of bars onto a moment of audio,
+  /// and an open boundary made that a real option: on a teacher video whose
+  /// first twelve bars are the same rest-and-A, it treated eight bars' worth
+  /// of played As as intro and crushed bars 1-7 into about a second, with
+  /// five of them taking no time at all. Bar 1 came out at 24.9 s against a
+  /// true 12.5 s. The step penalty can't price that out without also
+  /// taxing real tempo changes, and charging per crushed note start is
+  /// dodged by stepping forward one frame at each note.
+  ///
+  /// 2 is a step pattern: a vertical move is only ever half of a two-frame
+  /// step that ends in a diagonal, so it needs no extra memory. It put that
+  /// video's bars 1-12 on their notes; 3 still let them be crushed to about
+  /// twice the tempo. Galopede, Gundagai, Lightly Row, Salt Creek and the
+  /// synthetic intro/outro sweep align as before.
+  final int? maxReferenceStride;
+
   const DtwAligner({
     this.bandFraction = 0.25,
     this.skipPenaltyPerFrame = 0.18,
     this.stepPenalty = 0.05,
     this.onsetWeight = 0.3,
+    this.maxReferenceStride = 2,
   });
 
   /// [openBegin]/[openEnd] allow the path to skip leading and/or trailing
@@ -211,16 +235,42 @@ class DtwAligner {
       cost[0][0] = 0;
     }
 
+    final stride = maxReferenceStride;
+    // With a stride limit, a vertical run is only taken as one step of up to
+    // [stride] reference frames ending in a diagonal, so these hold the last
+    // few rows' distances for the cells such a step passes through.
+    final dRows = stride == null
+        ? const <Float64List>[]
+        : List.generate(stride, (_) => Float64List(m + 1));
     for (var i = 1; i <= n; i++) {
       final jCenter = (i * m / n).round();
       final jLo = (jCenter - band).clamp(1, m);
       final jHi = (jCenter + band).clamp(1, m);
       final costRow = cost[i];
       final prevRow = cost[i - 1];
+      if (stride == null) {
+        for (var j = jLo; j <= jHi; j++) {
+          final d = distance(i - 1, j - 1);
+          final best = _min3(prevRow[j] + stepPenalty,
+              costRow[j - 1] + stepPenalty, prevRow[j - 1]);
+          costRow[j] = d + best;
+        }
+        continue;
+      }
+      final dRow = dRows[i % stride]..fillRange(0, m + 1, double.infinity);
       for (var j = jLo; j <= jHi; j++) {
         final d = distance(i - 1, j - 1);
-        final best = _min3(prevRow[j] + stepPenalty,
-            costRow[j - 1] + stepPenalty, prevRow[j - 1]);
+        dRow[j] = d;
+        var best = prevRow[j - 1];
+        final left = costRow[j - 1] + stepPenalty;
+        if (left < best) best = left;
+        var through = 0.0;
+        for (var k = 2; k <= stride && i - k >= 0; k++) {
+          through += dRows[(i - k + 1) % stride][j] + stepPenalty;
+          if (!through.isFinite) break;
+          final c = cost[i - k][j - 1] + through;
+          if (c < best) best = c;
+        }
         costRow[j] = d + best;
       }
     }
@@ -251,6 +301,32 @@ class DtwAligner {
     // frames short of wherever it stops are the discovered unmatched intro.
     while (i > 0 && (openBegin || j > 0)) {
       path.add((i - 1, j - 1));
+      if (stride != null) {
+        if (j == 0) break; // unreachable: column 0 is finite only at (0, 0)
+        var best = cost[i - 1][j - 1];
+        var bestK = 1; // 1 = diagonal, 0 = horizontal, k >= 2 = a stride
+        final left = cost[i][j - 1] + stepPenalty;
+        var through = 0.0;
+        for (var k = 2; k <= stride && i - k >= 0; k++) {
+          through += distance(i - k, j - 1) + stepPenalty;
+          final c = cost[i - k][j - 1] + through;
+          if (c < best) {
+            best = c;
+            bestK = k;
+          }
+        }
+        if (left < best) bestK = 0;
+        if (bestK == 0) {
+          j--;
+        } else {
+          for (var t = 1; t < bestK; t++) {
+            path.add((i - t - 1, j - 1));
+          }
+          i -= bestK;
+          j--;
+        }
+        continue;
+      }
       // Only the "up" move (decrementing i) is legal once j hits 0 — guard
       // diag/left so the open-begin loop can't index target[-1].
       final diag = j > 0 ? cost[i - 1][j - 1] : double.infinity;
