@@ -209,10 +209,12 @@ class ChordEditor {
               isRest: false,
               lyrics: n.lyrics,
               tuplet: n.tuplet,
+              carriedNotations: n.carriedNotations,
             );
     } else {
-      // A rest is never tied.
-      out[i] = n.copyWith(isRest: true, tieStart: false, tieStop: false);
+      // A rest is never tied, nor bowed.
+      out[i] = n.copyWith(
+          isRest: true, tieStart: false, tieStop: false, clearBowing: true);
     }
     return normalize(out);
   }
@@ -332,6 +334,10 @@ class ChordEditor {
         scoreFinger: keepFingering ? from.scoreFinger : null,
         fingerNumber: keepFingering ? from.fingerNumber : null,
         fingerString: keepFingering ? from.fingerString : null,
+        // Bowing, slurs and articulations say how the note is played, not
+        // which note it is, so they stay through a pitch change.
+        bowing: from.bowing,
+        carriedNotations: from.carriedNotations,
       );
 
   /// Moves any section marker in [measureNumber] that landed on a chord member

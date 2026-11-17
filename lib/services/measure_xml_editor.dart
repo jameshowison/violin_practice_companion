@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:xml/xml.dart';
 
 import '../models/key_signature.dart';
@@ -13,16 +14,15 @@ import '../models/parsed_piece.dart';
 /// as such, but a chord member's `<chord/>` marker round-trips so saving an
 /// edit doesn't silently break the stack into sequential notes.
 ///
-/// **A rewritten measure keeps only what [NoteEvent] models.** Pitch, duration,
-/// dot, drawn accidental, fingering, ties and lyrics ([NoteEvent.lyrics])
-/// survive; grace notes are carried across as opaque elements (see
-/// [replaceMeasureNotes]); **slurs, articulations and `<stem>` do not**
-/// — they live inside the `<note>` elements this rebuilds, and nothing holds
-/// them. Beams are the exception that proves the
-/// rule: they aren't carried either, because a beam belongs to a *group* that
-/// an edit can invalidate, so [MusicXmlBeamer] recomputes them afterwards
-/// instead. Carrying the rest would mean growing [NoteEvent], which is a
-/// different job.
+/// **A rewritten measure keeps only what [NoteEvent] holds.** Pitch, duration,
+/// dot, drawn accidental, fingering, bowing, ties and lyrics
+/// ([NoteEvent.lyrics]) are modelled; slurs, articulations, ornaments and
+/// fermatas ride along opaquely in [NoteEvent.carriedNotations], so they stay
+/// on their note through an edit; grace notes are carried across as opaque
+/// elements (see [replaceMeasureNotes]). **`<stem>` does not survive.** Beams
+/// aren't carried either, because a beam belongs to a *group* that an edit can
+/// invalidate, so [MusicXmlBeamer] recomputes them afterwards instead. A slur
+/// whose other end was deleted is removed ([dropOrphanSlurs]).
 class MeasureXmlEditor {
   /// Builds a detached `<note>` element for [note]. `<duration>` is derived
   /// from the note value, dot, and the score's [divisions] (divisions per
@@ -115,6 +115,10 @@ class MeasureXmlEditor {
       divisions = needed;
     }
 
+    final part = measureEl.parentElement;
+    final orphansBefore =
+        part == null ? const <XmlElement>{} : _orphanSlurs(part);
+
     final children = measureEl.children;
     bool isNote(XmlNode n) => n is XmlElement && n.name.local == 'note';
     bool isGrace(XmlNode n) =>
@@ -170,7 +174,54 @@ class MeasureXmlEditor {
             tupletStart: starts.contains(i), tupletStop: stops.contains(i)),
       ],
     ]);
+    if (part != null) dropOrphanSlurs(part, keep: orphansBefore);
     return doc.toXmlString();
+  }
+
+  /// Removes every slur end in [part] that the edit left without its other
+  /// end — a slur from a note that was deleted, or to one — except those in
+  /// [keep]: a slur that was already broken before the edit is somebody
+  /// else's, and is left as it was. A `<notations>` emptied by it goes too.
+  ///
+  /// Slurs pair by voice and `number`, in document order, as MusicXML pairs
+  /// them; a slur may cross barlines, so the whole part is walked.
+  @visibleForTesting
+  static void dropOrphanSlurs(XmlElement part,
+      {Set<XmlElement> keep = const {}}) {
+    for (final slur in _orphanSlurs(part)) {
+      if (keep.contains(slur)) continue;
+      final notations = slur.parentElement;
+      slur.remove();
+      if (notations != null && notations.childElements.isEmpty) {
+        notations.remove();
+      }
+    }
+  }
+
+  /// The slur ends in [part] with no partner — see [dropOrphanSlurs].
+  static Set<XmlElement> _orphanSlurs(XmlElement part) {
+    final orphans = <XmlElement>{};
+    final open = <String, XmlElement>{};
+    for (final note in part.findAllElements('note')) {
+      final voice =
+          note.findElements('voice').firstOrNull?.innerText.trim() ?? '1';
+      final slurs = [
+        for (final n in note.findElements('notations'))
+          ...n.findElements('slur'),
+      ];
+      String key(XmlElement s) => '$voice/${s.getAttribute('number') ?? '1'}';
+      // Stops first, so a note that ends one slur and begins the next (a
+      // chain) closes the old one before opening the new.
+      for (final s in slurs.where((s) => s.getAttribute('type') == 'stop')) {
+        if (open.remove(key(s)) == null) orphans.add(s);
+      }
+      for (final s in slurs.where((s) => s.getAttribute('type') == 'start')) {
+        final previous = open[key(s)];
+        if (previous != null) orphans.add(previous);
+        open[key(s)] = s;
+      }
+    }
+    return orphans..addAll(open.values);
   }
 
   /// Sets the repeat barlines on `<measure number="$measureNumber">` to match
@@ -983,9 +1034,21 @@ class MeasureXmlEditor {
         '${n.tieStart ? '<tie type="start"/>' : ''}';
     final tied = '${n.tieStop ? '<tied type="stop"/>' : ''}'
         '${n.tieStart ? '<tied type="start"/>' : ''}';
-    final technical = n.scoreFinger != null
-        ? '<technical><fingering>${n.scoreFinger}</fingering></technical>'
-        : '';
+    // A rest is never bowed, nor fingered.
+    final bow = n.isRest
+        ? ''
+        : switch (n.bowing) {
+            Bowing.down => '<down-bow/>',
+            Bowing.up => '<up-bow/>',
+            null => '',
+          };
+    final finger =
+        n.scoreFinger != null ? '<fingering>${n.scoreFinger}</fingering>' : '';
+    final technical =
+        bow.isEmpty && finger.isEmpty ? '' : '<technical>$bow$finger</technical>';
+    // Slurs, articulations, ornaments, fermatas: carried verbatim from the
+    // note they were read from ([NoteEvent.carriedNotations]).
+    final carried = n.carriedNotations.join();
     final t = n.tuplet;
     // After <accidental>, before <notations>, in MusicXML's <note> order.
     final timeMod = t == null
@@ -996,15 +1059,19 @@ class MeasureXmlEditor {
         ? ''
         : '${tupletStart ? '<tuplet type="start" bracket="yes"/>' : ''}'
             '${tupletStop ? '<tuplet type="stop"/>' : ''}';
-    final fingering = (tied.isEmpty && technical.isEmpty && bracket.isEmpty)
-        ? ''
-        : '<notations>$tied$bracket$technical</notations>';
+    final fingering =
+        (tied.isEmpty && technical.isEmpty && bracket.isEmpty && carried.isEmpty)
+            ? ''
+            : '<notations>$tied$bracket$technical$carried</notations>';
     // Last in MusicXML's <note> order. Written for rests too: a syllable whose
     // note was made a rest in the editor stays put (and the editor warns)
     // rather than vanishing on save.
     final lyrics = _lyricsXml(n);
     if (n.isRest) {
-      final restNotations = bracket.isEmpty ? '' : '<notations>$bracket</notations>';
+      // A fermata over a rest is common; anything else carried rides along.
+      final restNotations = bracket.isEmpty && carried.isEmpty
+          ? ''
+          : '<notations>$bracket$carried</notations>';
       return '<note><rest/><duration>$dur</duration><type>$type</type>$dot'
           '$timeMod$restNotations$lyrics</note>';
     }

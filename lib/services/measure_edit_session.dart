@@ -431,6 +431,29 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     _update(s.copyWith(notes: _refingered(s.measureNumber, notes)));
   }
 
+  // ── Bowing ─────────────────────────────────────────────────────────────
+
+  /// Marks the selected note down-bow or up-bow, or with null clears it.
+  /// Setting the bowing it already has clears it, so a toggle can call this
+  /// directly. A chord's bowing is its stem's: it goes on the primary, which
+  /// is where MusicXML (and the engraver) look for it. Rests take none.
+  void setBowing(Bowing? bowing) {
+    final s = state;
+    final sel = s?.selectedIndex;
+    if (s == null || sel == null) return;
+    final i = ChordEditor.primaryIndexOf(s.notes, sel);
+    final n = s.notes[i];
+    if (n.isRest) return;
+    final next = bowing == n.bowing ? null : bowing;
+    _update(s.copyWith(
+      notes: ChordEditor.replaceAt(
+        s.notes,
+        i,
+        next == null ? n.copyWith(clearBowing: true) : n.copyWith(bowing: next),
+      ),
+    ));
+  }
+
   /// [notes] fingered as they will be once saved: the whole piece with this
   /// measure swapped in goes back through the mapper, so Auto sees the same
   /// neighbours (across the barlines too) as the piece view will.

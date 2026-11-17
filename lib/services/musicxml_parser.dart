@@ -206,6 +206,8 @@ class MusicXmlParser {
           tieStart: !isRest && tieTypes.contains('start'),
           tieStop: !isRest && tieTypes.contains('stop'),
           tuplet: _tupletOf(noteEl),
+          bowing: isRest ? null : _bowingOf(noteEl),
+          carriedNotations: _carriedNotationsOf(noteEl),
         ));
         pendingChord = null;
       }
@@ -354,6 +356,49 @@ class MusicXmlParser {
       return playable(perMinute * length);
     }
     return null;
+  }
+
+  /// A note's bow direction mark (`<technical><down-bow/>`/`<up-bow/>`).
+  /// Should a note carry both, the first written wins.
+  static Bowing? _bowingOf(XmlElement note) {
+    for (final t in note
+        .findElements('notations')
+        .expand((n) => n.findElements('technical'))) {
+      for (final e in t.childElements) {
+        if (e.name.local == 'down-bow') return Bowing.down;
+        if (e.name.local == 'up-bow') return Bowing.up;
+      }
+    }
+    return null;
+  }
+
+  /// The `<technical>` marks [NoteEvent] models itself, and so leaves out of
+  /// [NoteEvent.carriedNotations].
+  static const _modelledTechnical = {'fingering', 'up-bow', 'down-bow'};
+
+  /// Every child of the note's `<notations>` that [NoteEvent] doesn't model,
+  /// serialized — see [NoteEvent.carriedNotations]. Ties and tuplet brackets
+  /// are modelled (and rebuilt from the model), so they stay out; a
+  /// `<technical>` is kept with only its unmodelled marks, and dropped when it
+  /// has none.
+  static List<String> _carriedNotationsOf(XmlElement note) {
+    final out = <String>[];
+    for (final notations in note.findElements('notations')) {
+      for (final child in notations.childElements) {
+        switch (child.name.local) {
+          case 'tied' || 'tuplet':
+            continue;
+          case 'technical':
+            final rest = child.copy();
+            rest.children.removeWhere((c) =>
+                c is XmlElement && _modelledTechnical.contains(c.name.local));
+            if (rest.childElements.isNotEmpty) out.add(rest.toXmlString());
+          default:
+            out.add(child.toXmlString());
+        }
+      }
+    }
+    return out;
   }
 
   /// A note's `<time-modification>` as a tuplet ratio; null for none, or for

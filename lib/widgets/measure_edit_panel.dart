@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -527,6 +529,8 @@ class _ControlPanel extends ConsumerWidget {
             _group(context, 'STRING', [_stringChoice(context, ctl)]),
           ],
           _divider(context),
+          _group(context, 'BOW', [_bowChoice(context, ctl)]),
+          _divider(context),
           _group(context, 'DURATION', [
             // Value name sits above the ◀ ▶ buttons so the group stays narrow.
             Column(
@@ -679,6 +683,50 @@ class _ControlPanel extends ConsumerWidget {
         const SizedBox(width: 4),
         btn(4, const Text('4', style: TextStyle(fontSize: 15)), '4th',
             'Play with the 4th finger on the string below.'),
+      ],
+    );
+  }
+
+  /// Down-bow (⊓) / up-bow (V) for the selected note. Filled while the note
+  /// carries that mark; tapping the filled one clears it. A chord's bowing is
+  /// its stem's, so a member shows (and sets) its primary's.
+  Widget _bowChoice(BuildContext context, MeasureEditController ctl) {
+    final i = session.selectedIndex;
+    final primary =
+        i == null ? null : session.notes[ChordEditor.primaryIndexOf(session.notes, i)];
+    final enabled = primary != null && !primary.isRest;
+    final current = enabled ? primary.bowing : null;
+    Widget btn(Bowing value, String caption, String tooltip) {
+      final active = current == value;
+      return Tooltip(
+        message: enabled ? tooltip : 'Select a note to mark its bowing.',
+        child: _squareToggle(
+          context,
+          Builder(
+            // The button's own foreground, so the glyph reads on the filled
+            // (active) and outlined states alike, and greys when disabled.
+            builder: (context) => CustomPaint(
+              size: const Size(16, 16),
+              painter: BowGlyphPainter(value,
+                  color: IconTheme.of(context).color ??
+                      DefaultTextStyle.of(context).style.color ??
+                      Colors.black),
+            ),
+          ),
+          caption,
+          key: ValueKey('bowing_$caption'),
+          active: enabled && active,
+          onTap: enabled ? () => ctl.setBowing(value) : null,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        btn(Bowing.down, 'down', 'Down-bow: pull the bow, frog to tip.'),
+        const SizedBox(width: 4),
+        btn(Bowing.up, 'up', 'Up-bow: push the bow, tip to frog.'),
       ],
     );
   }
@@ -848,4 +896,44 @@ class _ControlPanel extends ConsumerWidget {
     );
     return tooltip != null ? Tooltip(message: tooltip, child: btn) : btn;
   }
+}
+
+/// The string player's bow marks as engraved: down-bow ⊓ (a heavy bar on two
+/// legs) and up-bow V. Drawn rather than set in a font, because neither glyph
+/// is reliable outside a music font. Fills [size].
+class BowGlyphPainter extends CustomPainter {
+  final Bowing bowing;
+  final Color color;
+
+  const BowGlyphPainter(this.bowing, {required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final thin = math.max(1.0, w * 0.1);
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = thin;
+    switch (bowing) {
+      case Bowing.down:
+        final bar = math.max(thin * 1.6, h * 0.28);
+        canvas.drawRect(
+            Rect.fromLTWH(0, 0, w, bar), Paint()..color = color);
+        canvas.drawLine(
+            Offset(thin / 2, bar), Offset(thin / 2, h), stroke);
+        canvas.drawLine(
+            Offset(w - thin / 2, bar), Offset(w - thin / 2, h), stroke);
+      case Bowing.up:
+        final path = Path()
+          ..moveTo(w * 0.1, 0)
+          ..lineTo(w / 2, h)
+          ..lineTo(w * 0.9, 0);
+        canvas.drawPath(path, stroke..strokeJoin = StrokeJoin.miter);
+    }
+  }
+
+  @override
+  bool shouldRepaint(BowGlyphPainter old) =>
+      old.bowing != bowing || old.color != color;
 }

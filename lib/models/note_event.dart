@@ -26,6 +26,10 @@ extension KeyModeInfo on KeyMode {
       const [false, true, true, false, false, true, true][index];
 }
 
+/// A string player's bow direction mark: MusicXML `<technical><down-bow/>`
+/// (⊓, pull) or `<up-bow/>` (V, push).
+enum Bowing { down, up }
+
 enum DisplayMode { staff, staffFingering, jianpu, fingering, combined, tab }
 
 /// One lyric syllable: a MusicXML `<lyric>`'s `<text>`, `<syllabic>`
@@ -146,6 +150,23 @@ class NoteEvent {
   /// [tupletGroups]).
   final ({int actual, int normal})? tuplet;
 
+  /// The bow direction mark on this note, if any — MusicXML
+  /// `<technical><up-bow/>` / `<down-bow/>`. Read by [MusicXmlParser], set in
+  /// the measure editor, written back by `MeasureXmlEditor`.
+  final Bowing? bowing;
+
+  /// The rest of this note's `<notations>`, which nothing in the app models
+  /// but somebody wrote: slurs, articulations (staccato, accent, tenuto…),
+  /// ornaments, fermatas, and any `<technical>` mark other than the fingering
+  /// and the bowing. Each entry is one child element of `<notations>`,
+  /// serialized as XML, in document order.
+  ///
+  /// Opaque on purpose: the measure editor rebuilds a bar's `<note>` elements
+  /// from [NoteEvent]s, and this is what lets those marks ride along with
+  /// their note — through a pitch change, a duration change, a move — instead
+  /// of being dropped. A fresh note has none.
+  final List<String> carriedNotations;
+
   const NoteEvent({
     required this.pitch,
     required this.midiNumber,
@@ -166,6 +187,8 @@ class NoteEvent {
     this.tieStart = false,
     this.tieStop = false,
     this.tuplet,
+    this.bowing,
+    this.carriedNotations = const [],
   });
 
   /// How long this note lasts, in 32nd-note units (quarter = 8), its tuplet
@@ -197,8 +220,11 @@ class NoteEvent {
     bool? tieStart,
     bool? tieStop,
     ({int actual, int normal})? tuplet,
+    Bowing? bowing,
+    List<String>? carriedNotations,
     bool clearTuplet = false,
     bool clearScoreFinger = false,
+    bool clearBowing = false,
   }) =>
       NoteEvent(
         pitch: pitch ?? this.pitch,
@@ -222,6 +248,8 @@ class NoteEvent {
         tieStart: tieStart ?? this.tieStart,
         tieStop: tieStop ?? this.tieStop,
         tuplet: clearTuplet ? null : (tuplet ?? this.tuplet),
+        bowing: clearBowing ? null : (bowing ?? this.bowing),
+        carriedNotations: carriedNotations ?? this.carriedNotations,
       );
 }
 
