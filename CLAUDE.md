@@ -35,7 +35,7 @@ echo "R" > /tmp/flutter_ctl   # hot restart (resets all state)
 tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 ```
 
-**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, or **any file under `assets/`** (HTML, JS, JSON, images). Kill with `pkill -f flutter_tools.snapshot` before relaunching, and recreate the fifo.
+**Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, or **any file under `assets/`** (HTML, JS, JSON, images). Relaunch with `bash scripts/dev_run.sh <sim>`, which kills only this session's run and recreates its fifo — never `pkill -f flutter_tools.snapshot`, which kills every session's run.
 
 > **Why assets need a full restart on iOS:** Hot restart only re-executes the Dart VM — it does NOT rebuild or reinstall the native `.app` bundle. Static assets (including `osmd_bridge.html` and any JS files) are bundled into the `.app` at `flutter run` time and read from there by WKWebView. A hot restart will always serve the old asset. Always do a full restart after editing anything in `assets/`.
 
@@ -250,7 +250,7 @@ sips -r 90 /tmp/staff.png                            # raw capture is portrait; 
 
 Then read `/tmp/staff.png`. (See the README "Screenshots & UI debugging" section.)
 
-The main Marionette-visible alternatives would be `verovio_flutter` (FFI, outputs SVG rendered via `flutter_svg`) or exporting OSMD's SVG and displaying it with `flutter_svg` instead of a WebView. Both lose live cursor animation and require significant rework. We're staying with OSMD/WebView for rendering quality; accept the blank-screenshot limitation.
+That Marionette-visible alternative has since been built: Verovio engraving drawn with `jovial_svg` (not `flutter_svg`, which rendered Verovio's SVG blank), with native overlays for the cursor and highlights. It is the default renderer; see `lib/widgets/staff_view_verovio.dart`. OSMD/WebView remains only as a code-level fallback for macOS.
 
 **Capturing short-lived UI — arm the screenshots BEFORE the tap.**
 

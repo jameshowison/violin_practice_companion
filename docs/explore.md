@@ -1,8 +1,14 @@
 # Exploration Log — Pathways and Decisions
 
-Status (2026-11-17): a history, dated per section; check current code before acting
-on any "not done" or "currently" below. Since written: teacher-video/audio alignment
-was built (`docs/piece-media-model.md`, `docs/audio-sync-*.md`); homr is a git
+> **Historical record, not current documentation.** Each section describes the
+> app as it was when that section was written, and much of it has since changed.
+> Nothing here is a current instruction: for how things work now, read the code,
+> CLAUDE.md and the README.
+
+Status (2026-11-17): check current code before acting on any "not done",
+"currently" or "succeeded" below — including the 2026-06-01 `flutter build macos`,
+which nothing later confirms (CLAUDE.md lists macOS as unverified).
+Since written: teacher-video/audio alignment was built (`docs/piece-media-model.md`, `docs/audio-sync-*.md`); homr is a git
 dependency on `homr_flutter` pinned by tag (CLAUDE.md "homr_flutter dependency");
 Android builds and runs on the emulator; `docs/plan.md` was renumbered and pruned to
 open work, so its old section numbers here no longer match.

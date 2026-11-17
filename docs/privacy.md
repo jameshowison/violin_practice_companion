@@ -1,12 +1,12 @@
 # Stringlings Privacy Policy
 
-_Last updated: 14 November 2026_
+_Last updated: 17 November 2026_
 
 The app does not collect, store or share any personal data, and has no ads or analytics.
 
-The app has no accounts and features work entirely on device. Everything you add or make in the app (scans, photos, recordings, video and practice settings) stays on your device.
+The app has no accounts and features work entirely on device. Everything you add or make in the app (scans, photos, recordings, video and practice settings) stays on your device unless you share it.
 
-The camera, microphone and photo library are used only for features you start, and nothing you make is sent to us or anyone else.
+The camera, microphone and photo library are used only for features you start, and nothing you make is sent to us or anyone else unless you share it yourself.
 
 If you have chosen in your device's settings to share crash and diagnostic data with app developers, Apple or Google may pass us anonymous crash reports from the app. We use them only to fix bugs.
 
