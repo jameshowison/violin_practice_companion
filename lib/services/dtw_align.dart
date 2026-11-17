@@ -105,10 +105,26 @@ class DtwAligner {
   /// align as before.
   final double stepPenalty;
 
+  /// Weight of the attack term added to each frame pair's cost: this times
+  /// the difference between the score's attack (1 where a note starts) and
+  /// the recording's (see [ChromaSequence.onsets]), each spread a frame
+  /// either side. Used only when [align] is given both.
+  ///
+  /// Chroma alone can't see a note played again: thirteen bars of repeated
+  /// sixteenth-note Ds look like one long D, so their barlines are invisible
+  /// and the bars drift at whatever tempo the path happens to keep. Attacks
+  /// make each stroke a landmark. On that recording (Trepak's "D to the end")
+  /// the closing bars went from ~1 s late to within 0.1 s of their onsets,
+  /// and the anchors on Gundagai's real fiddle recording within 100 ms of an
+  /// onset rose from 27 to 29 of 33. 0.3 is the middle of the range that
+  /// helped; 0.15 left half the drift, 0.6 started to disturb bars 2-11.
+  final double onsetWeight;
+
   const DtwAligner({
     this.bandFraction = 0.25,
     this.skipPenaltyPerFrame = 0.18,
     this.stepPenalty = 0.05,
+    this.onsetWeight = 0.3,
   });
 
   /// [openBegin]/[openEnd] allow the path to skip leading and/or trailing
@@ -123,21 +139,36 @@ class DtwAligner {
     List<Float64List> target, {
     bool openBegin = false,
     bool openEnd = false,
+    Float64List? referenceOnsets,
+    Float64List? targetOnsets,
   }) {
     final n = reference.length;
     final m = target.length;
     if (n == 0 || m == 0) return const DtwResult([], 0);
 
+    final useOnsets = onsetWeight > 0 &&
+        referenceOnsets != null &&
+        targetOnsets != null &&
+        referenceOnsets.length == n &&
+        targetOnsets.length == m;
+    final ro = useOnsets ? _smear(referenceOnsets) : null;
+    final to = useOnsets ? _smear(targetOnsets) : null;
+    double distance(int i, int j) {
+      final d = _cosineDistance(reference[i], target[j]);
+      if (ro == null) return d;
+      return d + onsetWeight * (ro[i] - to![j]).abs();
+    }
+
     if (openBegin || openEnd) {
-      return _alignWithBand(reference, target, 1.0,
+      return _alignWithBand(reference, target, 1.0, distance,
               openBegin: openBegin, openEnd: openEnd) ??
           const DtwResult([], double.infinity); // unreachable at bandFraction 1.0
     }
 
-    var result = _alignWithBand(reference, target, bandFraction);
+    var result = _alignWithBand(reference, target, bandFraction, distance);
     // The configured band excluded every path to (n, m) — fall back to an
     // effectively unbounded band rather than fail outright.
-    result ??= _alignWithBand(reference, target, 1.0);
+    result ??= _alignWithBand(reference, target, 1.0, distance);
     if (result == null) {
       // Should be unreachable with bandFraction 1.0, but don't let a bug
       // here surface as a crash — report an empty, maximally-costly result.
@@ -149,7 +180,8 @@ class DtwAligner {
   DtwResult? _alignWithBand(
     List<Float64List> reference,
     List<Float64List> target,
-    double bandFraction, {
+    double bandFraction,
+    double Function(int, int) distance, {
     bool openBegin = false,
     bool openEnd = false,
   }) {
@@ -179,11 +211,10 @@ class DtwAligner {
       final jCenter = (i * m / n).round();
       final jLo = (jCenter - band).clamp(1, m);
       final jHi = (jCenter + band).clamp(1, m);
-      final refFrame = reference[i - 1];
       final costRow = cost[i];
       final prevRow = cost[i - 1];
       for (var j = jLo; j <= jHi; j++) {
-        final d = _cosineDistance(refFrame, target[j - 1]);
+        final d = distance(i - 1, j - 1);
         final best = _min3(prevRow[j] + stepPenalty,
             costRow[j - 1] + stepPenalty, prevRow[j - 1]);
         costRow[j] = d + best;
@@ -241,7 +272,7 @@ class DtwAligner {
     // contribution from the skip regularizer at either boundary.
     var matchCost = 0.0;
     for (final (r, t) in orderedPath) {
-      matchCost += _cosineDistance(reference[r], target[t]);
+      matchCost += distance(r, t);
     }
     return DtwResult(orderedPath, matchCost / orderedPath.length);
   }
@@ -252,6 +283,19 @@ class DtwAligner {
       dot += a[k] * b[k];
     }
     return 1.0 - dot;
+  }
+
+  /// [v] spread one frame either side (half strength), so an attack a frame
+  /// off on either side still mostly matches.
+  static Float64List _smear(Float64List v) {
+    final out = Float64List(v.length);
+    for (var i = 0; i < v.length; i++) {
+      var x = v[i];
+      if (i > 0 && v[i - 1] * 0.5 > x) x = v[i - 1] * 0.5;
+      if (i + 1 < v.length && v[i + 1] * 0.5 > x) x = v[i + 1] * 0.5;
+      out[i] = x;
+    }
+    return out;
   }
 
   static double _min3(double a, double b, double c) {

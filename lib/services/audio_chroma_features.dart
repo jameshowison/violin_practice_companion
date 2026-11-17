@@ -13,7 +13,12 @@ class ChromaSequence {
   final List<Float64List> frames;
   final double hopSeconds;
 
-  const ChromaSequence(this.frames, this.hopSeconds);
+  /// Per-frame attack strength in `[0, 1]`, one per [frames] entry: how
+  /// suddenly the sound got louder there (see
+  /// [AudioChromaExtractor.extractFromSamples]). Null when not measured.
+  final Float64List? onsets;
+
+  const ChromaSequence(this.frames, this.hopSeconds, {this.onsets});
 
   double get durationSeconds => frames.length * hopSeconds;
 }
@@ -106,10 +111,15 @@ class AudioChromaExtractor {
 
     final frames = <Float64List>[];
     final energies = <double>[];
+    final flux = <double>[];
+    Float64List? previous;
     STFT(fftSize, window).run(samples, (chunk) {
       final magnitudes = chunk.discardConjugates().magnitudes();
       frames.add(_toChroma(magnitudes, binHz, noise));
       if (silenceGate > 0) energies.add(_bandEnergy(magnitudes, binHz));
+      final logMagnitudes = _bandLogMagnitudes(magnitudes, binHz);
+      flux.add(previous == null ? 0 : _flux(previous!, logMagnitudes));
+      previous = logMagnitudes;
     }, hopSize);
     if (silenceGate > 0 && energies.isNotEmpty) {
       final sorted = [...energies]..sort();
@@ -121,7 +131,53 @@ class AudioChromaExtractor {
       }
     }
 
-    return ChromaSequence(frames, hopSize / sampleRate);
+    final onsets = _onsetStrength(flux);
+    // A gated frame is silence: nothing is attacked in it either.
+    for (var f = 0; f < frames.length; f++) {
+      if (!frames[f].any((x) => x > 0)) onsets[f] = 0;
+    }
+    return ChromaSequence(frames, hopSize / sampleRate, onsets: onsets);
+  }
+
+  /// [flux] rescaled to `[0, 1]`: 0 at or below its median (the steady
+  /// bow-and-room level every frame has), 1 at or above its 98th percentile
+  /// (a clear attack).
+  static Float64List _onsetStrength(List<double> flux) {
+    final out = Float64List(flux.length);
+    if (flux.length < 2) return out;
+    final sorted = [...flux]..sort();
+    final floor = sorted[sorted.length ~/ 2];
+    final peak = sorted[((sorted.length - 1) * 0.98).round()];
+    if (peak <= floor) return out;
+    for (var f = 0; f < flux.length; f++) {
+      out[f] = ((flux[f] - floor) / (peak - floor)).clamp(0.0, 1.0);
+    }
+    return out;
+  }
+
+  /// Log magnitudes of the folded band, for [_flux].
+  Float64List _bandLogMagnitudes(Float64List magnitudes, double binHz) {
+    final minBin =
+        (minFrequencyHz / binHz).ceil().clamp(1, magnitudes.length - 1);
+    final maxBin =
+        (maxFrequencyHz / binHz).floor().clamp(1, magnitudes.length - 1);
+    final out = Float64List(maxBin - minBin + 1);
+    for (var bin = minBin; bin <= maxBin; bin++) {
+      out[bin - minBin] = math.log(1 + magnitudes[bin]);
+    }
+    return out;
+  }
+
+  /// Spectral flux: the summed rise in log magnitude from one frame to the
+  /// next. A new bow stroke on the same note shows here even though the
+  /// chroma doesn't change at all.
+  static double _flux(Float64List previous, Float64List current) {
+    var sum = 0.0;
+    for (var k = 0; k < current.length; k++) {
+      final rise = current[k] - previous[k];
+      if (rise > 0) sum += rise;
+    }
+    return sum;
   }
 
   /// Frames sampled for the noise profile. A stationary profile doesn't need

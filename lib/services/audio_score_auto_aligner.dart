@@ -173,7 +173,10 @@ class AudioScoreAutoAligner {
         .build(piece, estimatedBpm, realChroma.hopSeconds);
 
     var dtwResult = _dtw.align(reference.frames, window.frames,
-        openBegin: true, openEnd: true);
+        openBegin: true,
+        openEnd: true,
+        referenceOnsets: reference.onsets,
+        targetOnsets: window.onsets);
 
     // The tempo above counts every second of the window as the tune, so a
     // spoken intro makes it too slow (61 for a true 85 on a teacher video
@@ -189,7 +192,10 @@ class AudioScoreAutoAligner {
       reference = ScoreChromaReferenceBuilder(_midiGenerator)
           .build(piece, estimatedBpm, realChroma.hopSeconds);
       dtwResult = _dtw.align(reference.frames, window.frames,
-          openBegin: true, openEnd: true);
+          openBegin: true,
+          openEnd: true,
+          referenceOnsets: reference.onsets,
+          targetOnsets: window.onsets);
     }
 
     final anchors = <ScoreAudioAnchor>[];
@@ -438,22 +444,52 @@ class AudioScoreAutoAligner {
   /// over bars, of how long the recording took per second of [reference] —
   /// a median so that the bars the path got wrong don't move it. Null when
   /// there are too few bars to judge.
+  ///
+  /// Only bars whose barlines can be heard count, when there are enough of
+  /// them: a barline where the music changes pitch (see [_visibleBarline]).
+  /// Elsewhere — a rest, a run of one repeated note — the path holds the
+  /// reference's own pace, so counting those bars only reports back the tempo
+  /// it was given. Trepak's 13 closing bars of repeated D did exactly that,
+  /// and held the found tempo at 81 where the teacher played 85.
   int? _pathTempo(ScoreChromaReference reference, List<(int, int)> path,
       int referenceBpm, double hopSeconds) {
     final onsets = reference.measureOnsetSeconds;
-    final paces = <double>[];
-    for (var i = 0; i + 1 < onsets.length; i++) {
-      final a = _targetFrameFor(path, (onsets[i] / hopSeconds).round());
-      final b = _targetFrameFor(path, (onsets[i + 1] / hopSeconds).round());
+    final frameOf = [for (final t in onsets) (t / hopSeconds).round()];
+    double? paceOf(int i) {
+      final a = _targetFrameFor(path, frameOf[i]);
+      final b = _targetFrameFor(path, frameOf[i + 1]);
       final scoreSeconds = onsets[i + 1] - onsets[i];
-      if (a == null || b == null || scoreSeconds <= 0) continue;
-      paces.add((b - a) * hopSeconds / scoreSeconds);
+      if (a == null || b == null || scoreSeconds <= 0) return null;
+      return (b - a) * hopSeconds / scoreSeconds;
     }
+
+    final all = <double>[], heard = <double>[];
+    for (var i = 0; i + 1 < onsets.length; i++) {
+      final pace = paceOf(i);
+      if (pace == null) continue;
+      all.add(pace);
+      if (_visibleBarline(reference.frames, frameOf[i]) &&
+          _visibleBarline(reference.frames, frameOf[i + 1])) {
+        heard.add(pace);
+      }
+    }
+    final paces = heard.length >= 4 ? heard : all;
     if (paces.length < 4) return null;
     paces.sort();
     final median = paces[paces.length ~/ 2];
     if (!(median > 0)) return null;
     return (referenceBpm / median).round().clamp(20, 400);
+  }
+
+  /// Whether the barline at reference frame [r] is one the recording can show:
+  /// sound on both sides, and a change of pitch across it — the same test
+  /// [refineAtNoteChanges] uses before it trusts a note change.
+  static bool _visibleBarline(List<Float64List> reference, int r) {
+    const off = _refineReferenceOffset;
+    if (r - off < 0 || r + off >= reference.length) return false;
+    final outgoing = reference[r - off], incoming = reference[r + off];
+    if (_isSilent(outgoing) || _isSilent(incoming)) return false;
+    return _dot(outgoing, incoming) <= 0.9;
   }
 
   static bool _isSilent(Float64List v) => !v.any((x) => x > 0);
@@ -575,15 +611,16 @@ class AudioScoreAutoAligner {
 class _ContentWindow {
   final int startFrame;
   final List<Float64List> frames;
+  final Float64List? onsets;
 
-  const _ContentWindow(this.startFrame, this.frames);
+  const _ContentWindow(this.startFrame, this.frames, this.onsets);
 
   /// The whole sequence when neither bound is given, or when what was given
   /// doesn't describe a usable span of this particular recording — see
   /// [AudioScoreAutoAligner.minContentWindowSeconds].
   factory _ContentWindow.of(
       ChromaSequence chroma, double? startSeconds, double? endSeconds) {
-    final whole = _ContentWindow(0, chroma.frames);
+    final whole = _ContentWindow(0, chroma.frames, chroma.onsets);
     if (startSeconds == null && endSeconds == null) return whole;
 
     final total = chroma.frames.length;
@@ -598,6 +635,9 @@ class _ContentWindow {
         AudioScoreAutoAligner.minContentWindowSeconds ~/ chroma.hopSeconds;
     if (last - first < minFrames) return whole;
 
-    return _ContentWindow(first, chroma.frames.sublist(first, last));
+    return _ContentWindow(first, chroma.frames.sublist(first, last),
+        chroma.onsets == null
+            ? null
+            : Float64List.sublistView(chroma.onsets!, first, last));
   }
 }

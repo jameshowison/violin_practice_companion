@@ -19,8 +19,13 @@ class ScoreChromaReference {
   final List<double> measureOnsetSeconds;
   final List<int> measureNumbers;
 
+  /// 1 on the frame where a note starts (a repeated note too), else 0 — the
+  /// score's side of [ChromaSequence.onsets].
+  final Float64List onsets;
+
   const ScoreChromaReference({
     required this.frames,
+    required this.onsets,
     required this.hopSeconds,
     required this.measureOnsetSeconds,
     required this.measureNumbers,
@@ -39,11 +44,14 @@ class ScoreChromaReferenceBuilder {
     final data = _midiGenerator.generate(piece, bpm);
     final frameCount = (data.totalDurationSeconds / hopSeconds).ceil() + 1;
     final frames = List.generate(frameCount, (_) => Float64List(kChromaBins));
+    final onsets = Float64List(frameCount);
 
     for (final note in data.notes) {
       final pitchClass = note.midiNote % 12;
       final startFrame =
           (note.onsetSeconds / hopSeconds).floor().clamp(0, frameCount - 1);
+      onsets[(note.onsetSeconds / hopSeconds).round().clamp(0, frameCount - 1)] =
+          1;
       final endFrame =
           (note.offsetSeconds / hopSeconds).ceil().clamp(0, frameCount - 1);
       for (var f = startFrame; f <= endFrame; f++) {
@@ -56,6 +64,7 @@ class ScoreChromaReferenceBuilder {
 
     return ScoreChromaReference(
       frames: frames,
+      onsets: onsets,
       hopSeconds: hopSeconds,
       measureOnsetSeconds: data.measureOnsetSeconds,
       measureNumbers: data.measureNumbers,
