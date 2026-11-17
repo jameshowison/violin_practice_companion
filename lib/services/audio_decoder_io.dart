@@ -24,13 +24,12 @@ class AudioDecoder implements AudioDecoderBase {
 
   const AudioDecoder();
 
-  /// Linux and Windows have no plugin; they still decode WAV, but nothing
-  /// else, and bundled tracks are analysed from `melody.mp3`. macOS answers
-  /// true here, but no plugin is registered there either (`macos/Runner` has
-  /// no AudioDecoderPlugin), so its decodes end in [MissingPluginException]
-  /// and return null.
+  /// macOS, Linux and Windows have no plugin (`macos/Runner` has no
+  /// AudioDecoderPlugin); they still decode WAV, but nothing else, and bundled
+  /// tracks are analysed from `melody.mp3`. Add a platform here only once its
+  /// plugin is registered.
   @override
-  bool get isSupported => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+  bool get isSupported => Platform.isIOS || Platform.isAndroid;
 
   @override
   Future<PcmAudio?> decodeFile(String absolutePath) async {
