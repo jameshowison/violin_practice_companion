@@ -75,7 +75,7 @@
 		</dict>
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<false/>
+	<true/>
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

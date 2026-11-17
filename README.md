@@ -491,6 +491,12 @@ it and opens the piece.
   scene delegate; `android/.../*.kt`, VIEW/SEND intents) → `lib/services/incoming_share.dart`
   → `lib/widgets/incoming_share_handler.dart`. iOS declares the type
   `name.howison.violinPracticeCompanion.piece` in `Info.plist`.
+- **iOS needs `LSSupportsOpeningDocumentsInPlace` = YES.** Since iOS 17 an
+  AirDropped file lands in Files ▸ Downloads, and Files opens it in an app
+  only if that app opens documents in place. With NO, the file arrives and
+  nothing will open it. So the plugin gets the user's own file behind a
+  security scope; it copies it to `Library/Caches/` and never deletes the
+  original.
 - **Testing without AirDrop** (simulators can't): `xcrun simctl openurl
   dev-iphone-se "file:///abs/path/x.stringlings"` runs the real import path. To
   get a file the app made, tap Share… and copy it out of the app's
