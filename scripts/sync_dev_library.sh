@@ -32,8 +32,12 @@ BUNDLE="name.howison.violinPracticeCompanion"
 if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   SIM=1
   xcrun simctl boot "$DEVICE" 2>/dev/null || true
-  # A dev server on this simulator would relaunch the app under us.
-  pgrep -f "flutter run -d $DEVICE" >/dev/null && pkill -f flutter_tools.snapshot || true
+  # A dev server on this simulator would relaunch the app under us, so stop
+  # it — that one only, never another session's. Match what is actually
+  # running: the `flutter` launcher execs dart on flutter_tools.snapshot, so
+  # no process has "flutter run" in its command line (same pattern as
+  # dev_run.sh). dev_run.sh calls this before it launches its own run.
+  pkill -f "flutter_tools.snapshot run .*-d $DEVICE( |\$)" || true
   xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
 else
   SIM=""
