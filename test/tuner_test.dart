@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:string_tuner/string_tuner.dart';
 import 'package:violin_practice_companion/debug/screenshot_mode.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
+import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
@@ -630,6 +631,38 @@ void main() {
       expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 4)); // the celebration
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('mandolin: a first tap picks the lower string of a pair, the next the upper',
+        (tester) async {
+      await pumpTuner(tester, mandolin: true);
+      await openSettings(tester);
+      await tester.tap(find.text('Mandolin'));
+      await tester.pump();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump(const Duration(milliseconds: 400));
+      MandolinHeadstock head() => tester.widget(find.byKey(const ValueKey('tuner_headstock')));
+      StringlingClimber climber() => tester.widget(find.byKey(const ValueKey('tuner_climber')));
+
+      await tester.tap(find.byKey(const ValueKey('tuner_string_G')));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(climber().pickedLine, 0);
+      expect(climber().pickedLabel, 'outside', reason: "G's lower rule is the string on the neck's edge");
+      expect(head().course, 'G');
+      expect(head().which, MandolinString.outer);
+
+      await tester.tap(find.byKey(const ValueKey('tuner_string_G')));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(climber().pickedLine, 1);
+      expect(head().which, MandolinString.inner);
+
+      // A's lower rule is its inside string: the rules run as across the neck.
+      await tester.tap(find.byKey(const ValueKey('tuner_string_A')));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(climber().pickedLine, 0);
+      expect(climber().pickedLabel, 'inside');
+      expect(head().which, MandolinString.inner);
+      await tester.pump(const Duration(seconds: 3));
     });
 
     testWidgets('mandolin: wrong way, in tuner words', (tester) async {

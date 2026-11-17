@@ -57,6 +57,8 @@ class StringlingClimber extends StatefulWidget {
     this.falls = 0,
     this.stretches = 0,
     this.picked,
+    this.pickedLine,
+    this.pickedLabel,
     this.onPick,
     this.party = false,
   });
@@ -93,6 +95,12 @@ class StringlingClimber extends StatefulWidget {
   /// The rung the player picked (selected, to screen readers); null when it
   /// follows what is played.
   final int? picked;
+
+  /// With [doubled], which of the [picked] rung's two rules is the string
+  /// being tuned: 0 the lower, 1 the upper; null for both. That one is drawn
+  /// solid, with [pickedLabel] at its end, and the other faint.
+  final int? pickedLine;
+  final String? pickedLabel;
 
   /// Called with a rung's index when it is tapped.
   final ValueChanged<int>? onPick;
@@ -466,8 +474,16 @@ class _ClimberPainter extends CustomPainter {
       final r = w.rungs[i];
       final active = i == target;
       final glow = active && inTune ? math.min(1.0, s.held * 2.5) : 0.0;
+      final line = w.doubled && w.picked == i ? w.pickedLine : null;
       _rung(canvas, x1, x2, rungY(i), thick, r.color.withValues(alpha: active ? 1 : 0.45),
-          w.doubled, glow, r.color);
+          w.doubled, glow, r.color, line: line);
+      final label = w.pickedLabel;
+      if (line != null && label != null) {
+        // Under the lower rule, over the upper one, at the string's near end
+        // (the far end's underside is where "in tune" goes).
+        _text(canvas, label, Offset(x1, line == 0 ? rungY(i) + thick + 3 : rungY(i) - 3),
+            TextStyle(color: r.color, fontSize: 11, fontWeight: FontWeight.w800), above: line == 1);
+      }
       final letterSize = math.min(26.0, gap * 0.36);
       _text(canvas, r.letter, Offset(28, rungY(i) + thick / 2),
           TextStyle(color: r.color, fontSize: letterSize, fontWeight: FontWeight.w900),
@@ -892,7 +908,7 @@ class _ClimberPainter extends CustomPainter {
   }
 
   void _rung(Canvas canvas, double x1, double x2, double y, double thick, Color color,
-      bool doubled, double glow, Color glowColor) {
+      bool doubled, double glow, Color glowColor, {int? line}) {
     final paint = Paint()..color = color;
     if (glow > 0) {
       final g = Paint()
@@ -902,10 +918,16 @@ class _ClimberPainter extends CustomPainter {
           RRect.fromLTRBR(x1, y, x2, y + thick, Radius.circular(thick / 2)), g);
     }
     if (doubled) {
-      final t = thick * 0.42;
-      canvas.drawRRect(RRect.fromLTRBR(x1, y, x2, y + t, Radius.circular(t / 2)), paint);
+      // One string of the pair picked: it solid and a little thicker, the
+      // other faint. The upper rule is drawn first (at y), the lower second.
+      final t = thick * 0.42, big = thick * 0.5;
+      final faint = Paint()..color = color.withValues(alpha: color.a * 0.25);
+      final upper = line == null ? paint : line == 1 ? paint : faint;
+      final lower = line == null ? paint : line == 0 ? paint : faint;
+      final tu = line == 1 ? big : t, tl = line == 0 ? big : t;
+      canvas.drawRRect(RRect.fromLTRBR(x1, y, x2, y + tu, Radius.circular(tu / 2)), upper);
       canvas.drawRRect(
-          RRect.fromLTRBR(x1, y + thick - t, x2, y + thick, Radius.circular(t / 2)), paint);
+          RRect.fromLTRBR(x1, y + thick - tl, x2, y + thick, Radius.circular(tl / 2)), lower);
     } else {
       canvas.drawRRect(RRect.fromLTRBR(x1, y, x2, y + thick, Radius.circular(thick / 2)), paint);
     }

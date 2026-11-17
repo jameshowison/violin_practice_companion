@@ -79,6 +79,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   double _a4 = 440;
   bool _mandolin = false;
   bool _leftHanded = false;
+
+  /// Which string of the picked mandolin course is being tuned: 0 the lower
+  /// of its two rules, 1 the upper. A first tap on a course picks the lower,
+  /// each tap after that the other.
+  int _line = 0;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
 
@@ -145,6 +150,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     if (!mounted || _listening || _rung <= 0 || _play.value > -49.5) return;
     setState(() {
       _rung--;
+      _line = 0;
       _falls++;
       if (_model.pinned != null) _model.pinned = _model.tuning.strings[_rung].name;
     });
@@ -170,6 +176,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     if (!mounted || _listening || _rung >= top || _play.value < 49.5) return;
     setState(() {
       _rung++;
+      _line = 0;
       _stretches++;
       if (_model.pinned != null) _model.pinned = _model.tuning.strings[_rung].name;
     });
@@ -362,13 +369,28 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   /// A tapped string. Following what is played, it only moves the
   /// stringling there (until something else is heard).
   void _pick(int i) {
+    final name = _model.tuning.strings[i].name;
+    final again = _mandolin && !_auto && i == _rung && _model.pinned == name;
     setState(() {
+      _line = again ? 1 - _line : 0;
       _rung = i;
-      if (!_auto) _model.pinned = _model.tuning.strings[i].name;
+      if (!_auto) _model.pinned = name;
     });
-    _rec?.event('picked ${_model.tuning.strings[i].name}');
+    if (_mandolin && !_auto) {
+      final which = _pairString(name[0], _line) == MandolinString.outer ? 'outside' : 'inside';
+      _say('${name[0]}: the $which string');
+      _rec?.event('picked $name $which');
+    } else {
+      _rec?.event('picked $name');
+    }
     _reading.value = null;
   }
+
+  /// The string a rule stands for. The climber's strings run as they do
+  /// across the neck in the headstock picture, the G edge at the bottom: so
+  /// the lower rule of G and D is the outside string, of A and E the inside.
+  static MandolinString _pairString(String course, int line) =>
+      (line == 0) == (course == 'G' || course == 'D') ? MandolinString.outer : MandolinString.inner;
 
   void _setAuto(bool on) {
     if (on == _auto) return;
@@ -588,6 +610,13 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         falls: _falls,
                                         stretches: _stretches,
                                         picked: _auto ? null : _rung,
+                                        pickedLine: _mandolin && !_auto ? _line : null,
+                                        pickedLabel: _mandolin && !_auto
+                                            ? (_pairString(_model.tuning.strings[_rung].name[0], _line) ==
+                                                    MandolinString.outer
+                                                ? 'outside'
+                                                : 'inside')
+                                            : null,
                                         onPick: _pick,
                                         party: SkinStyle.of(context).mascots,
                                       ),
@@ -607,6 +636,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                           return MandolinHeadstock(
                                             key: const ValueKey('tuner_headstock'),
                                             course: course,
+                                          which: _mandolin && !_auto && course == _model.tuning.strings[_rung].name[0]
+                                              ? _pairString(course!, _line)
+                                              : null,
                                             tighten: r == null || r.inTune ? null : r.cents < 0,
                                             leftHanded: _leftHanded,
                                           );
