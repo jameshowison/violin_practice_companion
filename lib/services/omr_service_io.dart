@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
 import 'bar_rest_repair.dart';
+import 'bundled_asset_path.dart';
 import 'meter_repair.dart';
 import 'omr_service_base.dart';
 import 'storage_cleanup_io.dart';
@@ -25,7 +26,10 @@ class OmrService implements OmrServiceBase {
   static const _contentResolverChannel = MethodChannel('dev.homr/content_resolver');
 
   /// homr's models, bundled with the app by scripts/fetch_omr_models.sh.
-  static final _models = OmrModels.inAssetDir('assets/engine/omr_models');
+  /// Opened by path: on iOS that reads them in place, where the plugin's own
+  /// asset loader would copy all 142 MB into Library/Caches first.
+  static final _models = OmrModels.inAssetDir('assets/engine/omr_models',
+      resolvePath: bundledAssetPath);
 
   @override
   Future<OmrScanResult?> scan({

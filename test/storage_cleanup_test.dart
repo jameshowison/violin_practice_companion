@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:homr_flutter/homr_flutter.dart' show OmrModels;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/services/storage_cleanup_io.dart';
 
@@ -132,11 +133,14 @@ void main() {
   test('sweep removes the plugins\' old asset copies only once assets load '
       'by path', () async {
     final sf = put(cache, 'generaluser_gs.sf2', modified: recent, bytes: 100);
+    final model = put(cache, OmrModels.decoderFile, modified: recent);
     final other = put(cache, 'other.sf2', modified: old);
     await cleanup().sweep();
     expect(sf.existsSync(), isTrue, reason: 'still the live copy (macOS)');
+    expect(model.existsSync(), isTrue);
     await cleanup(byPath: true).sweep();
     expect(sf.existsSync(), isFalse);
+    expect(model.existsSync(), isFalse);
     expect(other.existsSync(), isTrue);
   });
 }

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:homr_flutter/homr_flutter.dart' show OmrModels;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,8 +49,14 @@ class StorageCleanup {
 
   /// The copies plugins made of bundled assets in the cache directory, under
   /// the asset's bare file name, before the app loaded them by path
-  /// ([bundledAssetPath]). The soundfont's was the stale 31 MB full bank.
-  static const supersededAssetCopies = {'generaluser_gs.sf2'};
+  /// ([bundledAssetPath]): the soundfont's was the stale 31 MB full bank, the
+  /// models' 142 MB that iOS already holds in the app bundle.
+  static const supersededAssetCopies = {
+    'generaluser_gs.sf2',
+    OmrModels.segnetFile,
+    OmrModels.encoderFile,
+    OmrModels.decoderFile,
+  };
 
   /// Whether this platform hands out asset paths, so nothing reads the
   /// plugins' old copies any more (where it doesn't, as on macOS, they are
