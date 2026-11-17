@@ -3,7 +3,7 @@
 //
 // This is the guard behind CONTRIBUTING.md, "Content and copyright": a score
 // dropped into the library without a catalog entry, an entry without a source,
-// a Suzuki-edition title or an edition's fingerings riding along in a bundled
+// an edition's title or an edition's fingerings riding along in a bundled
 // file all fail here, on every `flutter test`.
 //
 // VPC_PUBLIC_RELEASE=1 additionally refuses anything licensed

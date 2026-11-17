@@ -47,7 +47,7 @@ List<LibraryRow> libraryRows(
 /// A row's second line.
 ///
 /// The collection names are dropped when a chip is already selected — repeating
-/// "Suzuki 1" on every row under the Suzuki 1 filter is noise.
+/// "Book 1" on every row under the Book 1 filter is noise.
 String pieceSubtitle(
   Piece piece,
   List<String> collectionNames, {

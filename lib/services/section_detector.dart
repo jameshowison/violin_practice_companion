@@ -645,7 +645,7 @@ class SectionDetector {
 
   /// One strain per printed line ([Measure.systemStart]) of a scanned page,
   /// when every line holds the same 4 or 8 counted bars — a page laid out a
-  /// phrase to a line, as Suzuki books are (O Come Little Children's four
+  /// phrase to a line, as beginner method books are (O Come Little Children's four
   /// lines). Irregular lines are only where the page ran out (Perpetual
   /// Motion's three-bar lines) and are ignored. Lines break at barlines, so
   /// each strain starts on its downbeat and [withLeadIns] moves it onto its

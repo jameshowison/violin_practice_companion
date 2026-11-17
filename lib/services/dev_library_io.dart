@@ -25,7 +25,7 @@ const List<String> devLibrarySyncedFolders = [
 /// The per-piece display settings a dev library carries
 /// (`display.<name>.<pieceId>`, see `pieceDisplayPref`): how a piece's numbers
 /// are shown, which is a property of the piece's repertoire (violin fingering
-/// for the Suzuki book). Layout settings — spacing, view, annotations — stay
+/// for a violin method book). Layout settings — spacing, view, annotations — stay
 /// per device, since a phone and an iPad want them different.
 const Set<String> devLibrarySyncedDisplay = {'numbers', 'fretStyle'};
 

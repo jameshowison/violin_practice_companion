@@ -415,6 +415,13 @@ CONTRIBUTING.md, "Content and copyright". For an agent:
   that aren't ours, downloaded scores, in-copyright lyrics (including in test
   assertions and code comments), or method/edition names and numbering in
   bundled content. The no-copyrighted-lyrics memory applies to the repo too.
+- **Never name the Suzuki method — or any other method, edition or its
+  numbering — anywhere in the repo:** code, comments, test data and names,
+  docs, README, commit messages. Say "method book", "beginner repertoire",
+  "first-year pieces"; use "Book 1" for a sample collection name; refer to a
+  piece by its title only, never by its number in a book. The one exception is
+  the guard in `test/release_content_test.dart`, which has to spell the word to
+  refuse it. `git grep -i suzuki` should list that file and nothing else.
 - **What ships is `assets/` and nothing else:** `assets/engine/` (machinery) and
   `assets/library/` (pieces, each listed in `assets/library/catalog.json` with
   `source` and `license`). Add a piece with `scripts/clean_musicxml.py` + a

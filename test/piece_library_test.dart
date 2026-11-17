@@ -11,7 +11,7 @@ Piece piece(String id, [String? title]) =>
 
 /// A library with one collection holding [ids], plus its id.
 ({PieceLibrary lib, String id}) withCollection(List<String> ids,
-    {String name = 'Suzuki 1'}) {
+    {String name = 'Book 1'}) {
   var lib = addCollection(PieceLibrary.empty, name: name, nowMillis: 1000);
   final id = lib.collections.single.id;
   for (final p in ids) {
@@ -31,7 +31,7 @@ void main() {
       final restored = PieceLibrary.fromJson(lib.toJson());
 
       expect(restored, lib);
-      expect(restored.collections.map((x) => x.name), ['Suzuki 1', 'This week']);
+      expect(restored.collections.map((x) => x.name), ['Book 1', 'This week']);
       expect(restored.collectionById(c.id)!.pieceIds, ['a', 'b', 'c']);
       expect(restored.hiddenIds, {'b'});
       expect(restored.titleOverrides, {'a': 'Renamed'});
@@ -59,13 +59,13 @@ void main() {
         'collections': <dynamic>[
           'not a map',
           {'name': 'no id'},
-          {'id': 'suzuki_1_1000', 'name': 'Suzuki 1', 'pieceIds': ['a']},
+          {'id': 'book_1_1000', 'name': 'Book 1', 'pieceIds': ['a']},
           {'id': 'ok_1', 'name': 'Kept', 'pieceIds': 'not a list'},
         ],
       });
 
       // A corrupt library loses chips, not songs.
-      expect(restored.collections.map((c) => c.name), ['Suzuki 1', 'Kept']);
+      expect(restored.collections.map((c) => c.name), ['Book 1', 'Kept']);
       expect(restored.collections.last.pieceIds, isEmpty);
     });
 
@@ -411,12 +411,12 @@ void main() {
         lib = setHidden(lib, d, true);
       }
       lib = lib.copyWith(seedVersion: 1);
-      lib = addCollection(lib, name: 'Suzuki 1', nowMillis: 600);
+      lib = addCollection(lib, name: 'Book 1', nowMillis: 600);
 
       lib = seedLibrary(lib, omrDemoIds: const [], nowMillis: 900);
 
       expect(lib.collections.map((c) => c.name),
-          ['Suzuki 1', firstPiecesCollectionName]);
+          ['Book 1', firstPiecesCollectionName]);
       expect(lib.seedVersion, currentSeedVersion);
       // A collection is a label: nothing else about the pieces changes.
       expect(lib.hiddenIds, demos.toSet());

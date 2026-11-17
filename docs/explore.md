@@ -90,7 +90,7 @@ block anything else.
 ## 4. OMR engine selection (Phase 4) — the biggest fork in the project
 
 The goal: on-device optical music recognition (photo → MusicXML), fully
-offline, for Suzuki Book 1-level single-staff pieces.
+offline, for first-year single-staff violin pieces.
 
 ### 4.1 Oemer — evaluated and rejected
 
@@ -206,7 +206,7 @@ mobile build has produced them"). `flutter build apk` remains unverified —
 no Android SDK on the dev machine, an environment limitation rather than a
 code issue.
 
-**End-to-end accuracy on Suzuki Book 1: 17/18 perfect (SER=0%)**, documented
+**End-to-end accuracy on the beginner test set: 17/18 perfect (SER=0%)**, documented
 in `homr_flutter/docs/omr_evaluation/` (the canonical copy — the local
 `docs/omr_evaluation/{homr,oemer}/` directory in this repo predates that and
 holds only the original two-piece Stage A evaluation).

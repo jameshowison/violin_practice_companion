@@ -13,7 +13,7 @@ void main() {
   });
 
   PieceLibrary sample() {
-    var lib = addCollection(PieceLibrary.empty, name: 'Suzuki 1', nowMillis: 1);
+    var lib = addCollection(PieceLibrary.empty, name: 'Book 1', nowMillis: 1);
     final id = lib.collections.single.id;
     for (final p in ['c', 'a', 'b']) {
       lib = tagPiece(lib, pieceId: p, collectionId: id);

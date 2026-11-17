@@ -88,7 +88,7 @@ void main() {
       await c.read(piecesProvider.future);
       final lib = await library(c);
 
-      final id = await newCollection(c, lib, 'Suzuki 1');
+      final id = await newCollection(c, lib, 'Book 1');
       await lib.setTags('c', {id});
       await lib.setTags('a', {id});
 
@@ -142,7 +142,7 @@ void main() {
     await c.read(piecesProvider.future);
     final lib = await library(c);
 
-    final id = await newCollection(c, lib, 'Suzuki 1');
+    final id = await newCollection(c, lib, 'Book 1');
     await lib.setTags('a', {id});
     await lib.setHidden('a', true);
     await lib.setHidden('b', true);
@@ -158,11 +158,11 @@ void main() {
     await c.read(piecesProvider.future);
     final lib = await library(c);
 
-    final suzuki = await newCollection(c, lib, 'Suzuki 1');
+    final book1 = await newCollection(c, lib, 'Book 1');
     final week = await newCollection(c, lib, 'This week');
-    await lib.setTags('a', {suzuki, week});
+    await lib.setTags('a', {book1, week});
 
-    expect(c.read(pieceCollectionsProvider('a')), {suzuki, week});
+    expect(c.read(pieceCollectionsProvider('a')), {book1, week});
     expect(c.read(pieceCollectionsProvider('b')), isEmpty);
   });
 

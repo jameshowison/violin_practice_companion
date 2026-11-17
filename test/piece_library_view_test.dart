@@ -32,7 +32,7 @@ void main() {
     });
 
     test('reports hidden state and collection names in display order', () {
-      var lib = addCollection(PieceLibrary.empty, name: 'Suzuki 1', nowMillis: 1);
+      var lib = addCollection(PieceLibrary.empty, name: 'Book 1', nowMillis: 1);
       lib = addCollection(lib, name: 'This week', nowMillis: 2);
       for (final c in lib.collections) {
         lib = tagPiece(lib, pieceId: 'a', collectionId: c.id);
@@ -42,7 +42,7 @@ void main() {
       final rows = libraryRows(lib, [piece('a'), piece('b')], (_) => false);
 
       expect(rows[0].hidden, isTrue);
-      expect(rows[0].collectionNames, ['Suzuki 1', 'This week']);
+      expect(rows[0].collectionNames, ['Book 1', 'This week']);
       expect(rows[1].hidden, isFalse);
       expect(rows[1].collectionNames, isEmpty);
     });
@@ -51,16 +51,16 @@ void main() {
   group('pieceSubtitle', () {
     test('lists collections when no chip is selected', () {
       expect(
-        pieceSubtitle(piece('a', sections: 4), ['Suzuki 1', 'This week'],
+        pieceSubtitle(piece('a', sections: 4), ['Book 1', 'This week'],
             includeCollections: true),
-        '4 sections · Suzuki 1 · This week',
+        '4 sections · Book 1 · This week',
       );
     });
 
     test('drops them when a chip is already selected', () {
-      // Repeating "Suzuki 1" on every row under the Suzuki 1 filter is noise.
+      // Repeating "Book 1" on every row under the Book 1 filter is noise.
       expect(
-        pieceSubtitle(piece('a', sections: 4), ['Suzuki 1'],
+        pieceSubtitle(piece('a', sections: 4), ['Book 1'],
             includeCollections: false),
         '4 sections',
       );
@@ -122,18 +122,18 @@ void main() {
 
   group('resolveActiveCollection', () {
     final collections = [
-      const Collection(id: 'suzuki_1', name: 'Suzuki 1'),
+      const Collection(id: 'book_1', name: 'Book 1'),
     ];
 
     test('keeps a live id', () {
-      expect(resolveActiveCollection('suzuki_1', collections), 'suzuki_1');
+      expect(resolveActiveCollection('book_1', collections), 'book_1');
     });
 
     test('drops an id that no longer exists', () {
       // Otherwise deleting the selected collection leaves a filter that hides
       // everything, with no chip left to deselect.
       expect(resolveActiveCollection('deleted_9', collections), isNull);
-      expect(resolveActiveCollection('suzuki_1', const []), isNull);
+      expect(resolveActiveCollection('book_1', const []), isNull);
     });
   });
 

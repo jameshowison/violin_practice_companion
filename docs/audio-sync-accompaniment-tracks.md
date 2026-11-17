@@ -1,6 +1,6 @@
 # Audio sync: piano-accompaniment and play-along tracks (exploration)
 
-Status: exploration only, nothing implemented. Written 2026-11-03 after the Suzuki Book 1
+Status: exploration only, nothing implemented. Written 2026-11-03 after the method-book
 teacher tracks were added to the dev library (`media/<pieceId>/teacher_vp` and
 `teacher_piano`).
 
@@ -22,7 +22,7 @@ builds its chroma reference from the **score's notes only**
 
 ## Option A: sync to a twin recording (for tracks that have one)
 
-Every Suzuki piano track has a violin+piano twin with the same arrangement, and probably
+Every piano track there has a violin+piano twin with the same arrangement, and probably
 the same piano performance or a close one (durations differ by 0.1–3 s). The idea:
 
 1. Align the twin to the score as now. That alignment is good.
@@ -58,8 +58,8 @@ Play-along tracks are usually strict tempo, often with a count-in. Given where t
 starts (the existing `contentStartSeconds` control) and a tempo, the anchors are just
 evenly spaced bar onsets. Tempo could be detected from the onset envelope
 (`AudioEnergyEnvelopeExtractor.detectOnsetTimes`) or typed in. The approach is cheap and
-exact for metronomic tracks. It is wrong for rubato or ritardando: Suzuki's Allegro has
-fermatas, for example.
+exact for metronomic tracks. It is wrong for rubato or ritardando: one of the
+Allegros has fermatas, for example.
 
 ## Option C: tap-along
 
@@ -76,4 +76,4 @@ be the way to correct option B where a track drifts.
 ## Open decision
 
 The user has not yet chosen between B, C, or both for play-alongs. Option A is the
-clear first step for the Suzuki tracks.
+clear first step for those tracks.

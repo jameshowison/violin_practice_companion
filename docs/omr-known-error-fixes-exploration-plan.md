@@ -26,13 +26,13 @@ reference score:
 
 - **Raw vs corrected pairs.** Each `scanned_pieces/<id>.musicxml` in the dev
   library has its raw scanner output as its first commit (mostly `35bdce0`)
-  and the corrected version at HEAD. That's 19 Suzuki Book 1 pieces plus a
-  few others.
+  and the corrected version at HEAD. That's 19 first-year method pieces plus
+  a few others.
 - **The scanner's inputs.** `scan_sources/<id>/page_<n>_crop.*` lets us rerun
   the *current* homr_flutter and get a fresh raw output, since the first
   commits came from older scanner versions.
 - **The reference scores** behind the corrections (homr_flutter's
-  `docs/omr_evaluation`, Suzuki Book 1).
+  `docs/omr_evaluation`).
 - Notes from earlier error hunts: `docs/postmortem-undrawn-accidentals.md`,
   and the naturals the model was never trained on (`_NaturalAccidentalHint`).
 

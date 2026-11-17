@@ -46,7 +46,7 @@ int clampPercent(int pct) => pct.clamp(minPercent, maxPercent);
 /// Custom is an absolute bpm.
 ///
 /// Defaults: 60% and 80% are the usual slow- and working-practice fractions;
-/// 100 bpm a typical performance tempo for early Suzuki-book repertoire.
+/// 100 bpm a typical performance tempo for first-year violin repertoire.
 class TempoSettings {
   const TempoSettings({
     this.slowPercent = 60,

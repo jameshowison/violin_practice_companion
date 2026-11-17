@@ -16,7 +16,7 @@ library;
 import 'piece.dart';
 import '../services/piece_storage_base.dart' show slugifyTitle;
 
-/// One user-defined collection: "Suzuki 1", "This week", "Learned".
+/// One user-defined collection: "Book 1", "This week", "Learned".
 ///
 /// [pieceIds] is BOTH the membership set and the hand-set order — deliberately
 /// one structure, not two. A separate order map could disagree with the

@@ -113,7 +113,7 @@ void main() {
         RecognizedLine(t, c, ui.Rect.fromLTWH(0.1, top, 0.5, h));
 
     test('prefers the largest type over the composer line', () {
-      expect(pickTitle([line('S. Suzuki', 0.012), line('Allegretto', 0.03)]), 'Allegretto');
+      expect(pickTitle([line('F. J. Gossec', 0.012), line('Allegretto', 0.03)]), 'Allegretto');
     });
 
     test('skips numbers and tempo marks however big', () {

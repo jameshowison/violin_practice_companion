@@ -544,7 +544,7 @@ class AudioScoreAutoAligner {
   /// [refineAtNoteChanges] can't judge the first anchor: there is no bar
   /// before it to compare tempos with. And it is the one DTW gets wrong most:
   /// its open beginning will start the tune inside an intro whose piano
-  /// shares the tune's harmony. On the Suzuki violin + piano tracks it came
+  /// shares the tune's harmony. On the method-book violin + piano tracks it came
   /// in 0.4s early on Song of the Wind and May Song, and 3.6s early on Long
   /// Long Ago, whose first bar then lasted twice as long as any other. The
   /// count-in aims its last beat at this anchor, so that error is heard.

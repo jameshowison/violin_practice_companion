@@ -3,8 +3,8 @@
 A free, open-source practice companion for children learning violin — built for
 the non-music-reading parent trying to help a frustrated six-year-old.
 
-Useful for families following any structured violin method, including Suzuki,
-Colourstrings, and others that use a fixed beginner repertoire.
+Useful for families following any structured violin method that uses a fixed
+beginner repertoire.
 
 ## The Problem
 
@@ -76,8 +76,8 @@ the publisher's specific editorial choices (fingerings, bowings, articulation).
 The app reads your copy to recover the notes and rhythms, then generates its
 own notation independently.
 
-*This project is not affiliated with or endorsed by the International Suzuki
-Association or any other method organisation.*
+*This project is not affiliated with or endorsed by any violin method, its
+publishers or its organisations.*
 
 ## Building
 
@@ -791,7 +791,7 @@ support web, so `omr_service.dart` conditional-imports a stub on web
 - iOS deployment target 16.0+
 - macOS deployment target 14.0+
 
-OMR accuracy on Suzuki Book 1 (homr_flutter, 2026-06-09): **17/18 perfect**
+OMR accuracy on a beginner-repertoire test set (homr_flutter, 2026-06-09): **17/18 perfect**
 (SER=0%). Full findings in `homr_flutter/docs/omr_evaluation/`.
 
 ### Time signatures: the model reads only the bottom digit

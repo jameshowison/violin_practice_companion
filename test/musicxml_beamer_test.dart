@@ -169,7 +169,7 @@ void main() {
   group('the meter decides where a group ends', () {
     test('cut time beams a whole half-note beat', () {
       // 2/2's beat *is* the span, so all four run together — which is what
-      // Gossec's Gavotte, 17 Gavotte and 10 Allegretto all do (34/34 groups).
+      // Gossec's Gavotte and two other cut-time pieces all do (34/34 groups).
       final xml = _score(
           '<measure number="1">'
           '${_note('eighth') * 4}${_note('half')}</measure>',
