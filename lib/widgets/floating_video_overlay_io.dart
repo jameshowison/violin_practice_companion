@@ -136,10 +136,10 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
       // A video the platform can't decode used to leave this as an unhandled
       // async error, with `_loadedPath` already latched to the failed path —
       // so the window sat on an indefinite spinner, said nothing about why,
-      // and never retried even once the file was replaced. Found with an
-      // HEVC recording on the iOS simulator, which has no HEVC decoder (a
-      // phone plays the same file fine), but any unreadable or partly-written
-      // capture would do the same.
+      // and never retried even once the file was replaced. Any unreadable or
+      // partly-written capture does this. (It was first blamed on the iOS
+      // simulator lacking an HEVC decoder, but it has one: on iOS 26.5 every
+      // HEVC file in the dev library decodes and plays through AVPlayer.)
       await controller.dispose();
       if (!mounted) return;
       setState(() {
