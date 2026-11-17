@@ -448,7 +448,8 @@ a re-trust (see above).
    feature set does.
 2. `flutter test` (and `VPC_PUBLIC_RELEASE=1 flutter test` before any
    *external* testers — it refuses the `internal-testing-only` play-along tracks).
-3. Smoke-test on the phone: `scripts/device_install.sh`, then play a piece (the
+3. Smoke-test on the phone: `scripts/device_install.sh --release-smoke` (without
+   it, Jamz and Hazel iPad get the tuner's recording compiled in), then play a piece (the
    synth), calibrate once (the claves), a scan.
 4. `flutter build ipa --release`, then upload with the API key from 1Password
    (Touch ID prompts; the key goes in as an argument, never to disk — altool
@@ -636,7 +637,8 @@ xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
   so Marionette still drives it.
 - The other build flag there, `TUNER_RECORDING=true`, compiles in the tuner's
   developer session recording (a long press on the tuner's title). Leave it off
-  for App Store and TestFlight builds.
+  for App Store and TestFlight builds. `device_install.sh` adds it by default
+  for JamzJamzJamzz and Hazel iPad; `--release-smoke` leaves it out.
 - `dev_run.sh` never syncs the dev library onto a `shots-*` sim. Its piece
   list holds only the bundled public-domain pieces, and nothing relabelled
   there leaks back into the library.

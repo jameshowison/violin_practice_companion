@@ -510,8 +510,10 @@ calibration trace does (`scripts/pull_sync_trace.sh <device>`).
 
 **The tuner records sessions on request**, in builds made with
 `--dart-define=TUNER_RECORDING=true` only (`kTunerRecording`; App Store and
-TestFlight builds leave it out). For the phone: `bash scripts/device_install.sh Jamz
---dart-define=TUNER_RECORDING=true`; `dev_run.sh` passes the same flag through.
+TestFlight builds leave it out). `device_install.sh` adds it automatically for
+Jamz and Hazel iPad — those two always get it — except with `--release-smoke`,
+the pre-upload smoke test that must match what ships. For any other device pass
+`--dart-define=TUNER_RECORDING=true`; `dev_run.sh` passes the same flag through.
 Its widget test runs only with `flutter test --dart-define=TUNER_RECORDING=true
 test/tuner_test.dart`. In such a build a long press on the tuner's title
 switches on a developer recording (● REC under the title, and a flag button to

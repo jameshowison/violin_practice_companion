@@ -6,6 +6,12 @@
 #   scripts/device_install.sh JamzJamzJamzz
 #   scripts/device_install.sh 00008110-001C2D160AA0401E
 #   scripts/device_install.sh --no-build   # retry the install of the last build
+#   scripts/device_install.sh --release-smoke   # exactly what ships (see below)
+#
+# On the developer's own devices (JamzJamzJamzz, Hazel iPad) the build always
+# includes the tuner's session recording (--dart-define=TUNER_RECORDING=true),
+# so a problem can be recorded wherever it turns up. --release-smoke leaves it
+# out, for the smoke test before an upload, which must match the App Store build.
 #
 # Two things this exists to get right — see README "Installing on a physical
 # device" for the full reasoning:
@@ -32,6 +38,7 @@ set -euo pipefail
 # prints, so you can see how old the reused binary is.
 SYNC=1
 NO_BUILD=""
+RELEASE_SMOKE=""
 ARGS=()
 BUILD_ARGS=()
 for arg in "$@"; do
@@ -39,6 +46,7 @@ for arg in "$@"; do
     --sync) SYNC=1 ;;
     --no-sync) SYNC="" ;;
     --no-build) NO_BUILD=1 ;;
+    --release-smoke) RELEASE_SMOKE=1 ;;
     # Build-time flags go to flutter build, e.g.
     # --dart-define=TUNER_RECORDING=true (the tuner's session recording).
     --dart-define=*) BUILD_ARGS+=("$arg") ;;
@@ -48,6 +56,16 @@ done
 DEVICE="${ARGS[0]:-${DEVICE:-JamzJamzJamzz}}"
 # "Jamz" is shorthand for the phone, whose device name is JamzJamzJamzz.
 [[ "$DEVICE" == "Jamz" ]] && DEVICE="JamzJamzJamzz"
+case "$DEVICE" in
+  JamzJamzJamzz|"Hazel iPad")
+    if [[ -z "$RELEASE_SMOKE" && " ${BUILD_ARGS[*]:-} " != *" --dart-define=TUNER_RECORDING="* ]]; then
+      BUILD_ARGS+=("--dart-define=TUNER_RECORDING=true")
+    fi ;;
+esac
+if [[ -n "$RELEASE_SMOKE" && " ${BUILD_ARGS[*]:-} " == *"TUNER_RECORDING=true"* ]]; then
+  echo "--release-smoke builds what ships; drop --dart-define=TUNER_RECORDING=true" >&2
+  exit 1
+fi
 APP="build/ios/iphoneos/Runner.app"
 
 cd "$(dirname "$0")/.."
