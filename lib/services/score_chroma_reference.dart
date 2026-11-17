@@ -35,7 +35,23 @@ class ScoreChromaReference {
 class ScoreChromaReferenceBuilder {
   final MidiGenerator _midiGenerator;
 
-  ScoreChromaReferenceBuilder(this._midiGenerator);
+  ScoreChromaReferenceBuilder(this._midiGenerator, {this.ringSeconds = 1.0});
+
+  /// How long a note keeps sounding into a rest that follows it.
+  ///
+  /// The score says a note stops at the end of its value; a string doesn't.
+  /// An open-string double stop written as an eighth and rests rings on for a
+  /// second or more (the ff G-D chord in a Trepak teacher video took ~1.3 s
+  /// to fade). With the rest silent in the reference, the ring matched
+  /// nothing there, so the chord's place was a near tie that a 20 ms
+  /// difference in how the video was decoded moved by 0.8 s — the bar and
+  /// everything after it lit late on the iPad. Rung on, the reference sounds
+  /// like the recording, and the chord lands within 0.05 s at 22.05, 44.1 and
+  /// 48 kHz alike.
+  ///
+  /// Only into rest: a note followed by another note stops as written, and a
+  /// long rest goes silent after the ring.
+  final double ringSeconds;
 
   /// Builds a chroma reference at [bpm], framed at [hopSeconds] — this
   /// should match the hop used for the real-audio chroma extraction, so DTW
@@ -56,6 +72,19 @@ class ScoreChromaReferenceBuilder {
           (note.offsetSeconds / hopSeconds).ceil().clamp(0, frameCount - 1);
       for (var f = startFrame; f <= endFrame; f++) {
         frames[f][pitchClass] += 1.0;
+      }
+    }
+    // Each note rings on into the rest after it (see [ringSeconds]).
+    if (ringSeconds > 0) {
+      final ring = (ringSeconds / hopSeconds).round();
+      final silent = [for (final f in frames) !f.any((x) => x > 0)];
+      for (final note in data.notes) {
+        final endFrame =
+            (note.offsetSeconds / hopSeconds).ceil().clamp(0, frameCount - 1);
+        for (var f = endFrame + 1; f <= endFrame + ring && f < frameCount; f++) {
+          if (!silent[f]) break;
+          frames[f][note.midiNote % 12] += 1.0;
+        }
       }
     }
     for (final frame in frames) {
