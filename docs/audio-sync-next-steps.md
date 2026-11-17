@@ -358,3 +358,11 @@ numbers; "the 2× cap" is `DtwAligner.maxReferenceStride` (d17d5d7).
   but by ear it changed little.
 - **Allegretto, violin + piano**: the cap moved bars 1–2 by up to 1.1 s; no
   bad changes by ear.
+- **Piano-only teacher tracks** (Allegro, O Come Little Children, after the
+  2026-11-17 realign of everything): not very good, and probably never were.
+  A piano accompaniment carries the harmony, not the violin line the score
+  holds, so chroma matches it weakly. Future work: a scrubbing start marker
+  (drag through the recording to the first note, replacing the typed times in
+  "Realign to the score"), taken as a near-hard start rather than today's hint,
+  which the open boundary can still skip past (Hanukkah given 12.0 s put bar
+  1 at 24.4 s).
