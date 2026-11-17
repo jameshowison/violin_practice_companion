@@ -26,7 +26,8 @@
             </intent-filter>
             <!-- A shared piece (.stringlings, see lib/services/piece_share_bundle.dart)
                  opened from Files, Quick Share or a mail attachment. Senders rarely
-                 know the type, so octet-stream too; IncomingSharePlugin and the
+                 know the type, so octet-stream too, and zip for apps (Drive,
+                 Gmail) that sniff the contents; IncomingSharePlugin and the
                  Dart side refuse anything that isn't a share. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
@@ -35,6 +36,7 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:mimeType="application/x-stringlings"/>
                 <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="application/zip"/>
             </intent-filter>
         </activity>
         <!-- image_cropper's Android side (uCrop): the scan pipeline's crop step
