@@ -18,6 +18,7 @@ import '../services/tuner_model.dart';
 import '../services/tuner_recording.dart';
 import '../theme/brand.dart';
 import '../theme/skin_style.dart';
+import '../ui/stringlings/mandolin_headstock.dart';
 import '../ui/stringlings/stringling_climber.dart';
 import '../debug/screenshot_mode.dart';
 
@@ -32,6 +33,10 @@ const tunerInstrumentKey = 'tuner.instrument';
 /// the one tapped (Choose). Off by default; Auto as a chip beside the strings
 /// confused testers, so it is a small Choose | Sense switch under Tune.
 const tunerAutoStringKey = 'tuner.autoString';
+
+/// `tuner.leftHanded`: the mandolin's headstock drawn for a left-handed
+/// (mirror-image) instrument, its end on the right. Right-handed by default.
+const tunerLeftHandedKey = 'tuner.leftHanded';
 
 /// The tuner: a stringling climbs to the string being played and shows by
 /// its height and face how far out of tune it is (see [StringlingClimber]).
@@ -73,6 +78,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   int _rung = 2; // the A string until something is heard or picked
   double _a4 = 440;
   bool _mandolin = false;
+  bool _leftHanded = false;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
 
@@ -218,6 +224,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _mandolin = prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
         ref.read(instrumentFeaturesProvider).fretNumbers;
     _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
+    _leftHanded = prefs?.getBool(tunerLeftHandedKey) ?? false;
     _record = kTunerRecording && (prefs?.getBool(tunerRecordSessionsKey) ?? false);
     _model = TunerModel(_tuning());
     if (!_auto) _model.pinned = _model.tuning.strings[_rung].name;
@@ -436,6 +443,27 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                         setSheet(() {});
                       },
                     ),
+                    if (_mandolin) ...[
+                      const SizedBox(height: 18),
+                      Text('Playing hand', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 6),
+                      SegmentedButton<bool>(
+                        key: const ValueKey('tuner_hand'),
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: false, label: Text('Right-handed')),
+                          ButtonSegment(value: true, label: Text('Left-handed')),
+                        ],
+                        selected: {_leftHanded},
+                        onSelectionChanged: (v) {
+                          ref.read(sharedPreferencesProvider)?.setBool(tunerLeftHandedKey, v.first);
+                          setState(() => _leftHanded = v.first);
+                          setSheet(() {});
+                        },
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Which way round the headstock is drawn.', style: theme.textTheme.bodySmall),
+                    ],
                   ],
                 ],
               ),
@@ -543,23 +571,49 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                       _ => Stack(
                           children: [
                             Positioned.fill(
-                              child: ListenableBuilder(
-                                listenable: shown,
-                                builder: (context, _) => StringlingClimber(
-                                  key: const ValueKey('tuner_climber'),
-                                  rungs: rungs,
-                                  target: _rung,
-                                  cents: current()?.cents,
-                                  inTune: _listening ? current()?.inTune : null,
-                                  wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
-                                  doubled: _mandolin,
-                                  fineTuners: !_mandolin,
-                                  falls: _falls,
-                                  stretches: _stretches,
-                                  picked: _auto ? null : _rung,
-                                  onPick: _pick,
-                                  party: SkinStyle.of(context).mascots,
-                                ),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: ListenableBuilder(
+                                      listenable: shown,
+                                      builder: (context, _) => StringlingClimber(
+                                        key: const ValueKey('tuner_climber'),
+                                        rungs: rungs,
+                                        target: _rung,
+                                        cents: current()?.cents,
+                                        inTune: _listening ? current()?.inTune : null,
+                                        wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
+                                        doubled: _mandolin,
+                                        fineTuners: !_mandolin,
+                                        falls: _falls,
+                                        stretches: _stretches,
+                                        picked: _auto ? null : _rung,
+                                        onPick: _pick,
+                                        party: SkinStyle.of(context).mascots,
+                                      ),
+                                    ),
+                                  ),
+                                  // A mandolin's tuners turn opposite ways on its two
+                                  // sides: show the very button, and which way to roll it.
+                                  if (_mandolin)
+                                    SizedBox(
+                                      height: (MediaQuery.sizeOf(context).height * 0.2).clamp(110.0, 190.0),
+                                      child: ListenableBuilder(
+                                        listenable: shown,
+                                        builder: (context, _) {
+                                          final r = current();
+                                          final course = r?.string.name[0] ??
+                                              (_auto ? null : _model.tuning.strings[_rung].name[0]);
+                                          return MandolinHeadstock(
+                                            key: const ValueKey('tuner_headstock'),
+                                            course: course,
+                                            tighten: r == null || r.inTune ? null : r.cents < 0,
+                                            leftHanded: _leftHanded,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             // In the corners, so a sharp stringling on E

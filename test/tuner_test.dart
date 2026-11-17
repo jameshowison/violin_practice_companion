@@ -641,9 +641,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       await play(tester, fake, off(440, 15), n: 100);
-      expect(status(tester), 'Sharp · loosen the tuner');
+      expect(status(tester), 'Sharp · roll the top toward the headstock end');
       await play(tester, fake, off(440, 24), n: 100);
-      expect(status(tester), 'Wrong way! Loosen it instead');
+      expect(status(tester), 'Wrong way! Roll the top toward the headstock end');
     });
 
     testWidgets('without TUNER_RECORDING a long press on the title does nothing',
@@ -721,7 +721,7 @@ void main() {
       await play(tester, fake, 196.0); // equal-tempered G: in tune here
       expect(status(tester), 'In tune!');
       await play(tester, fake, off(196.0, -15));
-      expect(status(tester), 'Flat · tighten the tuner');
+      expect(status(tester), 'Flat · roll the top toward the headstock end');
     });
 
     testWidgets('a picked string is measured against even off-string', (tester) async {

@@ -10,28 +10,53 @@ String tunerStatus(TunerReading? r,
   if (r == null) return listening ? 'Play a string' : '';
   final c = r.cents, a = c.abs();
   if (r.inTune) return playing ? '' : 'In tune!';
-  final flat = c < 0, peg = a > 40;
+  final flat = c < 0;
+  if (!fineTuners) return _mandolin(r, flat: flat, very: a > 40);
+  final peg = a > 40;
   final way = peg
       ? (flat ? 'the peg up' : 'the peg down')
-      : !fineTuners
-          ? null // a mandolin's tuners turn opposite ways on the two sides
-          : (flat ? 'clockwise' : 'anti-clockwise');
-  final tuner = flat ? 'tighten' : 'loosen';
+      : (flat ? 'clockwise' : 'anti-clockwise');
   switch (r.trend) {
     case TunerTrend.wrongWay:
-      return way == null ? 'Wrong way! ${_cap(tuner)} it instead' : 'Wrong way! Turn $way instead';
+      return 'Wrong way! Turn $way instead';
     case TunerTrend.overshot:
-      return way == null ? 'Too far! ${_cap(tuner)} it a little' : 'Too far! Back a little, $way';
+      return 'Too far! Back a little, $way';
     case TunerTrend.closer:
-      return way == null ? 'Closer! Keep going' : 'Closer! Keep turning $way';
+      return 'Closer! Keep turning $way';
     case TunerTrend.none:
       break;
   }
   if (peg) {
     return flat ? 'Very flat · the peg needs a turn up' : 'Very sharp · the peg needs a turn down';
   }
-  if (!fineTuners) return flat ? 'Flat · tighten the tuner' : 'Sharp · loosen the tuner';
   return flat ? 'Flat · turn the fine tuner clockwise' : 'Sharp · turn the fine tuner anti-clockwise';
 }
 
-String _cap(String s) => s[0].toUpperCase() + s.substring(1);
+/// A mandolin's tuners stick out of the headstock's two edges, G and D on the
+/// side nearer the player's eye, A and E on the far side, and their gears
+/// run opposite ways: seen end-on, clockwise loosens on both. So the advice
+/// is how the top of the button rolls, as the player looks down at it: to
+/// tighten, toward the headstock end on G and D, toward the body on A and E.
+/// It holds for a left-handed (mirror-image) mandolin too. There are no pegs,
+/// so a long way out is the same roll, said louder.
+String _mandolin(TunerReading r, {required bool flat, required bool very}) {
+  final towards = 'toward ${mandolinRollsToEnd(r.string.name[0], tighten: flat) ? 'the headstock end' : 'the body'}';
+  switch (r.trend) {
+    case TunerTrend.wrongWay:
+      return 'Wrong way! Roll the top $towards';
+    case TunerTrend.overshot:
+      return 'Too far! Roll it back a little, $towards';
+    case TunerTrend.closer:
+      return 'Closer! Keep rolling $towards';
+    case TunerTrend.none:
+      break;
+  }
+  final what = very ? (flat ? 'Very flat' : 'Very sharp') : (flat ? 'Flat' : 'Sharp');
+  return '$what · roll the top $towards';
+}
+
+/// Whether, to [tighten] (or loosen) a string of [course] (`'G'`, `'D'`,
+/// `'A'` or `'E'`), the top of its tuner button rolls toward the headstock's
+/// end (true) or toward the body (false). Tested by hand on a mandolin.
+bool mandolinRollsToEnd(String course, {required bool tighten}) =>
+    (course == 'G' || course == 'D') == tighten;
