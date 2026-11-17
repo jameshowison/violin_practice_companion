@@ -265,7 +265,8 @@ class VerovioEngraver {
   /// 3: measure rects end where the next bar on the system begins.
   /// 4: grace notes take no noteIndex.
   /// 5: volta brackets are recorded ([EngravedScore.endings]) and their ink cut.
-  static const _diskFormat = 5;
+  /// 6: each measure's staff top line ([EngravedScore.staffLines]).
+  static const _diskFormat = 6;
 
   /// [_keyFor], made stable across launches (`String.hashCode` is not
   /// guaranteed to be) and safe as a file name.
@@ -600,6 +601,9 @@ class VerovioEngraver {
     // the counts matching, so a disagreement about how many systems there are
     // falls back rather than pairing a box with the wrong band.
     final inkBoxes = systemInkBoxes(svg);
+    // Per-measure staff top line, kept only when it pairs one-to-one with
+    // the hit map's measures — a mismatch would label the wrong bar.
+    final staffLines = measureStaffLines(svg);
     final lineContent = (inkBoxes != null && inkBoxes.length == lineBands.length)
         ? inkBoxes
         : lineContentOf(measureRects, measureLine);
@@ -676,6 +680,9 @@ class VerovioEngraver {
       fingAnchors: fingAnchors,
       harmAnchors: harmAnchors,
       endings: endings,
+      staffLines: staffLines != null && staffLines.length == measures.length
+          ? staffLines
+          : const [],
       pageWidthUnits: pageWidthUnits,
       renderMs: renderMs,
     );
@@ -980,6 +987,71 @@ class VerovioEngraver {
         if (lyricBottom > inkBottom) inkBottom = lyricBottom;
       }
       out.add((top: (top + dy) * factor, bottom: (inkBottom + dy) * factor));
+    }
+    return out;
+  }
+
+  /// Each measure's staff TOP LINE, in document order, viewBox px: its y
+  /// (the line's centre) and the x span of the staff under that measure —
+  /// barline to barline, or from the system's start for a system's first bar.
+  ///
+  /// Read from Verovio's own `<g class="staff">` paths rather than the hit
+  /// map, whose `staff` box includes the notes. Verovio draws a measure's
+  /// staff as five horizontal paths, top line first; the first one is taken.
+  /// In the tab view a measure holds two staves and the first, the melody's,
+  /// is the one wanted. Only the first staff in each measure is read.
+  ///
+  /// The measure-number labels on a selection hang off this: it is the only
+  /// place the engraving says where the staff itself is, as opposed to the
+  /// ink on and around it.
+  ///
+  /// Same coordinate chain as [systemInkBoxes]. Null when the SVG has no
+  /// measures or its viewBoxes can't be read; a measure whose staff can't be
+  /// found makes the whole result null, so it never pairs a line with the
+  /// wrong measure.
+  static List<({double top, double left, double right})>? measureStaffLines(
+      String svg) {
+    final root = RegExp(r'<svg[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"')
+        .firstMatch(svg);
+    final inner = RegExp(
+      r'class="definition-scale"[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"',
+    ).firstMatch(svg);
+    if (root == null || inner == null) return null;
+    final innerWidth = double.parse(inner.group(1)!);
+    if (innerWidth <= 0) return null;
+    final factor = double.parse(root.group(1)!) / innerWidth;
+    final translate = RegExp(
+      r'class="page-margin" transform="translate\(\s*(-?[\d.]+),\s*(-?[\d.]+)\s*\)"',
+    ).firstMatch(svg);
+    final dx = translate == null ? 0.0 : double.parse(translate.group(1)!);
+    final dy = translate == null ? 0.0 : double.parse(translate.group(2)!);
+
+    // `class="measure">` with the bracket, so `measure bounding-box` doesn't
+    // count. Measures are siblings within a system, so each runs to the next.
+    const marker = 'class="measure">';
+    final starts = <int>[];
+    for (var i = svg.indexOf(marker); i >= 0; i = svg.indexOf(marker, i + 1)) {
+      starts.add(i);
+    }
+    if (starts.isEmpty) return null;
+    final line = RegExp(
+      r'<path d="M(-?[\d.]+) (-?[\d.]+) L(-?[\d.]+) (-?[\d.]+)"',
+    );
+    final out = <({double top, double left, double right})>[];
+    for (var m = 0; m < starts.length; m++) {
+      final end = m + 1 < starts.length ? starts[m + 1] : svg.length;
+      final staff = svg.indexOf('class="staff">', starts[m]);
+      if (staff < 0 || staff >= end) return null;
+      final p = line.firstMatch(svg.substring(staff, end));
+      if (p == null) return null;
+      final x1 = double.parse(p.group(1)!), y1 = double.parse(p.group(2)!);
+      final x2 = double.parse(p.group(3)!), y2 = double.parse(p.group(4)!);
+      if (y1 != y2) return null; // not a staff line
+      out.add((
+        top: (y1 + dy) * factor,
+        left: ((x1 < x2 ? x1 : x2) + dx) * factor,
+        right: ((x1 < x2 ? x2 : x1) + dx) * factor,
+      ));
     }
     return out;
   }
@@ -1456,6 +1528,12 @@ class EngravedScore {
   /// [svg] for the staff view to redraw — see [VerovioEngraver.stripEndings].
   final List<EngravedEnding> endings;
 
+  /// Per measure index, the staff's top line under it — y, and the staff's x
+  /// span (viewBox coords). See [VerovioEngraver.measureStaffLines]. Empty
+  /// when the engrave couldn't supply one per measure; read it through
+  /// [staffLineAt].
+  final List<({double top, double left, double right})> staffLines;
+
   /// The Verovio `pageWidth` (MEI units) this score was laid out for. Together
   /// with the achieved measures-per-line it yields the piece's scale-invariant
   /// `unitsPerMeasure` — see `staff_zoom.dart`.
@@ -1476,6 +1554,7 @@ class EngravedScore {
     this.fingAnchors = const [],
     this.harmAnchors = const [],
     this.endings = const [],
+    this.staffLines = const [],
     required this.renderMs,
     this.meterSigs = const [],
     this.keyAccids = const [],
@@ -1504,6 +1583,7 @@ class EngravedScore {
           for (final e in endings)
             [e.line, ..._rectOut(e.rect), e.label, e.closedRight ? 1 : 0],
         ],
+        'staff': [for (final s in staffLines) [s.top, s.left, s.right]],
         'pw': pageWidthUnits,
         'ms': renderMs,
       };
@@ -1552,6 +1632,10 @@ class EngravedScore {
             label: e[5] as String,
             closedRight: e[6] == 1,
           ),
+      ],
+      staffLines: [
+        for (final s in (j['staff'] as List<dynamic>? ?? const []))
+          (top: _d(s[0]), left: _d(s[1]), right: _d(s[2])),
       ],
       pageWidthUnits: j['pw'] as int,
       renderMs: j['ms'] as int,
@@ -1673,6 +1757,11 @@ class EngravedScore {
     }
     return sum / lineContent.length;
   }
+
+  /// The staff top line under measure [index], or null when out of range or
+  /// the engrave carried none.
+  ({double top, double left, double right})? staffLineAt(int index) =>
+      (index < 0 || index >= staffLines.length) ? null : staffLines[index];
 
   MeasureAnchor? measureAt(int index) =>
       (index < 0 || index >= measures.length) ? null : measures[index];

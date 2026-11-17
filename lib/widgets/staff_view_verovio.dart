@@ -1192,6 +1192,21 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                           ),
                         ),
                       ),
+                      // Topmost, so a chip or bracket can't hide the number.
+                      if (widget.selection != null)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _MeasureNumberPainter(
+                                score: score,
+                                scale: scale,
+                                measureMap: widget.measureMap,
+                                selection: widget.selection!,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -2510,6 +2525,157 @@ class _LaneSegment {
     required this.isLast,
     this.line = -1,
   });
+}
+
+/// The engraved measures whose numbers label [sel]: its first, and its last
+/// when that is a different bar — `(index, number)`, engraved index and the
+/// model number it shows. Empty when the selection isn't engraved.
+///
+/// The last is the last slice that gets any highlight, by the same rule as
+/// [_rangeRowRects]: an exclusive end on note 0 stops at the slice before.
+/// Two slices of one split bar are one bar, so they get one label.
+List<({int index, int number})> selectionLabelMeasures(
+    EngravedMeasureMap map, MeasureSelection sel) {
+  final r = map.range(
+      sel.startMeasure, sel.startNote, sel.endMeasure, sel.endNote,
+      startPerf: sel.startPerf);
+  if (r == null) return const [];
+  final lastIdx = r.endNote == -1
+      ? r.endMeasureIndex
+      : (r.endNote > 0 ? r.endMeasureIndex : r.endMeasureIndex - 1);
+  if (lastIdx < r.startMeasureIndex) return const [];
+  final first = (index: r.startMeasureIndex,
+      number: map.numberAt(r.startMeasureIndex));
+  final lastNumber = map.numberAt(lastIdx);
+  if (lastNumber == first.number) return [first];
+  // The label sits at the bar's left, so on a split last bar it goes on the
+  // bar's first slice inside the range.
+  var at = lastIdx;
+  while (at > r.startMeasureIndex && map.numberAt(at - 1) == lastNumber) {
+    at--;
+  }
+  return [first, (index: at, number: lastNumber)];
+}
+
+/// Where a measure-number label goes: the top-left corner to paint it at, so
+/// that its alphabetic [baseline] (distance from the text's top) rests just
+/// above the staff's top line at [staffTop], and its left sits just inside
+/// the barline at [barLeft]. Screen px; [space] is one staff space.
+///
+/// Tight to the line deliberately: the fingering row sits on the topmost
+/// fingering baseline Verovio chose, never lower than ~0.6 spaces above the
+/// staff, so the band right on the line is the one place over the staff
+/// nothing else claims.
+///
+/// A system's FIRST bar opens with its key signature (and on the first system
+/// perhaps a clef and time signature), whose top sharp stands on the top line
+/// right where the label would go — measured on Lightly Row, the label sat on
+/// the F♯. So for that bar pass [firstNoteLeft] and the label's [textWidth]:
+/// it is pushed right into the gap between the preamble and the first note,
+/// ending [measureNumberNoteGap] spaces before the note. Never left of where
+/// it would otherwise go.
+Offset measureNumberLabelOrigin({
+  required double barLeft,
+  required double staffTop,
+  required double space,
+  required double baseline,
+  double? firstNoteLeft,
+  double textWidth = 0,
+}) {
+  var x = barLeft + space * measureNumberInset;
+  if (firstNoteLeft != null) {
+    x = math.max(x, firstNoteLeft - space * measureNumberNoteGap - textWidth);
+  }
+  return Offset(x, staffTop - space * measureNumberLift - baseline);
+}
+
+/// Gap between a system-first label and the first note, in staff spaces.
+const double measureNumberNoteGap = 0.2;
+
+/// Gap between the barline and the label, in staff spaces — clears the
+/// barline's own stroke (a thin barline is ~0.15 spaces).
+const double measureNumberInset = 0.3;
+
+/// Gap between the staff's top line and the label's baseline, in staff
+/// spaces — the line's half-stroke plus a hair, so the digits never touch it.
+const double measureNumberLift = 0.2;
+
+/// Label size, in staff spaces. Lining digits stand ~0.7 em, so this inks
+/// about 0.65 spaces tall.
+const double measureNumberFontSpaces = 0.95;
+
+/// The measure number of a selection's first and last bar, small, on the
+/// staff's top line at each bar's left. See [selectionLabelMeasures] for
+/// which bars, [measureNumberLabelOrigin] for where.
+class _MeasureNumberPainter extends CustomPainter {
+  _MeasureNumberPainter({
+    required this.score,
+    required this.scale,
+    required this.measureMap,
+    required this.selection,
+    required this.color,
+  });
+
+  final EngravedScore score;
+  final double scale;
+  final EngravedMeasureMap measureMap;
+  final MeasureSelection selection;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final space = score.staffSpaceViewBox * scale;
+    if (space <= 0) return;
+    final fontSize = (space * measureNumberFontSpaces).clamp(8.0, 18.0);
+    for (final m in selectionLabelMeasures(measureMap, selection)) {
+      final staff = score.staffLineAt(m.index);
+      if (staff == null) continue;
+      TextPainter label(Paint? stroke) => TextPainter(
+            text: TextSpan(
+              text: '${m.number}',
+              style: TextStyle(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                height: 1.0,
+                foreground: stroke,
+                color: stroke == null ? color : null,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          )..layout();
+      // A white halo first, so the digits read over a ledger line, a stem or
+      // a chip's edge.
+      final halo = label(Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(2.0, fontSize * 0.22)
+        ..strokeJoin = StrokeJoin.round
+        ..color = Colors.white);
+      final ink = label(null);
+      // A system's first bar: clear its key signature (see the origin).
+      final opensSystem = m.index == 0 ||
+          score.lineOfMeasure(m.index - 1) != score.lineOfMeasure(m.index);
+      final firstNote = opensSystem ? score.noteAt(m.index, 0) : null;
+      final at = measureNumberLabelOrigin(
+        barLeft: staff.left * scale,
+        staffTop: staff.top * scale,
+        space: space,
+        baseline: ink.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+        firstNoteLeft: firstNote == null ? null : firstNote.rect.left * scale,
+        textWidth: ink.width,
+      );
+      halo.paint(canvas, at);
+      ink.paint(canvas, at);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MeasureNumberPainter old) =>
+      old.score != score ||
+      old.scale != scale ||
+      old.measureMap != measureMap ||
+      old.selection != selection ||
+      old.color != color;
 }
 
 /// Drawn OVER the notation: selection range, flagged markers, current-note
