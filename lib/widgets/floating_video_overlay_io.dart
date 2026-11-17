@@ -92,6 +92,7 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   @override
   void initState() {
     super.initState();
+    widget.service.videoPathNotifier.addListener(_maybeLoad);
     _maybeLoad();
     _syncTimer =
         Timer.periodic(const Duration(milliseconds: 250), (_) => _resync());
@@ -104,6 +105,8 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
     if (oldWidget.service != widget.service) {
       oldWidget.service.countInNotifier.removeListener(_onCountIn);
       widget.service.countInNotifier.addListener(_onCountIn);
+      oldWidget.service.videoPathNotifier.removeListener(_maybeLoad);
+      widget.service.videoPathNotifier.addListener(_maybeLoad);
     }
     _maybeLoad();
     if (oldWidget.startMeasure != widget.startMeasure ||
@@ -121,11 +124,15 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   }
 
   Future<void> _load(String path) async {
-    final old = _controller.value;
     final controller = VideoPlayerController.file(File(path));
     try {
       await controller.initialize();
     } catch (error) {
+      if (path != _loadedPath) {
+        // Superseded while it was opening; the newer load reports its own.
+        await controller.dispose();
+        return;
+      }
       // A video the platform can't decode used to leave this as an unhandled
       // async error, with `_loadedPath` already latched to the failed path —
       // so the window sat on an indefinite spinner, said nothing about why,
@@ -142,11 +149,14 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
       return;
     }
     await controller.setVolume(0);
-    if (!mounted) {
+    // A load that finishes after a newer one has started must not win: a
+    // slow-opening previous video would otherwise land on top of the new one.
+    if (!mounted || path != _loadedPath) {
       await controller.dispose();
       return;
     }
     setState(() => _loadError = null);
+    final old = _controller.value;
     _controller.value = controller;
     await old?.dispose();
     _showStart();
@@ -206,6 +216,7 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   @override
   void dispose() {
     widget.service.countInNotifier.removeListener(_onCountIn);
+    widget.service.videoPathNotifier.removeListener(_maybeLoad);
     _syncTimer?.cancel();
     _controlsTimer?.cancel();
     _controller.value?.dispose();

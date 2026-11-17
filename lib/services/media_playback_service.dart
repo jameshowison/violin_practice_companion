@@ -145,7 +145,6 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
   List<ScoreAudioAnchor> _anchors = const [];
   PieceMedia? _media;
-  String? _videoPath;
   int _avOffsetMs = 0;
   StreamSubscription<PlayerState>? _playerStateSub;
 
@@ -202,7 +201,13 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
   /// Absolute path of this medium's video, already resolved — null when the
   /// medium is audio-only. Read by the floating video overlay.
-  String? get videoPath => _videoPath;
+  String? get videoPath => videoPathNotifier.value;
+
+  /// [videoPath], for the overlay to follow. It changes in [load], which runs
+  /// after the screen has rebuilt for the new selection: an overlay that only
+  /// read [videoPath] on rebuild kept the previous medium's video on screen
+  /// while the new one's audio played.
+  final ValueNotifier<String?> videoPathNotifier = ValueNotifier(null);
   int get avOffsetMs => _avOffsetMs;
   Duration get rawAudioPosition => _player.position;
 
@@ -333,7 +338,8 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
     _media = media;
     _avOffsetMs = media.avOffsetMs;
-    _videoPath = media.video == null ? null : await absolutePathOf(media.video!);
+    videoPathNotifier.value =
+        media.video == null ? null : await absolutePathOf(media.video!);
 
     final alignment = await _alignmentFor(piece, media);
     _anchors = alignment == null
@@ -916,5 +922,6 @@ class MediaPlaybackService extends PlaybackServiceBase {
     isAligning.dispose();
     alignmentLooksUncertain.dispose();
     playbackSpeed.dispose();
+    videoPathNotifier.dispose();
   }
 }
