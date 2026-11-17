@@ -118,8 +118,8 @@ void main() {
 
     test('skips numbers and tempo marks however big', () {
       expect(
-          pickTitle([line('14', 0.05), line('39', 0.04), line('♩ = 60', 0.05), line('Minuet No. 2', 0.03)]),
-          'Minuet No. 2');
+          pickTitle([line('7', 0.05), line('23', 0.04), line('♩ = 60', 0.05), line('Sonatina Op. 36', 0.03)]),
+          'Sonatina Op. 36');
     });
 
     test('a long title beats the short tempo mark in smaller type', () {
@@ -137,7 +137,7 @@ void main() {
     });
 
     test('skips notation noise that is mostly not letters', () {
-      expect(pickTitle([line('• P..li б.', 0.074), line('Minuet No. 3', 0.028)]), 'Minuet No. 3');
+      expect(pickTitle([line('• P..li б.', 0.074), line('Minuet in G', 0.028)]), 'Minuet in G');
     });
 
     test('skips prose: footnotes and merged translation lines', () {

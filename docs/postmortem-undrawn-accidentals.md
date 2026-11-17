@@ -49,8 +49,8 @@ Verovio tolerated that, but a stricter reader may not.
   docstring listed "the OMR output" alongside MuseScore as conforming, because it
   states sounding pitch. That's true of `<alter>`, and it made the other half
   easy to assume.
-- **The bundled pieces had it too.** `assets/fixtures/homr_14_minuet_no_2.xml`
-  (D♯), `homr_15_minuet_no_3.xml` (C♯) and `homr_17_gavotte.xml` (C♯) are older
+- **The bundled pieces had it too.** `assets/fixtures/homr_minuet_a.xml`
+  (D♯), `homr_minuet_b.xml` (C♯) and `homr_gavotte.xml` (C♯) are older
   output from the same scanner. They have been engraved without those signs all
   along. (They have since moved to `test/fixtures/omr/` and are no longer bundled.)
 
@@ -70,7 +70,7 @@ Verovio tolerated that, but a stricter reader may not.
    the signs.
 
 Affected files found by surveying `assets/` and `../violin_dev_library`: the
-three `homr_*` fixtures, the `homr_15` editable copy, both Gundagai scans, and
+three `homr_*` fixtures, the `homr_minuet_b` editable copy, both Gundagai scans, and
 `untitled_2026_09_08t11_19_17_445148_1788884398656` (9 signs).
 
 ## How to find more of these

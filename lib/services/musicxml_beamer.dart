@@ -48,7 +48,7 @@ class MusicXmlBeamer {
   /// (A two-tier span — halves for eighths, quarters for sixteenths, which is
   /// what the Gavotte bars above want — was tried and is a wash: it fixes
   /// one OMR ground-truth fixture and breaks
-  /// `test/fixtures/omr/homr_17_gavotte.xml` by the same margin.
+  /// `test/fixtures/omr/homr_gavotte.xml` by the same margin.
   /// The two engravings of that bar disagree with each other.)
   ///
   /// Deliberately *not* shared with `AbcExporter._beamUnits`, which answers a

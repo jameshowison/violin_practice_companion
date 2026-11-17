@@ -39,7 +39,7 @@ String _score(List<String> bars, {int divisions = 6}) {
   return buf.toString();
 }
 
-/// Minuet No. 2's bar 15, at divisions 6: a triplet of eighths, then two
+/// A minuet's bar 15, at divisions 6: a triplet of eighths, then two
 /// quarters — three beats only if the triplet counts as one.
 final _realTripletBar = '${_n('A', 'eighth', 2, triplet: true)}'
     '${_n('B', 'eighth', 2, triplet: true)}'

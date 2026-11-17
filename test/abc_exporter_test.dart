@@ -77,9 +77,9 @@ void main() {
     test('flatten a multi-line title so it cannot break the header block', () {
       final abc = _export(
         _score('<measure number="1">${_note('C', 4)}</measure>'),
-        title: 'Minuet\nNo. 2 ',
+        title: 'Sonatina\nOp. 36 ',
       );
-      expect(_split(abc).headers[1], 'T: Minuet No. 2');
+      expect(_split(abc).headers[1], 'T: Sonatina Op. 36');
     });
 
     test('drop the unit length to 1/16 when the tune has sixteenths', () {

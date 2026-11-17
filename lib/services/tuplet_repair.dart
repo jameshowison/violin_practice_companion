@@ -5,7 +5,7 @@ import 'package:xml/xml.dart';
 /// The recogniser takes a number printed over a group of notes for a tuplet
 /// mark, and in a student's music that number is usually a fingering: across
 /// the dev library's scans, five triplets were false (a "3", a "4" or an open
-/// string "o" above the notes) and five were real (Minuet No. 2's three,
+/// string "o" above the notes) and five were real (a minuet's three,
 /// Salt Creek's hammer-on triplets). So none can be trusted on sight, and
 /// dropping them all would break the real ones.
 ///

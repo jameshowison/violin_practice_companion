@@ -183,10 +183,10 @@ void main() {
     const roomAtDefault = <String, double>{
       'gavotte_gossec': 1.96,
       'happy_farmer': 1.96,
-      'homr_05_o_come_little_children': 3.32,
-      'homr_14_minuet_no_2': 1.96,
-      'homr_15_minuet_no_3': 2.89,
-      'homr_17_gavotte': 2.54,
+      'homr_o_come_little_children': 3.32,
+      'homr_minuet_a': 1.96,
+      'homr_minuet_b': 2.89,
+      'homr_gavotte': 2.54,
       'the_wellerman': 3.57,
       'lightly_row': 5.74, // + harmony
       'old_joe_clark': 4.56, // + harmony, and the worst shortfall at 1.47
@@ -205,7 +205,7 @@ void main() {
     test('asks for nothing when the layout already has room', () {
       // The case a worst-case constant cannot express. Among the fixtures above,
       // the fingering-only `the_wellerman` (3.57) and
-      // `homr_05_o_come_little_children` (3.32) already exceed the 3.16 a lone
+      // `homr_o_come_little_children` (3.32) already exceed the 3.16 a lone
       // fingering row wants, so the headless measurements do reach it.
       final r = annotationReserveFor(
         interSystemRoomSpaces: 6.20,

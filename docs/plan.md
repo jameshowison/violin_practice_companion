@@ -137,7 +137,7 @@ The measure editor (`measure_edit_panel.dart`) is built and in use. What it
 still can't do:
 
 - **Add a note to an empty measure.** homr sometimes emits an empty measure
-  (e.g. `<measure number="9"/>` in `homr_15_minuet_no_3.xml`). It gets
+  (e.g. `<measure number="9"/>` in `homr_minuet_b.xml`). It gets
   flagged, but insert works only after a selected note, so there is nothing
   to insert after.
 - **Still out of scope:** cross-measure ties and multi-voice measures.

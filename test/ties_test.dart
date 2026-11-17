@@ -282,8 +282,8 @@ $notes</measure></part></score-partwise>''';
 
     test('portato minuets and MuseScore files come back unchanged', () {
       for (final f in [
-        'test/fixtures/omr/homr_14_minuet_no_2.xml',
-        'test/fixtures/omr/homr_15_minuet_no_3.xml',
+        'test/fixtures/omr/homr_minuet_a.xml',
+        'test/fixtures/omr/homr_minuet_b.xml',
         'assets/library/happy_farmer/score.musicxml',
         'assets/library/gossec_gavotte/score.musicxml',
       ]) {

@@ -253,7 +253,7 @@ final _space = RegExp(r'\s+');
 
 /// The title among [lines]: the line in the largest type (box height),
 /// ignoring numbers, tempo marks and notation noise, the topmost if several
-/// are about equally large. Punctuation is kept, so "Minuet No. 2" reads as
+/// are about equally large. Punctuation is kept, so "Sonatina Op. 36" reads as
 /// printed. Null if nothing qualifies.
 ///
 /// homr scores by box height per character instead, which measured badly on
