@@ -344,3 +344,17 @@ Every recording whose barlines moved more than 0.25 s is listed. An unrated
 alignment is presumed good, so it warns too; the rating, when there is one,
 grades the warning. To snapshot an older commit, `git worktree add --detach`
 it and copy the snapshot test in. Keep snapshots out of the repo.
+
+## Heard by ear
+
+What listening found, for the next round of aligner work. Bars are measure
+numbers; "the 2× cap" is `DtwAligner.maxReferenceStride` (d17d5d7).
+
+- **Allegro, piano** (`media:allegro_1793737311642:teacher_piano`): lags in
+  bars 11–12, which are legato. Open question: is it the attack term
+  (5f965c5), which looks for note starts a legato line barely marks? The cap
+  moved bars 1–6, 13 and 15 here, but by ear the result changed little.
+- **O Come Little Children, piano**: the cap moved bars 1–2 by up to 1.9 s,
+  but by ear it changed little.
+- **Allegretto, violin + piano**: the cap moved bars 1–2 by up to 1.1 s; no
+  bad changes by ear.

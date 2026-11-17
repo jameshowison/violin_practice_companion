@@ -17,6 +17,7 @@ import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import '../services/video_shrinker.dart';
+import 'alignment_rating.dart';
 import 'tempo_controls.dart';
 import 'video_window_mode.dart';
 
@@ -169,6 +170,14 @@ class _MediaPicker extends ConsumerWidget {
                       _realign(context, ref, m);
                     }
                   : null,
+              onRate: m.canAlign && m.isRemovable
+                  ? () {
+                      Navigator.pop(menuContext);
+                      rateAlignment(context, ref, piece.id, m);
+                    }
+                  : null,
+              ratingLine:
+                  ratingSummary(m, stale: ratedBeforeRealign(ref, m)),
               onDelete: m.isRemovable
                   ? () {
                       Navigator.pop(menuContext);
@@ -344,13 +353,19 @@ class _MediaRow extends StatelessWidget {
   final PieceMedia media;
   final bool isSelected;
   final VoidCallback? onRealign;
+  final VoidCallback? onRate;
   final VoidCallback? onDelete;
+
+  /// [ratingSummary] of this medium, shown under its name.
+  final String? ratingLine;
 
   const _MediaRow({
     required this.media,
     required this.isSelected,
     this.onRealign,
+    this.onRate,
     this.onDelete,
+    this.ratingLine,
   });
 
   @override
@@ -374,7 +389,7 @@ class _MediaRow extends StatelessWidget {
       subtitle: _subtitle(),
       // Null rather than an empty Row for a medium with neither action —
       // bundled tracks and the synthesized score keep exactly the row they had.
-      trailing: onRealign == null && onDelete == null
+      trailing: onRealign == null && onRate == null && onDelete == null
           ? null
           : Row(
               mainAxisSize: MainAxisSize.min,
@@ -388,6 +403,13 @@ class _MediaRow extends StatelessWidget {
                     highlighted: media.contentStartSeconds != null ||
                         media.contentEndSeconds != null,
                     onPressed: onRealign!,
+                  ),
+                if (onRate != null)
+                  _RowAction(
+                    icon: Icons.thumbs_up_down_outlined,
+                    tooltip: 'How well did it follow?',
+                    highlighted: media.alignmentRating != null,
+                    onPressed: onRate!,
                   ),
                 if (onDelete != null)
                   _RowAction(
@@ -408,6 +430,7 @@ class _MediaRow extends StatelessWidget {
     // where "with video" is static and the floating overlay announces itself.
     final parts = [
       ?_windowLabel(),
+      ?ratingLine,
       if (media.video != null) 'with video',
     ];
     if (parts.isEmpty) return null;
@@ -855,8 +878,12 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     super.didUpdateWidget(oldWidget);
     // Value equality, not id equality: editing a medium's content window hands
     // this the same id with different alignment inputs, and the whole point of
-    // the edit is that the alignment is re-run.
-    if (oldWidget.media != widget.media) _load();
+    // the edit is that the alignment is re-run. A rating is not an input:
+    // marking bars off mid-play must not stop the recording to reload it.
+    if (oldWidget.media.withAlignmentRating(null) !=
+        widget.media.withAlignmentRating(null)) {
+      _load();
+    }
   }
 
   MediaPlaybackService get _service => ref.read(mediaPlaybackServiceProvider);

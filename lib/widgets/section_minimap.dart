@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/note_event.dart'; // DisplayMode
+import '../models/piece_media.dart';
 import '../models/section.dart'; // sectionsAfterMeasureDelete
 import '../models/section_run.dart';
 import '../models/section_run_groups.dart';
+import '../services/media_catalog.dart';
 import '../services/measure_edit_session.dart';
 import '../services/measure_xml_editor.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
+import 'alignment_rating.dart';
 import 'measure_edit_panel.dart';
 import 'section_loop.dart';
 
@@ -337,17 +340,46 @@ class MeasureActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sel = ref.watch(measureSelectionProvider);
+    // The panel's own header takes over while a bar is open.
+    final notEditing = ref.watch(measureEditProvider) == null;
     final canEdit = sel != null &&
         sel.isSingle &&
-        // The panel's own header takes over while a bar is open.
-        ref.watch(measureEditProvider) == null &&
+        notEditing &&
         ref.watch(pieceRepositoryProvider).supportsEditing;
-    if (!canEdit) return const SizedBox.shrink();
+    // A recording whose alignment can be rated is playing: the selection can
+    // be marked as where it was off, single bar or range.
+    final piece = ref.watch(selectedPieceProvider);
+    final playing = piece == null
+        ? null
+        : MediaCatalog.resolve(
+            ref.watch(pieceMediaProvider(piece.id)).valueOrNull ??
+                const [PieceMedia.synthesized],
+            ref.watch(selectedMediaIdProvider(piece.id)));
+    final canMarkOff = sel != null &&
+        notEditing &&
+        playing != null &&
+        playing.canAlign &&
+        playing.isRemovable;
+    if (!canEdit && !canMarkOff) return const SizedBox.shrink();
     // A part must keep at least one measure (see MeasureXmlEditor.deleteMeasure).
     final measureCount =
         ref.watch(parsedPieceProvider).valueOrNull?.measures.length ?? 0;
+    final range = sel.isSingle
+        ? 'measure ${sel.startMeasure}'
+        : 'measures ${sel.startMeasure}–${sel.endMeasure}';
 
     final buttons = [
+          if (canMarkOff)
+            IconButton(
+              icon: const Icon(Icons.outlined_flag, size: 16),
+              tooltip: 'Recording is off in $range',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: _buttonConstraints,
+              onPressed: () => markAlignmentOff(context, ref, piece!.id,
+                  playing, sel.startMeasure, sel.endMeasure),
+            ),
+          if (canEdit) ...[
           IconButton(
             icon: const Icon(Icons.edit, size: 16),
             tooltip: 'Edit measure ${sel.startMeasure}',
@@ -369,6 +401,7 @@ class MeasureActions extends ConsumerWidget {
                 ? () => _confirmAndDelete(context, ref, sel.startMeasure)
                 : null,
           ),
+          ],
     ];
     if (direction == Axis.horizontal) {
       return Row(mainAxisSize: MainAxisSize.min, children: buttons);

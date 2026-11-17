@@ -11,6 +11,11 @@
 // `afconvert` (native rate, channels mixed down), cached in
 // $ALIGN_DECODE_CACHE (default: the system temp dir).
 //
+// With ALIGN_SNAPSHOT_STORED=1 it aligns nothing and snapshots the
+// alignments the library already holds (state.json `alignments`), as synced
+// from a device: diff that against a fresh snapshot to see whether a device
+// is running what the current aligner would give.
+//
 // The recordings are not ours; the snapshot holds only timings, but keep it
 // out of this repo anyway.
 import 'dart:convert';
@@ -18,6 +23,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/media_playback_service.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -39,6 +45,7 @@ void main() {
         '${Directory.systemTemp.path}/vpc_align_decode')
       ..createSync(recursive: true);
     final snapshot = <String, Object>{};
+    final fromStored = Platform.environment['ALIGN_SNAPSHOT_STORED'] == '1';
 
     final pieceMedia = (json['pieceMedia'] as Map).cast<String, dynamic>();
     for (final MapEntry(key: pieceId, value: rows) in pieceMedia.entries) {
@@ -55,19 +62,38 @@ void main() {
         if (ref == null || ref['storage'] != 'appFile') continue;
         final src = File('${library.path}/${ref['path']}');
         if (!src.existsSync()) continue;
-        final wav = _decoded(src, cache);
-        final result = AudioScoreAutoAligner(
-                midiGenerator: MidiGenerator.forTest())
-            .align(piece, wav.readAsBytesSync(),
-                contentStartSeconds:
-                    (row['contentStartSeconds'] as num?)?.toDouble(),
-                contentEndSeconds:
-                    (row['contentEndSeconds'] as num?)?.toDouble());
+        final key = row['alignmentKey'] as String;
+        final AutoAlignmentResult result;
+        if (fromStored) {
+          final raw = (json['alignments'] as Map?)?[key];
+          if (raw is! String) continue;
+          final a = jsonDecode(raw) as Map<String, dynamic>;
+          result = AutoAlignmentResult(
+            [
+              for (final x in (a['anchors'] as List).cast<Map>())
+                ScoreAudioAnchor((x['scoreMs'] as num).toDouble(),
+                    (x['audioSec'] as num).toDouble()),
+            ],
+            a['generationBpm'] as int,
+            0,
+            hasCompressedAnchors: a['hasCompressedAnchors'] as bool? ?? false,
+          );
+        } else {
+          final wav = _decoded(src, cache);
+          result = AudioScoreAutoAligner(midiGenerator: MidiGenerator.forTest())
+              .align(piece, wav.readAsBytesSync(),
+                  contentStartSeconds:
+                      (row['contentStartSeconds'] as num?)?.toDouble(),
+                  contentEndSeconds:
+                      (row['contentEndSeconds'] as num?)?.toDouble());
+        }
         final midi =
             MidiGenerator.forTest().generate(piece, result.generationBpm);
+        // The anchors as playback uses them (MediaPlaybackService.load).
+        final anchors = MediaPlaybackService.dropDegenerateSegments(
+            MediaPlaybackService.sortAnchors(result.anchors));
         final bars = [
-          for (final s in midi.measureOnsetSeconds)
-            _audioAt(result.anchors, s * 1000),
+          for (final s in midi.measureOnsetSeconds) _audioAt(anchors, s * 1000),
         ];
         snapshot[row['alignmentKey'] as String] = {
           'pieceId': pieceId,
@@ -75,6 +101,8 @@ void main() {
           'bpm': result.generationBpm,
           'compressed': result.hasCompressedAnchors,
           'bars': [for (final b in bars) double.parse(b.toStringAsFixed(3))],
+          // Playing order repeats bars; ratings name bars by number.
+          'numbers': midi.measureNumbers,
           if (row['alignmentRating'] != null) 'rating': row['alignmentRating'],
         };
         // ignore: avoid_print
@@ -126,6 +154,7 @@ double _audioAt(List<ScoreAudioAnchor> a, double ms) {
   while (k + 2 < a.length && a[k + 1].scoreMs <= ms) {
     k++;
   }
+  if (a[k + 1].scoreMs == a[k].scoreMs) return a[k].audioSec;
   return a[k].audioSec +
       (a[k + 1].audioSec - a[k].audioSec) *
           (ms - a[k].scoreMs) /

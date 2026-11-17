@@ -20,8 +20,8 @@ import json
 import sys
 
 
-def ranges(bars):
-    """[3, 4, 5, 9] -> '4-6, 10' (1-based bar numbers)."""
+def ranges(bars, numbers):
+    """Playing-order indices -> '4-6, 10' in measure numbers."""
     out, start, prev = [], None, None
     for b in bars:
         if start is None:
@@ -33,12 +33,13 @@ def ranges(bars):
             start = prev = b
     if start is not None:
         out.append((start, prev))
-    return ', '.join(f'{a + 1}' if a == b else f'{a + 1}-{b + 1}' for a, b in out)
+    return ', '.join(f'{numbers[a]}' if a == b else f'{numbers[a]}-{numbers[b]}'
+                     for a, b in out)
 
 
-def in_spans(bar, spans):
-    """bar is 0-based; spans are 1-based [start, end] pairs."""
-    return any(s - 1 <= bar <= e - 1 for s, e in spans)
+def in_spans(number, spans):
+    """Whether measure [number] is inside any [start, end] span."""
+    return any(s <= number <= e for s, e in spans)
 
 
 def main():
@@ -62,13 +63,14 @@ def main():
         verdict = rating.get('verdict')
         spans = rating.get('offSpans') or []
         n = min(len(b['bars']), len(a['bars']))
+        numbers = a.get('numbers') or list(range(1, len(a['bars']) + 1))
         shifts = [abs(a['bars'][i] - b['bars'][i]) for i in range(n)]
         moved = [i for i in range(n) if shifts[i] > args.threshold]
         flag = b.get('compressed') != a.get('compressed')
         if not moved and not flag and len(b['bars']) == len(a['bars']):
             unchanged += 1
             continue
-        if moved and spans and all(in_spans(i, spans) for i in moved):
+        if moved and spans and all(in_spans(numbers[i], spans) for i in moved):
             grade = 'rated-off moved'
         elif verdict == 'wrong':
             grade = 'rated wrong'
@@ -78,7 +80,7 @@ def main():
             grade = 'changed'
         worst = max(shifts) if shifts else 0.0
         detail = (f'max {worst:.2f}s, {len(moved)}/{n} bars moved'
-                  + (f' ({ranges(moved)})' if moved else '')
+                  + (f' (bars {ranges(moved, numbers)})' if moved else '')
                   + (f', compressed {b.get("compressed")} -> {a.get("compressed")}'
                      if flag else '')
                   + (f', bars {len(b["bars"])} -> {len(a["bars"])}'

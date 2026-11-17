@@ -833,6 +833,18 @@ class MediaActions {
     _ref.invalidate(pieceMediaProvider(pieceId));
   }
 
+  /// Stores [rating] on [media] (null clears it). Unlike [setContentWindow]
+  /// the alignment is kept: a rating judges it, it doesn't change its inputs.
+  Future<void> rateAlignment(
+      String pieceId, PieceMedia media, AlignmentRating? rating) async {
+    assert(media.isRemovable,
+        'Only imported or recorded media have a stored row to rate');
+    final updated = media.withAlignmentRating(rating);
+    if (updated == media) return;
+    await _ref.read(pieceMediaStoreProvider).update(pieceId, updated);
+    _ref.invalidate(pieceMediaProvider(pieceId));
+  }
+
   /// Everything a piece's media own, for when the piece itself is deleted.
   Future<void> deleteAllFor(String pieceId) async {
     final store = _ref.read(pieceMediaStoreProvider);

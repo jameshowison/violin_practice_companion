@@ -125,6 +125,122 @@ enum MediaKind {
   recorded,
 }
 
+/// How well a medium's alignment followed the recording, as someone who
+/// listened judged it.
+enum AlignmentVerdict { good, bitOff, wrong }
+
+/// Someone's rating of a medium's alignment: a verdict on the whole
+/// recording, and optionally the bars where it was off.
+///
+/// One tap on Good is a complete rating; the bars are extra. It is evidence
+/// for `scripts/alignment_diff.py`, which grades every alignment change by it
+/// (an unrated alignment counts as presumed good), so it outlives a realign:
+/// [anchorsHash] says which alignment was rated, and a different one now is
+/// shown as "rated before realigning" rather than thrown away.
+class AlignmentRating {
+  final AlignmentVerdict verdict;
+
+  /// Inclusive measure-number ranges marked off, in the order marked.
+  final List<(int, int)> offSpans;
+
+  /// [anchorsFingerprint] of the alignment that was rated; null if none
+  /// was loaded.
+  final String? anchorsHash;
+  final DateTime ratedAt;
+
+  const AlignmentRating({
+    required this.verdict,
+    this.offSpans = const [],
+    this.anchorsHash,
+    required this.ratedAt,
+  });
+
+  /// [offSpans] in the words a person would use: "bars 3-5 and 9".
+  String get spansLabel {
+    String one((int, int) s) => s.$1 == s.$2 ? '${s.$1}' : '${s.$1}–${s.$2}';
+    if (offSpans.isEmpty) return '';
+    final parts = offSpans.map(one).toList();
+    final joined = parts.length == 1
+        ? parts.first
+        : '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
+    final plural = offSpans.length > 1 || offSpans.first.$1 != offSpans.first.$2;
+    return '${plural ? 'bars' : 'bar'} $joined';
+  }
+
+  String get verdictLabel => switch (verdict) {
+        AlignmentVerdict.good => 'Good',
+        AlignmentVerdict.bitOff => 'A bit off',
+        AlignmentVerdict.wrong => 'Wrong',
+      };
+
+  Map<String, dynamic> toJson() => {
+        'verdict': verdict.name,
+        if (offSpans.isNotEmpty)
+          'offSpans': [
+            for (final (a, b) in offSpans) [a, b]
+          ],
+        if (anchorsHash != null) 'anchorsHash': anchorsHash,
+        'ratedAt': ratedAt.toUtc().toIso8601String(),
+      };
+
+  static AlignmentRating? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final verdict = AlignmentVerdict.values
+        .where((v) => v.name == json['verdict'])
+        .firstOrNull;
+    final at = DateTime.tryParse(json['ratedAt'] as String? ?? '');
+    if (verdict == null || at == null) return null;
+    final spans = <(int, int)>[
+      for (final s in (json['offSpans'] as List?) ?? const [])
+        if (s is List && s.length == 2 && s[0] is int && s[1] is int)
+          (s[0] as int, s[1] as int),
+    ];
+    return AlignmentRating(
+      verdict: verdict,
+      offSpans: spans,
+      anchorsHash: json['anchorsHash'] as String?,
+      ratedAt: at,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is AlignmentRating &&
+      other.verdict == verdict &&
+      _sameSpans(other.offSpans, offSpans) &&
+      other.anchorsHash == anchorsHash &&
+      other.ratedAt == ratedAt;
+
+  static bool _sameSpans(List<(int, int)> a, List<(int, int)> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(verdict, Object.hashAll(offSpans), anchorsHash, ratedAt);
+}
+
+/// A short, stable fingerprint of an alignment's anchors (pairs of score ms
+/// and audio seconds), so a rating can tell whether the alignment it judged
+/// is still the one in use. Rounded to the millisecond so a re-encode of the
+/// same numbers matches.
+String anchorsFingerprint(Iterable<(double, double)> anchors) {
+  var h = 0x811c9dc5; // FNV-1a, 32-bit
+  for (final (score, audio) in anchors) {
+    for (final v in [score.round(), (audio * 1000).round()]) {
+      for (var shift = 0; shift < 64; shift += 8) {
+        h ^= (v >> shift) & 0xff;
+        h = (h * 0x01000193) & 0xffffffff;
+      }
+    }
+  }
+  return h.toRadixString(16).padLeft(8, '0');
+}
+
 /// One playable medium attached to a piece.
 ///
 /// Immutable and purely descriptive: it says what the files are and how they
@@ -185,6 +301,11 @@ class PieceMedia {
   /// kind of medium has a timeline of its own and so gets its own key.
   final String alignmentKey;
 
+  /// Someone's verdict on how well this medium's alignment followed it; see
+  /// [AlignmentRating]. Like the content window, a fact a person supplied,
+  /// so it lives on the medium and survives a realign.
+  final AlignmentRating? alignmentRating;
+
   const PieceMedia({
     required this.id,
     required this.label,
@@ -196,6 +317,7 @@ class PieceMedia {
     this.avOffsetMs = 0,
     this.contentStartSeconds,
     this.contentEndSeconds,
+    this.alignmentRating,
   });
 
   /// The score played by the app's own soundfont engine. Always first in a
@@ -248,6 +370,7 @@ class PieceMedia {
         avOffsetMs: avOffsetMs,
         contentStartSeconds: contentStartSeconds,
         contentEndSeconds: contentEndSeconds,
+        alignmentRating: alignmentRating,
       );
 
   /// Sets [contentStartSeconds]/[contentEndSeconds] verbatim — a null ARGUMENT
@@ -269,6 +392,22 @@ class PieceMedia {
         avOffsetMs: avOffsetMs,
         contentStartSeconds: startSeconds,
         contentEndSeconds: endSeconds,
+        alignmentRating: alignmentRating,
+      );
+
+  /// This medium with [rating] in place of its current one; null clears it.
+  PieceMedia withAlignmentRating(AlignmentRating? rating) => PieceMedia(
+        id: id,
+        label: label,
+        kind: kind,
+        alignmentKey: alignmentKey,
+        audio: audio,
+        analysis: analysis,
+        video: video,
+        avOffsetMs: avOffsetMs,
+        contentStartSeconds: contentStartSeconds,
+        contentEndSeconds: contentEndSeconds,
+        alignmentRating: rating,
       );
 
   /// Every one of [audio], [analysis] and [video] that names [from], pointed
@@ -291,6 +430,7 @@ class PieceMedia {
       avOffsetMs: avOffsetMs,
       contentStartSeconds: contentStartSeconds,
       contentEndSeconds: contentEndSeconds,
+      alignmentRating: alignmentRating,
     );
   }
 
@@ -309,6 +449,8 @@ class PieceMedia {
         if (contentStartSeconds != null)
           'contentStartSeconds': contentStartSeconds,
         if (contentEndSeconds != null) 'contentEndSeconds': contentEndSeconds,
+        if (alignmentRating != null)
+          'alignmentRating': alignmentRating!.toJson(),
       };
 
   /// Null for anything that doesn't parse, so one corrupt entry costs its own
@@ -337,6 +479,7 @@ class PieceMedia {
       // which is the "infer it" default, so no schema version is needed.
       contentStartSeconds: (json['contentStartSeconds'] as num?)?.toDouble(),
       contentEndSeconds: (json['contentEndSeconds'] as num?)?.toDouble(),
+      alignmentRating: AlignmentRating.fromJson(json['alignmentRating']),
     );
   }
 
@@ -352,11 +495,13 @@ class PieceMedia {
       other.video == video &&
       other.avOffsetMs == avOffsetMs &&
       other.contentStartSeconds == contentStartSeconds &&
-      other.contentEndSeconds == contentEndSeconds;
+      other.contentEndSeconds == contentEndSeconds &&
+      other.alignmentRating == alignmentRating;
 
   @override
   int get hashCode => Object.hash(id, label, kind, alignmentKey, audio,
-      analysis, video, avOffsetMs, contentStartSeconds, contentEndSeconds);
+      analysis, video, avOffsetMs, contentStartSeconds, contentEndSeconds,
+      alignmentRating);
 
   @override
   String toString() => 'PieceMedia($id, ${kind.name}, "$label")';
