@@ -1,5 +1,12 @@
 # Exploration Log — Pathways and Decisions
 
+Status (2026-11-17): a history, dated per section; check current code before acting
+on any "not done" or "currently" below. Since written: teacher-video/audio alignment
+was built (`docs/piece-media-model.md`, `docs/audio-sync-*.md`); homr is a git
+dependency on `homr_flutter` pinned by tag (CLAUDE.md "homr_flutter dependency");
+Android builds and runs on the emulator; `docs/plan.md` was renumbered and pruned to
+open work, so its old section numbers here no longer match.
+
 This document records the major paths explored during development, the
 decisions made at each fork, and the reasoning behind them. It supersedes
 `docs/PHASE1.md`–`PHASE4.md`, `docs/ux-improvements-plan.md`,
@@ -34,8 +41,8 @@ build. It paid off directly: the OMR feature (§4) only needed a
 `omr_service_io.dart` / `omr_service_web.dart` split, no retrofitting.
 
 **Lookup tables in JSON, not Dart source** — `jianpu_key_map.json`,
-`fingering_first_position.json`, `open_string_preferences.json`,
-`midi_patch.json`. **Why:** a violin teacher should be able to correct a
+`fingering_first_position.json`, `open_string_preferences.json` (since
+removed, 9eef8d0), `midi_patch.json`. **Why:** a violin teacher should be able to correct a
 fingering convention (e.g. "low 3" → "3") by editing one JSON file, not by
 reading Dart code. This rule held throughout Phases 1–2 without exception.
 
@@ -83,7 +90,8 @@ notation modes. Rejected in favor of consistency across modes.
 **Teacher-video alignment (audio chroma + DTW) deferred to "Phase 5"** — never
 started, not currently planned. If revisited, it remains a self-contained
 addition (`AlignmentMap`, `chroma_params.json`/`dtw_params.json`) that doesn't
-block anything else.
+block anything else. (Since built, 2026-09, without those names:
+`AudioScoreAutoAligner`, `DtwAligner`; see `docs/piece-media-model.md`.)
 
 ---
 
@@ -189,9 +197,11 @@ wrapper) and packaged as a **self-contained Flutter package**,
 `OmrOrchestrator().recognise(png) → MusicXML` entry point plus a
 `preprocessImage()` step for the binarization above.
 
-VPC consumes it as a **sibling path dependency**
-(`../homr_flutter/packages/homr_omr`) — both repos must be checked out
-side-by-side. This was chosen over vendoring or a published package because
+VPC consumed it as a **sibling path dependency**
+(`../homr_flutter/packages/homr_omr`) — both repos had to be checked out
+side-by-side. (Since de80224 it is a git dependency on
+`packages/homr_flutter`, pinned by tag; the sibling path is an opt-in
+`pubspec_overrides.yaml`. See CLAUDE.md "homr_flutter dependency".) This was chosen over vendoring or a published package because
 the OMR pipeline is still under active co-development with VPC and a path dep
 keeps iteration fast; publishing can happen later if useful to others.
 
@@ -204,7 +214,7 @@ required bumping deployment targets to iOS 16.0 / macOS 14.0 (an
 `CLAUDE.md` rule ("commit pod-install side effects only once a verified
 mobile build has produced them"). `flutter build apk` remains unverified —
 no Android SDK on the dev machine, an environment limitation rather than a
-code issue.
+code issue. (Since built, cfbf116, and run on the emulator.)
 
 **End-to-end accuracy on the beginner test set: 17/18 perfect (SER=0%)**, documented
 in `homr_flutter/docs/omr_evaluation/` (the canonical copy — the local
@@ -212,9 +222,10 @@ in `homr_flutter/docs/omr_evaluation/` (the canonical copy — the local
 holds only the original two-piece Stage A evaluation).
 
 **Three upstream `abc-music` bugs** were found and patched while generating
-ground-truth fixtures (`gitlab.com/chrisspen/abc-music`); patches are prepared
-in `homr_flutter/docs/omr_evaluation/abc_bug_{10,14,15}*.patch` but not yet
-filed — user-owned follow-up, not blocking.
+ground-truth fixtures (`gitlab.com/chrisspen/abc-music`); the patches
+are not kept; the issue text is in
+`homr_flutter/docs/omr_evaluation/abc_music_upstream_issue.md` — user-owned
+follow-up, not blocking.
 
 ---
 
@@ -237,7 +248,8 @@ were identified and prioritized by payoff/dependency:
 - **Track C — measure selection UX** (tap affordance + range selection):
   **not done** — `_toggleMeasure` still only ever creates single-measure
   selections (`MeasureSelection(measure, measure)`), and no "tappable" visual
-  affordance was added. Carried forward to `docs/plan.md`.
+  affordance was added. Carried forward to `docs/plan.md`. (Since done; the
+  2026-10-08 prune of `plan.md` removed it as finished.)
 
 Subsequent layout work (staff-default view, always-visible play bar,
 page-turn scroll, safe-area handling, build-hash display in debug AppBar —
@@ -312,7 +324,7 @@ swipe-to-close).
 
 ## 8. Multi-platform posture (ongoing discipline)
 
-Stated explicitly in `CLAUDE.md`: web-first while features churn is fine, but
+Stated in `CLAUDE.md` at the time: web-first while features churn is fine, but
 the conditional-import split (`*_io.dart`/`*_web.dart`) must stay clean so the
 first mobile build doesn't surprise. This discipline was established in Phase
 1 (§1) and held through the OMR integration (§4.4) and the iOS build
@@ -420,7 +432,10 @@ finally agent-visible.
 flag — but macOS is likely blocked by other mobile-only plugins anyway);
 **LGPL-3.0** static-FFI-link is an App-Store gray area; ~7 MB/ABI weight. Phase 6
 cleanup (removing `assets/osmd/*`, `webview_flutter*`, the bridge, `lib/spike/`)
-is **not done** — held until cross-fixture parity is fully proven. **Known
+is **not done** — held until cross-fixture parity is fully proven. (As of
+2026-11-17 only `lib/spike/` is gone; OSMD lives at `assets/engine/osmd/` and
+`webview_flutter` is still a dependency.) **Known
 limitation:** in unfolded/sectioned (ABAA) mode the cursor maps a repeated
 measure number to its FIRST rendered copy (`_anchorForEvent` uses `indexOf`);
-fixing it needs driving by performance-occurrence.
+fixing it needs driving by performance-occurrence. (`_anchorForEvent` now
+goes through `measureMap.locatePlayed(…, ev.performanceIndex)`.)

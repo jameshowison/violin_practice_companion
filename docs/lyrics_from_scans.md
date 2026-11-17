@@ -1,5 +1,9 @@
 # Lyrics from scans — spike findings (2026-10-17)
 
+Status (2026-11-17): lyrics from scans are still a spike, not in the app. Title
+detection (below, "not started") has since shipped: `lib/services/title_recognizer*.dart`,
+called from `omr_service_io.dart` (Vision on iOS, ML Kit on Android).
+
 **Question.** A scanned song loses its lyrics. Can we read them and put each
 syllable on the right note?
 

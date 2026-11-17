@@ -68,9 +68,9 @@ tray.
 ## Screens
 
 - **Home** (`piece_list_screen.dart`): a settings gear at the top right opens
-  `SettingsScreen`. Manage pieces moved out of the AppBar to sit beside the
-  search box, with the same key (`manage_pieces_button`).
-- **Settings** (`settings_screen.dart`): app-wide only. It starts with
+  `SettingsScreen` (`app_settings_button`). The Manage pieces screen has since
+  been retired; pieces are edited in the list itself (`ebb6736`).
+- **Settings** (`settings_screen.dart`): app-wide only: Appearance, then
   Instruments. Count-in, recording lead-in and tempo presets are app-wide too,
   but stay in the piece drawer, where they are used mid-practice. Move them
   only if the drawer gets crowded.
@@ -113,8 +113,9 @@ value** and the store identity. Nothing above changes. What that involves:
    seed `instrumentSetProvider`, and to hide the setting in a flavor that
    shouldn't offer it.
 5. **Scripts:** `BUNDLE=` is hardcoded in `sync_dev_library.sh`,
-   `push_dev_library.sh`, `pull_dev_library.sh`, `pull_sync_trace.sh` and
-   `sim_add_media.sh`. Derive all five from one `--flavor` argument, which
+   `push_dev_library.sh`, `pull_dev_library.sh`, `pull_sync_trace.sh`,
+   `pull_tuner_sessions.sh` and `sim_add_media.sh`. Derive all six from one
+   `--flavor` argument, which
    `dev_run.sh` and `device_install.sh` take too. Put the flavor in the build
    stamp.
 6. **Review risk:** a violin app that is only the multi-instrument app with

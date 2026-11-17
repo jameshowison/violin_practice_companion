@@ -1,7 +1,7 @@
 # How this app was built: notes on agentic coding
 
-Stringlings (first called Violin Practice Companion) was built between May and October 2026 by one person
-working almost entirely through coding agents. There are 203 commits, about 170
+Stringlings (first called Violin Practice Companion) has been built since May 2026 by one person
+working almost entirely through coding agents. As of 2026-11-17 there are 413 commits, 376
 of them co-authored by six successive Claude models, from Sonnet 4.6 to Opus 5.5.
 The repo holds no PR process, CI or reviewer, so the history in
 `git log`, `docs/explore.md`, `docs/plan.md` and `CLAUDE.md` is the main record
@@ -41,7 +41,7 @@ before it worked well enough to use.
 The pattern is that a confident fix later turned out to be covering up the real
 problem.
 
-**Learning to work with agents.** `CLAUDE.md` grew to about 370 lines. Most of
+**Learning to work with agents.** `CLAUDE.md` grew to about 600 lines. Most of
 it is not about the app. It records the environment and how agents fail in it:
 - run `flutter run` as a long-lived server fed through a fifo;
 - stamp each build and read the stamp back off the device, because a stale build

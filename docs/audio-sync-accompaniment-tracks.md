@@ -4,6 +4,10 @@ Status: exploration only, nothing implemented. Written 2026-11-03 after the meth
 teacher tracks were added to the dev library (`media/<pieceId>/teacher_vp` and
 `teacher_piano`).
 
+Status (2026-11-17): still unimplemented (no `timingFrom` in `lib/`). The dev library
+now has 13 `teacher_piano` rows, 12 with a `teacher_vp` twin (Happy Farmer's has none),
+so the "7" and "every piano track has a twin" below are out of date.
+
 ## The problem
 
 `AudioScoreAutoAligner.alignChroma` (`lib/services/audio_score_auto_aligner.dart`)

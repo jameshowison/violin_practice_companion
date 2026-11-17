@@ -1,5 +1,13 @@
 # DTW auto-alignment: anchor spacing can locally collapse at chroma-ambiguous measures
 
+Status (2026-11-17): the classes named below were merged in 7b633ee —
+`AudioSyncPlaybackService` (with `sortAnchors` and `alignmentLooksUncertain`) is now
+`MediaPlaybackService`, `AudioSyncAnchorsStore` is `MediaAlignmentStore` (prefs key
+`mediaAlignment.<key>`), and `PlayAlongControls` is `MediaControls`
+(`lib/widgets/media_controls.dart`). First/second endings are now supported
+(`Measure.endings`, 0fa1df8). The Salt Creek WAV is in the restricted checkout
+(`fixtures/audio/salt_creek/melody.wav`), not `assets/audio/`.
+
 **See also:** [audio-sync-dtw-open-boundaries.md](audio-sync-dtw-open-boundaries.md) —
 a different DTW quirk on the same code path (an unmatched recording intro/outro
 distorting the *first/last* measure, not an interior chroma-ambiguous one), worth

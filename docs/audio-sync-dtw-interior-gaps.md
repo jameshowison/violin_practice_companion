@@ -1,5 +1,13 @@
 # DTW auto-alignment: a quiet, hum-dominated recording aligned to the wrong part of itself
 
+Status (2026-11-17): `AudioSyncPlaybackService` and `TeacherRecordingPlaybackService`
+are now one `MediaPlaybackService` (`lib/services/media_playback_service.dart`,
+7b633ee); `dropDegenerateSegments` is tested in `test/media_playback_service_test.dart`.
+The Lightly Row and Salt Creek WAVs below are in the restricted checkout
+(`fixtures/audio/…`, see `test/support/restricted_fixtures.dart`), not `assets/audio/`.
+The user-given start/end proposed under "Residual exposure" is built:
+[audio-sync-next-steps.md](audio-sync-next-steps.md) item 3.
+
 **See also:** [audio-sync-dtw-open-boundaries.md](audio-sync-dtw-open-boundaries.md)
 (the open-begin/open-end mechanism whose skip penalty this re-tunes) and
 [audio-sync-dtw-anchor-compression.md](audio-sync-dtw-anchor-compression.md)

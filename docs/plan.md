@@ -99,7 +99,7 @@ Still open:
   B² replays from its `|:`, and that `e2` stays with B¹. Moving it would mean
   dropping it from ending 1 and moving B's `|:` onto 9's tail, which is itself
   a split slice.
-- **Voltas** are not in `performanceOrder` at all.
+- **Voltas** are now honoured by `performanceOrder` (`Measure.endings`).
 
 ### 1.4 Offer to fold a written-out restatement into a repeat
 
@@ -122,8 +122,8 @@ Two shapes:
   `|: A :|`.
 - **Strains that differ only at the end** are a repeat with first and second
   endings, `|: A |1 … :|2 … |`. This needs detection to report "same up to
-  the last bar or two" rather than only "same", and it is blocked on voltas
-  entering `performanceOrder` (§1.3). Lead-ins at the end of ending 1 then
+  the last bar or two" rather than only "same" (voltas are already in
+  `performanceOrder`). Lead-ins at the end of ending 1 then
   carry the open problem in §1.3.
 
 Never fold a bundled fixture. And keep the fold reversible (unfold back to
@@ -140,8 +140,9 @@ still can't do:
   (e.g. `<measure number="9"/>` in `homr_15_minuet_no_3.xml`). It gets
   flagged, but insert works only after a selected note, so there is nothing
   to insert after.
-- **Still out of scope:** cross-measure ties, multi-voice measures, and beam
-  regeneration. Edited eighths render unbeamed.
+- **Still out of scope:** cross-measure ties and multi-voice measures.
+  (Edited bars are rebeamed: `MusicXmlBeamer` runs in
+  `PieceRepository._repair`.)
 
 ---
 
@@ -155,14 +156,14 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
   `EngravedMeasureMap.locate` and `firstIndexOf` resolve a number to its
   first copy. Fix by keying the lookup on the performance occurrence rather
   than the measure number.
-- **Parity sweep.** Render every `assets/fixtures/*` under both renderers and
+- **Parity sweep.** Render every `assets/library/*` piece under both renderers and
   compare:
   - engraving, selection, section tints, flagged measures
   - fingering labels (verbatim `A2L`/`E2H`)
   - cursor tracking through a full playback including repeats
 - **Per-platform default.** `osmd` on macOS (`verovio_flutter` has no macOS
   target), `verovio` elsewhere. macOS may be blocked anyway by the
-  mobile-only plugins (`homr_omr`, `flutter_doc_scanner`, `image_cropper`).
+  mobile-only plugins (`homr_flutter`, `flutter_doc_scanner`, `image_cropper`).
 - **Web.**
   - Confirm the `verovio_flutter` WASM path renders, and that the native
     overlays work in a browser.
@@ -173,11 +174,10 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
   distribution. Bundle weight is about 7 MB per ABI.
 - **Cleanup**, only once the default is firmly `verovio` everywhere it can
   be:
-  - `assets/osmd/*`
+  - `assets/engine/osmd/*`
   - the `webview_flutter*` deps
   - the `staff_view_io/web.dart` bridge
-  - `lib/spike/` and `_kVerovioSpike` in `lib/main.dart`
-  - `flutter_svg` (now used only by the spike and `verovio_engraver.dart`)
+  - `flutter_svg` (now used only by `verovio_engraver.dart`)
 
   Keep the OSMD path only if macOS-via-OSMD is retained.
 
@@ -185,18 +185,20 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
 
 ## 4. Code hygiene
 
-- **`StateNotifier` → `Notifier`** (Riverpod v2). Three notifiers in
-  `lib/services/providers.dart` are on the deprecated base:
-  - `MeasuresPerLineNotifier`
-  - `StringLabelStyleNotifier`
-  - `CountInNotifier`
+- **`StateNotifier` → `Notifier`** (Riverpod v2). These are on the
+  deprecated base:
+  - in `lib/services/providers.dart`: `MeasuresPerLineNotifier`,
+    `StringLabelStyleNotifier`, `CountInNotifier`, `RecordingLeadInNotifier`,
+    `TempoSettingsNotifier`, `PiecePerformanceOverrideNotifier`
+  - `PieceActivityNotifier` (`piece_activity_store.dart`) and
+    `MeasureEditController` (`measure_edit_session.dart`)
 - **Move `MeasureSelection`** out of `providers.dart` into
   `lib/models/measure_selection.dart`. It's a plain value type.
 - **Provider and widget test coverage.** Missing for:
   - `PieceLayout.compute` row grouping, including a pickup measure
   - the `parsedPieceProvider` chain against a mocked `PieceRepository`
-  - `SectionBar` taps
-  - `PlaybackControls` button state
+  - `SectionMinimap` taps
+  - `MediaControls` button state
 - **`_hasPeeked`** on `_CompactPieceLayoutState` is a `static bool`, so it is
   shared across instances. Low priority; leave it unless it causes a bug.
 
@@ -204,7 +206,7 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
 
 ## 5. Stale artifacts and housekeeping (decision)
 
-- **`docs/omr_evaluation/`** (`homr/`, `oemer/`, `scripts/`) is superseded by
+- **`docs/omr_evaluation/`** (`homr/`, `oemer/`) is superseded by
   `homr_flutter/docs/omr_evaluation/`. It's a candidate for deletion.
 - **`CLAUDE.md`** should say that OMR is mobile- and desktop-first, with web
   deferred to a possible server-side `homr` backend.

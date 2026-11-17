@@ -1,5 +1,7 @@
 # Exploration Plan — Chord Fingering Display
 
+Status (2026-11-17): overtaken. Chord symbols ship through MusicXML `<harmony>` (`ChordXmlInjector`); the bundled Verovio (6.2) drops `<frame>` and has no chord-grid support, so diagrams are app-drawn Flutter widgets (`lib/widgets/chord_diagram.dart`, the footer `new_chords_block.dart`), not engraved. The app feeds Verovio MusicXML, not modified MEI.
+
 **Target:** iPad app for learning mandolin. Music is engraved with Verovio.
 
 **Scope of this document:** the pathways worth exploring and the questions that decide between them. It deliberately does not prescribe implementation — the answers below should come from your own knowledge of the stack and from cheap experiments, not from assumptions baked into this plan.

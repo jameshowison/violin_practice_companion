@@ -52,18 +52,18 @@ PieceMedia(id, label, kind, alignmentKey, audio, analysis, video, avOffsetMs,
 - **`kind`** — `synthesized` | `bundled` | `imported` | `recorded`. Affects
   presentation and what may be deleted; **not** how anything is played.
 - **`analysis`** — what DTW reads. Usually the same file as `audio`; for bundled
-  tracks always `melody.wav` whichever mix is playing, because it is the
+  tracks always `melody.mp3` whichever track is playing, because it is the
   closest match to the score's own notes. Null means "plays, but the score
   won't follow".
-- **`alignmentKey`** — deliberately not the media id. A piece's `mix`, `melody`
-  and `chords` are three mixes of one session and share one timeline, so they
+- **`alignmentKey`** — deliberately not the media id. A piece's `melody` and
+  `chords` are two takes of one session and share one timeline, so they
   share one cached alignment and the user waits for it once.
 - **`contentStartSeconds` / `contentEndSeconds`** — where the tune itself sits
   inside `analysis`, when the user has said. Both null by default, which means
   "work it out from the audio" and is the only possibility for a bundled track.
   Here rather than on `MediaAlignment` because they are an INPUT to DTW and a
-  realign clears the alignment row. Edited from the picker row's scissors
-  button; see [audio-sync-next-steps.md](audio-sync-next-steps.md) item 3.
+  realign clears the alignment row. Edited from the picker row's "Realign to
+  the score" button (`Icons.tune`); see [audio-sync-next-steps.md](audio-sync-next-steps.md) item 3.
 
 `PieceMedia.synthesized` is a const entry with no files and no alignment. It is
 in the enum rather than being the absence of media so the picker can offer it
@@ -112,24 +112,25 @@ trade.
 ## The decoder
 
 Alignment needs PCM, and `package:wav` reads WAV and nothing else. That was
-invisible while the app supplied all its own audio — it is why bundled folders
-ship a `melody.wav` beside their mp3s, and why the teacher-demo capture records
-a silent video plus a separate WAV. It stops being invisible the moment a user
+invisible while the app supplied all its own audio — it was why bundled folders
+shipped a `melody.wav` beside their mp3s, and why the teacher-demo capture recorded
+a silent video plus a separate WAV (both gone now: analysis reads `melody.mp3`, and
+a demo is one video with sound). It stops being invisible the moment a user
 picks an m4a off their phone: the file plays perfectly and cannot be aligned,
 so the same action produces a working medium or a half-working one depending on
 a container format nobody chose.
 
 So: `AudioDecoder`, behind the usual conditional-import split — `AVAssetReader`
-on iOS/macOS, `MediaExtractor` + `MediaCodec` on Android, `decodeAudioData` on
-web. WAV short-circuits to pure Dart on every platform, which keeps the
+on iOS, `MediaExtractor` + `MediaCodec` on Android, `decodeAudioData` on
+web. macOS has no plugin, so only WAV decodes there. WAV short-circuits to pure Dart on every platform, which keeps the
 alignment regression tests running headless and avoids a pointless round trip.
 
 Decoding is whole-file: a five-minute 48 kHz recording is ~57 MB of
 `Float64List`. Fine for a demo of one tune, not for an album side. The samples
 are dropped as soon as chroma extraction has run.
 
-Its on-device behaviour on real compressed audio is **not yet confirmed** — see
-item 4 of [audio-sync-next-steps.md](audio-sync-next-steps.md).
+On real compressed audio it is confirmed on iOS; no Android anchor-span check is
+on record — see item 4 of [audio-sync-next-steps.md](audio-sync-next-steps.md).
 
 ## Adding a bundled track
 

@@ -44,9 +44,9 @@ describe. The wiring underneath pushed only into the Play Along service; there
 is now one `MediaPlaybackService` to push into, so opening the gate is
 sufficient rather than half a fix.
 
-The stale assertion at `test/playback_service_base_test.dart:71` is corrected:
-the base class defaults `highlightDownbeatOnly` **on** and documents why at
-`:22-30`. That was the repo's one failing test; the suite is now green.
+The stale assertion in `test/playback_service_base_test.dart` is corrected
+("highlightDownbeatOnly defaults to on"): the base class defaults
+`highlightDownbeatOnly` **on** and documents why on its getter. That was the repo's one failing test; the suite is now green.
 
 One thing worth knowing: the two settings still live as local `setState` fields
 on the screen, because the panel outlives the autoDispose-scoped service. They
@@ -242,8 +242,9 @@ Make it optional and additive, so absent input changes nothing:
 ### What is still outstanding
 
 - **The UI is the picker's per-medium row, not the capture-review step.** Each
-  user medium that can be aligned carries an `Icons.content_cut` button opening
-  a "Where is the tune?" dialog with two plain seconds fields — which is what
+  user medium that can be aligned carries an `Icons.tune` "Realign to the score"
+  button whose dialog has two plain seconds fields (it was `Icons.content_cut`,
+  "Where is the tune?", until bf1cc1e) — which is what
   this section called "enough to prove the idea". The scrub-and-mark on the
   capture screen is not built. It is a better *answer* to the same question but
   it is no use at all for an imported file, which has no waveform on screen and
@@ -289,7 +290,10 @@ Two things that fell out of the run:
   3's case arriving on its own, from real imported audio rather than from a
   recording made by this project.
 
-**Android is untested.** The thing most likely to be wrong is
+**Android has no anchor-span check on record.** One wrong-rate bug has since
+been found and fixed there (ca7ffd8): HE-AAC states half its real rate in the
+container, so the plugin now takes rate and channels from the decoder's output
+format. The other thing likely to be wrong is
 `MediaFormat.KEY_PCM_ENCODING`: the plugin assumes 16-bit unless the output
 format says float, and reads that only from `INFO_OUTPUT_FORMAT_CHANGED`.
 Devices vary, and a wrong guess yields plausible-looking noise rather than an

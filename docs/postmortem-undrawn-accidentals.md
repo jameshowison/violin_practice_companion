@@ -52,11 +52,11 @@ Verovio tolerated that, but a stricter reader may not.
 - **The bundled pieces had it too.** `assets/fixtures/homr_14_minuet_no_2.xml`
   (D♯), `homr_15_minuet_no_3.xml` (C♯) and `homr_17_gavotte.xml` (C♯) are older
   output from the same scanner. They have been engraved without those signs all
-  along.
+  along. (They have since moved to `test/fixtures/omr/` and are no longer bundled.)
 
 ## Fix
 
-1. **At the source**, homr_flutter 0.1.1 (commit `34755ee`, not yet tagged).
+1. **At the source**, homr_flutter 0.1.1 (commit `34755ee`, since tagged `v0.1.1`).
    `_addAccidentals` draws a sign wherever a note's alteration differs from the
    key signature and the earlier notes in the bar. The bar so far is tracked per
    staff, step and octave. A note tied over from the previous bar is never
@@ -113,18 +113,20 @@ output differs from the input. That gave the list above in a second.
    files changed only the two Gundagai scans. Tests: `test/ties_test.dart`,
    "scanned slurs". Not covered: ties within chords, and an unmarked slur
    over repeated notes inside one bar, which would be read as a tie.
-2. **Bundled `homr_*` fixtures.** They are repaired in memory, but any test or
+2. **`homr_*` fixtures** (now `test/fixtures/omr/`, still without `<accidental>`).
+   They are repaired in memory, but any test or
    tool that reads them raw still sees no signs. Consider rewriting the asset
    files through `_repair` once, and the same for any other generated fixture.
 3. **The measure editor's accidental buttons**
-   (`lib/screens/edit_measure_screen.dart`, around lines 197–215 and 564).
+   (now `lib/widgets/measure_edit_panel.dart`, `currentAcc`, and
+   `MeasureEditController.setAccidental` in `measure_edit_session.dart`).
    The highlighted button comes from `displayAccidental`, the *drawn* half. For
    an unrepaired chromatic note it showed "none (follow key)" on an A♯, and
    pressing "none" would change the pitch to A. The repair now supplies the
    sign, but check:
    - What happens when a note with a sign is moved to another step: does the
      stale sign follow it?
-   - Whether `_setAccidental` takes an earlier sign in the same bar into
+   - Whether `setAccidental` takes an earlier sign in the same bar into
      account (it uses `KeySignature.defaultAlter` only).
 4. **Other writers in this repo.** `measure_xml_editor.dart` writes
    `displayAccidental` verbatim, which is correct as long as callers keep it in

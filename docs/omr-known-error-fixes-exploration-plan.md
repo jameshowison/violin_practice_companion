@@ -57,7 +57,7 @@ Candidates, each to be measured on the catalogue before it is adopted:
 | Rule | Evidence for it | Risk |
 |---|---|---|
 | **Tuplet that breaks the bar.** If a bar adds up to the time signature *without* a tuplet marking and overflows or underflows *with* it, drop the marking. | Allegretto bar 3 | Real triplets in a bar that's already wrong for other reasons |
-| **Mark the scanner rarely reads correctly.** Fermata, trill and tremolo mid-phrase in Book 1 repertoire are usually pencil marks (843c5a9 dropped several). Flag them rather than delete them; a fermata on the final note is probably real. | 843c5a9 | Real fermatas mid-piece (Allegro, Andantino have them) |
+| **Mark the scanner rarely reads correctly.** Fermata, trill and tremolo mid-phrase in beginner repertoire are usually pencil marks (843c5a9 dropped several). Flag them rather than delete them; a fermata on the final note is probably real. | 843c5a9 | Real fermatas mid-piece (Allegro, Andantino have them) |
 | **Missing naturals.** The model never sees ♮. A note that follows the key signature where the same note a beat earlier was marked natural, or where the melody runs chromatically, gets flagged. | known training gap | Flags only, no fix |
 | **Repeated passages.** Where two passages have the same notes (Allegretto's bars 13–16 repeat bars 5–8), make their articulations agree, taking the version with more marks read. | Allegretto 5–8 vs 13–16 | Composers do vary repeats |
 

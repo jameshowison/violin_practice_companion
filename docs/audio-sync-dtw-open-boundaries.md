@@ -1,5 +1,11 @@
 # DTW auto-alignment: recordings with an unmatched intro/outro distort the boundary measures
 
+Status (2026-11-17): the skip penalty is now the public `DtwAligner.skipPenaltyPerFrame`,
+default `0.18`, not `1e-3` — see
+[audio-sync-dtw-interior-gaps.md](audio-sync-dtw-interior-gaps.md), which also
+bounds chroma cosine distance at `[0, 1]`. The Lightly Row and Salt Creek `melody.wav`
+test fixtures are in the restricted checkout (`fixtures/audio/…`), not `assets/audio/`.
+
 **See also:** [audio-sync-dtw-anchor-compression.md](audio-sync-dtw-anchor-compression.md) —
 a different DTW quirk on the same code path (chroma-ambiguous *interior* measures, not
 the recording's start/end), worth reading together since both affect anchor quality
@@ -66,8 +72,8 @@ assertions needed no changes). When either is `true`, `_alignWithBand` relaxes t
 corresponding DP boundary condition instead of forcing it:
 
 - **Open-begin:** row 0 of the cost matrix (`"0 reference frames consumed"`) is
-  seeded with a small per-frame skip cost (`_skipPenaltyPerFrame * j`, currently
-  `1e-3`/frame) instead of `0` only at `j = 0`, so the first reference frame can pair
+  seeded with a small per-frame skip cost (`_skipPenaltyPerFrame * j`, then
+  `1e-3`/frame; now `0.18`, see Status) instead of `0` only at `j = 0`, so the first reference frame can pair
   with any target frame `j`, paying only that small skip cost for however much
   leading audio came before it — cheap next to a real mismatch (cosine distance up to
   `2`), but enough to prevent the optimizer from shaving off real, matched content for
