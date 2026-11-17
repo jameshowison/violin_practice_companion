@@ -375,6 +375,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _line = again ? 1 - _line : 0;
       _rung = i;
       if (!_auto) _model.pinned = name;
+      // The pair's other string: the same note, but nothing to compare with.
+      if (again) _model.newString();
     });
     if (_mandolin && !_auto) {
       final which = _pairString(name[0], _line) == MandolinString.outer ? 'outside' : 'inside';

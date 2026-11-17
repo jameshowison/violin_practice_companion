@@ -85,7 +85,15 @@ void main(List<String> args) {
     final t = r.endSample / rate;
     while (ev < events.length && events[ev].$1 <= t) {
       final e = events[ev++].$2;
-      if (e.startsWith('picked ') && model.pinned != null) model.pinned = e.substring(7).split(' ').first; // 'picked A4 inside'
+      if (e.startsWith('picked ') && model.pinned != null) {
+        // 'picked A4 inside': the same name again is the pair's other string.
+        final name = e.substring(7).split(' ').first;
+        if (name == model.pinned && e.split(' ').length > 2) {
+          model.newString();
+        } else {
+          model.pinned = name;
+        }
+      }
       if (e == 'sense') model.pinned = null;
       if (e.startsWith('choose ')) model.pinned = e.substring(7);
       if (e.startsWith('tuning ')) {

@@ -95,6 +95,32 @@ void main() {
         (t) => off(hz, glide * math.exp(-t / 0.45));
     double fading(double t) => 0.2 * math.exp(-t / 0.9);
 
+    test('a picked string slipping to its octave stays the string, not very sharp', () {
+      // A session: a G 60 cents flat read +1165 (its octave) and said "Very sharp".
+      final g = mandolin.strings[0];
+      start(mandolin, pin: 'G3');
+      sound(100, off(g.hz, -60));
+      expect(m.reading!.cents, closeTo(-60, 2));
+      sound(60, off(g.hz * 2, -60)); // the detector on the second harmonic, steady
+      expect(m.reading!.cents, closeTo(-60, 2));
+      silence(50);
+      sound(100, off(g.hz * 2, -40), rms: 0.2); // a fresh pluck read wholly an octave up
+      expect(m.reading!.cents, closeTo(-60, 2), reason: 'never the octave');
+      sound(100, off(g.hz, -40), rms: 0.3);
+      expect(m.reading!.cents, closeTo(-40, 2));
+    });
+
+    test("the pair's other string starts afresh: no trend from the last string", () {
+      final e = mandolin.strings[3];
+      start(mandolin, pin: 'E5');
+      sound(120, pluckHz(off(e.hz, 2)), rms: fading);
+      silence(60);
+      m.newString(); // the other E
+      sound(120, pluckHz(off(e.hz, 12)), rms: fading);
+      expect(m.reading!.trend, TunerTrend.none);
+      expect(m.reading!.cents, greaterThan(8));
+    });
+
     test('steady flat A reads flat on A', () {
       start(violin);
       sound(45, off(a.hz, -12));

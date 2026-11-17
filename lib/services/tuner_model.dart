@@ -172,6 +172,12 @@ class TunerModel {
   /// gliding moved 36¢.
   static const strayCents = 20.0;
 
+  /// How near an octave or a twelfth from the picked string (or the note
+  /// being read) a pitch must be to be taken for the detector slipping to a
+  /// harmonic. Wider than any tuning gets; narrower than the 200 cents
+  /// between an octave and the next string.
+  static const harmonicCents = 150.0;
+
   /// Further than this under the lowest string is not a string: a G tuned
   /// down a major third is already far past anything a player does.
   static const belowLowest = 400.0;
@@ -238,6 +244,14 @@ class TunerModel {
     _clear();
   }
 
+  /// Another string with the same name: the other string of a mandolin's
+  /// pair. Starts afresh, so its first pluck is not compared with the last
+  /// string's ("Wrong way!" when nothing had been turned).
+  void newString() {
+    _follower.reset();
+    _clear();
+  }
+
   /// The reading to show, or null when idle.
   TunerReading? get reading {
     final p = _pitch, s = _string, last = _lastAccepted;
@@ -289,6 +303,12 @@ class TunerModel {
     lastDecision = TunerDecision.outlier;
 
     if (centsBetween(p.hz, tuning.strings.first.hz) < -belowLowest) return false;
+    // An overtone or undertone of the picked string (its octave, or the
+    // twelfth a flat string's harmonics lean to), never the string: turning
+    // a tuner can't move it that far. Read as the string, a G 60 cents flat
+    // showed +1165, "Very sharp", the wrong way.
+    final pin = _follower.pinned;
+    if (pin != null && _harmonicOf(centsBetween(p.hz, pin.hz))) return false;
     final pc = 1200 * math.log(p.hz / 440) / math.ln2;
     // Against this note's own frames once it has some, shown or not;
     // before that, against the last note's.
@@ -302,6 +322,9 @@ class TunerModel {
       if (_stray.length < 12) return false;
       final sorted = [..._stray]..sort();
       if (sorted.last - sorted.first > strayCents) return false;
+      // Steady an octave or a twelfth away is the detector slipping to a
+      // harmonic, not a new note.
+      if (_harmonicOf(sorted[sorted.length ~/ 2] - pitch)) return false;
       final agreed = [..._stray];
       _begin(at, keepPeak: true);
       lastOnset = true;
@@ -451,6 +474,15 @@ class TunerModel {
     if (d >= trendCents) return TunerTrend.wrongWay;
     if (d <= -trendCents) return TunerTrend.closer;
     return TunerTrend.none;
+  }
+
+  /// Within [harmonicCents] of an octave (either way), a twelfth or two
+  /// octaves: where a pitch detector slips to on a plucked string.
+  static bool _harmonicOf(double cents) {
+    for (final k in const [1200.0, -1200.0, 1902.0, -1902.0, 2400.0]) {
+      if ((cents - k).abs() < harmonicCents) return true;
+    }
+    return false;
   }
 
   static double _median(List<(Duration, double)> frames) {
