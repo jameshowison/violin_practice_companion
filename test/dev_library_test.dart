@@ -192,6 +192,15 @@ void main() {
     expect(read(score), xml('Tune, edited'));
   });
 
+  test('staging merged by an older build is deleted on the skip path', () async {
+    await stageLibrary(files: {score: xml('Tune')}, titles: {'tune_1': 'Tune'});
+    await launch(); // a build without deletion: settled, stamp recorded
+    expect(await stage().exists(), isTrue);
+    expect(await appLaunch(), isNull, reason: 'unchanged staging is skipped');
+    expect(await stage().exists(), isFalse);
+    expect(read(score), xml('Tune'));
+  });
+
   test('a merge with a conflict keeps the staging copy to retry', () async {
     await stageLibrary(files: {score: xml('Tune')});
     await launch();

@@ -99,6 +99,9 @@ class DevLibraryIngester {
     final stamp = await _stagedStamp(stage);
     if (skipUnchanged && prefs.getString(_stampKey) == stamp) {
       debugPrint('[dev_library] staging unchanged since last merge; skipped');
+      // The stamp is only kept after a conflict-free merge, so this staging is
+      // settled: a device that merged it before deletion existed sheds it here.
+      if (deleteStagingWhenSettled) await _deleteStaging(stage);
       return null;
     }
 
@@ -165,14 +168,18 @@ class DevLibraryIngester {
         : await prefs.remove(_stampKey);
     debugPrint('[dev_library] $report');
     if (deleteStagingWhenSettled && report.conflicts.isEmpty) {
-      try {
-        await stage.delete(recursive: true);
-      } catch (e) {
-        // Left for next launch; the stamp makes that a quick skip.
-        debugPrint('[dev_library] could not delete staging: $e');
-      }
+      await _deleteStaging(stage);
     }
     return report;
+  }
+
+  static Future<void> _deleteStaging(Directory stage) async {
+    try {
+      await stage.delete(recursive: true);
+    } catch (e) {
+      // Left for next launch; the stamp makes that a quick skip.
+      debugPrint('[dev_library] could not delete staging: $e');
+    }
   }
 
   Future<void> _apply(
