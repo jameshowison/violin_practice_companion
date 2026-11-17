@@ -55,7 +55,7 @@ To try it: open any piece and the fingering appears above each note. Play it to 
 
 Scanning is optional: photographing any page of printed violin music adds it as a new piece, with fingerings.
 
-Playback uses the GeneralUser GS soundfont under its free license. The microphone is used only for the tuner and for recording a teacher; the camera and photo library only to add music. The app collects no data.
+Playback uses the GeneralUser GS soundfont under its free license. The microphone is used only for the tuner, for recording a teacher and for calibrating a speaker's delay; the camera only to add music or to film a teacher; the photo library only to add music. The app collects no data.
 
 ## TestFlight beta app description
 
@@ -91,7 +91,8 @@ Also welcome feedback on additional features that could help.
 One set per device class: 6.9" iPhone (1320×2868) and 13" iPad (2064×2752),
 captured on the `shots-iphone` and `shots-ipad` simulators. Each raw capture
 gets its caption from this table (`uv run scripts/frame_screenshots.py`; README,
-"App Store screenshots"). Upload by hand in App Store Connect, Media Manager.
+"App Store screenshots"). Upload with `uv run scripts/push_screenshots.py`
+(compare; `--apply` replaces each device's set).
 Every piece in view must be a bundled public-domain one.
 
 | # | Caption | Screen |
