@@ -327,3 +327,20 @@ For the Files app instead, copy into the simulator's "On My iPhone" storage:
 (find the group by its `MCMMetadataIdentifier` in each container's
 `.com.apple.mobile_container_manager.metadata.plist`), then pick it in the app
 via Browse ▸ On My iPhone.
+
+## Checking an aligner change against every recording
+
+The alignment tests pin a handful of recordings. Before and after any change
+to the aligner, snapshot the whole dev library and diff:
+
+```bash
+ALIGN_SNAPSHOT_OUT=/tmp/before.json flutter test test/alignment_corpus_snapshot_test.dart
+# ...change the aligner...
+ALIGN_SNAPSHOT_OUT=/tmp/after.json flutter test test/alignment_corpus_snapshot_test.dart
+python3 scripts/alignment_diff.py /tmp/before.json /tmp/after.json
+```
+
+Every recording whose barlines moved more than 0.25 s is listed. An unrated
+alignment is presumed good, so it warns too; the rating, when there is one,
+grades the warning. To snapshot an older commit, `git worktree add --detach`
+it and copy the snapshot test in. Keep snapshots out of the repo.
