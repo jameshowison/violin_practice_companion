@@ -85,7 +85,7 @@ void main(List<String> args) {
     final t = r.endSample / rate;
     while (ev < events.length && events[ev].$1 <= t) {
       final e = events[ev++].$2;
-      if (e.startsWith('picked ') && model.pinned != null) model.pinned = e.substring(7);
+      if (e.startsWith('picked ') && model.pinned != null) model.pinned = e.substring(7).split(' ').first; // 'picked A4 inside'
       if (e == 'sense') model.pinned = null;
       if (e.startsWith('choose ')) model.pinned = e.substring(7);
       if (e.startsWith('tuning ')) {
