@@ -105,7 +105,7 @@ void main(List<String> args) {
     model.add(TunerFrame(Duration(microseconds: (t * 1e6).round()), r.pitch));
     final x = model.reading;
     replayed.add(_Row(t, model.lastDecision.name, x?.cents,
-        _status(x, fine), onset: model.lastOnset, live: x?.live ?? false, trend: x?.trend));
+        _status(x, fine, hearing: model.listening), onset: model.lastOnset, live: x?.live ?? false, trend: x?.trend));
   }
 
   print('${header['instrument']} a4=${header['a4']} pinned=${pin.isEmpty ? 'none (Sense)' : pin} '
@@ -249,5 +249,5 @@ List<String> _split(String line) {
   throw const FormatException('no data chunk');
 }
 
-String _status(TunerReading? r, bool fineTuners) =>
-    tunerStatus(r, listening: true, playing: false, fineTuners: fineTuners);
+String _status(TunerReading? r, bool fineTuners, {bool hearing = false}) =>
+    tunerStatus(r, listening: true, playing: false, fineTuners: fineTuners, hearing: hearing);

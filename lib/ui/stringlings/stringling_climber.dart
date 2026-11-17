@@ -54,6 +54,7 @@ class StringlingClimber extends StatefulWidget {
     this.fineTuners = false,
     this.inTune,
     this.wrongWay = false,
+    this.hearing = false,
     this.falls = 0,
     this.stretches = 0,
     this.picked,
@@ -80,6 +81,11 @@ class StringlingClimber extends StatefulWidget {
 
   /// The last turn went the wrong way: the fine-tuner arrow pulses, red.
   final bool wrongWay;
+
+  /// A note has just begun and the tuner is listening to it settle: sound
+  /// waves pulse in to the stringling's head from both sides, and the
+  /// fine-tuner arrow waits.
+  final bool hearing;
 
   /// Bumped (with [target] one rung lower) to make it FALL there instead of
   /// climbing: it lets go, drops, catches the lower string with one hand,
@@ -693,7 +699,9 @@ class _ClimberPainter extends CustomPainter {
       accent: w.rungs[target].color,
     ).paint(canvas);
 
-    if (w.fineTuners && !climbing && !idle && !inTune) {
+    if (w.hearing && !climbing) _listening(canvas, Offset(cx, bodyY), rx, ry, s.still ? 0 : s.t);
+
+    if (w.fineTuners && !climbing && !idle && !inTune && !w.hearing) {
       // Just right of its right hand, not out at the string's end: on a
       // wide card (an iPad on its side) the end is far enough off to miss.
       final r = math.max(11.0, math.min(22.0, gap * 0.2));
@@ -905,6 +913,26 @@ class _ClimberPainter extends CustomPainter {
           ..lineTo(tip.dx - out.dx * h * 0.7, tip.dy - out.dy * h * 0.7)
           ..close(),
         Paint()..color = ink);
+  }
+
+  /// Sound waves coming in to the head from both sides, the nearest
+  /// brightest: three arcs a side, each fading as it closes in.
+  void _listening(Canvas canvas, Offset body, double rx, double ry, double t) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(2.0, rx * 0.09);
+    final head = body.translate(0, -ry * 0.35);
+    for (final side in [-1.0, 1.0]) {
+      for (var i = 0; i < 3; i++) {
+        // t == 0 (reduced motion): still, the nearest strongest.
+        final k = t == 0 ? i / 3 : (i / 3 + t * 0.9) % 1;
+        final r = rx * (1.25 + 0.75 * (1 - k));
+        paint.color = _inkSoft.withValues(alpha: 0.15 + 0.6 * k);
+        final rect = Rect.fromCircle(center: head, radius: r);
+        canvas.drawArc(rect, side > 0 ? -0.5 : math.pi - 0.5, 1.0, false, paint);
+      }
+    }
   }
 
   void _rung(Canvas canvas, double x1, double x2, double y, double thick, Color color,

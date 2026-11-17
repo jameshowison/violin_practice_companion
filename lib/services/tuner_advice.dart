@@ -5,8 +5,13 @@ import 'tuner_model.dart';
 /// model's [TunerReading.trend], whether the last turn went the right way. "Wrong
 /// way" is the commonest mistake there is, so it is said first and plainly,
 /// with the way to go instead.
+///
+/// While [hearing] (a note just begun, [TunerModel.listening]) it says so
+/// instead: advice taken from a pluck's first moments would change under the
+/// player's hands.
 String tunerStatus(TunerReading? r,
-    {required bool listening, required bool playing, required bool fineTuners}) {
+    {required bool listening, required bool playing, required bool fineTuners, bool hearing = false}) {
+  if (listening && hearing) return 'Listening…';
   if (r == null) return listening ? 'Play a string' : '';
   final c = r.cents, a = c.abs();
   if (r.inTune) return playing ? '' : 'In tune!';

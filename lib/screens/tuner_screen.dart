@@ -73,6 +73,10 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   late TunerModel _model;
   final _reading = ValueNotifier<TunerReading?>(null);
   final _play = ValueNotifier<double>(0); // the slider's cents in play mode
+
+  /// A note has begun and not yet settled (TunerModel.listening): the screen
+  /// says "Listening…" and keeps the last reading until it has.
+  final _hearing = ValueNotifier<bool>(false);
   _Mic _mic = _Mic.off;
   String? _error;
   int _rung = 2; // the A string until something is heard or picked
@@ -250,6 +254,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _noteTimer?.cancel();
     _spring.dispose();
     _reading.dispose();
+    _hearing.dispose();
     _play.dispose();
     super.dispose();
   }
@@ -322,6 +327,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     if (mounted) {
       setState(() => _mic = _Mic.off);
       _reading.value = null;
+      _hearing.value = false;
     }
     await _input.stop();
   }
@@ -335,9 +341,14 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           '${_model.reading?.cents.toStringAsFixed(1)}¢');
     }
     final changed = _model.add(f);
+    final hearing = _model.listening;
     _rec?.addFrame(f, _model,
-        tunerStatus(_model.reading, listening: true, playing: false, fineTuners: !_mandolin));
-    if (!changed) return;
+        tunerStatus(_model.reading,
+            listening: true, playing: false, fineTuners: !_mandolin, hearing: hearing));
+    final settled = _hearing.value && !hearing;
+    _hearing.value = hearing;
+    // While listening the last pose holds; the settled reading lands at once.
+    if (hearing || (!changed && !settled)) return;
     final r = _model.reading;
     if (r?.trend == TunerTrend.wrongWay && _reading.value?.trend != TunerTrend.wrongWay) {
       HapticFeedback.mediumImpact(); // a nudge: stop, the other way
@@ -363,6 +374,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     setState(() => _model.tuning = _tuning());
     _rec?.event('tuning ${_model.tuning.name} a4=${_model.tuning.a4}');
     _reading.value = null;
+    _hearing.value = false;
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
   }
 
@@ -386,6 +398,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _rec?.event('picked $name');
     }
     _reading.value = null;
+    _hearing.value = false;
   }
 
   /// The string a rule stands for. The climber's strings run as they do
@@ -404,6 +417,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _say(on ? 'Sense: following the string you play' : 'Choose: tap the string to tune');
     _rec?.event(on ? 'sense' : 'choose ${_model.pinned}');
     _reading.value = null;
+    _hearing.value = false;
   }
 
   Future<void> _openSettings() async {
@@ -516,7 +530,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
         ClimberRung(letter: s.name[0], color: _colorOf(s.name[0])),
     ];
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
-    final shown = Listenable.merge([_reading, _play]);
+    final shown = Listenable.merge([_reading, _play, _hearing]);
     TunerReading? current() => _listening ? _reading.value : _pretend(_play.value);
 
     return Scaffold(
@@ -609,6 +623,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
                                         doubled: _mandolin,
                                         fineTuners: !_mandolin,
+                                        hearing: _listening && _hearing.value,
                                         falls: _falls,
                                         stretches: _stretches,
                                         picked: _auto ? null : _rung,
@@ -641,7 +656,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                           which: _mandolin && !_auto && course == _model.tuning.strings[_rung].name[0]
                                               ? _pairString(course!, _line)
                                               : null,
-                                            tighten: r == null || r.inTune ? null : r.cents < 0,
+                                            tighten: r == null || r.inTune || (_listening && _hearing.value)
+                                              ? null
+                                              : r.cents < 0,
                                             leftHanded: _leftHanded,
                                           );
                                         },
@@ -697,6 +714,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                     reading: r,
                     note: _note,
                     listening: _listening,
+                    hearing: _listening && _hearing.value,
                     fineTuners: !_mandolin,
                     onDrag: _listening ? null : _dragTo,
                     onLetGo: _springBack,
@@ -842,6 +860,7 @@ class _Readout extends StatelessWidget {
     required this.reading,
     this.note,
     required this.listening,
+    this.hearing = false,
     required this.fineTuners,
     required this.onDrag,
     required this.onLetGo,
@@ -851,7 +870,7 @@ class _Readout extends StatelessWidget {
 
   /// Said for a moment in place of the status line.
   final String? note;
-  final bool listening, fineTuners;
+  final bool listening, hearing, fineTuners;
 
   /// Non-null in play mode, where the slider is a toy.
   final ValueChanged<double>? onDrag;
@@ -898,7 +917,7 @@ class _Readout extends StatelessWidget {
   }
 
   String _status(TunerReading? r) =>
-      tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners);
+      tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners, hearing: hearing);
 }
 
 /// −50..+50 cents with the ±3 in-tune zone, and "flat" and "sharp" under its

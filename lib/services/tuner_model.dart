@@ -252,6 +252,19 @@ class TunerModel {
     _clear();
   }
 
+  /// A note has begun and has not yet settled: a pluck's first
+  /// [settleAfter], a bow until its level has held for 300 ms of readings
+  /// (about 0.65 s in). Its reading so far is the sharp
+  /// start of a pluck gliding down, so the screen says it is listening and
+  /// keeps the last pose, rather than move with the glide and be chased.
+  bool get listening {
+    final start = _start, last = _noteLast;
+    if (start == null || _now - start >= settleAfter) return false;
+    if (last != null && _now - last > noteGap) return false;
+    if (_history.isEmpty) return last != null || _now - start < attack + noteGap;
+    return !_mayEnterInTune(_now);
+  }
+
   /// The reading to show, or null when idle.
   TunerReading? get reading {
     final p = _pitch, s = _string, last = _lastAccepted;

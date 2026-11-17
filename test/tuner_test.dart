@@ -95,6 +95,21 @@ void main() {
         (t) => off(hz, glide * math.exp(-t / 0.45));
     double fading(double t) => 0.2 * math.exp(-t / 0.9);
 
+    test('listening: a pluck until it settles, a bow until its level has held', () {
+      start(violin, pin: 'A4');
+      expect(m.listening, isFalse);
+      sound(30, pluckHz(off(a.hz, -10), glide: 12), rms: fading); // 0.32 s
+      expect(m.listening, isTrue, reason: 'a pluck still gliding down');
+      sound(70, pluckHz(off(a.hz, -10), glide: 12), rms: fading, after: 30); // 1.07 s
+      expect(m.listening, isFalse);
+      silence(60);
+      expect(m.listening, isFalse, reason: 'over, not listening');
+      sound(15, off(a.hz, -10)); // a bow, 0.16 s
+      expect(m.listening, isTrue);
+      sound(55, off(a.hz, -10), after: 15); // 0.75 s, its level held
+      expect(m.listening, isFalse);
+    });
+
     test('a picked string slipping to its octave stays the string, not very sharp', () {
       // A session: a G 60 cents flat read +1165 (its octave) and said "Very sharp".
       final g = mandolin.strings[0];
@@ -657,6 +672,22 @@ void main() {
       expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 4)); // the celebration
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('says Listening while a note settles, keeping the last pose', (tester) async {
+      final fake = await pumpTuner(tester);
+      await listen(tester);
+      await play(tester, fake, off(440, -15), n: 100);
+      expect(status(tester), 'Flat · turn the fine tuner clockwise');
+      final before = cents(tester);
+      await play(tester, fake, off(440, 15), n: 20); // 0.2 s of a new note
+      expect(status(tester), 'Listening…');
+      expect(cents(tester), before, reason: 'the last pose holds');
+      for (var i = 0; i < 60; i++) {
+        fake.ctl!.add(frame(clock++, off(440, 15)));
+      }
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(status(tester), startsWith('Sharp'));
     });
 
     testWidgets('mandolin: a first tap picks the lower string of a pair, the next the upper',
