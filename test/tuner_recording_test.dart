@@ -20,7 +20,7 @@ void main() {
     final pcm = Uint8List(4800 * 2); // 0.1 s of silence
     rec.addPcm(pcm);
     rec.addPcm(pcm);
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 40; i++) {
       final f = TunerFrame(Duration(microseconds: (i * 512 * 1e6 / 48000).round()),
           PitchEstimate(hz: 438, clarity: 0.97, rms: 0.05));
       model.add(f);
@@ -40,17 +40,17 @@ void main() {
     final csv = File('${root.path}/tuner_sessions/20261114-090507.csv').readAsLinesSync();
     expect(csv[0], '# instrument=Violin a4=440');
     expect(csv[1], TunerRecording.columns);
-    expect(csv.length, 2 + 20 + 1);
+    expect(csv.length, 2 + 40 + 1);
     final first = csv[2].split(',');
     expect(first[0], '0.0000');
     expect(first[4], 'attack');
     expect(first[5], '1', reason: 'the first frame starts the note');
-    final last = csv[21].split(',');
+    final last = csv[41].split(',');
     expect(last[4], 'accepted');
     expect(last[6], 'A4');
     expect(double.parse(last[7]), closeTo(-7.89, 0.01));
-    expect(csv[21], endsWith('"Flat, a bit"'));
-    expect(csv[22], startsWith('${last[0]},,,,event:mark'));
+    expect(csv[41], endsWith('"Flat, a bit"'));
+    expect(csv[42], startsWith('${last[0]},,,,event:mark'));
   });
 
   test('keeps only the newest sessions', () async {

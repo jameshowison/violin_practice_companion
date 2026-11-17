@@ -96,24 +96,26 @@ void main() {
 
     test('steady flat A reads flat on A', () {
       start(violin);
-      sound(25, off(a.hz, -12));
+      sound(45, off(a.hz, -12));
       expect(m.reading!.string.name, 'A4');
       expect(m.reading!.cents, closeTo(-12, 0.01));
       expect(m.reading!.live, isTrue);
       expect(m.reading!.inTune, isFalse);
     });
 
-    test('skips the attack: nothing for the first 100 ms', () {
+    test('skips the attack, then waits for ~0.2 s of the note', () {
       start(violin);
-      sound(9, off(a.hz, 30)); // ~96 ms of a bow's scrape
+      sound(10, off(a.hz, 30)); // ~107 ms of a bow's scrape
       expect(m.reading, isNull);
-      sound(5, a.hz);
+      sound(19, a.hz);
+      expect(m.reading, isNull, reason: 'a knock or a brushed string is this long');
+      sound(1, a.hz);
       expect(m.reading!.cents, closeTo(0, 0.01));
     });
 
     test('ignores unclear frames, an octave blip, and a run of subharmonics', () {
       start(violin);
-      sound(20, off(a.hz, 4));
+      sound(40, off(a.hz, 4));
       sound(1, a.hz * 2); // an octave blip
       sound(1, 300.0, clarity: 0.4); // noise
       sound(8, a.hz / 2); // a beat's null, locked an octave down
@@ -158,8 +160,8 @@ void main() {
     test('in tune with hysteresis: in at 3¢ once the note holds, out only past 5¢', () {
       start(violin);
       sound(30, off(a.hz, 2.5)); // 320 ms, of which 220 after the attack
-      expect(m.reading!.inTune, isFalse, reason: 'the level has not held for long enough yet');
-      sound(25, off(a.hz, 2.5)); // held 300 ms, then in tune for 150
+      expect(m.reading!.inTune, isFalse, reason: 'just shown, not held long enough yet');
+      sound(45, off(a.hz, 2.5)); // shown, held 300 ms, then in tune for 150
       expect(m.reading!.inTune, isTrue);
       sound(60, off(a.hz, 4.5)); // drifts to 4.5: still in tune
       expect(m.reading!.cents, closeTo(4.5, 0.01));
@@ -192,7 +194,7 @@ void main() {
 
     test('pinned string measures everything against it', () {
       start(violin, pin: 'D4');
-      sound(20, a.hz);
+      sound(40, a.hz);
       expect(m.reading!.string.name, 'D4');
       expect(m.reading!.cents, closeTo(701.96, 0.01)); // a pure fifth up
     });
@@ -208,9 +210,40 @@ void main() {
       expect(m.reading!.cents, closeTo(0, 0.01));
     });
 
+    test('a gliding voice does not start a note; a steady retune does', () {
+      start(violin, pin: 'G3');
+      final g = violin.strings[0];
+      sound(60, off(g.hz, -3));
+      // Around 174 Hz (-195¢) but wavering by ±18¢, as the session's voice
+      // did (175, 172, 176 Hz in 128 ms): near enough to agree, never steady.
+      sound(30, (double t) => off(174, 18 * math.sin(2 * math.pi * t / 0.12)));
+      expect(m.reading!.cents, closeTo(-3, 0.5));
+      // The same distance, held: a peg let down a long way.
+      sound(30, 175.0);
+      expect(m.reading!.cents, closeTo(centsBetween(175, g.hz), 0.5));
+    });
+
+    test('far under the lowest string is not a string', () {
+      start(violin, pin: 'G3');
+      final g = violin.strings[0];
+      sound(60, off(g.hz, -3));
+      sound(60, 134.0); // -642¢: the session's last reading
+      expect(m.reading!.cents, closeTo(-3, 0.5));
+    });
+
+    test('a note that ended in tune goes back to waiting after a few seconds', () {
+      start(violin);
+      sound(80, a.hz);
+      expect(m.reading!.inTune, isTrue);
+      silence(200); // ~2 s
+      expect(m.reading, isNotNull);
+      silence(200); // past 3 s after the note ended
+      expect(m.reading, isNull);
+    });
+
     test('A = 442 moves the targets', () {
       start(InstrumentTuning.violin(a4: 442));
-      sound(20, 440.0);
+      sound(40, 440.0);
       expect(m.reading!.cents, closeTo(-7.85, 0.01));
     });
 
@@ -228,9 +261,9 @@ void main() {
         pluck(-28);
         expect(m.reading!.cents, closeTo(-28, 1.5));
         expect(m.reading!.trend, TunerTrend.wrongWay);
-        pluck(-10);
+        pluck(-14);
         expect(m.reading!.trend, TunerTrend.closer);
-        pluck(8);
+        pluck(12);
         expect(m.reading!.trend, TunerTrend.overshot);
         pluck(1);
         expect(m.reading!.inTune, isTrue);
@@ -260,11 +293,33 @@ void main() {
         expect(m.reading!.trend, TunerTrend.wrongWay);
       });
 
-      test('within a bowed note: turning while bowing', () {
+      test('within a bowed note: turning while bowing, and stopping', () {
         start(violin, pin: 'A4');
         // -15, then the tuner turned the wrong way over a second, to -25.
-        sound(200, (double t) => off(a.hz, t < 0.5 ? -15 : -15 - 10 * math.min(1.0, (t - 0.5))));
+        double hz(double t) => off(a.hz, t < 0.5 ? -15 : -15 - 10 * math.min(1.0, (t - 0.5)));
+        sound(130, hz); // 1.4 s: still turning
         expect(m.reading!.trend, TunerTrend.wrongWay);
+        sound(100, hz, after: 130); // held at -25 past the comparison interval
+        expect(m.reading!.trend, TunerTrend.none, reason: 'the turning stopped');
+      });
+
+      test('a bow that starts flat and settles is not "too far", and closing in is not red',
+          () {
+        start(violin, pin: 'D4');
+        // The session's D at 58.9 s: the bow's scrape a little flat, then
+        // +8¢ and falling towards the target, as the tuner is turned.
+        sound(200, (double t) => off(d.hz, t < 0.15 ? -4 : 8 - 2 * math.min(1.0, t)));
+        expect(m.reading!.trend, isNot(TunerTrend.overshot));
+        expect(m.reading!.trend, isNot(TunerTrend.wrongWay));
+      });
+
+      test('no trend within a bow\'s wobble of the target', () {
+        start(violin, pin: 'G3');
+        final g = violin.strings[0];
+        // The session's G at 137 s: drifting from -1 to -6 in one bow.
+        sound(200, (double t) => off(g.hz, t < 1.2 ? -1 : -1 - 5 * math.min(1.0, (t - 1.2) / 0.5)));
+        expect(m.reading!.cents, lessThan(-4));
+        expect(m.reading!.trend, TunerTrend.none);
       });
 
       test('the same drift in a fading pluck is its glide, not a turn', () {
@@ -393,7 +448,7 @@ void main() {
     // The microphone's clock runs on across notes; each one after a pause
     // long enough to end the last (TunerModel.noteGap).
     var clock = 0;
-    Future<void> play(WidgetTester tester, FakeTunerInput fake, double hz, {int n = 60}) async {
+    Future<void> play(WidgetTester tester, FakeTunerInput fake, double hz, {int n = 80}) async {
       for (var i = 0; i < 45; i++) {
         fake.ctl!.add(frame(clock++, null));
       }

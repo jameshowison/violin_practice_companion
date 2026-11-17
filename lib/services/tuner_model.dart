@@ -95,14 +95,23 @@ class TunerReading {
 ///   fading tail), or 8 dB under the last 300 ms (a beat's null, a bow
 ///   change), are ignored.
 /// - Frames more than [outlierCents] from the note's own pitch are ignored
-///   (an octave slip), unless a dozen agree: a slur to another string, or a
-///   peg turned a long way, starts a new note there.
+///   (an octave slip), unless a dozen agree and hold steady (within
+///   [strayCents]): a slur to another string, or a peg turned a long way,
+///   starts a new note there. A voice glides; it does not.
+/// - A note shows only once it has [minNoteFrames] accepted frames (~0.2 s):
+///   a bow or a pluck has many more, a knock or a brushed string a handful.
+///   Until then the last note's pose holds.
+/// - Frames more than [belowLowest] cents under the lowest string are not a
+///   string at all (talking, a knock), whatever their clarity.
 /// - The note's pitch is the median of what was accepted in its last
 ///   [window]: steady, and nearer the settled end of a pluck than its
 ///   sharp start.
 /// - When the note stops, its last reading stays (not [TunerReading.live])
 ///   for [holdFor]: the stringling keeps the pose of the last pluck, and
 ///   with it the advice, until the next one.
+///
+/// - A note that ended in tune is held only for [inTuneHoldFor]: there is
+///   nothing left to do with it, so the screen goes back to waiting.
 ///
 /// It also says which way the tuning is going ([TunerReading.trend]),
 /// between notes (this pluck against the last one, on the same string) and,
@@ -112,6 +121,11 @@ class TunerReading {
 /// what is left is much the same in both, so it cancels. At 700 ms a hard
 /// pluck and a gentle one of the same pitch still differed by 4¢. Compared early, the
 /// glide would make a flat string look as if it were going the wrong way.
+/// Within a bow the trend is taken afresh every frame, never from its first
+/// 250 ms (the bow's scrape starts it flat), so "Wrong way!" goes as soon as
+/// the turning does. Within [trendFloor] of the target there is no trend:
+/// a bow wobbles by that much on its own, and "Flat"/"Sharp" already says
+/// which way to go.
 ///
 /// Time comes from the frames themselves, so tests can drive it exactly.
 class TunerModel {
@@ -143,6 +157,31 @@ class TunerModel {
   /// No accepted frame for this long ends the note.
   static const noteGap = Duration(milliseconds: 400);
 
+  /// How long a note that ended in tune is held before going idle.
+  static const inTuneHoldFor = Duration(seconds: 3);
+
+  /// Accepted frames a note needs before it is shown. In a session on the
+  /// phone every real note had 83 or more, and every stray sound 13 or fewer.
+  static const minNoteFrames = 20;
+
+  /// No trend this near the target: within a bow's own wobble.
+  static const trendFloor = 8.0;
+
+  /// The dozen outliers that start a new note must lie within this of each
+  /// other. A peg turned while bowing moves ~13¢ in their 128 ms; a voice
+  /// gliding moved 36¢.
+  static const strayCents = 20.0;
+
+  /// Further than this under the lowest string is not a string: a G tuned
+  /// down a major third is already far past anything a player does.
+  static const belowLowest = 400.0;
+
+  /// A bow's scrape: within-note trends are not measured from before this.
+  /// Under [settleAfter] - [trendAfter], so a bow's own trend is ready just
+  /// before the comparison with the last note, and that one never flashes up
+  /// for a frame first.
+  static const _bowScrape = Duration(milliseconds: 250);
+
   final double minClarity;
   final Duration attack, window, holdFor, trendAfter, settleAfter;
   final double outlierCents, trendCents;
@@ -158,11 +197,15 @@ class TunerModel {
   Duration? _start;
   double _peak = 0;
   final _accepted = <(Duration, double)>[]; // (at, pitch in cents from A4)
+  int _noteFrames = 0; // accepted in this note, all told
+  Duration? _noteLast; // this note's last accepted frame, shown or not
   double? _pitch; // median of the window, cents from A4
   Duration? _lastAccepted;
   final _history = <(Duration, double, double)>[]; // (at, pitch, level)
   final _stray = <double>[]; // consecutive outliers, cents from A4
   TunerTrend _withinTrend = TunerTrend.none;
+  Duration? _withinNoneSince; // when the bow's own comparison last went quiet
+  bool _withinSpoke = false; // the bow has had a trend of its own
   double? _settled; // cents at settleAfter
   Duration? _inSince;
   bool _inTune = false;
@@ -201,6 +244,7 @@ class TunerModel {
     if (p == null || s == null || last == null) return null;
     final quiet = _now - last;
     if (quiet > holdFor) return null;
+    if (_inTune && quiet > noteGap + inTuneHoldFor) return null;
     final hz = _hz(p);
     final cents = centsBetween(hz, s.hz);
     final live = quiet <= noteGap;
@@ -244,19 +288,27 @@ class TunerModel {
     if (level < _peak / 8 || level < local / 2.5) return false;
     lastDecision = TunerDecision.outlier;
 
+    if (centsBetween(p.hz, tuning.strings.first.hz) < -belowLowest) return false;
     final pc = 1200 * math.log(p.hz / 440) / math.ln2;
-    final pitch = _pitch;
+    // Against this note's own frames once it has some, shown or not;
+    // before that, against the last note's.
+    final pitch = _accepted.isEmpty ? _pitch : _median(_accepted);
     if (pitch != null && (pc - pitch).abs() > outlierCents) {
-      // An octave slip, or the start of something new: a dozen that agree.
+      // An octave slip, or the start of something new: a dozen that agree,
+      // and hold steady.
       if (_stray.isNotEmpty && (pc - _stray.first).abs() > outlierCents / 2) _stray.clear();
       _stray.add(pc);
+      if (_stray.length > 12) _stray.removeAt(0);
       if (_stray.length < 12) return false;
+      final sorted = [..._stray]..sort();
+      if (sorted.last - sorted.first > strayCents) return false;
       final agreed = [..._stray];
       _begin(at, keepPeak: true);
       lastOnset = true;
       for (final c in agreed) {
         _accepted.add((at, c));
       }
+      _noteFrames = agreed.length;
     } else {
       _stray.clear();
     }
@@ -266,8 +318,9 @@ class TunerModel {
     while (_accepted.first.$1 < at - window) {
       _accepted.removeAt(0);
     }
-    final sorted = [for (final e in _accepted) e.$2]..sort();
-    _pitch = sorted[sorted.length ~/ 2];
+    _noteLast = at;
+    if (++_noteFrames < minNoteFrames) return false;
+    _pitch = _median(_accepted);
     _lastAccepted = at;
 
     final r = _follower.update(p.hz);
@@ -275,6 +328,8 @@ class TunerModel {
       // A move to another string (when following): nothing to compare.
       _history.clear();
       _withinTrend = TunerTrend.none;
+      _withinSpoke = false;
+      _withinNoneSince = null;
       _settled = null;
       _previous = null;
       _inSince = null;
@@ -293,9 +348,8 @@ class TunerModel {
     final recent = _levels.sublist(math.max(0, _levels.length - _onsetFrames));
     final rose = level > 2 * recent.reduce(math.min) + 1e-4;
     if (_start == null) return rose || _levels.last == 0;
-    final ended = _lastAccepted == null
-        ? at - _start! > noteGap + attack
-        : at - _lastAccepted! > noteGap;
+    final last = _noteLast;
+    final ended = last == null ? at - _start! > noteGap + attack : at - last > noteGap;
     if (ended) return rose;
     if (at - _start! < const Duration(milliseconds: 250)) return false;
     // Past what it has been ringing at, not just back to it.
@@ -313,9 +367,13 @@ class TunerModel {
     _start = at;
     if (!keepPeak) _peak = 0;
     _accepted.clear();
+    _noteFrames = 0;
+    _noteLast = null;
     _history.clear();
     _stray.clear();
     _withinTrend = TunerTrend.none;
+    _withinSpoke = false;
+    _withinNoneSince = null;
     _settled = null;
     _inSince = null;
     // _pitch, _lastAccepted and _string stay: the last pose holds until this
@@ -362,12 +420,22 @@ class TunerModel {
     _history.removeWhere((h) => h.$1 < then.$1);
     // A pluck fades (by a third or more over the interval); a bow holds.
     if (level < 0.8 * then.$3 || level < 0.5 * _peak) return;
+    if (then.$1 - _start! < _bowScrape) return;
     final t = _compare(then.$2, cents);
-    if (t != TunerTrend.none) _withinTrend = t;
+    if (t != TunerTrend.none) {
+      _withinTrend = t;
+      _withinSpoke = true;
+      _withinNoneSince = null;
+    } else if (_withinTrend != TunerTrend.none) {
+      // Cleared only once quiet for a moment, so it does not flicker.
+      _withinNoneSince ??= at;
+      if (at - _withinNoneSince! >= _bowScrape) _withinTrend = TunerTrend.none;
+    }
   }
 
   TunerTrend _trend(double cents, TunedString s, {required bool live}) {
-    if (_withinTrend != TunerTrend.none) return _withinTrend;
+    // Once the bow has said which way it is going, the last note is stale.
+    if (_withinSpoke) return _withinTrend;
     final prev = _previous;
     if (prev == null || prev.midi != s.midi) return TunerTrend.none;
     final now = _settled ?? (live ? null : cents);
@@ -375,12 +443,19 @@ class TunerModel {
   }
 
   TunerTrend _compare(double before, double now) {
-    if (now.abs() <= inTuneCents) return TunerTrend.none;
-    if (before.abs() > inTuneCents && before.sign != now.sign) return TunerTrend.overshot;
+    if (now.abs() < trendFloor) return TunerTrend.none;
+    // Overshot only from clearly off the other side: from the edge of in
+    // tune it would flicker with every frame, and wrong way says it as well.
+    if (before.abs() >= trendFloor && before.sign != now.sign) return TunerTrend.overshot;
     final d = now.abs() - before.abs();
     if (d >= trendCents) return TunerTrend.wrongWay;
     if (d <= -trendCents) return TunerTrend.closer;
     return TunerTrend.none;
+  }
+
+  static double _median(List<(Duration, double)> frames) {
+    final sorted = [for (final e in frames) e.$2]..sort();
+    return sorted[sorted.length ~/ 2];
   }
 
   static double _hz(double centsFromA4) => 440 * math.pow(2, centsFromA4 / 1200).toDouble();
@@ -390,11 +465,15 @@ class TunerModel {
     _start = null;
     _peak = 0;
     _accepted.clear();
+    _noteFrames = 0;
+    _noteLast = null;
     _pitch = null;
     _lastAccepted = null;
     _history.clear();
     _stray.clear();
     _withinTrend = TunerTrend.none;
+    _withinSpoke = false;
+    _withinNoneSince = null;
     _settled = null;
     _inSince = null;
     _inTune = false;
