@@ -235,11 +235,136 @@ class AudioScoreAutoAligner {
         contentStartSeconds != null ? refined : refineFirstAnchor(refined);
 
     return AutoAlignmentResult(
-      placed,
+      restsAbsorbPauses(
+          placed, _midiGenerator.generate(piece, estimatedBpm)),
       estimatedBpm,
       dtwResult.averageCost,
+      // Judged on the barline anchors: the pass above adds anchors inside
+      // bars, whose short segments would read as outliers.
       hasCompressedAnchors: hasCompressedRun(placed),
     );
+  }
+
+  /// How many times slower than the piece's median pace a stretch between
+  /// anchors must run before [restsAbsorbPauses] treats it as a pause.
+  static const double pauseSlowdown = 2.0;
+
+  /// [anchors] with each pause put in the rests where it happened.
+  ///
+  /// A performer stops in a rest: to turn a page, or to talk, as a teacher
+  /// video does. DTW finds the bars either side, but anchors are barlines,
+  /// and between two of them playback interpolates at an even pace, so the
+  /// notes in a paused bar are spread through the pause. On a teacher video
+  /// that stopped for 12 s across `A3 rest | rest F4`, the F4 lit ~3 s before
+  /// it was played.
+  ///
+  /// So within each run of segments slower than [pauseSlowdown] times the
+  /// median, sounding score time keeps the median pace and the rests share
+  /// the rest of the audio in proportion to their written length. Anchors
+  /// are added where the music starts and stops sounding, and barlines inside
+  /// the run are moved onto the new curve. A run with no rest in it, a
+  /// fermata or a real ritardando, is left alone.
+  static List<ScoreAudioAnchor> restsAbsorbPauses(
+      List<ScoreAudioAnchor> anchors, MidiData midi) {
+    if (anchors.length < 3) return anchors;
+    double paceOf(int i) =>
+        (anchors[i + 1].audioSec - anchors[i].audioSec) /
+        (anchors[i + 1].scoreMs - anchors[i].scoreMs);
+    final paces = [
+      for (var i = 0; i + 1 < anchors.length; i++)
+        if (anchors[i + 1].scoreMs > anchors[i].scoreMs) paceOf(i),
+    ]..sort();
+    if (paces.isEmpty) return anchors;
+    final median = paces[paces.length ~/ 2];
+    if (median <= 0) return anchors;
+    bool slow(int i) =>
+        anchors[i + 1].scoreMs > anchors[i].scoreMs &&
+        paceOf(i) > pauseSlowdown * median;
+
+    // Sounding intervals in score ms, merged.
+    final sounding = [
+      for (final n in midi.notes)
+        (n.onsetSeconds * 1000, n.offsetSeconds * 1000),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    final merged = <(double, double)>[];
+    for (final iv in sounding) {
+      if (merged.isNotEmpty && iv.$1 <= merged.last.$2) {
+        if (iv.$2 > merged.last.$2) merged.last = (merged.last.$1, iv.$2);
+      } else {
+        merged.add(iv);
+      }
+    }
+
+    final out = <ScoreAudioAnchor>[];
+    var i = 0;
+    while (i < anchors.length) {
+      if (i + 1 >= anchors.length || !slow(i)) {
+        out.add(anchors[i]);
+        i++;
+        continue;
+      }
+      var hi = i + 1;
+      while (hi + 1 < anchors.length && slow(hi)) {
+        hi++;
+      }
+      final from = anchors[i], to = anchors[hi];
+      // The run's score time, cut at every start and end of sound.
+      final cuts = <double>{from.scoreMs, to.scoreMs};
+      for (final (a, b) in merged) {
+        if (a > from.scoreMs && a < to.scoreMs) cuts.add(a);
+        if (b > from.scoreMs && b < to.scoreMs) cuts.add(b);
+      }
+      final edges = cuts.toList()..sort();
+      bool isRest(double a, double b) {
+        final mid = (a + b) / 2;
+        return !merged.any((iv) => iv.$1 <= mid && mid < iv.$2);
+      }
+      var restMs = 0.0;
+      for (var k = 0; k + 1 < edges.length; k++) {
+        if (isRest(edges[k], edges[k + 1])) restMs += edges[k + 1] - edges[k];
+      }
+      final spare = (to.audioSec - from.audioSec) -
+          median * (to.scoreMs - from.scoreMs);
+      if (restMs <= 0 || spare <= 0) {
+        for (var k = i; k < hi; k++) {
+          out.add(anchors[k]);
+        }
+        i = hi;
+        continue;
+      }
+      final restPace = median + spare / restMs;
+      // The warped curve at the cuts, then the run's barlines placed on it.
+      final curve = <ScoreAudioAnchor>[from];
+      for (var k = 0; k + 1 < edges.length; k++) {
+        final pace = isRest(edges[k], edges[k + 1]) ? restPace : median;
+        curve.add(ScoreAudioAnchor(edges[k + 1],
+            curve.last.audioSec + pace * (edges[k + 1] - edges[k])));
+      }
+      double onCurve(double ms) {
+        var k = 0;
+        while (k + 2 < curve.length && curve[k + 1].scoreMs <= ms) {
+          k++;
+        }
+        final a = curve[k], b = curve[k + 1];
+        return a.audioSec +
+            (b.audioSec - a.audioSec) *
+                (ms - a.scoreMs) /
+                (b.scoreMs - a.scoreMs);
+      }
+      final points = <double, ScoreAudioAnchor>{
+        for (final c in curve) c.scoreMs: c,
+        for (var k = i + 1; k < hi; k++)
+          anchors[k].scoreMs: ScoreAudioAnchor(
+              anchors[k].scoreMs, onCurve(anchors[k].scoreMs)),
+      };
+      final keys = points.keys.toList()..sort();
+      // `to` is emitted as the next run's (or the loop's) first anchor.
+      for (final ms in keys) {
+        if (ms < to.scoreMs) out.add(points[ms]!);
+      }
+      i = hi;
+    }
+    return out;
   }
 
   /// Which of [anchors] fall on a barline that a note is HELD across — a tie

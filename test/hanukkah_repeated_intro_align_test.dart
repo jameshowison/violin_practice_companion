@@ -1,4 +1,5 @@
-// Regression test for [DtwAligner.maxReferenceStride]: a teacher's practice
+// Regression test for [DtwAligner.maxReferenceStride] and
+// [AudioScoreAutoAligner.restsAbsorbPauses]: a teacher's practice
 // video whose first twelve bars are all the same, a rest then an A.
 //
 // The recording talks for 12.5 s, then plays the twelve As about 1.5 s apart
@@ -26,7 +27,21 @@ void main() {
         MusicXmlNormalizer.toSoundingPitch(readRestricted(kHanukkahScore)));
     final result = AudioScoreAutoAligner(midiGenerator: MidiGenerator.forTest())
         .align(piece, restrictedFile(kHanukkahTeacherWav)!.readAsBytesSync());
-    final bar = [for (final a in result.anchors) a.audioSec];
+    // Audio time of a score time, as playback interpolates it.
+    double audioAt(double ms) {
+      final a = result.anchors;
+      var k = 0;
+      while (k + 2 < a.length && a[k + 1].scoreMs <= ms) {
+        k++;
+      }
+      return a[k].audioSec +
+          (a[k + 1].audioSec - a[k].audioSec) *
+              (ms - a[k].scoreMs) /
+              (a[k + 1].scoreMs - a[k].scoreMs);
+    }
+    final midi = MidiGenerator.forTest().generate(piece, result.generationBpm);
+    final barMs = [for (final s in midi.measureOnsetSeconds) s * 1000];
+    final bar = [for (final ms in barMs) audioAt(ms)];
 
     expect(bar[0], closeTo(12.55, 0.4), reason: 'bar 1 starts at the first A');
     for (var i = 0; i < 12; i++) {
@@ -38,5 +53,11 @@ void main() {
     // After the page-turn pause and the talking in bars 43-44, bar 45 is
     // back on its notes.
     expect(bar[44], closeTo(88.4, 0.4));
+    // And the pause sits in the rests: the A3 that starts bar 43 is still at
+    // ~75.3 s, and bar 44's F4, on its second beat, is played at ~87.6 s, not
+    // spread through the pause (~84.7 s, interpolating barline to barline).
+    final beatMs = 60000 / result.generationBpm;
+    expect(bar[42], closeTo(75.3, 0.4));
+    expect(audioAt(barMs[43] + beatMs), closeTo(87.6, 0.4));
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
