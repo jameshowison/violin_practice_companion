@@ -395,9 +395,16 @@ Unplug the phone, restart the two daemons (they relaunch themselves), replug,
 unlock:
 
 ```bash
-sudo pkill -9 remotepairingd CoreDeviceService
+pkill -9 remotepairingd CoreDeviceService
 xcrun devicectl list devices      # want: available
 ```
+
+Both run as your own user, so no `sudo` (which also can't prompt for a password
+from Claude Code's `!` prefix or an agent's shell). The same restart cleared a
+phone stuck at `unavailable` over Wi-Fi while awake and unlocked (2026-11-17):
+`devicectl` failed every install with `unable to locate a device matching the
+requested device identifier`, even though `device_install.sh`'s reachability
+check had passed.
 
 If it still says `connecting`, reboot the phone. A flaky cable or hub, or a
 phone that keeps resetting USB when it locks, will bring it back. The scripts
