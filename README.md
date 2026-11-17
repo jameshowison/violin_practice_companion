@@ -503,6 +503,25 @@ it and opens the piece.
   `Library/Caches/share_out_*/`. The log prints one `[share] …` line per
   export and import.
 
+## Imported video is shrunk to 720p
+
+An imported (or shared-in) video is re-encoded on the device to 720p HEVC at
+2 Mbps (H.264 where there's no HEVC encoder): 159 MB → 27 MB, 41 MB → 12 MB
+on real files. That's still sharp at full screen on an iPad and far more than
+the docked strip or floating window needs. The **audio track is copied, not
+re-encoded**, so playback sounds the same and cached alignments stay valid.
+Measured: decoded audio identical to the original, offset by at most 0.8 ms.
+
+- Native: `shrinkVideo` on the decoder channel (`ios/Runner/AudioDecoderPlugin.swift`,
+  AVAssetReader/Writer; `android/.../VideoShrinker.kt`, Media3 Transformer).
+  Skips a video that is already ≤720p and ≤3 Mbps, or whose audio can't go
+  into an mp4 unchanged.
+- Dart: `lib/services/video_shrinker_io.dart`. The shrink runs in the
+  background after import (and at launch for older media). The new
+  `video_720.mp4` takes over **at the next launch**, and the original is
+  deleted the launch after that. Swapping mid-session would reload whatever
+  is playing. The log prints `[video_shrink] …` lines.
+
 ## Dev library (the same pieces and media on every dev device)
 
 A fresh install starts empty. Rather than re-adding tunes and media by hand, every

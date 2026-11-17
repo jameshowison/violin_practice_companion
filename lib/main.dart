@@ -11,6 +11,7 @@ import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
 import 'services/verovio_engraver.dart';
+import 'services/video_shrinker.dart';
 
 Future<void> main() async {
   LaunchTiming.clock.start();
@@ -46,6 +47,15 @@ Future<void> main() async {
       container.read(libraryProvider.future),
     ]).timeout(const Duration(milliseconds: 600));
   } catch (_) {}
+  // Swaps in videos shrunk during an earlier session, before any piece's
+  // media list is read. After the dev-library merge, which writes the same
+  // rows. Capped like the load above; a miss just waits for the next launch.
+  try {
+    await container.read(devLibraryProvider.future);
+    await VideoShrinker.instance
+        .applyFinishedShrinks()
+        .timeout(const Duration(milliseconds: 300));
+  } catch (_) {}
   if (kDebugMode) registerRealignAll(container);
   LaunchTiming.mark('pieces ready, runApp');
   runApp(UncontrolledProviderScope(
@@ -56,5 +66,6 @@ Future<void> main() async {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     LaunchTiming.mark('first frame');
     VerovioEngraver.instance.warmUp();
+    VideoShrinker.instance.scheduleLaunchPass();
   });
 }

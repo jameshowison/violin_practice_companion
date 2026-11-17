@@ -50,4 +50,10 @@ dependencies {
     // devices without Play services rather than downloading on first use.
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
+    // Shrinking imported video (VideoShrinker.kt). Pinned to the media3
+    // version video_player_android already pulls in, so there is one copy of
+    // media3-common in the APK rather than two that disagree.
+    implementation("androidx.media3:media3-transformer:1.9.2")
+    implementation("androidx.media3:media3-effect:1.9.2")
+    implementation("androidx.media3:media3-common:1.9.2")
 }

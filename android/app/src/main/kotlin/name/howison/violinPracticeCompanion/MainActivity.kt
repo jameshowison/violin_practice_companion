@@ -16,7 +16,8 @@ class MainActivity : FlutterActivity() {
     // AudioDecoderPlugin.kt.
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        audioDecoder = AudioDecoderPlugin(flutterEngine.dartExecutor.binaryMessenger)
+        audioDecoder = AudioDecoderPlugin(
+            flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         contentResolver = ContentResolverPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         textRecognition = TextRecognitionPlugin(flutterEngine.dartExecutor.binaryMessenger)

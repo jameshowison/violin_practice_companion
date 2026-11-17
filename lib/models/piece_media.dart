@@ -271,6 +271,29 @@ class PieceMedia {
         contentEndSeconds: endSeconds,
       );
 
+  /// Every one of [audio], [analysis] and [video] that names [from], pointed
+  /// at [to] instead, for when a medium's file is replaced by a smaller copy
+  /// of itself (see `video_shrinker_io.dart`). An imported video is all three
+  /// at once; a recorded demo's video is only [video].
+  ///
+  /// The [alignmentKey] is kept: the replacement carries the same audio, so
+  /// the cached anchors still describe it.
+  PieceMedia withFileReplaced(MediaRef from, MediaRef to) {
+    MediaRef? swap(MediaRef? ref) => ref == from ? to : ref;
+    return PieceMedia(
+      id: id,
+      label: label,
+      kind: kind,
+      alignmentKey: alignmentKey,
+      audio: swap(audio),
+      analysis: swap(analysis),
+      video: swap(video),
+      avOffsetMs: avOffsetMs,
+      contentStartSeconds: contentStartSeconds,
+      contentEndSeconds: contentEndSeconds,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'label': label,

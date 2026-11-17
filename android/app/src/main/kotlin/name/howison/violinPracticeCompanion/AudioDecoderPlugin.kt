@@ -1,5 +1,6 @@
 package name.howison.violinPracticeCompanion
 
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -23,14 +24,20 @@ import kotlin.concurrent.thread
  * Registered by hand from [MainActivity] rather than being a pub package: it
  * serves this app's one alignment pipeline and nothing else.
  */
-class AudioDecoderPlugin(messenger: BinaryMessenger) : MethodChannel.MethodCallHandler {
+class AudioDecoderPlugin(messenger: BinaryMessenger, context: Context) :
+    MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, CHANNEL_NAME).apply {
         setMethodCallHandler(this@AudioDecoderPlugin)
     }
+    private val videoShrinker = VideoShrinker(context)
 
     fun dispose() = channel.setMethodCallHandler(null)
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method == "shrinkVideo") {
+            videoShrinker.handle(call, result)
+            return
+        }
         if (call.method != "decodeToPcm") {
             result.notImplemented()
             return

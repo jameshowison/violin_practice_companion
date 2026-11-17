@@ -16,6 +16,7 @@ import '../services/providers.dart';
 import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
+import '../services/video_shrinker.dart';
 import 'tempo_controls.dart';
 import 'video_window_mode.dart';
 
@@ -250,6 +251,9 @@ class _MediaPicker extends ConsumerWidget {
       return;
     }
     await ref.read(pieceMediaStoreProvider).add(piece.id, imported);
+    // A phone video is 5-6x bigger than it needs to be for the window it
+    // plays in; the smaller copy takes over at the next launch.
+    VideoShrinker.instance.enqueue(piece.id, imported);
     // Select it straight away: importing a file is a request to use it, and
     // leaving the user to then pick it out of a menu would be asking twice.
     ref.read(selectedMediaIdProvider(piece.id).notifier).state = imported.id;
