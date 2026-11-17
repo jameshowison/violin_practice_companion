@@ -8,7 +8,8 @@ Simulators are referred to by name, never by UDID: **`dev-iphone-se`** (iPhone S
 
 **Start once:**
 ```bash
-bash scripts/dev_run.sh dev-iphone-se   # kills any existing run, boots the device,
+bash scripts/dev_run.sh dev-iphone-se   # kills the previous run on its pipe, boots the
+                                     # device, syncs the dev library (--no-sync skips),
                                      # stamps the build, opens the control pipe
 ```
 
@@ -104,7 +105,8 @@ pinned git tag, not from `../homr_flutter`; nor does it have the models, so run
 ## Parallel Claude sessions
 
 One worktree per session: `claude --worktree`, or `git worktree add ../vpc-<topic>
--b <topic>` (mind the two worktree traps above). Never two sessions editing the
+-b <topic>` (mind the two worktree traps above; plain `git worktree add -b`
+branches from your current HEAD, so there only the overrides/models trap applies). Never two sessions editing the
 main checkout: their diffs mix and a `git add -A` commits the other's half-done
 work. A `SessionStart` hook (`.claude/hooks/parallel_session_check.sh`) warns when
 another session is already in this checkout. If you get that warning, stop before
@@ -121,8 +123,9 @@ echo r > /tmp/flutter_ctl_ipad                                     # B reloads i
 refuses if another run already holds the device (`--takeover` overrides). The log
 is per-worktree (`flutter_run.log` is relative), and Marionette connects per VM
 Service URL, so both are fine. Still global, and still one session at a time:
-`device_install.sh` (kills every `flutter run`), dev-library sync of a device the
-other session is on, and `pkill -f flutter_tools.snapshot` by hand.
+`device_install.sh` and `sim_add_media.sh` (both kill every `flutter run`),
+dev-library sync of a device the other session is on, and
+`pkill -f flutter_tools.snapshot` by hand.
 
 ## Android emulator
 
@@ -168,7 +171,9 @@ reinstalls the app (wiping its own dirs), so push corpora to `/data/local/tmp/�
 **What's native on Android** (`android/app/src/main/kotlin/…`, registered by hand
 in `MainActivity.kt`): `AudioDecoderPlugin` (MediaCodec), `ContentResolverPlugin`
 (content:// scans), `TextRecognitionPlugin` (ML Kit, bundled Latin model — drops a
-leading boxed page number Vision never returns). **Still iOS-only**, and the Dart
+leading boxed page number Vision never returns), `IncomingSharePlugin` (a
+`.stringlings` file opened in the app), `BundledAssetPlugin` (a bundled asset as a
+real file path, copied out of the APK). **Still iOS-only**, and the Dart
 side degrades on `MissingPluginException`: `AudioRoutePlugin` and
 `AudioCalibrationPlugin` — both need a physical Android phone to build against.
 ML Kit also tries to send usage logs to `firebaselogging.googleapis.com` (no
@@ -226,6 +231,12 @@ mcp__marionette__tap(coordinates: {x, y})   # tap by screen coords
 mcp__marionette__get_logs()                  # app stdout/flutter: logs
 mcp__marionette__hot_reload()                # trigger reload via MCP
 ```
+
+**The staff is no longer a WebView by default.** `staffRendererProvider` defaults to
+`StaffRenderer.verovio` (`lib/services/providers.dart`, no UI toggle), and
+`StaffViewVerovio` draws with `jovial_svg` inside Flutter's own pipeline, so
+Marionette screenshots DO capture the notation. What follows applies only to the
+OSMD fallback (`StaffRenderer.osmd`, kept for macOS).
 
 **Known limitation — WebView (platform views) are always blank in screenshots:**
 `webview_flutter` on iOS uses a native `WKWebView`, which is a Flutter "platform view" — it renders outside Flutter's own rendering pipeline. Marionette's `take_screenshots` calls `RepaintBoundary.toImage()` internally, which captures platform views as solid white/blank. This is a Flutter engine limitation ([flutter#25306](https://github.com/flutter/flutter/issues/25306), [flutter#163639](https://github.com/flutter/flutter/issues/163639)) with no workaround in the Flutter SDK as of 2026.
@@ -368,7 +379,9 @@ description in the README, "Dev library". What an agent needs to know:
   relaunched should print `0 taken`. The app also logs one `[dev_library] …` line
   per launch when a library is staged.
 - **Don't sync a device someone is editing on** — the sync terminates the app.
-  It also kills a `flutter run` on that simulator; restart with `dev_run.sh`.
+  It also kills a `flutter run` on that simulator, then relaunches it itself with
+  `dev_run.sh` on `$FLUTTER_FIFO` (default `/tmp/flutter_ctl`, so set it if that
+  pipe is another session's); `--no-launch` leaves the app stopped instead.
 - **Diagnosing a bad scan:** the recogniser's input is
   `scan_sources/<pieceId>/page_<n>_crop.jpg` (`ScanSourceStore`), re-encoded
   as JPEG 92 after the scan, so close to but not bit-exactly what OMR saw.
@@ -421,7 +434,7 @@ CONTRIBUTING.md, "Content and copyright". For an agent:
   "first-year pieces"; use "Book 1" for a sample collection name; refer to a
   piece by its title only, never by its number in a book. The one exception is
   the guard in `test/release_content_test.dart`, which has to spell the word to
-  refuse it. `git grep -i suzuki` should list that file and nothing else.
+  refuse it. `git grep -il suzuki` should list that file and this one, nothing else.
 - **What ships is `assets/` and nothing else:** `assets/engine/` (machinery) and
   `assets/library/` (pieces, each listed in `assets/library/catalog.json` with
   `source` and `license`). Add a piece with `scripts/clean_musicxml.py` + a
@@ -433,7 +446,8 @@ CONTRIBUTING.md, "Content and copyright". For an agent:
   `test/support/restricted_fixtures.dart` and skip without it. Run the suite both
   ways after touching one: `VPC_RESTRICTED_DIR=/nonexistent flutter test`.
 - **Before a public release:** `VPC_PUBLIC_RELEASE=1 flutter test`. It refuses
-  anything licensed `internal-testing-only` (today: the play-along tracks).
+  anything licensed `internal-testing-only` (today: nothing; the play-along
+  tracks left the catalog in 490c03a).
 - `bash scripts/content_audit.sh` lists every path, in HEAD or anywhere in
   history, that matches the private purge list. HEAD should always show 0.
 - Dev-only entrypoints go in `dev/` (`flutter run -t dev/verovio_harness.dart`),

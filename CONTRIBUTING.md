@@ -88,9 +88,10 @@ for external testing (backed up in the restricted repo, `reference/audio_bundled
   edition fingerings or bowings, and no method names.
 - `test/repo_content_policy_test.dart` covers what may be committed at all.
   Images, PDFs, audio and models are allowed only in the platform icon folders
-  and `docs/images/`. Score files are allowed only in the library,
+  and `docs/images/` (plus engravings of our own scores,
+  `test/fixtures/verovio_*.svg`). Score files are allowed only in the library,
   `test/fixtures/` and `docs/`. Local-only folders (`lyrics_eval/`,
-  `docs/photos_no_share/`) are never committed.
+  `docs/photos_no_share/`, `scan_sources/`) are never committed.
 
 If a guard is in your way, the fix is almost always to move the file out of
 the repo, not to widen the guard.

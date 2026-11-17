@@ -41,7 +41,10 @@ names. See CLAUDE.md.
   closes whatever the user had open. Say so before running it. Never pass
   `--remove-existing-content` to `devicectl` (it wiped the app container on
   iOS 27).
-- Free Apple ID team: a build stops launching 7 days after signing.
+- A build stops launching when its provisioning profile expires. The team is on
+  the paid program now (365 days), but a cached 7-day profile from the old free
+  team can still be used; check `TimeToLive` (README, "Builds expire with their
+  provisioning profile").
 - A dev server on a simulator holds `build/ios/`. `device_install.sh` kills it
   (`pkill -f flutter_tools.snapshot`); restart it afterwards with
   `scripts/dev_run.sh`.
@@ -53,7 +56,7 @@ names. See CLAUDE.md.
 | Where does startup/open time go (stage breakdown) | simulator | S: log stream |
 | Real startup / open time, before vs after | phone | D: file pulled with devicectl |
 | Time before `main()` (engine start, launch screen) | phone | B: `--trace-startup` (costs a re-trust) |
-| Scripted flow, repeatable samples | phone | A: integration_test (costs a re-trust; not set up yet) |
+| Scripted flow, repeatable samples | phone | A: integration_test (costs a re-trust; no perf test yet) |
 | Spans in DevTools' timeline | phone, profile | C: `dart:developer` Timeline |
 | Native / plugin / pre-engine cost | phone | E: os_signpost + xctrace |
 | Frame build/raster, jank | either | F: FrameTiming, reported via D |
@@ -134,8 +137,9 @@ representative.
 
 ## A. integration_test with reportData
 
-Not set up in this repo: it needs `integration_test` (sdk: flutter) under
-`dev_dependencies` plus `integration_test/` and `test_driver/` directories. In a
+Half set up: `integration_test` (sdk: flutter) is already in `dev_dependencies`
+and `integration_test/` exists (title OCR and OMR-model tests, no perf test), but
+there is no `test_driver/` and no perf test yet. In a
 profile build `main()` skips `MarionetteBinding` (debug only), so the test binding
 won't conflict. `flutter drive` installs like `flutter run`, so it costs a re-trust
 too.
