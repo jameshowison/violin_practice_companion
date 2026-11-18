@@ -1045,7 +1045,6 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   final printedLines = systemStartPositions(xml);
   xml = PieceLayout.stripLayoutHints(xml);
   xml = PieceLayout.dropOpeningHiddenRests(xml);
-  xml = MeasureXmlEditor.rebuildTupletBrackets(xml);
   if (!print) xml = _hidePreambleFor(ref, xml);
   if (!fingering) {
     xml = FingeringXmlInjector.stripFingerings(xml);
@@ -1148,7 +1147,6 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   if (source == null) return null;
   String xml = source;
   xml = PieceLayout.stripLayoutHints(xml);
-  xml = MeasureXmlEditor.rebuildTupletBrackets(xml);
   xml = FingeringXmlInjector.stripFingerings(xml);
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).

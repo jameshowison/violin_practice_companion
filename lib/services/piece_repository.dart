@@ -4,6 +4,7 @@ import '../models/piece.dart';
 import '../models/piece_catalog.dart';
 import '../models/section.dart';
 import 'musicxml_beamer.dart';
+import 'musicxml_consistency.dart';
 import 'musicxml_normalizer.dart';
 import 'musicxml_parser.dart';
 import 'launch_timing.dart';
@@ -26,7 +27,7 @@ class PieceRepository {
   // just as tunes:
   //
   // Old Joe Clark and The Wellerman were converted from `docs/wellerman.abc`
-  // through the app's own ABC pipeline and then through [_repair], so they
+  // through the app's own ABC pipeline and then through [repair], so they
   // arrive in the same sounding-led, beamed form as the others — which is what
   // keeps them byte-identical under the normalizer and beamer round-trip tests.
   //
@@ -143,9 +144,10 @@ class PieceRepository {
   /// Applied wherever XML enters or leaves the repository — read it, save it or
   /// edit it and you get the repaired form — which is what keeps a single
   /// convention in force everywhere downstream.
-  static String _repair(String musicXml) => MusicXmlBeamer.rebeam(
-      MusicXmlNormalizer.drawAccidentals(MusicXmlNormalizer.slursToTies(
-          MusicXmlNormalizer.toSoundingPitch(musicXml))));
+  static String repair(String musicXml) => MusicXmlBeamer.rebeam(
+      MusicXmlConsistency.repair(MusicXmlNormalizer.drawAccidentals(
+          MusicXmlNormalizer.slursToTies(
+              MusicXmlNormalizer.toSoundingPitch(musicXml)))));
 
   /// A piece's MusicXML, repaired: key-signature accidentals resolved into the
   /// sounding pitch, scanned slurs that are really ties made ties, a sign
@@ -161,11 +163,11 @@ class PieceRepository {
   Future<String> loadMusicXml(Piece piece) async {
     final assetPath = piece.musicXmlAssetPath;
     if (assetPath != null) {
-      return _repair(await _bundle.loadString(assetPath));
+      return repair(await _bundle.loadString(assetPath));
     }
     final filePath = piece.musicXmlFilePath!;
     final raw = await _storage.readScannedMusicXml(filePath);
-    final repaired = _repair(raw);
+    final repaired = repair(raw);
     if (repaired != raw) {
       await updateScannedPiece(filePath, repaired);
     }
@@ -182,7 +184,7 @@ class PieceRepository {
     // key-signature accidentals implicit (see [MusicXmlNormalizer]), and
     // section detection below compares notes by MIDI number, so a drawing-led
     // tune would be sectioned on the wrong pitches.
-    final repaired = _repair(musicXml);
+    final repaired = repair(musicXml);
     final piece = await _storage.saveScannedPiece(title, repaired);
     try {
       final parsed = MusicXmlParser().parse(repaired);
@@ -231,11 +233,11 @@ class PieceRepository {
   /// overwritten in place; the first edit of a bundled fixture materializes a
   /// writable copy, so the returned piece is file-backed and stays editable.
   /// Shared by every editing entry point (measure editor, measure delete), so
-  /// it is where [_repair] runs on the way out: a measure the editor rebuilt
+  /// it is where [repair] runs on the way out: a measure the editor rebuilt
   /// states no beams, and gets them here rather than leaving the editor to know
   /// what a beam is.
   Future<Piece> writeEditedMusicXml(Piece piece, String newMusicXml) async {
-    final repaired = _repair(newMusicXml);
+    final repaired = repair(newMusicXml);
     if (piece.musicXmlFilePath != null) {
       await updateScannedPiece(piece.musicXmlFilePath!, repaired);
       return piece;

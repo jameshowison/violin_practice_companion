@@ -322,40 +322,49 @@ class MusicXmlParser {
     );
   }
 
-  /// The score's first tempo, in quarter notes per minute: a sound element's
-  /// `tempo` (quarter notes by definition), else a `<metronome>` mark
-  /// converted from its beat unit. Null for none, or for a value outside
-  /// what the app can play (40–208) — a mark that far out is more likely a
-  /// typo than a tempo to practise towards.
+  /// The score's first tempo, in quarter notes per minute: the printed
+  /// `<metronome>` mark converted from its beat unit, else a sound element's
+  /// `tempo` (quarter notes by definition). The printed mark wins because it
+  /// is what the player sees; a file can state both and disagree (see
+  /// `MusicXmlConsistency`). Null for none, or for a value outside what the
+  /// app can play (40–208) — a mark that far out is more likely a typo than a
+  /// tempo to practise towards.
   static double? markedBpmOf(XmlDocument doc) {
     double? playable(double? bpm) =>
         bpm != null && bpm >= 40 && bpm <= 208 ? bpm : null;
+    for (final m in doc.findAllElements('metronome')) {
+      final q = metronomeQuarters(m);
+      if (q != null) return playable(q);
+    }
     for (final sound in doc.findAllElements('sound')) {
       final t = double.tryParse(sound.getAttribute('tempo') ?? '');
       if (t != null) return playable(t);
     }
-    for (final m in doc.findAllElements('metronome')) {
-      final perMinute = double.tryParse(
-          m.findElements('per-minute').firstOrNull?.innerText.trim() ?? '');
-      final unit = m.findElements('beat-unit').firstOrNull?.innerText.trim();
-      if (perMinute == null || unit == null) continue;
-      final quarters = const {
-        'whole': 4.0,
-        'half': 2.0,
-        'quarter': 1.0,
-        'eighth': 0.5,
-        '16th': 0.25,
-      }[unit];
-      if (quarters == null) continue;
-      // Each dot adds half again of the previous value.
-      var length = quarters, add = quarters;
-      for (final _ in m.findElements('beat-unit-dot')) {
-        add /= 2;
-        length += add;
-      }
-      return playable(perMinute * length);
-    }
     return null;
+  }
+
+  /// A printed `<metronome>` mark in quarter notes per minute, or null when it
+  /// isn't a plain beat-unit-equals-number mark.
+  static double? metronomeQuarters(XmlElement m) {
+    final perMinute = double.tryParse(
+        m.findElements('per-minute').firstOrNull?.innerText.trim() ?? '');
+    final unit = m.findElements('beat-unit').firstOrNull?.innerText.trim();
+    if (perMinute == null || unit == null) return null;
+    final quarters = const {
+      'whole': 4.0,
+      'half': 2.0,
+      'quarter': 1.0,
+      'eighth': 0.5,
+      '16th': 0.25,
+    }[unit];
+    if (quarters == null) return null;
+    // Each dot adds half again of the previous value.
+    var length = quarters, add = quarters;
+    for (final _ in m.findElements('beat-unit-dot')) {
+      add /= 2;
+      length += add;
+    }
+    return perMinute * length;
   }
 
   /// A note's bow direction mark (`<technical><down-bow/>`/`<up-bow/>`).

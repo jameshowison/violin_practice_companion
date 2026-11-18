@@ -42,8 +42,27 @@ $bar</measure></part></score-partwise>''';
         quarter('F'));
     final out = MeasureXmlEditor.rebuildTupletBrackets(xml);
     expect(marks(out), ['s', '', 'e', '', '']);
+    // A start that stated no bracket draws one, as Save writes it.
+    expect(
+        XmlDocument.parse(out)
+            .findAllElements('tuplet')
+            .first
+            .getAttribute('bracket'),
+        'yes');
     // The quarter keeps its slur.
     expect(XmlDocument.parse(out).findAllElements('slur'), hasLength(1));
+  });
+
+  test('a start stating no bracket gets one even where the marks agree', () {
+    final xml = score(eighth('A', notations: start) +
+        eighth('B') +
+        eighth('C', notations: stop) +
+        quarter('D') +
+        quarter('F'));
+    final out = MeasureXmlEditor.rebuildTupletBrackets(xml);
+    expect(marks(out), ['s', '', 'e', '', '']);
+    expect(XmlDocument.parse(out).findAllElements('tuplet').first.getAttribute('bracket'),
+        'yes');
   });
 
   test('brackets that already agree leave the xml as it was', () {

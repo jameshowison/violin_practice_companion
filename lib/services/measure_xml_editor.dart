@@ -192,12 +192,18 @@ class MeasureXmlEditor {
   /// drawn from the timing instead, so it can't disagree with the editor.
   ///
   /// A group's existing start keeps its attributes (`bracket`, `show-number`,
-  /// `placement`), so a correct file draws as before; a new one is written as
-  /// Save writes it. Grace notes and chord members never carry the marks.
+  /// `placement`), except that one stating no `bracket` gets bracket="yes",
+  /// as Save writes it; a new one is written as Save writes it. Grace notes and chord members never carry the marks.
   /// Nested tuplets (a `number` other than 1) are left alone, as are
   /// multi-voice bars, a voice at a time.
   static String rebuildTupletBrackets(String musicXml) {
     final doc = XmlDocument.parse(musicXml);
+    return rebracketTuplets(doc) ? doc.toXmlString() : musicXml;
+  }
+
+  /// [rebuildTupletBrackets] on a parsed [doc], in place. True when it changed
+  /// anything.
+  static bool rebracketTuplets(XmlDocument doc) {
     var changed = false;
     for (final measure in doc.findAllElements('measure')) {
       final notes = measure.findElements('note').toList();
@@ -223,7 +229,7 @@ class MeasureXmlEditor {
         changed |= _rebracketVoice(voice);
       }
     }
-    return changed ? doc.toXmlString() : musicXml;
+    return changed;
   }
 
   /// One voice of one bar, in order: see [rebuildTupletBrackets].
@@ -277,7 +283,19 @@ class MeasureXmlEditor {
       agrees = has(notes[i], 'start') == wantStart.contains(i) &&
           has(notes[i], 'stop') == wantStop.contains(i);
     }
-    if (agrees) return false;
+    // A start that states no `bracket` is drawn without one when its group
+    // sits under one beam (Verovio's default), as Minuet 2's scanned triplets
+    // did once their stops were right. Save always writes one, so the staff
+    // does too; an explicit bracket="no" is left alone.
+    if (agrees &&
+        !notes.any((n) => n
+            .findElements('notations')
+            .expand((x) => x.findElements('tuplet'))
+            .any((t) =>
+                t.getAttribute('type') == 'start' &&
+                t.getAttribute('bracket') == null))) {
+      return false;
+    }
 
     // Each group's start keeps the attributes of the start nearest it.
     final oldStarts = <int, XmlElement>{};
@@ -296,6 +314,9 @@ class MeasureXmlEditor {
           .where((o) => o.key >= s && o.key <= e)
           .map((o) => o.value)
           .firstOrNull;
+      if (near != null && near.getAttribute('bracket') == null) {
+        near.setAttribute('bracket', 'yes');
+      }
       final startEl = near ??
           XmlElement(XmlName.parts('tuplet'),
               [XmlAttribute(XmlName.parts('type'), 'start'), XmlAttribute(XmlName.parts('bracket'), 'yes')]);
@@ -380,7 +401,10 @@ class MeasureXmlEditor {
     }
   }
 
-  /// The slur ends in [part] with no partner — see [dropOrphanSlurs].
+  /// The slur ends in [part] with no partner, in the order MusicXML pairs
+  /// them — see [dropOrphanSlurs].
+  static Set<XmlElement> unpairedSlurs(XmlElement part) => _orphanSlurs(part);
+
   static Set<XmlElement> _orphanSlurs(XmlElement part) {
     final orphans = <XmlElement>{};
     final open = <String, XmlElement>{};
