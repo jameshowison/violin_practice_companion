@@ -96,6 +96,18 @@ void main() {
       }
     }
 
+    test('a pluck that drops 10 dB after its attack and rings on quietly still reads', () {
+      // An A course, 2026-11-17: 0.09 at the pick, a third of that 150 ms on,
+      // then a clean A ringing 15-20 dB down. Read only at full strength it
+      // never reached a reading, and the screen said "Play a string".
+      start(mandolin, pin: 'A4');
+      silence(20);
+      sound(80, off(440, -6), rms: (double t) => t < 0.12 ? 0.09 : 0.09 * math.max(0.12, math.exp(-(t - 0.12) * 7)),
+          clarity: 0.93);
+      expect(m.reading, isNotNull);
+      expect(m.reading!.cents, closeTo(-6, 1));
+    });
+
     // A pluck: sharp by [glide] at the start, falling back as it fades.
     double Function(double) pluckHz(double hz, {double glide = 0}) =>
         (t) => off(hz, glide * math.exp(-t / 0.45));

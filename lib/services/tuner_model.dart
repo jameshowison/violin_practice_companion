@@ -311,8 +311,9 @@ class TunerModel {
     lastDecision = TunerDecision.attack;
     if (at - start < attack) return false;
     final local = _levels.isEmpty ? level : math.max(level, _levels.reduce(math.max));
+    final pc = 1200 * math.log(p.hz / 440) / math.ln2;
     lastDecision = level < _peak / 8 ? TunerDecision.tail : TunerDecision.dip;
-    if (level < _peak / 8 || level < local / 2.5) return false;
+    if ((level < _peak / 8 || level < local / 2.5) && !_agrees(p, pc)) return false;
     lastDecision = TunerDecision.outlier;
 
     if (centsBetween(p.hz, tuning.strings.first.hz) < -belowLowest) return false;
@@ -322,7 +323,6 @@ class TunerModel {
     // showed +1165, "Very sharp", the wrong way.
     final pin = _follower.pinned;
     if (pin != null && _harmonicOf(centsBetween(p.hz, pin.hz))) return false;
-    final pc = 1200 * math.log(p.hz / 440) / math.ln2;
     // Against this note's own frames once it has some, shown or not;
     // before that, against the last note's.
     final pitch = _accepted.isEmpty ? _pitch : _median(_accepted);
@@ -378,6 +378,17 @@ class TunerModel {
     _updateInTune(at, cents);
     return true;
   }
+
+  /// A quiet frame (a dip or the tail) that still reads the note itself:
+  /// clear, and within [agreeCents] of what the note has accepted. A beat's
+  /// null or a dying tail reads wild, or a subharmonic; this doesn't. Some
+  /// plucks fall 10 dB in the 150 ms after their attack and then ring on
+  /// quietly; read only at full strength, a pluck like that never reached a
+  /// reading (an A course, 2026-11-17: "Play a string", pluck after pluck).
+  bool _agrees(PitchEstimate p, double pc) =>
+      p.clarity >= 0.9 && _accepted.isNotEmpty && (pc - _median(_accepted)).abs() <= agreeCents;
+
+  static const agreeCents = 10.0;
 
   bool _isOnset(Duration at, double level) {
     if (_levels.isEmpty) return true;
