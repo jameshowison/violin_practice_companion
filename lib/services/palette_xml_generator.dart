@@ -29,18 +29,9 @@ class PaletteXmlGenerator {
     return (step: m.group(1)!, alter: alter, octave: int.parse(m.group(3)!));
   }
 
-  static String _noteXml(NoteEvent ne, String colorAttr, bool fingerings) {
+  static String _noteXml(NoteEvent ne, String colorAttr) {
     final p = _parsePitch(ne.pitch);
     final alterEl = p.alter != 0 ? '<alter>${p.alter}</alter>' : '';
-    final hasLabel =
-        fingerings && ne.fingerString != null && ne.fingerNumber != null;
-    final fingEl = hasLabel
-        ? '<notations><technical>'
-            '<fingering placement="above">'
-            '${ne.fingerString}${ne.fingerNumber}'
-            '</fingering>'
-            '</technical></notations>'
-        : '';
     return '<note$colorAttr>'
         '<pitch>'
         '<step>${p.step}</step>'
@@ -49,7 +40,6 @@ class PaletteXmlGenerator {
         '</pitch>'
         '<duration>1</duration>'
         '<type>quarter</type>'
-        '$fingEl'
         '</note>';
   }
 
@@ -97,10 +87,8 @@ class PaletteXmlGenerator {
     );
   }
 
-  /// [fingerings] engraves each note's label as a MusicXML `<fingering>`, for
-  /// the OSMD bridge. The native staff draws its own chips instead, from
-  /// [piece], and wants none in the xml.
-  static String generate(ParsedPiece parsed, {bool fingerings = true}) {
+  /// Engraves no fingering labels: the staff draws its own chips, from [piece].
+  static String generate(ParsedPiece parsed) {
     final palette = piece(parsed);
     if (palette == null) return '';
     final keyPcs = _keyPitchClasses(parsed.keyFifths, parsed.keyMode);
@@ -137,7 +125,7 @@ class PaletteXmlGenerator {
             : isChrom
                 ? ' color="$_chromColor"'
                 : '';
-        buf.writeln(_noteXml(ne, colorAttr, fingerings));
+        buf.writeln(_noteXml(ne, colorAttr));
       }
       final remaining = 4 - m.notes.length;
       if (remaining > 0) buf.writeln(_padRest(remaining));

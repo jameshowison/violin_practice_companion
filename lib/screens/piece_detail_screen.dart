@@ -50,7 +50,6 @@ import '../widgets/share_piece_sheet.dart';
 import '../widgets/section_chip_row.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/tempo_controls.dart';
-import '../widgets/staff_view.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
@@ -2267,15 +2266,11 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
     }
     final paletteXml = ref.watch(paletteMusicXmlProvider).valueOrNull;
     final palette = ref.watch(palettePieceProvider).valueOrNull;
-    final native = ref.watch(staffRendererProvider) == StaffRenderer.verovio;
 
     // Fit to the engraving, but never take more than a share of the screen —
-    // a long vocabulary on a phone in landscape scrolls instead. OSMD reports
-    // no height, so it keeps the fixed box.
+    // a long vocabulary on a phone in landscape scrolls instead.
     final maxHeight = MediaQuery.sizeOf(context).height * 0.4;
-    final height = native
-        ? (_contentHeight ?? _firstGuess).clamp(40.0, maxHeight)
-        : _firstGuess;
+    final height = (_contentHeight ?? _firstGuess).clamp(40.0, maxHeight);
 
     return Container(
       height: height,
@@ -2286,15 +2281,9 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
             bottom: BorderSide(
                 color: Theme.of(context).colorScheme.outlineVariant)),
       ),
-      child: paletteXml == null || (native && palette == null)
+      child: paletteXml == null || palette == null
           ? const Center(child: CircularProgressIndicator())
-          : native
-              ? _nativeStaff(paletteXml, palette!)
-              : StaffView(
-                  musicXml: paletteXml,
-                  highlightNotifier: _noHighlight,
-                  bridgeAsset: 'assets/engine/osmd/palette_bridge.html',
-                ),
+          : _nativeStaff(paletteXml, palette),
     );
   }
 }
@@ -2402,9 +2391,6 @@ class _NotationView extends ConsumerWidget {
             final idx = measureMap.firstIndexOf(run.firstMeasure);
             return idx < 0 ? null : (index: idx, seq: navTarget.seq);
           }();
-    // Build the staff via the selected renderer (native Verovio or OSMD
-    // WebView), keeping one identical parameter set.
-    final renderer = ref.watch(staffRendererProvider);
     // [fingeringChannel] reserves the fingering lane and fills it with the
     // chips — the annotation view's whole layout difference, now that both views
     // feed the same (fingering-stripped) xml.
@@ -2419,36 +2405,24 @@ class _NotationView extends ConsumerWidget {
       // `activeService`. A recording's own service carries a permanently null
       // count-in notifier (there is nothing to count off into a fixed
       // recording), so the staff view needs no special case for it.
-      if (renderer == StaffRenderer.verovio) {
-        return StaffViewVerovio(
-          musicXml: xml,
-          highlightNotifier: service.currentHighlightNotifier,
-          selection: selection,
-          onMeasureTapped: (m) => _selectMeasure(ref, m),
-          flaggedMeasures: flaggedMeasures,
-          measureMap: measureMap,
-          // The printed page's lines engrave the section layout's way: each
-          // line a pre-broken segment (see [staffByPrintedLinesProvider]).
-          sectionLayout: bySection || byPrintedLines,
-          sectionTints: sectionTints,
-          chordRuns: chordRuns,
-          fingeringAnnotations: annotations,
-          stringColourStyle: colourStyle,
-          stringRuns: stringRuns,
-          noteNames: overlays.noteNames,
-          showNoteNames: overlays.showNoteNames,
-          colourNoteheads: overlays.colourNoteheads,
-          scrollNav: staffNav,
-        );
-      }
-      return StaffView(
+      return StaffViewVerovio(
         musicXml: xml,
         highlightNotifier: service.currentHighlightNotifier,
         selection: selection,
         onMeasureTapped: (m) => _selectMeasure(ref, m),
         flaggedMeasures: flaggedMeasures,
-        measureNumbers: measureMap.numbers,
+        measureMap: measureMap,
+        // The printed page's lines engrave the section layout's way: each
+        // line a pre-broken segment (see [staffByPrintedLinesProvider]).
+        sectionLayout: bySection || byPrintedLines,
         sectionTints: sectionTints,
+        chordRuns: chordRuns,
+        fingeringAnnotations: annotations,
+        stringColourStyle: colourStyle,
+        stringRuns: stringRuns,
+        noteNames: overlays.noteNames,
+        showNoteNames: overlays.showNoteNames,
+        colourNoteheads: overlays.colourNoteheads,
         scrollNav: staffNav,
       );
     }
@@ -2527,17 +2501,6 @@ class _NotationView extends ConsumerWidget {
         );
 
       case DisplayMode.tab:
-        // Tab requires the native Verovio renderer (per-note anchors + tab
-        // engraving). OSMD (macOS fallback) can't supply it.
-        if (renderer != StaffRenderer.verovio) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('Tab view needs the Verovio renderer.',
-                  textAlign: TextAlign.center),
-            ),
-          );
-        }
         return ref.watch(tabScoreProvider).when(
           skipLoadingOnReload: true,
           data: (tab) => tab != null

@@ -121,7 +121,7 @@ class VerovioEngraver {
   /// Returns an [EngravedScore]: the jovial-ready SVG, the page viewBox, and
   /// index-based geometric anchors for measures and notes. The score is
   /// domain-free — callers map a measure's document [index] to their model
-  /// measure number (the same index↔number contract the OSMD bridge used).
+  /// measure number.
   ///
   /// Tab-view options (see the tab-view plan / [TabScoreGenerator]):
   /// - [tabFingerLabels]: when non-null, each rendered tab fret `<text>` (in

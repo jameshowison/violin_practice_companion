@@ -4,7 +4,7 @@ import 'package:xml/xml.dart';
 ///
 /// Lyrics are engraved by the renderer itself — Verovio maps MusicXML
 /// `<lyric>` to `<verse>`/`<syl>` and lays out the syllables, hyphens and
-/// extenders under the staff; OSMD draws them natively too — so there is no
+/// extenders under the staff — so there is no
 /// Flutter lane and no glyph stripping. Showing a verse is "leave that one in";
 /// the rest is [selectVerse]. Mirrors `ChordXmlInjector.stripHarmony`.
 class LyricXmlInjector {

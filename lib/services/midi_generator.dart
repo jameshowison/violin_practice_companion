@@ -18,7 +18,7 @@ class HighlightEvent {
   final bool isLong;         // whole, half, or dotted-quarter — false for rests
   final double onsetSeconds; // absolute from piece start (BPM-dependent)
   final double offsetSeconds;
-  final double beatPosition; // absolute beats from piece start (BPM-independent, for OSMD)
+  final double beatPosition; // absolute beats from piece start (BPM-independent)
   // Position in the expanded performance order (which unfolded measure-slot this
   // note plays in). On a repeat, the SAME measure plays at a LATER performance
   // index, so the minimap can light the exact pass (1st vs 2nd A). Folded
@@ -116,8 +116,7 @@ class MidiGenerator {
   /// a monotonic performance cursor (so audio + the playback time→event pointer
   /// stay correct), while each highlight's [HighlightEvent.beatPosition] is
   /// anchored to the measure's position in the ORIGINAL score — so on a replay
-  /// the beat value drops back, and the OSMD cursor's backward-seek reset jumps
-  /// it to the repeat start (no bridge change needed). With no repeats the
+  /// the beat value drops back to the repeat start. With no repeats the
   /// expanded order is identity and every value matches the un-repeated output.
   ///
   /// Ties are honoured in performance order: a [NoteEvent.tieStop] note whose

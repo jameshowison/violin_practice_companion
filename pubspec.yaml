@@ -17,7 +17,6 @@ dependencies:
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
   xml: ^7.0.1
-  webview_flutter: ^4.10.0
   path_provider: ^2.1.5
   # Per-piece view preferences (staff zoom), and the app's other small settings.
   shared_preferences: ^2.3.3
@@ -148,7 +147,6 @@ flutter:
     # The app's machinery, shared by every piece.
     - assets/engine/abc/
     - assets/engine/lookup_tables/
-    - assets/engine/osmd/
     - assets/engine/soundfonts/
     # The font licence, read by LicenseRegistry; the .ttf files are under
     # the fonts: block above and need no assets line.

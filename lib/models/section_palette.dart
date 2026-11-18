@@ -31,7 +31,7 @@ class SectionPalette {
     return map;
   }
 
-  /// `#rrggbb` for the OSMD bridge (which applies its own low opacity).
+  /// `#rrggbb`, as a section tint region carries it.
   static String hex(Color c) =>
       '#${(c.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
 }

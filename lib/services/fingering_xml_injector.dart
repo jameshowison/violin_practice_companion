@@ -1,46 +1,11 @@
 import 'package:xml/xml.dart';
 import '../models/parsed_piece.dart';
-import '../models/string_label_style.dart';
 
 class FingeringXmlInjector {
-  static String inject(
-    String musicXml,
-    ParsedPiece parsed,
-    StringLabelStyle style,
-  ) {
-    final doc = XmlDocument.parse(musicXml);
-    final noteEvents = parsed.measures.expand((m) => m.notes).toList();
-
-    int idx = 0;
-    String? prevString;
-    for (final noteEl in doc.findAllElements('note')) {
-      if (noteEl.getAttribute('print-object') == 'no') continue;
-      if (idx >= noteEvents.length) break;
-      final ne = noteEvents[idx++];
-
-      if (ne.isRest || ne.fingerString == null || ne.fingerNumber == null)
-        continue;
-
-      final strPart = switch (style) {
-        StringLabelStyle.always => ne.fingerString!,
-        StringLabelStyle.onChange =>
-          ne.fingerString != prevString ? ne.fingerString! : '',
-        StringLabelStyle.never => '',
-      };
-      final label = '$strPart${ne.fingerNumber}';
-      prevString = ne.fingerString;
-
-      _setFingering(noteEl, label);
-    }
-
-    return doc.toXmlString();
-  }
-
   /// Injects a fixed placeholder `<fingering>` on every note that HAS a
   /// fingering, regardless of what the app will actually draw there.
   ///
-  /// For the native renderer, where the engraved glyph is hidden and the app
-  /// paints its own chip. The engraved element exists only so Verovio RESERVES
+  /// The engraved glyph is hidden and the app paints its own chip. The engraved element exists only so Verovio RESERVES
   /// the row: it lays the fingering out as real content, grows the page to fit
   /// it, and reports where it put it — which is the one thing the app cannot
   /// work out for itself. See `AnnotationAnchor`.

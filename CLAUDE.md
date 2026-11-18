@@ -37,7 +37,7 @@ tail -n 50 flutter_run.log | grep -v "◢\|◤\|════"
 
 **Full restart only when necessary:** changes to `main()`, `pubspec.yaml`, a new file under `assets/`, or an asset that **native code** reads (below). Relaunch with `bash scripts/dev_run.sh <sim>`, which kills only this session's run and recreates its fifo — never `pkill -f flutter_tools.snapshot`, which kills every session's run.
 
-> **Which asset edits need a full restart:** a hot restart re-syncs assets that Dart reads through `rootBundle` — measured 2026-11-17: an edit to `assets/engine/licenses/abcjs.txt` showed on the licence page after `R`, with no relaunch. It does NOT rebuild or reinstall the native `.app`, so anything native code reads from the bundle keeps the old copy: the OSMD WebView's `osmd_bridge.html` and its JS (WKWebView loads them from the `.app`), and any file a plugin opens by path, such as the OMR models. Adding a new asset file is untested; relaunch for that.
+> **Which asset edits need a full restart:** a hot restart re-syncs assets that Dart reads through `rootBundle` — measured 2026-11-17: an edit to `assets/engine/licenses/abcjs.txt` showed on the licence page after `R`, with no relaunch. It does NOT rebuild or reinstall the native `.app`, so anything native code reads from the bundle keeps the old copy, such as a file a plugin opens by path (the OMR models). Adding a new asset file is untested; relaunch for that.
 
 **Before a full restart, regenerate build info** — `scripts/dev_run.sh` does this for
 you, so a full relaunch is just:
@@ -233,25 +233,12 @@ mcp__marionette__get_logs()                  # app stdout/flutter: logs
 mcp__marionette__hot_reload()                # trigger reload via MCP
 ```
 
-**The staff is no longer a WebView by default.** `staffRendererProvider` defaults to
-`StaffRenderer.verovio` (`lib/services/providers.dart`, no UI toggle), and
-`StaffViewVerovio` draws with `jovial_svg` inside Flutter's own pipeline, so
-Marionette screenshots DO capture the notation. What follows applies only to the
-OSMD fallback (`StaffRenderer.osmd`, kept for macOS).
-
-**Known limitation — WebView (platform views) are always blank in screenshots:**
-`webview_flutter` on iOS uses a native `WKWebView`, which is a Flutter "platform view" — it renders outside Flutter's own rendering pipeline. Marionette's `take_screenshots` calls `RepaintBoundary.toImage()` internally, which captures platform views as solid white/blank. This is a Flutter engine limitation ([flutter#25306](https://github.com/flutter/flutter/issues/25306), [flutter#163639](https://github.com/flutter/flutter/issues/163639)) with no workaround in the Flutter SDK as of 2026.
-
-Practically: any screen that contains a `StaffView` (the OSMD WebView) will show a blank white rectangle in Marionette screenshots. Use screenshots to verify the surrounding Flutter UI (AppBar, playback controls, tray layout) but **not** to verify staff notation rendering. To verify staff content, screenshot the simulator framebuffer directly — this captures the WebView:
-
-```bash
-xcrun simctl io booted screenshot /tmp/staff.png   # or `dev-iphone` / `dev-ipad` instead of `booted`
-sips -r 90 /tmp/staff.png                            # raw capture is portrait; rotate if the app is landscape
-```
-
-Then read `/tmp/staff.png`. (See the README "Screenshots & UI debugging" section.)
-
-That Marionette-visible alternative has since been built: Verovio engraving drawn with `jovial_svg` (not `flutter_svg`, which rendered Verovio's SVG blank), with native overlays for the cursor and highlights. It is the default renderer; see `lib/widgets/staff_view_verovio.dart`. OSMD/WebView remains only as a code-level fallback for macOS.
+**The staff is drawn in Flutter's own pipeline**, so Marionette screenshots capture
+the notation: Verovio engraves, `jovial_svg` draws the SVG (not `flutter_svg`, which
+rendered Verovio's SVG blank), and native overlays draw the cursor and highlights.
+See `lib/widgets/staff_view_verovio.dart`. (The old OSMD WebView renderer, which
+screenshots showed blank, was removed on 2026-11-17 along with the macOS and web
+targets.)
 
 **Capturing short-lived UI — arm the screenshots BEFORE the tap.**
 
@@ -480,7 +467,7 @@ After each commit, **agents should run this quick checklist and flag anything th
 
 Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving it behind a façade (see `playback_service.dart` / `playback_service_io.dart` for the pattern)."*
 
-### Mobile build milestone (iOS done; Android on the emulator; macOS outstanding)
+### Mobile build milestone (iOS done; Android on the emulator)
 
 **iOS is done.** `flutter build ios --release` succeeds and installs on a physical
 phone with no source changes (signed automatically, team `V8MB2893V6`), so the
@@ -492,8 +479,9 @@ by a verified build rather than being speculative pod-install side effects.
 `android/build.gradle.kts`. Not yet tried on a physical phone or as a release build.
 
 Still outstanding before any "v1 / feature freeze" moment: a physical-device Android
-build and `flutter build macos`. The `macos/` pod files are committed but unverified — that
-build is the thing that would confirm them.
+build. iOS and Android are the only targets: web, macOS, Linux and Windows were
+removed on 2026-11-17 (each would be a major port; reimplement from the Verovio
+path if one is ever wanted).
 
 ### Installing on a physical device
 

@@ -442,8 +442,10 @@ flag — but macOS is likely blocked by other mobile-only plugins anyway);
 **LGPL-3.0** static-FFI-link is an App-Store gray area; ~7 MB/ABI weight. Phase 6
 cleanup (removing `assets/osmd/*`, `webview_flutter*`, the bridge, `lib/spike/`)
 is **not done** — held until cross-fixture parity is fully proven. (As of
-2026-11-17 only `lib/spike/` is gone; OSMD lives at `assets/engine/osmd/` and
-`webview_flutter` is still a dependency.) **Known
+2026-11-17 all of it is gone: the app dropped macOS, web, Linux and Windows to
+target iOS and Android only, which left OSMD with no platform, so
+`assets/engine/osmd/`, `webview_flutter`, the `StaffView` WebView widget and
+the `staffRendererProvider` switch were removed.) **Known
 limitation:** in unfolded/sectioned (ABAA) mode the cursor maps a repeated
 measure number to its FIRST rendered copy (`_anchorForEvent` uses `indexOf`);
 fixing it needs driving by performance-occurrence. (`_anchorForEvent` now

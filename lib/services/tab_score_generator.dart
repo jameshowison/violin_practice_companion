@@ -30,7 +30,7 @@ class TabScore {
 /// `tab.guitar`, drawing them as swappable `<text>`). String placement is by
 /// `<string>` number, independent of tuning, so we supply string+fret explicitly.
 ///
-/// Correlation with the model mirrors [FingeringXmlInjector.inject]: `<note>`
+/// Correlation with the model mirrors [FingeringXmlInjector.injectPlaceholders]: `<note>`
 /// elements in document order line up with `parsed.measures.expand(notes)`.
 /// Assumes single-voice melodies (these practice pieces are) — one `<backup>`
 /// per measure replays its full duration onto staff 2.

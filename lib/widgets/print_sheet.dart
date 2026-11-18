@@ -14,11 +14,10 @@ import '../services/staff_overlays.dart';
 import '../services/staff_zoom.dart';
 
 /// Whether the selected piece can be printed in [mode]: the staff and
-/// annotation views, engraved natively. Tab, jianpu and the fingering view
-/// have no print layout (yet).
+/// annotation views. Tab, jianpu and the fingering view have no print layout
+/// (yet).
 bool printAvailableFor(WidgetRef ref, DisplayMode mode) =>
-    ref.watch(staffRendererProvider) == StaffRenderer.verovio &&
-    (mode == DisplayMode.staff || mode == DisplayMode.staffFingering);
+    mode == DisplayMode.staff || mode == DisplayMode.staffFingering;
 
 /// The print options sheet: colour, paper (for sharing — the print dialog
 /// picks its own). The layout always follows the screen's.

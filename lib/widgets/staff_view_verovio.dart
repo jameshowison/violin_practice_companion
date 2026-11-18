@@ -24,17 +24,11 @@ import 'chord_swatch.dart';
 /// overlays draw selection, section tints, flagged-measure markers, the
 /// current-note highlight, and the playback cursor.
 ///
-/// Drop-in for [StaffView] (`staff_view.dart`) — same public constructor — so
-/// the call sites switch via `staffRendererProvider` with OSMD as fallback.
-/// Unlike the OSMD WebView this is NOT a platform view, so Marionette/`simctl`
-/// screenshots capture the notation.
+/// Not a platform view, so Marionette/`simctl` screenshots capture the
+/// notation.
 class StaffViewVerovio extends ConsumerStatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
-
-  /// Kept for API parity with [StaffView]; the native renderer has no bridge.
-  final String bridgeAsset;
-
   final MeasureSelection? selection;
   final ValueChanged<int>? onMeasureTapped;
   final Set<int> flaggedMeasures;
@@ -129,7 +123,6 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     super.key,
     required this.musicXml,
     required this.highlightNotifier,
-    this.bridgeAsset = 'assets/engine/osmd/osmd_bridge.html',
     this.selection,
     this.onMeasureTapped,
     this.flaggedMeasures = const {},
@@ -915,7 +908,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   /// Page-turn autoscroll: keep the cursor comfortably in view. When it drops
   /// below the lower third (or above the top) of the viewport, animate so its
-  /// system sits near the top — mirrors the OSMD bridge's scrollWithPageTurn.
+  /// system sits near the top.
   void _autoScrollTo(Rect rectVb) {
     if (!_scrollController.hasClients) return;
     final scale = _scale;

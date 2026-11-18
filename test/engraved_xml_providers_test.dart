@@ -73,10 +73,6 @@ void main() {
       return c;
     }
 
-    test('the renderer default is the one this invariant is about', () {
-      expect(containerFor().read(staffRendererProvider), StaffRenderer.verovio);
-    });
-
     test('the chord toggle does not decide it', () {
       // If it did, flipping it would invalidate a FutureProvider, drop the staff
       // to a spinner and reflow the page. Both settings must give the same answer

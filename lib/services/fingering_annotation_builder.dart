@@ -131,8 +131,7 @@ const int maxFirstPositionFret = 7;
 
 /// The fingering labels to draw, in score order, after density filtering.
 ///
-/// This replaces what [FingeringXmlInjector.inject] does for the OSMD fallback:
-/// under the native renderer the real labels are NOT engraved into the MusicXML
+/// The real labels are NOT engraved into the MusicXML
 /// (Verovio would place each one against its notehead, which is what made them
 /// ride up and down with pitch). Only a fixed placeholder is, to reserve the
 /// row, and its glyph is cut from the SVG — see

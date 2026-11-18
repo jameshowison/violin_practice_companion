@@ -386,8 +386,7 @@ final notationBottomClearanceProvider = StateProvider<double>((_) => 0);
 // in the app bar, beside the title, rather than on the panel itself.
 final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 
-// ── Staff spacing (Verovio `spacingSystem` via verovioSpacingSystemFor; under ──
-// the OSMD fallback, MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10)
+// ── Staff spacing (Verovio `spacingSystem` via verovioSpacingSystemFor) ───────
 // Exposed as constants so tests can assert min < max (a zero-range slider
 // cannot claim drag gestures and they leak to parent handlers like Drawer close).
 const staffSpacingMin = 0.1;
@@ -556,10 +555,8 @@ final printedLayoutProvider = pieceDisplayPref<bool>(
 );
 
 /// Whether "Layout like printed page" is offered: the piece's MusicXML
-/// records where its printed lines broke (a scan does), and it is engraved
-/// natively.
+/// records where its printed lines broke (a scan does).
 final printedLayoutAvailableProvider = Provider<bool>((ref) {
-  if (ref.watch(staffRendererProvider) != StaffRenderer.verovio) return false;
   final parsed = ref.watch(parsedPieceProvider).valueOrNull;
   return parsed != null && parsed.measures.skip(1).any((m) => m.systemStart);
 });
@@ -809,23 +806,6 @@ class MediaActions {
   }
 }
 
-// ── Staff renderer (native Verovio+jovial_svg, OSMD WebView as fallback) ───────
-// `verovio` engraves on-device (FFI) and draws via jovial_svg + native overlays
-// — note-level selection, full highlight control, and Marionette-visible
-// notation. It is the renderer everywhere it works.
-//
-// `osmd` is the legacy WebView path, retained ONLY as a code-level fallback for
-// environments where Verovio can't run (e.g. macOS — verovio_flutter has no
-// macOS build, but webview_flutter does). It is deliberately NOT surfaced in
-// the UI: there's no user toggle. A future task selects `osmd` per-platform
-// (e.g. on macOS) when that target is revisited; until then the default is
-// `verovio`. Background: `docs/explore.md` §10.
-enum StaffRenderer { osmd, verovio }
-
-final staffRendererProvider = StateProvider<StaffRenderer>(
-  (_) => StaffRenderer.verovio,
-);
-
 // ── Section navigation (minimap) ──────────────────────────────────────────────
 // Top-most visible MEASURE number in the jianpu/fingering views, pushed on
 // scroll; the minimap reads it to show "where we are" by mapping the measure to
@@ -988,27 +968,19 @@ final pieceChordShapesProvider = Provider<List<ChordShape>>((ref) {
 /// all, silently, while the annotated view was fine. One question deserves one
 /// answer, so there is now one function.
 ///
-/// The chord-symbol toggle does NOT reach the xml under the native renderer: the
-/// row is reserved whether or not the bars are painted, so toggling is a repaint.
-/// The renderer test comes first and short-circuits, so [showChordsProvider] is
-/// not even watched there — which matters because these are `FutureProvider`s.
+/// The chord-symbol toggle does NOT reach the xml: the row is reserved whether
+/// or not the bars are painted, so toggling is a repaint, and
+/// [showChordsProvider] is not even watched here — which matters because these are `FutureProvider`s.
 /// Invalidating one drops the staff to a spinner, unmounts the render widget and
 /// throws away its engrave and calibration; the re-engrave then re-runs the
 /// auto-fit against whatever the viewport is now, and the page REFLOWS. A chord
 /// toggle must never be able to do that.
 ///
-/// Under OSMD the engraved symbols ARE the display — there is no lane — so there
-/// the toggle genuinely does belong in the xml.
-///
 /// The exception is the instrument setting: with no chords at all there is no
-/// row to keep, so `<harmony>` goes under either renderer — otherwise Verovio
-/// would reserve an empty band above every staff. That setting is changed on
+/// row to keep, so `<harmony>` goes — otherwise Verovio would reserve an empty
+/// band above every staff. That setting is changed on
 /// the Settings page, away from any engraved piece, so its re-engrave is fine.
-bool _stripHarmonyFor(Ref ref) {
-  if (!ref.watch(instrumentFeaturesProvider).chords) return true;
-  return ref.watch(staffRendererProvider) == StaffRenderer.osmd &&
-      !ref.watch(showChordsProvider);
-}
+bool _stripHarmonyFor(Ref ref) => !ref.watch(instrumentFeaturesProvider).chords;
 
 // ── Fingering-annotation display preferences ──────────────────────────────────
 // All three apply to the annotation view only, and none of them changes what is
@@ -1043,26 +1015,8 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
   (_) => FingeringDensityPolicy.difficulty,
 );
 
-/// Whether the engraved `<fingering>` labels are the DISPLAY (OSMD) rather than
-/// a space reserver (Verovio).
-///
-/// OSMD has no annotation lane, so there the engraved labels are all the user
-/// sees and they must carry the real, styled text — which is why
-/// [stringLabelStyleProvider] is watched inside that branch, and why a style
-/// change legitimately re-engraves there.
-///
-/// The native renderer hides the engraved glyph and paints its own coloured
-/// chips, so it injects style-independent placeholders instead
-/// ([FingeringXmlInjector.injectPlaceholders]) purely so Verovio reserves the
-/// row. Both paths inject; they differ only in what the text says.
-///
-/// The parsed model carries `NoteEvent.fingerString`/`fingerNumber` either way,
-/// which is what [fingeringAnnotations] builds the chips from.
-bool _injectFingeringFor(Ref ref) =>
-    ref.watch(staffRendererProvider) == StaffRenderer.osmd;
-
 /// Whether the staff views lay the selected piece out by section: it has two
-/// or more sections, is engraved natively, and "Layout by section"
+/// or more sections, and "Layout by section"
 /// ([sectionLayoutProvider]) is on. Every section then starts a line, and a
 /// section that starts on a lead-in mid-bar has that bar split so the lead-in
 /// opens its line ([sectionBarSplits]). The staff view decides how each
@@ -1081,9 +1035,7 @@ final staffBySectionProvider = Provider<bool>(
 /// conditions of [staffBySectionProvider] short of the toggle itself.
 final sectionLayoutAvailableProvider = Provider<bool>((ref) {
   final piece = ref.watch(selectedPieceProvider);
-  return piece != null &&
-      piece.sections.length >= 2 &&
-      ref.watch(staffRendererProvider) == StaffRenderer.verovio;
+  return piece != null && piece.sections.length >= 2;
 });
 
 /// The staff views' engraved measure map: one slice per measure, plus the
@@ -1138,13 +1090,7 @@ String _breaksFor(
 /// system gets the same space back that [_breaksFor]/`freezeSystemBreaks`
 /// already recover on every later one — paired with [preambleMusicXmlProvider],
 /// which shows the same preamble next to the piece title instead.
-///
-/// OSMD-only skips this: it has no title-bar preview to move the preamble to,
-/// so hiding it there would just delete it.
-String _hidePreambleFor(Ref ref, String xml) {
-  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) return xml;
-  return hideFirstSystemPreamble(xml);
-}
+String _hidePreambleFor(Ref ref, String xml) => hideFirstSystemPreamble(xml);
 
 // ── Processed staff XML providers ─────────────────────────────────────────────
 
@@ -1174,19 +1120,15 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   if (!print) xml = _hidePreambleFor(ref, xml);
   if (!fingering) {
     xml = FingeringXmlInjector.stripFingerings(xml);
-  } else if (_injectFingeringFor(ref)) {
-    // Both renderers inject; see [_injectFingeringFor] for why the text differs.
-    // The publisher's own fingerings are replaced either way, so a leftover
-    // engraved label can never contradict the app's note for note.
-    //
-    // Watched inside the branch on purpose: only here is the style an engraving
-    // input, because only here is the engraved label the display.
-    final style = ref.watch(stringLabelStyleProvider);
-    xml = FingeringXmlInjector.inject(xml, parsed, style);
   } else {
+    // The staff hides the engraved glyph and paints its own chips (from
+    // `NoteEvent.fingerString`/`fingerNumber`), so the xml carries
+    // style-independent placeholders purely so Verovio reserves the row. The
+    // publisher's own fingerings are replaced, so a leftover engraved label can
+    // never contradict the app's note for note.
     xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
   }
-  // Keep `<harmony>` for the native renderer so the chord row is reserved too.
+  // Keep `<harmony>` so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
   xml = LyricXmlInjector.selectVerse(xml, ref.watch(lyricVerseProvider));
   // Print breaks exactly as the screen does, so the page follows the
@@ -1208,7 +1150,6 @@ final printStaffXmlProvider = FutureProvider.family<String?, bool>(
 final preambleMusicXmlProvider = FutureProvider<String?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
-  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) return null;
   final repo = ref.watch(pieceRepositoryProvider);
   final xml = await repo.loadMusicXml(piece);
   return buildPreambleXml(xml);
@@ -1282,7 +1223,7 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   // Chord symbols ride above the melody staff here just like in the staff views
   // (the `<harmony>` elements stay on staff 1; the tab staff is staff 2).
   //
-  // Kept in for the native renderer for the same reason as the annotated view:
+  // Kept in for the same reason as the annotated view:
   // the bars are drawn from `EngravedScore.harmRegister`, so with no engraved
   // `<harm>` there is no register and every bar is silently skipped. That is
   // exactly what this comment used to claim was happening while the view in fact
@@ -1302,17 +1243,13 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
 final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
-  if (ref.watch(staffRendererProvider) == StaffRenderer.osmd) {
-    final xml = PaletteXmlGenerator.generate(parsed);
-    return xml.isEmpty ? null : xml;
-  }
-  // The native staff draws the labels itself, as the score's chips, from
+  // The staff draws the labels itself, as the score's chips, from
   // [palettePieceProvider] — but only into a row Verovio has reserved, so it
   // gets placeholders, exactly as the annotation view's xml does.
   final palette = PaletteXmlGenerator.piece(parsed);
   if (palette == null) return null;
   return FingeringXmlInjector.injectPlaceholders(
-      PaletteXmlGenerator.generate(parsed, fingerings: false), palette);
+      PaletteXmlGenerator.generate(parsed), palette);
 });
 
 /// The note vocabulary as a piece of its own — see [PaletteXmlGenerator.piece].

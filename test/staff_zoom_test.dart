@@ -111,9 +111,7 @@ void main() {
   });
 
   group('verovioSpacingSystemFor', () {
-    // The "Staff spacing" slider had only ever been wired to the OSMD fallback
-    // (MinSkyBottomDistBetweenSystems), so it was a no-op under the default
-    // Verovio renderer. This is the Verovio-side mapping.
+    // The "Staff spacing" slider's mapping onto Verovio's spacingSystem.
     test('the slider default reproduces Verovio\'s own default, so wiring it up '
         'changed nothing at the default position', () {
       // 4 is Verovio's default, established by measurement: with the option

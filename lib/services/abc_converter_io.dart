@@ -6,7 +6,7 @@ import 'package:flutter_js/flutter_js.dart';
 import 'abc_converter_base.dart';
 
 /// Mobile/desktop implementation: runs the bundled JS converter in `flutter_js`
-/// (QuickJS on Android/Windows/Linux, JavaScriptCore on iOS/macOS). No WebView,
+/// (QuickJS on Android, JavaScriptCore on iOS). No WebView,
 /// no DOM — the converter and abcjs's parser are both DOM-free.
 class AbcConverter implements AbcConverterBase {
   JavascriptRuntime? _rt;

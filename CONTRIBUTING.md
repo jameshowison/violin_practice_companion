@@ -36,7 +36,7 @@ the numbers, the bug, the fix.
 ### Where things live
 
 ```
-assets/engine/        the app's machinery: converters, OSMD, lookup tables;
+assets/engine/        the app's machinery: converters, lookup tables;
                       soundfont and OMR models are fetched, not committed
 assets/library/       the bundled pieces, one folder each, listed in
                       catalog.json with their source and licence

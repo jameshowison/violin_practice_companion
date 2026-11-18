@@ -86,7 +86,6 @@ bash scripts/gen_build_info.sh   # writes lib/build_info.dart (gitignored); need
 flutter run                  # development
 flutter build apk            # Android
 flutter build ios --no-codesign  # iOS
-flutter build macos          # macOS
 ```
 
 iOS requires an Apple developer account for device installation; on a free
@@ -558,12 +557,8 @@ so don't sync while you're mid-edit on the device.
 ## Screenshots & UI debugging (iOS Simulator)
 
 The staff is engraved by Verovio and drawn by jovial_svg in Flutter's own
-pipeline (`lib/widgets/staff_view_verovio.dart`, the default
-`staffRendererProvider`), so Marionette's screenshots include the notation.
-The legacy OSMD renderer, kept only as a code-level fallback and not used on
-iOS, draws inside a `WKWebView` (a Flutter "platform view"), which
-`RepaintBoundary.toImage()` captures as **blank white** (a Flutter engine
-limitation).
+pipeline (`lib/widgets/staff_view_verovio.dart`), so Marionette's screenshots
+include the notation.
 
 To capture exactly what's on screen, outside the app, screenshot the
 simulator's framebuffer directly:
@@ -585,8 +580,7 @@ sips -r 90 screenshot.png
 For a quick manual capture you can also use Simulator.app → **File ▸ Save
 Screen** (⌘S), which writes a PNG to the Desktop.
 
-This was the only way to see the notation under the OSMD WebView; it remains
-the way to capture native UI (pickers, alerts) that Marionette can't see.
+It is the way to capture native UI (pickers, alerts) that Marionette can't see.
 
 Catching something that only lasts a moment (the count-in, the cursor on a fast
 note) needs the capture running *before* you trigger it — a single screenshot
@@ -666,7 +660,7 @@ and `docs/plan.md` for the remaining roadmap.
 | Path | What | Ships in the app? |
 |---|---|---|
 | `lib/` | the app | yes |
-| `assets/engine/` | converters, OSMD, lookup tables, soundfont and OMR models (fetched) | yes |
+| `assets/engine/` | converters, lookup tables, soundfont and OMR models (fetched) | yes |
 | `assets/library/` | bundled pieces, listed with source and licence in `catalog.json` | yes |
 | `test/`, `integration_test/` | tests and public test fixtures | no |
 | `dev/` | dev-only entrypoints (e.g. `flutter run -t dev/verovio_harness.dart`) | no |
@@ -750,7 +744,6 @@ existed have none.
 
 **Platform requirements** (set by `flutter_onnxruntime`):
 - iOS deployment target 16.0+
-- macOS deployment target 14.0+
 
 OMR accuracy on a beginner-repertoire test set (homr_flutter, 2026-06-09): **17/18 perfect**
 (SER=0%). Full findings in `homr_flutter/docs/omr_evaluation/`.
@@ -834,7 +827,7 @@ permits the combination, with that part keeping its own terms.
 ## Profile run (logged to a file)
 
 iOS simulators run **debug builds only** (flutter_tools' simulator device
-supports no other mode), so profile mode needs the physical phone or macOS. To
+supports no other mode), so profile mode needs the physical phone. To
 run in **profile** mode while capturing all output to a file an agent can read
 back, run this from the repo root:
 
@@ -852,6 +845,6 @@ cable; for timing work see the `ios-flutter-timing` skill
   and to `flutter_profile.log`, so the agent can `tail`/`grep` that file (e.g.
   `tail -n 50 flutter_profile.log`) without watching the live session.
 
-Swap in another physical device from `flutter devices` (or `-d macos`) as
+Swap in another physical device from `flutter devices` as
 needed. The plain debug dev-server pattern (hot reload via a
 fifo) lives in `CLAUDE.md`.

@@ -62,7 +62,7 @@ Already note-level, ahead of this: a section run (`SectionRun.startNote` /
 (`MeasureSelection.ofRun`) highlights exactly its tint on the Verovio staff,
 and plays and loops from its lead-in to the next one, with the count-in
 treating a mid-bar start as a pickup. Still whole-bar: the jianpu and
-fingering views' selected cells, and the OSMD overlay.
+fingering views' selected cells.
 
 Make marker placement at the note level a first-class part of working with
 sections:
@@ -148,25 +148,22 @@ still can't do:
 
 ## 3. Verovio renderer follow-ups
 
-The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
-→ `verovio`; see `docs/explore.md` §10). Still open:
+The native Verovio + jovial_svg renderer is the only renderer (see
+`docs/explore.md` §10). Still open:
 
 - **ABAA cursor bug.** In an unfolded performance order the cursor maps a
   repeated measure number to its first rendered copy.
   `EngravedMeasureMap.locate` and `firstIndexOf` resolve a number to its
   first copy. Fix by keying the lookup on the performance occurrence rather
   than the measure number.
-- **Parity sweep.** Render every `assets/library/*` piece under both renderers and
-  compare:
-  - engraving, selection, section tints, flagged measures
-  - fingering labels (verbatim `A2L`/`E2H`)
-  - cursor tracking through a full playback including repeats
-- **Per-platform default.** `osmd` on macOS (`verovio_flutter` has no macOS
-  target), `verovio` elsewhere. macOS may be blocked anyway by the
-  mobile-only plugins (`homr_flutter`, `flutter_doc_scanner`, `image_cropper`).
-- **Web.** Removed 2026-11-17: never finished (Verovio's WASM build drew no
-  staff lines or stems), and far behind. A port would be reimplemented from
-  the Verovio path, adding `*_web.dart` siblings behind the existing façades.
+- **Platforms: iOS and Android only** (decided 2026-11-17). Web was never
+  finished (Verovio's WASM build drew no staff lines or stems), and macOS
+  had no Verovio build (`verovio_flutter` has no macOS target) and is
+  blocked by the mobile-only plugins (`homr_flutter`, `flutter_doc_scanner`,
+  `image_cropper`). Both, with Linux and Windows and the OSMD WebView
+  renderer that existed only for macOS, were removed. A port would be
+  reimplemented from the Verovio path, adding siblings behind the existing
+  `*_io.dart` façades.
 - **Licensing review.** Reviewed 2026-11-17 (an agent's reading, not legal
   advice). Settled:
   - Verovio (LGPL-3.0) is linked *dynamically*: `VerovioFFI.framework` on
@@ -209,14 +206,8 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
     dependency) are met too.
   - ML Kit also tries to send usage logs to Firebase. Removing it ends
     that.
-- **Cleanup**, only once the default is firmly `verovio` everywhere it can
-  be:
-  - `assets/engine/osmd/*`
-  - the `webview_flutter*` deps
-  - the `staff_view_io/web.dart` bridge
-  - `flutter_svg` (now used only by `verovio_engraver.dart`)
-
-  Keep the OSMD path only if macOS-via-OSMD is retained.
+- **Cleanup:** `flutter_svg` is now used only by `verovio_engraver.dart`.
+  (OSMD and `webview_flutter` went on 2026-11-17.)
 
 ---
 

@@ -259,10 +259,6 @@ const double staffFitSlack = 1.05;
 /// Verovio's `spacingSystem` (vertical gap between systems, in MEI units) for a
 /// given `staffSpacingProvider` value.
 ///
-/// The OSMD fallback drives the same preference through
-/// `MinSkyBottomDistBetweenSystems` / `MinimumDistanceBetweenSystems`; this is the
-/// Verovio-side equivalent, which had simply never been connected.
-///
 /// Quadratic, pinned to two measured anchors:
 ///
 /// * **0.5 (the slider default) → 4.** Verovio's own default is 4, established by

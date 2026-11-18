@@ -13,8 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 const _mediaAllowed = <String>[
   'android/app/src/main/res/', // launcher icons
   'ios/Runner/Assets.xcassets/',
-  'macos/Runner/Assets.xcassets/',
-  'windows/runner/resources/',
   'docs/images/', // screenshots of the app itself
 ];
 
