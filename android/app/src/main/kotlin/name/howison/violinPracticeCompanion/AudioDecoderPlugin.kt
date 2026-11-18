@@ -17,6 +17,13 @@ import kotlin.concurrent.thread
  * the audio track of an mp4 — to mono `Float32` PCM at the source sample rate,
  * for the score-to-audio DTW alignment on the Dart side.
  *
+ * Checked 2026-11-17 on dev-android, imported through the app's own picker:
+ * the 320 kbps stereo Happy Farmer mp3 (71.4 s, 44.1 kHz) aligned to 21
+ * anchors spanning 6.66–63.14 s. The iOS decoder, checked earlier with an
+ * older aligner, gave 6.87–66.57 s. A wrong sample rate would scale every
+ * anchor (48/44.1 is 9%, the SBR trap below is 2x) and push the end past
+ * the file.
+ *
  * WAV never arrives here: `package:wav` reads it in pure Dart, which is faster
  * than a channel round trip and works under `flutter test`. See
  * `lib/services/audio_decoder_io.dart`.
