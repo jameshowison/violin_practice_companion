@@ -16,7 +16,6 @@
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */; };
 		7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */; };
-		7884E8832EC3CC0700C636F3 /* TextRecognitionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */; };
 		7884E8A12EC3CC0700C636F3 /* BundledAssetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */; };
 		7884E9A22EC4AA0100C636F3 /* IncomingSharePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E9A12EC4AA0100C636F3 /* IncomingSharePlugin.swift */; };
 		A1CA11B12F10000100C0FFEE /* AudioCalibrationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */; };
@@ -63,7 +62,6 @@
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDecoderPlugin.swift; sourceTree = "<group>"; };
 		7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRoutePlugin.swift; sourceTree = "<group>"; };
-		7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognitionPlugin.swift; sourceTree = "<group>"; };
 		7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledAssetPlugin.swift; sourceTree = "<group>"; };
 		7884E9A12EC4AA0100C636F3 /* IncomingSharePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingSharePlugin.swift; sourceTree = "<group>"; };
 		A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCalibrationPlugin.swift; sourceTree = "<group>"; };
@@ -163,7 +161,6 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */,
 				7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */,
-				7884E8822EC3CC0400C636F3 /* TextRecognitionPlugin.swift */,
 				7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */,
 				7884E9A12EC4AA0100C636F3 /* IncomingSharePlugin.swift */,
 				A1CA11B02F10000100C0FFEE /* AudioCalibrationPlugin.swift */,
@@ -421,7 +418,6 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */,
 				7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */,
-				7884E8832EC3CC0700C636F3 /* TextRecognitionPlugin.swift in Sources */,
 				7884E8A12EC3CC0700C636F3 /* BundledAssetPlugin.swift in Sources */,
 				7884E9A22EC4AA0100C636F3 /* IncomingSharePlugin.swift in Sources */,
 				A1CA11B12F10000100C0FFEE /* AudioCalibrationPlugin.swift in Sources */,

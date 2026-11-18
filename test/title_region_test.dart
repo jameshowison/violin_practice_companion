@@ -168,4 +168,30 @@ void main() {
       expect(pickTitle([line('mf', 0.02)]), isNull);
     });
   });
+
+  group('dropLeadingPageNumber', () {
+    test('drops a boxed page number read as the first word', () {
+      expect(dropLeadingPageNumber('10 Allegretto'), 'Allegretto');
+      expect(dropLeadingPageNumber('9] Perpetual Motion'), 'Perpetual Motion');
+      expect(dropLeadingPageNumber('(3 Go Tell Aunt Rhody'), 'Go Tell Aunt Rhody');
+      expect(dropLeadingPageNumber('7J Andantino'), 'Andantino');
+    });
+
+    test('drops one glued onto the title, as PaddleOCR reads a narrow gap', () {
+      expect(dropLeadingPageNumber('13Minuet No.1'), 'Minuet No.1');
+      expect(dropLeadingPageNumber('15Minuet No. 3'), 'Minuet No. 3');
+      expect(dropLeadingPageNumber('9]Perpetual Motion'), 'Perpetual Motion');
+      expect(dropLeadingPageNumber('13Jingle Bells'), 'Jingle Bells');
+      // Not a word after it: an ordinal, a time, a unit.
+      expect(dropLeadingPageNumber('2nd Movement'), '2nd Movement');
+      expect(dropLeadingPageNumber('3A'), '3A');
+    });
+
+    test('leaves a lone number, a number in the title, and a long number', () {
+      expect(dropLeadingPageNumber('12'), '12');
+      expect(dropLeadingPageNumber('Minuet 2'), 'Minuet 2');
+      expect(dropLeadingPageNumber('1812 Overture Theme'), '1812 Overture Theme');
+      expect(dropLeadingPageNumber('Allegro'), 'Allegro');
+    });
+  });
 }

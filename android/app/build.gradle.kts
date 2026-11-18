@@ -45,11 +45,6 @@ flutter {
 }
 
 dependencies {
-    // Scan title reading (TextRecognitionPlugin.kt): ML Kit's Latin-script
-    // recogniser with the model bundled in the APK, so it works offline and on
-    // devices without Play services rather than downloading on first use.
-    implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("androidx.exifinterface:exifinterface:1.4.1")
     // Shrinking imported video (VideoShrinker.kt). Pinned to the media3
     // version video_player_android already pulls in, so there is one copy of
     // media3-common in the APK rather than two that disagree.

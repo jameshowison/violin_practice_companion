@@ -28,6 +28,8 @@ const bundledLicenseAssets = <(List<String>, String)>[
     'assets/engine/licenses/fluidsynth.txt'
   ),
   (['ONNX Runtime'], 'assets/engine/licenses/onnxruntime.txt'),
+  // The text models that read a scanned page's title.
+  (['PaddleOCR', 'RapidOCR'], 'assets/engine/licenses/paddleocr.txt'),
   (['iOS libraries (CocoaPods)'], 'assets/engine/licenses/ios_pods.txt'),
   (['Android libraries'], 'assets/engine/licenses/android_libraries.txt'),
 ];

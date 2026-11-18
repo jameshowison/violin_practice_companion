@@ -2,7 +2,10 @@
 
 Status (2026-11-17): lyrics from scans are still a spike, not in the app. Title
 detection (below, "not started") has since shipped: `lib/services/title_recognizer*.dart`,
-called from `omr_service_io.dart` (Vision on iOS, ML Kit on Android).
+called from `omr_service_io.dart`. It ran on Vision on iOS and ML Kit on Android; since
+2026-11-18 it runs on homr_flutter's `TextReader` (PaddleOCR) on both, and both
+platform plugins are gone (`docs/title_ocr.md`). Lyrics would most likely use
+the same reader, though this spike measured Vision.
 
 **Question.** A scanned song loses its lyrics. Can we read them and put each
 syllable on the right note?

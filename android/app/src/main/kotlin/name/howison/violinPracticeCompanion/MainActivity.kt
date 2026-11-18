@@ -8,7 +8,6 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : FlutterActivity() {
     private var audioDecoder: AudioDecoderPlugin? = null
     private var contentResolver: ContentResolverPlugin? = null
-    private var textRecognition: TextRecognitionPlugin? = null
     private var incomingShare: IncomingSharePlugin? = null
     private var bundledAsset: BundledAssetPlugin? = null
 
@@ -21,7 +20,6 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         contentResolver = ContentResolverPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
-        textRecognition = TextRecognitionPlugin(flutterEngine.dartExecutor.binaryMessenger)
         incomingShare = IncomingSharePlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         bundledAsset = BundledAssetPlugin(
@@ -46,8 +44,6 @@ class MainActivity : FlutterActivity() {
         audioDecoder = null
         contentResolver?.dispose()
         contentResolver = null
-        textRecognition?.dispose()
-        textRecognition = null
         incomingShare?.dispose()
         incomingShare = null
         bundledAsset?.dispose()

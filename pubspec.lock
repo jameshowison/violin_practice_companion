@@ -547,11 +547,11 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/homr_flutter"
-      ref: "v0.4.0"
-      resolved-ref: d827fd27bd71b6dae31787236cc88aeaa56ae894
+      ref: "v0.5.1"
+      resolved-ref: "0412c14a7a5107ce12ea552c126fba466592cfd4"
       url: "https://github.com/jameshowison/homr_flutter.git"
     source: git
-    version: "0.4.0"
+    version: "0.5.1"
   hooks:
     dependency: transitive
     description:

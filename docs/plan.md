@@ -197,6 +197,14 @@ The native Verovio + jovial_svg renderer is the only renderer (see
     iOS Vision is a genuine OS framework, so it is a GPL-3 §1 System
     Library, but one engine on both platforms is simpler to keep
     consistent.
+    **Done 2026-11-18:** homr_flutter 0.5.0's `TextReader` (PaddleOCR
+    PP-OCRv5 mobile, Apache-2.0, on ONNX Runtime) reads titles on both
+    platforms, and the ML Kit plugin and dependency are gone. It is more
+    accurate than ML Kit and Vision on the corpus, but slower on a low-end
+    Android phone (about 2 s; accepted for now). Results and the speed-up
+    brief: `docs/title_ocr.md`, `docs/title_ocr_speed_brief.md`. The iOS
+    Vision plugin went too, so there is one engine; both platform plugins
+    are in git history at 8b18b5a.
   - **The document scanner**, `play-services-mlkit-document-scanner`
     (via `flutter_doc_scanner`). Its UI and processing run inside Google
     Play Services, but a closed client library is still in our APK, and
@@ -206,8 +214,10 @@ The native Verovio + jovial_svg renderer is the only renderer (see
     photo-picker and cropper path that already exists.
   - Once both are gone, F-Droid's rules (which reject any proprietary
     dependency) are met too.
-  - ML Kit also tries to send usage logs to Firebase. Removing it ends
-    that.
+  - ML Kit also tries to send usage logs to Firebase. The document scanner
+    still brings that in (`mlkit/common` and the Firebase transport are
+    still in the APK after text recognition was removed); replacing the
+    scanner ends it.
 - **Cleanup:** `flutter_svg` is now used only by `verovio_engraver.dart`.
   (OSMD and `webview_flutter` went on 2026-11-17.)
 

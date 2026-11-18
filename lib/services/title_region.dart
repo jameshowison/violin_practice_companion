@@ -236,8 +236,10 @@ const _minLetterShare = 0.6;
 const _maxTitleLength = 50;
 
 /// Lines within this fraction of the biggest type count as the same size; the
-/// topmost of them wins, as a title sits above anything set like it.
-const _sameSizeTolerance = 0.05;
+/// topmost of them wins, as a title sits above anything set like it. Also
+/// TextReader's `sameSizeTolerance`, so it reads every line [pickTitle] could
+/// choose between.
+const titleSameSizeTolerance = 0.05;
 
 /// OCR guesses below this confidence are ignored.
 const _minConfidence = 0.3;
@@ -251,6 +253,31 @@ final _edgeJunk = RegExp(r'^[^\p{L}\p{N}"“(¡¿]+|[^\p{L}\p{N}.)"”!?]+$', un
 
 final _space = RegExp(r'\s+');
 
+/// A page number boxed beside a title, as OCR reads it when it joins the box
+/// to the title's line: "10", "9]", "(3", the box's edge read as "]", "|",
+/// "." or "J". The rule the Android ML Kit plugin used.
+final _pageNumber = RegExp(r'^[\[(]?[0-9]{1,3}[\])|.J]?$');
+
+/// The same number with no space before the title ("13Minuet No. 1"), as
+/// PaddleOCR reads it when the gap is narrow: digits straight onto a
+/// capitalised word. "J" is left out here, being a capital itself.
+final _gluedPageNumber = RegExp(r'^[\[(]?[0-9]{1,3}[\])|.]?(?=\p{Lu}\p{Ll})', unicode: true);
+
+/// [line] without one leading page number ("10 Allegretto" → "Allegretto",
+/// "13Minuet No. 1" → "Minuet No. 1"). A number on its own is left alone,
+/// and so is one inside a title ("Minuet 2"). PaddleOCR returns the number
+/// with the title, as ML Kit did, and spacing can't split it off,
+/// since its gap is the size of a word space or less.
+String dropLeadingPageNumber(String line) {
+  final words = line.trim().split(_space);
+  if (words.length > 1 && _pageNumber.hasMatch(words.first)) {
+    return words.skip(1).join(' ');
+  }
+  final glued = _gluedPageNumber.firstMatch(line.trim());
+  if (glued != null) return line.trim().substring(glued.end);
+  return line;
+}
+
 /// The title among [lines]: the line in the largest type (box height),
 /// ignoring numbers, tempo marks and notation noise, the topmost if several
 /// are about equally large. Punctuation is kept, so "Sonatina Op. 36" reads as
@@ -262,19 +289,23 @@ final _space = RegExp(r'\s+');
 String? pickTitle(List<RecognizedLine> lines) {
   final candidates = [
     for (final line in lines)
-      if (_isWordy(line)) line,
+      if (isTitleCandidate(line)) line,
   ];
   if (candidates.isEmpty) return null;
   final biggest = candidates.map((l) => l.box.height).reduce(math.max);
   final top = candidates
-      .where((l) => l.box.height >= biggest * (1 - _sameSizeTolerance))
+      .where((l) => l.box.height >= biggest * (1 - titleSameSizeTolerance))
       .reduce((a, b) => b.box.top < a.box.top ? b : a);
   return _tidy(top.text);
 }
 
 String _tidy(String text) => text.replaceAll(_edgeJunk, '').trim().replaceAll(_space, ' ');
 
-bool _isWordy(RecognizedLine line) {
+/// Whether [line] could be a title, in [pickTitle]'s terms: confident,
+/// short enough, and words rather than numbers, tempo marks or notation
+/// noise. TextReader is given it as `accept`, so it stops reading once it has
+/// the largest such line.
+bool isTitleCandidate(RecognizedLine line) {
   if (line.confidence < _minConfidence) return false;
   if (_tidy(line.text).length > _maxTitleLength) return false;
   final text = line.text.replaceAll(_space, '');

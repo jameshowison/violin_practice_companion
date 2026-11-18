@@ -44,7 +44,7 @@ dependencies:
     git:
       url: https://github.com/jameshowison/homr_flutter.git
       path: packages/homr_flutter
-      ref: v0.4.0
+      ref: v0.5.1
   flutter_doc_scanner: ^0.0.20
   image_cropper: ^12.0.0
   # Alternative scan sources (imported solely in omr_service_io.dart).
@@ -157,6 +157,9 @@ flutter:
     # homr's ONNX models, bundled so scanning needs no network (gitignored;
     # scripts/fetch_omr_models.sh puts them here).
     - assets/engine/omr_models/
+    # PaddleOCR's text models, which read a scan's title (gitignored; the
+    # same script puts them here).
+    - assets/engine/ocr_models/
     # The bundled pieces: assets/library/catalog.json lists them, with where
     # each comes from. Flutter does not bundle subfolders, so every piece
     # folder (and any audio/, gitignored) needs its own line;

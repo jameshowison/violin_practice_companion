@@ -171,14 +171,16 @@ reinstalls the app (wiping its own dirs), so push corpora to `/data/local/tmp/�
 
 **What's native on Android** (`android/app/src/main/kotlin/…`, registered by hand
 in `MainActivity.kt`): `AudioDecoderPlugin` (MediaCodec), `ContentResolverPlugin`
-(content:// scans), `TextRecognitionPlugin` (ML Kit, bundled Latin model — drops a
-leading boxed page number Vision never returns), `IncomingSharePlugin` (a
+(content:// scans), `IncomingSharePlugin` (a
 `.stringlings` file opened in the app), `BundledAssetPlugin` (a bundled asset as a
 real file path, copied out of the APK). **Still iOS-only**, and the Dart
 side degrades on `MissingPluginException`: `AudioRoutePlugin` and
 `AudioCalibrationPlugin` — both need a physical Android phone to build against.
-ML Kit also tries to send usage logs to `firebaselogging.googleapis.com` (no
-images); there's no official opt-out.
+Scan titles are read in Dart on both platforms (homr_flutter's `TextReader`,
+PaddleOCR on ONNX Runtime; `docs/title_ocr.md`); ML Kit text recognition was
+removed as closed code. The document scanner (`flutter_doc_scanner`) is still
+ML Kit via Play Services, and it still tries to send usage logs to
+`firebaselogging.googleapis.com` (no images); there's no official opt-out.
 
 `flutter doctor`'s "Android license status unknown" is stale: the new Android CLI
 has no license step, and Gradle accepts what a build needs.

@@ -70,6 +70,8 @@ runlog.txt
 
 # homr's ONNX models (~150 MB) — fetch with scripts/fetch_omr_models.sh
 assets/engine/omr_models/*.onnx
+# PaddleOCR's text models (~13 MB), for scan titles — same script
+assets/engine/ocr_models/*.onnx
 
 # Local-only: point homr_flutter at a sibling checkout while editing both repos
 pubspec_overrides.yaml*

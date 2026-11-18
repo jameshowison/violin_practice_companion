@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Put homr's three ONNX models (~150 MB) into assets/engine/omr_models/, where the app
-# bundles them. Run once per checkout, before building:
+# Put homr's three ONNX models (~150 MB) into assets/engine/omr_models/, and
+# PaddleOCR's two text models (~12.7 MB, Apache-2.0; they read a scan's title)
+# into assets/engine/ocr_models/, where the app bundles them. Run once per
+# checkout, before building:
 #
 #   bash scripts/fetch_omr_models.sh
 #
@@ -39,3 +41,12 @@ if compgen -G "$SIBLING/*.onnx" >/dev/null; then
 fi
 
 python3 "$PKG_ROOT/tool/fetch_models.py" assets/engine/omr_models "${FROM[@]+"${FROM[@]}"}"
+
+# The text models come from RapidOCR's repository (OcrModels.releaseBaseUrl).
+OCR_FROM=()
+OCR_SIBLING="../homr_flutter/assets/ocr_models"
+if compgen -G "$OCR_SIBLING/*.onnx" >/dev/null; then
+  OCR_FROM=(--from "$OCR_SIBLING")
+fi
+
+python3 "$PKG_ROOT/tool/fetch_models.py" assets/engine/ocr_models --ocr "${OCR_FROM[@]+"${OCR_FROM[@]}"}"
