@@ -8,30 +8,38 @@ import 'package:violin_practice_companion/services/section_line_planner.dart';
 /// that made the first A wider than its twins. Needs no restricted fixtures.
 void main() {
   group('line planner', () {
+    // Happy Farmer's natural widths on the SE: A A B C A, five slices each.
+    const widths = <double>[
+      129, 248, 270, 307, 221, // A 1175
+      70, 248, 270, 307, 221, // A 1116
+      70, 248, 285, 248, 233, // B 1084
+      55, 307, 271, 248, 233, // C 1114
+      70, 248, 270, 307, 257, // A 1152
+    ];
+    const starts = [0, 5, 10, 15, 20];
+    const labels = {0: 'A', 5: 'A', 10: 'B', 15: 'C', 20: 'A'};
+    // Every section on two lines, each cut after its third slice.
+    const allTwo = {3, 8, 13, 18, 23};
+
     test('sections sharing a label take the same number of lines', () {
-      // Happy Farmer's natural widths on the SE: A A B C A, five slices each.
-      final widths = <double>[
-        129, 248, 270, 307, 221, // A 1175
-        70, 248, 270, 307, 221, // A 1116
-        70, 248, 285, 248, 233, // B 1084
-        55, 307, 271, 248, 233, // C 1114
-        70, 248, 270, 307, 257, // A 1152
-      ];
-      const starts = [0, 5, 10, 15, 20];
       // A line limit between the second A and the last: alone, the A's
       // come out two lines, one, two.
       final alone = planSectionLines(
-          widths: widths, segmentStarts: starts, maxLineUnits: 1130);
+          widths: widths,
+          segmentStarts: starts,
+          maxLineUnits: 1130,
+          balanceDensity: false);
       expect(alone.breaks, {3, 23});
-      final labelled = planSectionLines(
-        widths: widths,
-        segmentStarts: starts,
-        maxLineUnits: 1130,
-        segmentLabels: const {0: 'A', 5: 'A', 10: 'B', 15: 'C', 20: 'A'},
-      );
-      // Every A on two lines, each cut after its third slice; B and C, with
-      // no twin, unchanged.
-      expect(labelled.breaks, {3, 8, 23});
+      // Every A on two lines; B and C, with no twin, unchanged.
+      expect(
+          planSectionLines(
+            widths: widths,
+            segmentStarts: starts,
+            maxLineUnits: 1130,
+            segmentLabels: labels,
+            balanceDensity: false,
+          ).breaks,
+          {3, 8, 23});
       // A label inside a segment (a section whose line opens on the pickup)
       // labels that segment.
       expect(
@@ -40,20 +48,83 @@ void main() {
             segmentStarts: starts,
             maxLineUnits: 1130,
             segmentLabels: const {1: 'A', 5: 'A', 20: 'A'},
+            balanceDensity: false,
           ).breaks,
           {3, 8, 23});
-      // The user's own lines-per-section count wins over the label rule.
+      // The user's own lines-per-section count wins over both rules.
       expect(
           planSectionLines(
             widths: widths,
             segmentStarts: starts,
             maxLineUnits: 1130,
             lines: 1,
-            segmentLabels: const {0: 'A', 5: 'A', 20: 'A'},
+            segmentLabels: labels,
           ).breaks,
           isEmpty);
     });
 
+    test('B and C split to match the two-line A sections', () {
+      // Lines of 528-647 beside 1084 and 1114 (a spread of 2.1): every
+      // section on two lines brings it to 1.35. Splitting C alone would make
+      // it worse (B becomes the widest), so this needs the common cap.
+      final plan = planSectionLines(
+          widths: widths,
+          segmentStarts: starts,
+          maxLineUnits: 1130,
+          segmentLabels: labels);
+      expect(plan.breaks, allTwo);
+      expect(plan.widestUnits, 647);
+      // Without labels too: the density rule alone gets there.
+      expect(
+          planSectionLines(
+                  widths: widths, segmentStarts: starts, maxLineUnits: 1130)
+              .breaks,
+          allTwo);
+    });
+
+    test('all on one line is already even: nothing added', () {
+      final plan = planSectionLines(
+          widths: widths,
+          segmentStarts: starts,
+          maxLineUnits: 1200,
+          segmentLabels: labels);
+      expect(plan.breaks, isEmpty);
+    });
+
+    test('a long section splits to match a short one', () {
+      // 16 bars and 8, room for 17 a line: one line each would draw the
+      // 8-bar section twice as sparse. Two lines of 8 and one of 8 match.
+      final bars = List<double>.filled(24, 100);
+      expect(
+          planSectionLines(
+                  widths: bars, segmentStarts: const [0, 16], maxLineUnits: 1700)
+              .breaks,
+          {8});
+    });
+
+    test('a short coda does not make everything split to its size', () {
+      // Two 8-bar sections and a 2-bar coda under half a line: the coda is
+      // left sparse rather than cutting the rest into 3-bar lines.
+      final bars = <double>[...List<double>.filled(16, 100), 150, 150];
+      expect(
+          planSectionLines(
+                  widths: bars,
+                  segmentStarts: const [0, 8, 16],
+                  maxLineUnits: 900)
+              .breaks,
+          isEmpty);
+    });
+
+    test('a split that only shaves the spread a little is not taken', () {
+      // 1000 and 900 on one line each: a spread of 1.11, already within
+      // reach of anything a split could do.
+      final bars = <double>[...List<double>.filled(10, 100), ...List<double>.filled(9, 100)];
+      expect(
+          planSectionLines(
+                  widths: bars, segmentStarts: const [0, 10], maxLineUnits: 1100)
+              .breaks,
+          isEmpty);
+    });
   });
 
   group('opening hidden rests', () {
