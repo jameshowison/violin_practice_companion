@@ -45,15 +45,14 @@ notation that works for your family:
   starts and ends and it will be matched against just that
 
 <p align="center">
-  <img src="docs/images/web-lightly-row.png" width="600"
-       alt="Lightly Row in the Annotated view: chord-labelled
-            sections above each line, open-string fret numbers underlined in
-            the string's colour, chord diagrams below, and the view settings
-            panel open on the right">
+  <img src="docs/images/ipad-lightly-row.png" width="700"
+       alt="Lightly Row on an iPad in the Annotated view: a finger number
+            above every note, underlined in the string's colour, the A and B
+            sections tinted, three bars selected, and the playback bar below">
 </p>
 
-*Lightly Row in the Annotated view, laid out by section with chord
-symbols, fret numbers and string-colour underlines.*
+*Lightly Row on an iPad, Annotated view: fingerings above every note,
+underlined in the string's colour, with three bars selected for practice.*
 
 ## What It Does Not Do
 
