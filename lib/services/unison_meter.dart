@@ -67,8 +67,8 @@ class UnisonMeter {
   static const togetherCents = 3.0, togetherHz = 0.6, togetherStrength = 0.6;
 
   Duration? _start; // the pluck being judged, or the last judged
-  double _peak = 0; // the fundamental's loudest since the last pluck
-  final _recent = <double>[]; // the fundamental, the last 20 frames
+  double _peak = 0; // the loudest since the last pluck (three bands summed)
+  final _recent = <List<double>>[]; // the three bands, the last 20 frames
   bool _quiet = true; // died away since the last pluck
   Duration? _onset; // heard after the quiet: a pluck if it grows loud enough
   int _onsetFrames = 0;
@@ -104,24 +104,32 @@ class UnisonMeter {
   /// What a pluck is, it decides for itself. Two strings beating deeply all
   /// but vanish at each beat and swell back, and the tuner takes each swell
   /// for a new note. So an onset is a pluck only once the last one has died
-  /// away; while it rings, a pluck is the level jumping back near the last
-  /// pluck's peak, which a swell, on a note that has been decaying, can't.
+  /// away; while it rings, a pluck is a jump back near the last pluck's peak
+  /// in all three harmonics at once. A beat swells them at different times
+  /// (Δ, 2Δ, 3Δ a second), and a pick wakes them together: a G pair beating
+  /// 2 Hz, its fundamental weak, swelled back past twice its last null at
+  /// every beat and restarted the wait thirteen times running.
   UnisonEvent add(Duration at, List<double> bands,
       {required double courseHz, bool onset = false, bool judge = true}) {
-    final level = bands[0];
+    final level = bands[0] + bands[1] + bands[2];
     final s0 = _start;
-    final jumped = s0 != null &&
+    var jumped = s0 != null &&
         at - s0 > const Duration(milliseconds: 500) &&
         _recent.length >= 10 &&
-        level > 0.6 * _peak &&
-        level > 2 * _recent.sublist(_recent.length - 10).reduce(math.min);
-    _recent.add(level);
+        level > 0.6 * _peak;
+    for (var h = 0; h < 3 && jumped; h++) {
+      final low = _recent.sublist(_recent.length - 10).map((r) => r[h]).reduce(math.min);
+      jumped = bands[h] > 2 * low;
+    }
+    _recent.add([bands[0], bands[1], bands[2]]);
     if (_recent.length > 20) _recent.removeAt(0);
     // Quiet: 20 dB down for 0.2 s. After that, an onset is a pluck once it
     // is loud: within a few frames, back to at least 30% (10 dB down) of the
     // last pluck's peak (any level, if none). A swell in a tail that has
     // fallen 20 dB never gets near that.
-    if (_peak > 0 && _recent.length == 20 && _recent.reduce(math.max) < _peak / 10) _quiet = true;
+    if (_peak > 0 && _recent.length == 20 && _recent.map((r) => r[0] + r[1] + r[2]).reduce(math.max) < _peak / 10) {
+      _quiet = true;
+    }
     if (onset && _quiet && _onset == null) {
       _onset = at;
       _onsetFrames = 0;
