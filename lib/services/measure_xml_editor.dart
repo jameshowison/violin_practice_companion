@@ -1271,6 +1271,7 @@ class MeasureXmlEditor {
         NoteValue.quarter => 'quarter',
         NoteValue.eighth => 'eighth',
         NoteValue.sixteenth => '16th',
+        NoteValue.thirtySecond => '32nd',
       };
 
   static ({String step, int alter, int octave}) _parsePitch(String pitch) {

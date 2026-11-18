@@ -61,8 +61,8 @@ Candidates, each to be measured on the catalogue before it is adopted:
 | **Missing naturals.** The model never sees ♮. A note that follows the key signature where the same note a beat earlier was marked natural, or where the melody runs chromatically, gets flagged. | known training gap | Flags only, no fix |
 | **Repeated passages.** Where two passages have the same notes (Allegretto's bars 13–16 repeat bars 5–8), make their articulations agree, taking the version with more marks read. | Allegretto 5–8 vs 13–16 | Composers do vary repeats |
 
-Rules would live next to the existing repair passes (`_repair` in
-`piece_repository.dart`, `MusicXmlNormalizer`), as **flags** where we're
+Rules would live next to the existing repair passes (`repair` in
+`piece_repository.dart`, `MusicXmlNormalizer`, `MusicXmlConsistency`), as **flags** where we're
 unsure and **fixes** only where the catalogue shows they're nearly always
 right. A flag could be shown on the bar in the measure editor.
 

@@ -3,9 +3,10 @@ import 'package:violin_practice_companion/models/duration_step.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
 
 void main() {
-  test('ordered list is shortest → longest, 10 entries', () {
-    expect(DurationStep.ordered.length, 10);
-    expect(DurationStep.ordered.first, const DurationStep(NoteValue.sixteenth, false));
+  test('ordered list is shortest → longest, 11 entries', () {
+    // A 32nd has no dotted form: 1.5 units can't be counted.
+    expect(DurationStep.ordered.length, 11);
+    expect(DurationStep.ordered.first, const DurationStep(NoteValue.thirtySecond, false));
     expect(DurationStep.ordered.last, const DurationStep(NoteValue.whole, true));
   });
 
@@ -23,7 +24,9 @@ void main() {
 
   test('clamps at both ends instead of wrapping', () {
     expect(DurationStep.previous(NoteValue.sixteenth, false),
-        const DurationStep(NoteValue.sixteenth, false));
+        const DurationStep(NoteValue.thirtySecond, false));
+    expect(DurationStep.previous(NoteValue.thirtySecond, false),
+        const DurationStep(NoteValue.thirtySecond, false));
     expect(DurationStep.next(NoteValue.whole, true),
         const DurationStep(NoteValue.whole, true));
   });
@@ -34,5 +37,6 @@ void main() {
     expect(thirtySecondUnits(NoteValue.quarter, true), 12);
     expect(thirtySecondUnits(NoteValue.sixteenth, false), 2);
     expect(thirtySecondUnits(NoteValue.sixteenth, true), 3);
+    expect(thirtySecondUnits(NoteValue.thirtySecond, false), 1);
   });
 }

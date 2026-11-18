@@ -427,6 +427,8 @@ class _JianpuMeasurePainter extends CustomPainter {
         return 1;
       case NoteValue.sixteenth:
         return 2;
+      case NoteValue.thirtySecond:
+        return 3;
       default:
         return 0;
     }

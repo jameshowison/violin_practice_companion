@@ -552,6 +552,7 @@ class MusicXmlParser {
       case 'half': return NoteValue.half;
       case 'eighth': return NoteValue.eighth;
       case '16th': return NoteValue.sixteenth;
+      case '32nd': return NoteValue.thirtySecond;
       default: return NoteValue.quarter;
     }
   }

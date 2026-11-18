@@ -237,6 +237,7 @@ class _NoteEditCard extends StatelessWidget {
       NoteValue.quarter: 'quarter',
       NoteValue.eighth: '8th',
       NoteValue.sixteenth: '16th',
+      NoteValue.thirtySecond: '32nd',
     };
     // "8th ·3": a triplet eighth, so a false triplet from a scan is visible
     // on the card, not only as a bracket on the staff.

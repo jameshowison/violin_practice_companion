@@ -11,7 +11,10 @@ class DurationStep {
   const DurationStep(this.value, this.dotted);
 
   /// Shortest → longest. Each note value is followed by its dotted form.
+  /// A 32nd has no dotted form here: it would be 1.5 units, and the app counts
+  /// in whole 32nds ([thirtySecondUnits]).
   static const List<DurationStep> ordered = [
+    DurationStep(NoteValue.thirtySecond, false),
     DurationStep(NoteValue.sixteenth, false),
     DurationStep(NoteValue.sixteenth, true),
     DurationStep(NoteValue.eighth, false),
@@ -33,7 +36,7 @@ class DurationStep {
     return ordered[(i + 1).clamp(0, ordered.length - 1)];
   }
 
-  /// One step shorter (clamped at 16th).
+  /// One step shorter (clamped at 32nd).
   static DurationStep previous(NoteValue value, bool dotted) {
     final i = _indexOf(value, dotted);
     return ordered[(i - 1).clamp(0, ordered.length - 1)];
@@ -47,6 +50,7 @@ class DurationStep {
       NoteValue.quarter: 'quarter',
       NoteValue.eighth: 'eighth',
       NoteValue.sixteenth: 'sixteenth',
+      NoteValue.thirtySecond: 'thirty-second',
     };
     return '${dotted ? 'dotted ' : ''}${names[value]} note';
   }
@@ -70,6 +74,9 @@ int thirtySecondUnits(NoteValue value, bool dotted) {
     NoteValue.quarter => 8,
     NoteValue.eighth => 4,
     NoteValue.sixteenth => 2,
+    NoteValue.thirtySecond => 1,
   };
+  // A dotted 32nd (1.5) can't be counted: it counts as a plain one, and
+  // `MusicXmlConsistency.check` reports it.
   return dotted ? base + base ~/ 2 : base;
 }

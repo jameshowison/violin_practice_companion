@@ -291,6 +291,7 @@ class MidiGenerator {
       NoteValue.quarter => _tpb,
       NoteValue.eighth => _tpb ~/ 2,
       NoteValue.sixteenth => _tpb ~/ 4,
+      NoteValue.thirtySecond => _tpb ~/ 8,
     };
     final ticks = note.dotted ? (base * 3) ~/ 2 : base;
     // A tuplet note lasts normal/actual of its written value: a triplet

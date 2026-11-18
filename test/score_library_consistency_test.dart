@@ -53,7 +53,7 @@ void main() {
       for (final f in [...always, ...optional])
         for (final i in MusicXmlConsistency.check(
             PieceRepository.repair(f.readAsStringSync())))
-          if (!(_knownGaps[f.path]?.contains(i.kind) ?? false)) '${f.path}: $i',
+          '${f.path}: $i',
     ];
     expect(problems, isEmpty);
   });
@@ -63,13 +63,7 @@ void main() {
     for (final f in always) {
       final base = PieceRepository.repair(f.readAsStringSync());
       final piece = MusicXmlParser().parse(base);
-      final gaps = _knownGaps[f.path] ?? const {};
-      final gapBars = {
-        for (final i in MusicXmlConsistency.check(base))
-          if (gaps.contains(i.kind)) i.measure,
-      };
       for (final m in piece.measures) {
-        if (gapBars.contains('${m.number}')) continue;
         // As Save does: the rebuilt bar, then the repository's repairs.
         final saved = PieceRepository.repair(MeasureXmlEditor.replaceMeasureNotes(
             base, m.number, m.notes, piece.divisions));
@@ -83,15 +77,6 @@ void main() {
     expect(losses, isEmpty);
   });
 }
-
-/// Disagreements a file is allowed, by path: ones the app can't settle yet.
-/// Keep this short, and name the gap.
-const _knownGaps = {
-  // Raw scanner output, kept as read: bar 20's 32nd notes. The app has no
-  // value shorter than a 16th (NoteValue), so it reads them as quarters, and
-  // a Save writes them as quarters.
-  'test/fixtures/omr/homr_gavotte.xml': {'note-value'},
-};
 
 /// What Save may change: drawing hints recomputed afterwards (stems, beams),
 /// the voice and staff a single-voice bar always has, and an empty

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/note_event.dart';
 import 'package:violin_practice_companion/services/musicxml_consistency.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:xml/xml.dart';
@@ -128,13 +129,25 @@ $bars</measure></part></score-partwise>''';
     expect(MusicXmlConsistency.check(MusicXmlConsistency.repair(xml)), isEmpty);
   });
 
-  test('a note shorter than the app can hold is reported', () {
-    final xml = score(note('C', duration: 8) +
+  test('a note value the app can\'t count is reported, a 32nd isn\'t', () {
+    String short(String type, {String dot = '', int duration = 1}) =>
         '<note><pitch><step>D</step><octave>4</octave></pitch>'
-            '<duration>1</duration><type>32nd</type></note>',
-        divisions: 8);
-    expect(kinds(xml), ['note-value']);
-    expect(MusicXmlConsistency.repair(xml), same(xml));
+        '<duration>$duration</duration><type>$type</type>$dot</note>';
+    // 16 divisions a quarter: a 64th is 1, a 32nd 2, a dotted 32nd 3.
+    final sixtyFourth = score(note('C', duration: 16) + short('64th'),
+        divisions: 16);
+    final dotted = score(
+        note('C', duration: 16) + short('32nd', dot: '<dot/>', duration: 3),
+        divisions: 16);
+    final plain = score(note('C', duration: 16) + short('32nd', duration: 2),
+        divisions: 16);
+    expect(kinds(sixtyFourth), ['note-value']);
+    expect(kinds(dotted), ['note-value']);
+    expect(kinds(plain), isEmpty);
+    expect(MusicXmlConsistency.repair(sixtyFourth), same(sixtyFourth));
+    // And a 32nd is read as one.
+    expect(MusicXmlParser().parse(plain).measures.first.notes.last.noteValue,
+        NoteValue.thirtySecond);
   });
 
   test('a measure number used twice is reported and left alone', () {

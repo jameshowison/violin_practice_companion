@@ -1,6 +1,8 @@
 import 'duration_step.dart';
 
-enum NoteValue { whole, half, quarter, eighth, sixteenth }
+/// Last, not in length order: `SectionDetector` keys notes by [index], and a
+/// new value at the end leaves every existing one where it was.
+enum NoteValue { whole, half, quarter, eighth, sixteenth, thirtySecond }
 
 /// The church modes, declared in rotation order from the relative major, so
 /// `index` IS the mode's degree within that major scale. `major` and `minor`

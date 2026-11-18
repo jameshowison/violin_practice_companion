@@ -28,8 +28,9 @@ class Inconsistency {
 /// | Slur, wedge | start/stop pairs | the pair | an unpaired end is dropped |
 /// | Tempo | the printed `<metronome>` | the printed mark | `<sound tempo>` from the mark |
 ///
-/// A note shorter than a 16th is also [check]ed: the app has no such value
-/// and reads it as a quarter, so it plays wrong whatever the file says.
+/// A note shorter than a 32nd, or a dotted 32nd, is also [check]ed: the app
+/// counts in whole 32nds, so it can't hold one, and plays it wrong whatever
+/// the file says (shorter ones as quarters, a dotted 32nd as a plain one).
 ///
 /// Accidentals, the first of these the app met, are settled by
 /// `MusicXmlNormalizer` (`<alter>` and `<accidental>`). Measure numbers are
@@ -114,7 +115,7 @@ class MusicXmlConsistency {
   // ---- note length -------------------------------------------------------
 
   /// The note types `NoteValue` has.
-  static const _modelled = {'whole', 'half', 'quarter', 'eighth', '16th'};
+  static const _modelled = {'whole', 'half', 'quarter', 'eighth', '16th', '32nd'};
 
   /// A note type's length in 64th notes.
   static const _sixtyFourths = {
@@ -149,12 +150,16 @@ class MusicXmlConsistency {
             continue;
           }
           final type = note.findElements('type').firstOrNull?.innerText.trim();
-          // The app's note values stop at a 16th (`NoteValue`); the parser
-          // reads anything else as a quarter, so the staff and the playback
-          // part ways. Only reported: there is nothing to make agree.
+          // The app counts in whole 32nds (`NoteValue`): the parser reads a
+          // shorter value as a quarter and a dotted 32nd as a plain one, so
+          // the staff and the playback part ways. Only reported: there is
+          // nothing to make agree.
           if (type != null && !_modelled.contains(type)) {
             report?.call('note-value', note,
                 'a $type, which the app reads as a quarter');
+          } else if (type == '32nd' && note.findElements('dot').isNotEmpty) {
+            report?.call('note-value', note,
+                'a dotted 32nd, which the app plays as a plain one');
           }
           final base = _sixtyFourths[type];
           if (base == null) continue;
