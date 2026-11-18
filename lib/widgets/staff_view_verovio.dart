@@ -376,6 +376,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// and reset its counter, and the refinement would never stop.
   final Map<String, _Calibration> _calibrations = {};
 
+  /// Whether the current request is Fit on a piece too long for one screen
+  /// (see [_fitSpacing]); published with the engrave, to [fitTooLongProvider].
+  bool _fitTooLong = false;
+
   /// The note spacing every engrave of the current request uses: the size's
   /// own ([spacingLinearForSize]), or what Fit squeezed to ([_fitSpacing]).
   double _spacingLinear = spacingLinearDefault;
@@ -431,10 +435,12 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
       // 1b. Fit: tighten the note spacing until the plan fills the screen.
       int? fitTarget;
+      _fitTooLong = false;
       if (req.size == StaffSize.fit && widget.zoomable && !widget.printedLines) {
         final fit = await _fitSpacing(req, seq);
         if (fit == null) return; // stale
         fitTarget = fit.flowTarget;
+        _fitTooLong = fit.tooLong;
         if (fit.spacing != _spacingLinear) {
           _spacingLinear = fit.spacing;
           cal = await _calibrate(req, seq);
@@ -727,11 +733,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// [flowTarget] is the free flow's measures-per-line, held through the new
   /// spacing: re-solved there, the auto-fit would pick its count afresh and
   /// undo the choice. Null when stale.
-  Future<({double spacing, int? flowTarget})?> _fitSpacing(
+  Future<({double spacing, int? flowTarget, bool tooLong})?> _fitSpacing(
     _EngraveRequest req,
     int seq,
   ) async {
-    final none = (spacing: _spacingLinear, flowTarget: null);
+    final none = (spacing: _spacingLinear, flowTarget: null, tooLong: false);
     final budget = req.viewportHeightPx * staffAutoFillFraction;
     if (budget <= 0 || _systemHeightPx <= 0) return none;
     final atDefault = await _naturalWidthsAt(_spacingLinear, req, seq);
@@ -778,8 +784,23 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     }
     final aim = budget * _fitSqueezeAim;
     // Already full: nothing to squeeze, and anything bigger can only overflow.
+    // Too long for one screen even at Small's note size: then Fit is Small,
+    // spacing included, so the piece scrolls as little as it can. The flow
+    // target is left to be solved afresh at that spacing (Small's count).
+    if (candidates.first.height > budget) {
+      return (
+        spacing: spacingLinearForSize(StaffSize.small, annotated: _annotated),
+        flowTarget: null,
+        tooLong: true,
+      );
+    }
+    // Already full: nothing to squeeze, and anything bigger can only overflow.
     if (candidates.first.height >= aim) {
-      return (spacing: _spacingLinear, flowTarget: candidates.first.n);
+      return (
+        spacing: _spacingLinear,
+        flowTarget: candidates.first.n,
+        tooLong: false,
+      );
     }
 
     final minSpacing =
@@ -789,7 +810,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     double sum(List<double> w) => w.fold(0.0, (a, b) => a + b);
     final w0 = sum(atDefault), wMin = sum(atMin);
 
-    ({double spacing, int? flowTarget})? best;
+    ({double spacing, int? flowTarget, bool tooLong})? best;
     var bestScale = 0.0;
     for (final c in candidates) {
       final spacing = fitSpacingLinear(
@@ -816,10 +837,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       }
       if (scale > bestScale) {
         bestScale = scale;
-        best = (spacing: spacing, flowTarget: c.n);
+        best = (spacing: spacing, flowTarget: c.n, tooLong: false);
       }
     }
-    return best ?? (spacing: _spacingLinear, flowTarget: candidates.first.n);
+    return best ??
+        (
+          spacing: _spacingLinear,
+          flowTarget: candidates.first.n,
+          tooLong: false,
+        );
   }
 
   /// [score]'s SVG as a drawable, with the notehead tint applied if it's on.
@@ -859,6 +885,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     // Only the whole-piece views speak for it; a one-bar preview would
     // otherwise overwrite the readout with its own count.
     if (widget.zoomable) {
+      ref.read(fitTooLongProvider.notifier).state =
+          req.size == StaffSize.fit && _fitTooLong;
       ref.read(effectiveMeasuresPerLineProvider.notifier).state =
           measuresPerLineOf(score.measureLine);
     }
@@ -1314,14 +1342,43 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
               duration: const Duration(milliseconds: 150),
               child: page,
             ),
+            // At the bottom, just above the play tray: the size panel opens
+            // over the top of the score, so a spinner there was hidden behind
+            // the very panel whose tap started the engrave.
             if (busy)
-              const Positioned(
-                top: 24,
+              Positioned(
                 left: 0,
                 right: 0,
+                bottom: ref.watch(notationBottomClearanceProvider) + 16,
                 child: Center(
-                  key: ValueKey('staff_reengraving'),
-                  child: CircularProgressIndicator.adaptive(),
+                  key: const ValueKey('staff_reengraving'),
+                  child: Material(
+                    elevation: 3,
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    shape: const StadiumBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator.adaptive(
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Laying out the music…',
+                            style: theme.textTheme.labelLarge,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
           ],

@@ -114,7 +114,11 @@ class _StaffViewPanel extends ConsumerWidget {
                 mode: StaffViewMode.fit,
                 chosen: viewMode,
                 onChoose: choose,
-                caption: 'The biggest notes that keep it all on one screen.',
+                caption: ref.watch(fitTooLongProvider) &&
+                        viewMode == StaffViewMode.fit
+                    ? 'Too long for one screen: smallest readable size, '
+                        'and it scrolls.'
+                    : 'The biggest notes that keep it all on one screen.',
               ),
               const Divider(height: 9, indent: 10, endIndent: 10),
               _ModeGroup(

@@ -483,6 +483,11 @@ final staffSizeProvider = Provider<StaffSize>((ref) {
   return size == StaffSize.fit ? StaffSize.medium : size;
 });
 
+/// Whether the staff on screen is Fit on a piece too long for one screen even
+/// at Small's note size, so it scrolls (at Small's size and spacing). Set by
+/// the staff view with each engrave; the view menu says so under Fit.
+final fitTooLongProvider = StateProvider<bool>((_) => false);
+
 /// Measures per line the renderer actually achieved on the last engrave. Set
 /// by the staff view; the section minimap sizes its emblems from it.
 final effectiveMeasuresPerLineProvider = StateProvider<int?>((_) => null);

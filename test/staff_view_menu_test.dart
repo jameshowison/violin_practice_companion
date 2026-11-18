@@ -166,6 +166,20 @@ void main() {
       expect(find.text('Like original scan'), findsNothing);
     });
 
+    testWidgets('Fit says so when the piece is too long for one screen',
+        (tester) async {
+      final c = await pump(tester);
+      await open(tester);
+      expect(find.textContaining('keep it all on one screen'), findsOneWidget);
+      c.read(fitTooLongProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Too long for one screen'), findsOneWidget);
+      // Only Fit's caption speaks for it: under Custom it is the old one.
+      await tester.tap(find.text('Large'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Too long for one screen'), findsNothing);
+    });
+
     testWidgets('a tap outside closes it', (tester) async {
       await pump(tester);
       await open(tester);
