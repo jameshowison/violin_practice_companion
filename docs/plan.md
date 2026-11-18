@@ -169,9 +169,27 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
     overlays work in a browser.
   - The OSMD web iframe has no HTML→Dart channel, so tapping a measure on
     the staff does nothing on web (`staff_view_web.dart`).
-- **Licensing review (decision).** `verovio_flutter` is LGPL-3.0, and the
-  static FFI link needs a decision before any public App Store
-  distribution. Bundle weight is about 7 MB per ABI.
+- **Licensing review.** Reviewed 2026-11-17 (an agent's reading, not legal
+  advice). Settled:
+  - Verovio (LGPL-3.0) is linked *dynamically*: `VerovioFFI.framework` on
+    iOS, a `.so` on Android. In a GPL-3.0 app whose whole source is public,
+    it owes notices and source pointers, nothing more.
+  - The homr models are AGPL, and none of their training data carries
+    non-commercial terms.
+  - Verovio's Liberation Serif 1.04 is "GPL v2 with font exception", not
+    OFL. Reviewed and accepted as bundled font data.
+  - Every component that the pub LICENSE files don't cover now has its
+    notice on the licence page (`lib/services/bundled_licenses.dart`,
+    `assets/engine/licenses/`): Verovio with its libraries and fonts,
+    FluidSynth and the Android LGPL-2.1 synth libraries with source URLs,
+    ONNX Runtime's third-party notices, the iOS pods, the Android Gradle
+    libraries, and the GPL text itself.
+
+  **Still open (decision):** the Android build puts AGPL homr code in one
+  APK with proprietary ML Kit text recognition and the Play Services
+  document scanner. Those probably aren't "System Libraries" under GPL-3
+  §1, and F-Droid rejects both regardless. Options: a FOSS flavour without
+  them, or legal advice.
 - **Cleanup**, only once the default is firmly `verovio` everywhere it can
   be:
   - `assets/engine/osmd/*`

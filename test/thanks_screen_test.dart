@@ -52,25 +52,41 @@ void main() {
     expect(find.byType(LicensePage), findsOneWidget);
   });
 
-  test('every bundled licence exists and is declared as an asset', () {
+  test('every bundled licence exists, has text and is declared as an asset',
+      () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    for (final (packages, asset) in bundledLicenseAssets) {
+    for (final (packages, asset) in [
+      ...bundledLicenseAssets,
+      (['Stringlings'], gplLicenseAsset),
+    ]) {
       expect(File(asset).existsSync(), isTrue, reason: '$packages: $asset');
+      expect(File(asset).readAsStringSync().trim(), isNotEmpty,
+          reason: '$packages: $asset is empty');
       final dir = asset.substring(0, asset.lastIndexOf('/') + 1);
       expect(pubspec.contains('- $asset') || pubspec.contains('- $dir\n'),
           isTrue, reason: '$asset is not in pubspec.yaml assets');
     }
   });
 
-  test('the licence registry carries Stringlings, homr and the bundled JS',
+  test('the licence registry carries Stringlings with the GPL, and every '
+      'bundled notice',
       () async {
     TestWidgetsFlutterBinding.ensureInitialized();
     registerBundledLicenses();
     final names = <String>{};
+    var own = '';
     await for (final e in LicenseRegistry.licenses) {
       names.addAll(e.packages);
+      if (e.packages.contains('Stringlings')) {
+        own = e.paragraphs.map((p) => p.text).join('\n');
+      }
     }
     expect(names, containsAll(['Stringlings', 'homr', 'OpenSheetMusicDisplay',
-        'abcjs', 'GeneralUser GS', 'Nunito']));
+        'abcjs', 'GeneralUser GS', 'Nunito', 'Verovio',
+        'FluidSynth and its Android libraries', 'ONNX Runtime',
+        'iOS libraries (CocoaPods)', 'Android libraries']));
+    // The GPL travels with the app's own entry, not just a link to it.
+    expect(own, contains('GNU GENERAL PUBLIC LICENSE'));
+    expect(own, contains('TERMS AND CONDITIONS'));
   });
 }

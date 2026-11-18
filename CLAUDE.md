@@ -432,9 +432,12 @@ CONTRIBUTING.md, "Content and copyright". For an agent:
   numbering — anywhere in the repo:** code, comments, test data and names,
   docs, README, commit messages. Say "method book", "beginner repertoire",
   "first-year pieces"; use "Book 1" for a sample collection name; refer to a
-  piece by its title only, never by its number in a book. The one exception is
-  the guard in `test/release_content_test.dart`, which has to spell the word to
-  refuse it. `git grep -il suzuki` should list that file and this one, nothing else.
+  piece by its title only, never by its number in a book. The exceptions: the
+  guard in `test/release_content_test.dart`, which has to spell the word to
+  refuse it, and `assets/engine/licenses/onnxruntime.txt`, whose verbatim
+  third-party notice lists a contributor of that surname (a person, not the
+  method; licence text is never edited). `git grep -il suzuki` should list
+  those two, this file, and nothing else.
 - **What ships is `assets/` and nothing else:** `assets/engine/` (machinery) and
   `assets/library/` (pieces, each listed in `assets/library/catalog.json` with
   `source` and `license`). Add a piece with `scripts/clean_musicxml.py` + a

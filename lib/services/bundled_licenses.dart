@@ -20,7 +20,20 @@ const bundledLicenseAssets = <(List<String>, String)>[
   (['GeneralUser GS'], 'assets/engine/licenses/generaluser_gs.txt'),
   // The Playful skin's typeface; SIL OFL 1.1 asks for it to travel with it.
   (['Nunito'], 'assets/engine/fonts/OFL.txt'),
+  // The score engraver, its embedded libraries and its music fonts.
+  (['Verovio'], 'assets/engine/licenses/verovio.txt'),
+  // flutter_midi_pro's Android synth: FluidSynth, GLib and the codecs.
+  (
+    ['FluidSynth and its Android libraries'],
+    'assets/engine/licenses/fluidsynth.txt'
+  ),
+  (['ONNX Runtime'], 'assets/engine/licenses/onnxruntime.txt'),
+  (['iOS libraries (CocoaPods)'], 'assets/engine/licenses/ios_pods.txt'),
+  (['Android libraries'], 'assets/engine/licenses/android_libraries.txt'),
 ];
+
+/// The GNU GPL version 3, appended to Stringlings' own entry.
+const gplLicenseAsset = 'assets/engine/licenses/gpl-3.0.txt';
 
 /// Stringlings' own entry, at the top of its package list.
 const _ownLicense = '''
@@ -33,13 +46,16 @@ It is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-The source code, and the full licence text, are at
+The source code is at
 $kSourceRepoUrl
+
+The full text of the GNU General Public License, version 3, follows.
 ''';
 
 void registerBundledLicenses() {
   LicenseRegistry.addLicense(() async* {
-    yield const LicenseEntryWithLineBreaks(['Stringlings'], _ownLicense);
+    yield LicenseEntryWithLineBreaks(['Stringlings'],
+        '$_ownLicense\n${await rootBundle.loadString(gplLicenseAsset)}');
     for (final (packages, asset) in bundledLicenseAssets) {
       yield LicenseEntryWithLineBreaks(
           packages, await rootBundle.loadString(asset));
