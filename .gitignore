@@ -74,9 +74,6 @@ assets/engine/omr_models/*.onnx
 # Local-only: point homr_flutter at a sibling checkout while editing both repos
 pubspec_overrides.yaml*
 
-# Dev library packed for the web build (scripts/push_dev_library_web.sh)
-web/dev_library.json
-
 # Lyrics evaluation: copyrighted pages and answer keys, never committed
 lyrics_eval/
 

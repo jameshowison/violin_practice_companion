@@ -45,6 +45,9 @@ deliberate early investment so that the "web-first while churning" posture
 (see §8) wouldn't surface architecture-level surprises at the first mobile
 build. It paid off directly: the OMR feature (§4) only needed a
 `omr_service_io.dart` / `omr_service_web.dart` split, no retrofitting.
+*(2026-11-17: web was removed — never finished, and far behind. The `*_web.dart`
+siblings went; the façades that chose between them stay, exporting only their
+`*_io.dart` half, as the seams a future port would use.)*
 
 **Lookup tables in JSON, not Dart source** — `jianpu_key_map.json`,
 `fingering_first_position.json`, `open_string_preferences.json` (since

@@ -38,9 +38,8 @@ class OmrScanResult {
 /// Scans one or more pages of printed sheet music and recognises them as a
 /// single MusicXML piece.
 ///
-/// Mobile/desktop ([OmrService] in `omr_service_io.dart`) drives a real
-/// document scanner + on-device OMR pipeline. Web (`omr_service_web.dart`)
-/// is a stub pending a server-side `homr` backend.
+/// [OmrService] in `omr_service_io.dart` drives a real document scanner +
+/// on-device OMR pipeline.
 abstract class OmrServiceBase {
   /// Returns the recognised piece, or `null` if the user cancels at any
   /// step (acquiring the pages or cropping any of them). [source] selects

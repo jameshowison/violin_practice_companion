@@ -395,12 +395,12 @@ description in the README, "Dev library". What an agent needs to know:
 
 ## Measuring Verovio headlessly
 
-`web/verovio/verovio-toolkit-wasm.js` (Verovio 6.2.0) drives from Node with no
+`tool/verovio/verovio-toolkit-wasm.js` (Verovio 6.2.0) drives from Node with no
 simulator, so it can answer "what does this option actually do" in seconds — and
 unlike the dev server it is safe to run while another agent holds the device.
 
 ```js
-const vrv = require('web/verovio/verovio-toolkit-wasm.js');
+const vrv = require('./tool/verovio/verovio-toolkit-wasm.js');
 // no ready callback — poll for the wasm runtime:
 //   vrv.module.calledRun && vrv.module.cwrap('vrvToolkit_getVersion','string',[])
 const tk = new vrv.toolkit();
@@ -470,15 +470,15 @@ This is a solo "vibe coding" project. There is no PR workflow, no CI, no code re
 
 After each commit, **agents should run this quick checklist and flag anything that fails**. It's a 30-second scan, not a review.
 
-1. **No `dart:io` or `dart:html` in shared code.** Platform-specific APIs belong behind the `_io.dart` / `_web.dart` conditional-import split (see `staff_view*.dart`, `playback_service*.dart` for the pattern).
-2. **No `kIsWeb` or `Platform.is*` branching inside shared widgets or services.** That's the canonical smell — branch via conditional imports instead.
+1. **No `dart:io` in shared code.** File-system and platform APIs belong in a `*_io.dart` file behind its façade (`playback_service.dart` exports `playback_service_io.dart`; see `lib/services/` for the 20-odd of them). The app ships on iOS and Android only — web was removed on 2026-11-17 — but the façades are the seams a future port would add a sibling to, so keep new platform code behind one.
+2. **No `kIsWeb` or `Platform.is*` branching inside shared widgets or services.** That's the canonical smell — put the difference behind a façade, or in `lib/ui/adaptive/` (2a).
 2a. **iOS-versus-Android UI differences live only in `lib/ui/adaptive/`.** Screens call its wrappers (`showAppActionSheet`, `appSelectionHaptic`, `isCupertino`) or Flutter's `.adaptive` constructors (`Switch.adaptive`, `SwitchListTile.adaptive`, `CircularProgressIndicator.adaptive`); no `TargetPlatform` or `Theme.of(context).platform` checks anywhere else. The module reads the platform from the theme, never `dart:io`, so a test can render either platform with `ThemeData(platform: …)`. Page transitions need nothing: Material's defaults are already Cupertino on iOS.
-3. **New plugin dependencies must declare iOS, Android, macOS, and Web support** on pub.dev. If a plugin is web-only or mobile-only, it needs a conditional-import sibling, not a direct dependency in shared code.
+3. **New plugin dependencies must declare iOS and Android support** on pub.dev.
 4. **No hard-coded desktop-browser pixel widths.** Layouts should be responsive / percentage-based so they survive a phone viewport.
 5. **No whole-file reformatting.** This repo is not `dart format`-clean, so running it on a file rewrites hundreds of unrelated lines. `git diff --shortstat` against `git diff -w --shortstat` is the tell — if they diverge a lot, a formatter has been through. It has twice turned a small change into a huge diff: 582 lines for a 304-line change, and ~180 lines of churn for a 3-line edit in `piece_detail_screen.dart`. Edit surgically; to undo, `git checkout HEAD -- <file>` and re-apply the real change by hand.
 6. **No content that can't be public.** `flutter test` must pass `release_content_test` and `repo_content_policy_test`, and `bash scripts/content_audit.sh` must report 0 paths in HEAD. Anything new under `assets/library/` needs a catalog entry with a real `source`.
 
-Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving to a conditional-import split (see `playback_service_web.dart` / `playback_service_io.dart` for the pattern)."*
+Suggested phrasing when something fails: *"Multi-platform smell: `<file>:<line>` does `<thing>`. Suggest moving it behind a façade (see `playback_service.dart` / `playback_service_io.dart` for the pattern)."*
 
 ### Mobile build milestone (iOS done; Android on the emulator; macOS outstanding)
 

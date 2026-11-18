@@ -46,15 +46,14 @@ notation that works for your family:
 
 <p align="center">
   <img src="docs/images/web-lightly-row.png" width="600"
-       alt="Lightly Row in the Annotated view, running in Chrome: chord-labelled
+       alt="Lightly Row in the Annotated view: chord-labelled
             sections above each line, open-string fret numbers underlined in
             the string's colour, chord diagrams below, and the view settings
             panel open on the right">
 </p>
 
-*Lightly Row in the web build, Annotated view, laid out by section with chord
-symbols, fret numbers and string-colour underlines. To run it yourself, see
-[Running in a browser](#running-in-a-browser).*
+*Lightly Row in the Annotated view, laid out by section with chord
+symbols, fret numbers and string-colour underlines.*
 
 ## What It Does Not Do
 
@@ -88,13 +87,11 @@ flutter run                  # development
 flutter build apk            # Android
 flutter build ios --no-codesign  # iOS
 flutter build macos          # macOS
-flutter build web            # Web / PWA
 ```
 
 iOS requires an Apple developer account for device installation; on a free
 (personal) account the installed build stops launching after 7 days and has to be
-reinstalled. The web build works on iPhone Safari as a PWA with no account
-required. To put a build on a real phone or iPad, use `scripts/device_install.sh`
+reinstalled. To put a build on a real phone or iPad, use `scripts/device_install.sh`
 — see [Installing on a physical
 device](#installing-on-a-physical-device) below. For the day-to-day simulator
 loop, see [From a cold Mac to the app on the iPad
@@ -102,41 +99,7 @@ simulator](#from-a-cold-mac-to-the-app-on-the-ipad-simulator) below.
 
 The scan-to-MusicXML (OMR) feature needs homr's ONNX models, fetched once with
 `bash scripts/fetch_omr_models.sh` — see [OMR (Scan-to-MusicXML)](#omr-scan-to-musicxml)
-below. It is not available on the web build.
-
-### Running in a browser
-
-The quickest way to try the app — no Xcode, simulator or device needed, just
-Flutter and Chrome:
-
-```bash
-flutter pub get
-flutter run -d chrome --web-port 8686    # opens Chrome at http://localhost:8686
-```
-
-`--web-port` is optional, but a fixed port keeps the browser's saved pieces
-between runs: the web build stores its library in the browser, keyed by origin,
-so a new random port starts with an empty library. To serve a release build to
-another browser on your network instead:
-
-```bash
-flutter build web
-python3 -m http.server 8686 --directory build/web
-```
-
-To load the [dev library](#dev-library-the-same-pieces-and-media-on-every-dev-device)'s
-pieces, run `bash scripts/push_dev_library_web.sh` (before launching, or then
-reload the tab). It packs scores, titles, sections and collections into
-`web/dev_library.json` (gitignored), which the app merges at launch. This is one-way:
-edits made in the browser are kept there but never pulled back. Media are left out,
-and `flutter build web` ships the file if it's there
-(`--remove` deletes it).
-
-What differs from iOS: scanning (OMR) is not available, so add pieces with
-**Import from ABC** on the piece list. The Verovio worker and WASM toolkit that
-render notation in the browser are already vendored in `web/`; there is no extra
-setup step. So is pdf.js (4.6.82, in `web/pdfjs/`), so the web build loads
-nothing from another host; `test/no_network_test.dart` keeps it that way.
+below.
 
 ## Simulator names
 
@@ -676,7 +639,6 @@ xcrun simctl status_bar shots-iphone override --time 9:41 --dataNetwork wifi \
 ## Distribution
 
 - **Android**: F-Droid (pending submission) or direct APK
-- **Web**: self-host the `build/web` output; works as an installable PWA
 - **iOS**: TestFlight (internal and external testers; App Store to follow), or build from
   source with your own developer account. With a free account a build expires
   after 7 days — see [Installing on a physical device](#installing-on-a-physical-device)
@@ -785,11 +747,6 @@ Every scanned piece keeps the images it was recognised from in
 scan comes out wrong, look there first; the dev-library sync brings them back
 to the Mac (`../violin_dev_library/scan_sources/`). Pieces scanned before this
 existed have none.
-
-**Mobile/desktop only.** `flutter_onnxruntime` and `flutter_doc_scanner` don't
-support web, so `omr_service.dart` conditional-imports a stub on web
-(`omr_service_web.dart`) that throws `UnsupportedError`. A server-side `homr`
-(Python) backend for a future web/laptop-camera path is planned but not built.
 
 **Platform requirements** (set by `flutter_onnxruntime`):
 - iOS deployment target 16.0+

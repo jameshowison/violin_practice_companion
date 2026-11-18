@@ -80,7 +80,7 @@ sounding-only:
 
 ```js
 // node, from the repo root. See CLAUDE.md "Measuring Verovio headlessly".
-const vrv = require(process.cwd() + '/web/verovio/verovio-toolkit-wasm.js');
+const vrv = require(process.cwd() + '/tool/verovio/verovio-toolkit-wasm.js');
 // once vrv.module.calledRun:
 const tk = new vrv.toolkit(); tk.resetOptions(); tk.loadData(xml);
 const mei = tk.getMEI();

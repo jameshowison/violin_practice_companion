@@ -245,7 +245,7 @@ class PieceRepository {
   }
 
   /// Permanently removes a user-added piece and every artifact keyed to its id:
-  /// its MusicXML, its index row (io) / prefs keys (web), its section-override
+  /// its MusicXML, its index row, its section-override
   /// sidecar, and any editable copy it accumulated. Idempotent.
   ///
   /// NOT for bundled fixtures — their MusicXML ships inside the app bundle and

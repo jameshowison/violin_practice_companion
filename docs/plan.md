@@ -164,11 +164,9 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
 - **Per-platform default.** `osmd` on macOS (`verovio_flutter` has no macOS
   target), `verovio` elsewhere. macOS may be blocked anyway by the
   mobile-only plugins (`homr_flutter`, `flutter_doc_scanner`, `image_cropper`).
-- **Web.**
-  - Confirm the `verovio_flutter` WASM path renders, and that the native
-    overlays work in a browser.
-  - The OSMD web iframe has no HTML→Dart channel, so tapping a measure on
-    the staff does nothing on web (`staff_view_web.dart`).
+- **Web.** Removed 2026-11-17: never finished (Verovio's WASM build drew no
+  staff lines or stems), and far behind. A port would be reimplemented from
+  the Verovio path, adding `*_web.dart` siblings behind the existing façades.
 - **Licensing review.** Reviewed 2026-11-17 (an agent's reading, not legal
   advice). Settled:
   - Verovio (LGPL-3.0) is linked *dynamically*: `VerovioFFI.framework` on
@@ -247,8 +245,6 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
 
 - **`docs/omr_evaluation/`** (`homr/`, `oemer/`) is superseded by
   `homr_flutter/docs/omr_evaluation/`. It's a candidate for deletion.
-- **`CLAUDE.md`** should say that OMR is mobile- and desktop-first, with web
-  deferred to a possible server-side `homr` backend.
 - **Upstream `abc-music` patches**, prepared in
   `../homr_flutter_private_archived/docs/omr_evaluation/abc_bug_{10,14,15}*.patch`
   (they were not carried over to the public `homr_flutter`), are not yet

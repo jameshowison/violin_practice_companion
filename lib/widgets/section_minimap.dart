@@ -314,9 +314,8 @@ class SectionMinimap extends ConsumerWidget {
 // appears whenever exactly one measure is selected on a platform with
 // writable storage — independent of the drawer/tray state, so it's
 // discoverable the moment you tap a measure. Fixtures are materialized to
-// an editable file on first save (see MeasureEditController.save); web has no
-// file storage so editing is disabled there via `supportsEditing` — no
-// `kIsWeb` needed in shared code.
+// an editable file on first save (see MeasureEditController.save). Gated on
+// `supportsEditing` (see `storageSupportsEditing`).
 //
 // These used to be FABs floating over the notation itself, which covered the
 // music being edited (worst on iPhone portrait). They then moved to the

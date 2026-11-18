@@ -100,7 +100,7 @@ line per mark.
 
 - `dart:io` and `path_provider` must not go into shared code (CLAUDE.md smell
   check #1). Either keep the dump as uncommitted, temporary code, or put it behind
-  a `_io.dart` / `_web.dart` conditional import.
+  a `*_io.dart` file behind a façade.
 - Gate it with a `--dart-define` so one source tree builds both variants:
   `const bool kFix = bool.fromEnvironment('FIX', defaultValue: true);`, built with
   `flutter build ios --release --dart-define=FIX=false`.

@@ -14,8 +14,7 @@ import 'package:flutter/widgets.dart';
 /// Gated to iOS/Android — see teacher_recording_capture_io.dart for why.
 abstract class TeacherRecordingCaptureBase {
   /// False on any platform/build where recording can't work at all (checked
-  /// before ever calling [initialize] — the web stub returns false and
-  /// throws from every other method).
+  /// before ever calling [initialize]).
   bool get isSupported;
 
   /// Opens the camera (rear-facing by default) and checks microphone

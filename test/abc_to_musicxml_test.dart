@@ -14,7 +14,7 @@ import 'package:violin_practice_companion/services/section_detector.dart';
 /// golden fixture `test/fixtures/devils_dream.musicxml` was captured by
 /// converting `test/fixtures/devils_dream.abc` (The Devil's Dream reel) once
 /// with that converter — see the import-from-ABC plan. The live ABC→MusicXML
-/// conversion runs JS (dart:js_interop on web, flutter_js on native) and is
+/// conversion runs JS (flutter_js) and is
 /// exercised by on-device verification, not here.
 void main() {
   final parser = MusicXmlParser();

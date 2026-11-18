@@ -8,8 +8,8 @@ import 'musicxml_parser.dart';
 import 'piece_storage_base.dart';
 
 /// Whether this platform can write MusicXML files (and therefore supports
-/// editing). True on mobile/desktop. Read via the conditional-import seam so
-/// shared code needn't branch on `kIsWeb`.
+/// editing). True wherever the app runs today; kept as a seam so a platform
+/// without writable storage could turn editing off without branching.
 const bool storageSupportsEditing = true;
 
 /// Mobile/desktop persistence for pieces, under the app documents directory:

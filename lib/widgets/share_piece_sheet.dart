@@ -7,7 +7,7 @@ import '../models/piece_media.dart';
 import '../services/piece_share.dart';
 import '../services/providers.dart';
 
-/// Whether this platform can share a piece as a file. False on web.
+/// Whether this platform can share a piece as a file.
 bool get sharePieceAvailable => pieceShareSupported;
 
 /// Share ▸ the piece and the recordings the sender picks, as one

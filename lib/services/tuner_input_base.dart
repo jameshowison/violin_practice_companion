@@ -22,9 +22,8 @@ class TunerMicDenied implements Exception {
 
 /// Listens to the microphone and reports pitch readings, about 90 a second.
 ///
-/// Implementations: `tuner_input_io.dart` (iOS, Android, macOS: `record`'s PCM
-/// stream, analysed on a background isolate) and `tuner_input_web.dart` (a
-/// stub, as yet). Pick one through `tuner_input.dart`.
+/// Implemented in `tuner_input_io.dart` (`record`'s PCM stream, analysed on a
+/// background isolate); made through `tuner_input.dart`.
 abstract class TunerInputBase {
   /// Whether this platform can listen at all.
   bool get isSupported;

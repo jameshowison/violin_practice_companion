@@ -938,7 +938,7 @@ int measuresPerLineForWidth(double widthPx) {
 /// ask for more: an earlier version computed a page "big enough" for long
 /// pieces, up to 2000000, and any piece that needed more than 60000 got one A4
 /// page of music instead. (Measured headlessly with
-/// `web/verovio/verovio-toolkit-wasm.js`.)
+/// `tool/verovio/verovio-toolkit-wasm.js`.)
 ///
 /// A system's height in units doesn't change with zoom, so 60000 holds well
 /// over a hundred ordinary systems at any zoom. A score that still doesn't fit

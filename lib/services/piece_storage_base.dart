@@ -1,5 +1,4 @@
-/// Platform-independent pieces of the piece store, shared by
-/// `piece_storage_io.dart` and `piece_storage_web.dart` so the two can't drift.
+/// Platform-independent pieces of the piece store (`piece_storage_io.dart`).
 ///
 /// Follows the same `*_base.dart` convention as `abc_converter_base.dart` and
 /// `playback_service_base.dart`.

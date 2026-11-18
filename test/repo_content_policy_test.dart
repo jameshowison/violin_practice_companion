@@ -15,8 +15,6 @@ const _mediaAllowed = <String>[
   'ios/Runner/Assets.xcassets/',
   'macos/Runner/Assets.xcassets/',
   'windows/runner/resources/',
-  'web/icons/',
-  'web/favicon.png',
   'docs/images/', // screenshots of the app itself
 ];
 

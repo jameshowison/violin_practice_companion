@@ -30,9 +30,8 @@ class AbcConversionException implements Exception {
 /// Converts ABC notation to MusicXML by running a bundled, DOM-free JavaScript
 /// converter (abcjs parser + `assets/engine/abc/abc_to_musicxml.js` emitter).
 ///
-/// Two implementations share this interface via a conditional import (see
-/// `abc_converter.dart`): web runs the JS with `dart:js_interop`; mobile/desktop
-/// runs it with `flutter_js` (QuickJS / JavaScriptCore — **not** a WebView).
+/// Implemented in `abc_converter_io.dart` with `flutter_js` (QuickJS /
+/// JavaScriptCore — **not** a WebView).
 abstract class AbcConverterBase {
   /// Converts [abc] to MusicXML. Lazily loads the JS engine on first call.
   /// Throws [AbcConversionException] on invalid input.

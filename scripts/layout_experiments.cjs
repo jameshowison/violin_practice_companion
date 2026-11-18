@@ -19,7 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
-const vrv = require(path.join(__dirname, '..', 'web/verovio/verovio-toolkit-wasm.js'));
+const vrv = require(path.join(__dirname, '..', 'tool/verovio/verovio-toolkit-wasm.js'));
 
 const [, , xmlPath, sectionsPath, outPath, notesPath] = process.argv;
 if (!xmlPath || !sectionsPath || !outPath) {
