@@ -802,14 +802,16 @@ final colourNoteheadsByStringProvider = pieceDisplayPref<bool>(
 );
 
 // ── Highlight granularity ─────────────────────────────────────────────────────
-/// Off (the default): playback highlights each measure's first note and holds it
-/// through the bar — the only beat a recording's alignment actually verifies
-/// (see `PlaybackServiceBase.highlightDownbeatOnly`). On: it steps through every
-/// note. Applies to synthesized playback and recordings alike. Remembered per
-/// piece — see [pieceDisplayPref].
+/// On (the default): playback steps the highlight through every note. Off: it
+/// highlights each measure's first note and holds it through the bar — the
+/// only beat a recording's alignment actually verifies (see
+/// `PlaybackServiceBase.highlightDownbeatOnly`, whose own default is the
+/// opposite and is overwritten by this the moment a service exists). Applies to
+/// synthesized playback and recordings alike. Remembered per piece — see
+/// [pieceDisplayPref]; a piece switched off before stays off.
 final highlightEveryNoteProvider = pieceDisplayPref<bool>(
   'highlightEveryNote',
-  false,
+  true,
   encode: (v) => '$v',
   decode: bool.parse,
 );
