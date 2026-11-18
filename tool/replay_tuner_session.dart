@@ -111,8 +111,13 @@ void main(List<String> args) {
     final t = r.endSample / rate;
     while (ev < events.length && events[ev].$1 <= t) {
       final e = events[ev++].$2;
-      // The screen's own going back, which the replay does for itself below.
-      if (e.endsWith('back to the first string')) continue;
+      // An older build's own going back to the first string after a failed
+      // pair, logged as a pick.
+      if (e.endsWith('back to the first string')) {
+        together = false;
+        model.newString();
+        continue;
+      }
       if (e.startsWith('picked ')) {
         together = e.endsWith(' both');
         unison.reset();
@@ -156,10 +161,8 @@ void main(List<String> args) {
           verdicts.add((t, course.name, x?.cents, v));
           pairSays = unisonStatus(v, x);
           held = true;
-          if (v != null && !unisonPassed(v, x)) {
-            together = false;
-            model.newString();
-          }
+          // An older build went back to the first string here by itself,
+          // and logged it as 'picked … back to the first string'.
         case UnisonEvent.none:
           break;
       }

@@ -400,9 +400,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     }
   }
 
-  /// A pluck of both strings has rung: say what it showed. Anything short
-  /// of together and in tune goes back to the first string, to tune each
-  /// again.
+  /// A pluck of both strings has rung: say what it showed. Short of
+  /// together and in tune, it says to tune each string, and stays on both
+  /// until the player taps (to the first string) or plucks both again.
   void _judged() {
     final v = _unison.verdict, r = _model.reading;
     _rec?.event('together ${v ?? 'too short'}');
@@ -411,13 +411,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     // the pair rings on, and its beats are no reading of either string.
     _held = true;
     _reading.value = r;
-    if (unisonPassed(v, r)) {
-      HapticFeedback.lightImpact();
-    } else if (v != null) {
-      setState(() => _line = 0);
-      _model.newString();
-      _rec?.event('picked ${_model.pinned} back to the first string');
-    }
+    if (unisonPassed(v, r)) HapticFeedback.lightImpact();
   }
 
   /// The course picked on a mandolin: its harmonics are watched for beats.

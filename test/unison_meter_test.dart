@@ -68,9 +68,9 @@ void main() {
     TunerReading at(double c, {bool inTune = false}) => TunerReading(a, c, a.hz, live: true, inTune: inTune);
     const beat = UnisonVerdict(beatHz: 1.3, cents: 5.1, strength: 2);
     const one = UnisonVerdict(beatHz: 0.3, cents: 1.2, strength: 2);
-    expect(unisonStatus(beat, at(1, inTune: true)), 'They beat, about 5¢ apart · tune each string again');
+    expect(unisonStatus(beat, at(1, inTune: true)), 'They beat, about 5¢ apart · tap the string to tune each');
     expect(unisonPassed(beat, at(1, inTune: true)), isFalse);
-    expect(unisonStatus(one, at(-9)), 'Together, but both flat · tune each string again');
+    expect(unisonStatus(one, at(-9)), 'Together, but both flat · tap the string to tune each');
     expect(unisonPassed(one, at(-9)), isFalse);
     expect(unisonStatus(one, at(1, inTune: true)), 'Together! Both strings in tune');
     expect(unisonPassed(one, at(-4.5)), isTrue, reason: 'within 5: each string was checked alone');

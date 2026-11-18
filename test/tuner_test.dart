@@ -854,10 +854,14 @@ void main() {
 
       await pluckPair(tester, fake, 440, 8);
       expect(status(tester), startsWith('They beat, about '));
-      expect(status(tester), endsWith('¢ apart · tune each string again'));
-      expect(climber().pickedLine, 0, reason: 'failed: back to the first string');
-      expect(climber().pickedLabel, 'inside');
+      expect(status(tester), endsWith('¢ apart · tap the string to tune each'));
+      expect(climber().pickedLine, 2, reason: 'failed: stays on both until the player taps');
 
+      await tester.tap(find.byKey(const ValueKey('tuner_string_A'))); // the player says
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(climber().pickedLine, 0);
+      expect(climber().pickedLabel, 'inside');
+      await tester.pump(const Duration(seconds: 3)); // "A: the inside string" passes
       await pluckPair(tester, fake, 440, 0, second: 0); // the first string: the verdict gives way
       expect(status(tester), startsWith('In tune!'));
       await tester.pump(const Duration(seconds: 3));

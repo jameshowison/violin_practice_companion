@@ -94,12 +94,14 @@ const unisonPrompt = 'Both strings: down on one, up on the other';
 /// What to say once a pluck of both strings of a course has been judged
 /// ([UnisonMeter]): [v] is null when it rang too briefly to say, [r] is the
 /// course's reading, the pair's pitch together. Only "together, and in tune"
-/// passes; [unisonPassed] says whether it did, and anything else sends the
-/// player back to tuning each string.
+/// passes; [unisonPassed] says whether it did. Anything else says to tune
+/// each string, and the player goes there by tapping: the screen stays on
+/// both until they do ("the user must say when we come out of two string
+/// mode").
 String unisonStatus(UnisonVerdict? v, TunerReading? r) {
   if (v == null) return 'Let both strings ring a little longer';
-  if (!v.together) return 'They beat, about ${v.cents.round()}¢ apart · tune each string again';
-  if (!_pairInTune(r)) return 'Together, but both ${r!.cents < 0 ? 'flat' : 'sharp'} · tune each string again';
+  if (!v.together) return 'They beat, about ${v.cents.round()}¢ apart · tap the string to tune each';
+  if (!_pairInTune(r)) return 'Together, but both ${r!.cents < 0 ? 'flat' : 'sharp'} · tap the string to tune each';
   return 'Together! Both strings in tune';
 }
 
