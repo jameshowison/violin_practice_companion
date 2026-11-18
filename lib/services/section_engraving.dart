@@ -96,6 +96,39 @@ import 'system_break_injector.dart';
   double maxScale = staffScaleMax,
   double measuredAtScale = staffScaleProbe,
   int steps = 16,
+}) =>
+    sectionFitCandidates(
+      musicXml: musicXml,
+      naturalWidths: naturalWidths,
+      widthPx: widthPx,
+      viewportHeightPx: viewportHeightPx,
+      systemHeightPx: systemHeightPx,
+      minScale: minScale,
+      maxScale: maxScale,
+      measuredAtScale: measuredAtScale,
+      steps: steps,
+    ).fits;
+
+/// [solveSectionLayoutToFit]'s answer ([fits]), and the plan its search
+/// passed over just before it ([bigger]): the next step up in note size,
+/// which didn't fit. Null when the search fitted at its very first try. Fit
+/// weighs the two, since a slightly wider note spacing can bring [bigger]
+/// back onto the screen (`fitSpacingLinear`).
+({
+  ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+      double widestUnits, double? minLastJustification}) fits,
+  ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+      double widestUnits, double? minLastJustification})? bigger,
+}) sectionFitCandidates({
+  required String musicXml,
+  required List<double> naturalWidths,
+  required double widthPx,
+  required double viewportHeightPx,
+  required double systemHeightPx,
+  required double minScale,
+  double maxScale = staffScaleMax,
+  double measuredAtScale = staffScaleProbe,
+  int steps = 16,
 }) {
   ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
       double widestUnits, double? minLastJustification}) at(double floor) =>
@@ -106,16 +139,19 @@ import 'system_break_injector.dart';
         minScale: floor,
       );
   if (viewportHeightPx <= 0 || systemHeightPx <= 0 || maxScale <= minScale) {
-    return at(minScale);
+    return (fits: at(minScale), bigger: null);
   }
   final budget = viewportHeightPx * staffAutoFillFraction;
   final ratio = math.pow(minScale / maxScale, 1 / steps);
+  ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+      double widestUnits, double? minLastJustification})? previous;
   for (var i = 0; i < steps; i++) {
     final plan = at(maxScale * math.pow(ratio, i));
     final h = plan.lines * systemHeightPx * plan.scale / measuredAtScale;
-    if (h <= budget) return plan;
+    if (h <= budget) return (fits: plan, bigger: previous);
+    previous = plan;
   }
-  return at(minScale);
+  return (fits: at(minScale), bigger: previous);
 }
 
 /// Whether the section layout's LAST line should be stretched to the full

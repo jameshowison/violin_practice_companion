@@ -162,6 +162,11 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   Sections / Page). Pinch, the measures-per-line slider and Lock exactly are
   gone; the size is per piece, no longer per orientation. Check the mm values
   by eye on the SE and an iPad (`staff_zoom.dart`, "The size control").
+  Each size also sets Verovio's note spacing (`spacingLinear`: Small 0.15,
+  Medium 0.2, Large 0.25; 0.2–0.25 in the annotated view), and Fit tightens
+  or loosens it (0.15–0.3) to fill 90% of the screen. Still to watch: Fit's
+  first open costs three or four extra engraves (disk-cached after), and
+  the annotated view's width barely responds to spacing, so it squeezes less.
 - **App bar overflow on small screens (decision).** Print moved into the
   gear drawer to make room for the view menu on a phone. The bar will keep
   gaining actions, so pick a folding rule rather than moving one at a time:

@@ -48,6 +48,14 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// piece's size setting doesn't apply.
   final bool printedLines;
 
+  /// The score the caller has for this view is being rebuilt: [musicXml] is
+  /// the previous one, still shown while the new one loads, but the layout
+  /// settings beside it may already be the new ones. Engraving that mixture
+  /// is a full engrave of a layout nobody asked for, thrown away when the
+  /// new score lands. So while holding the view engraves nothing, and dims
+  /// what it has with the re-engraving spinner.
+  final bool holding;
+
   /// Parity with [StaffView]; the engraver always wraps systems to the page
   /// width, so there's no last-system justification to toggle.
   final bool stretchLastSystem;
@@ -132,6 +140,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.measureMap = EngravedMeasureMap.empty,
     this.sectionLayout = false,
     this.printedLines = false,
+    this.holding = false,
     this.stretchLastSystem = true,
     this.sectionTints = const [],
     this.chordRuns = const [],
@@ -173,6 +182,16 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 /// from the probe inside [_engrave] and is a function of the preference and the
 /// xml, both of which are already keyed — so adding it would key the calibration
 /// on something the calibration itself produces.
+/// One calibration's measurements (see `_StaffViewVerovioState._calibrate`).
+typedef _Calibration = ({
+  double unitsPerMeasure,
+  double systemHeightPx,
+  int measureCount,
+  int refinements,
+  int reserveSpacingUnits,
+  int reservePageMarginUnits,
+});
+
 typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
@@ -276,6 +295,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   @override
   void didUpdateWidget(StaffViewVerovio old) {
     super.didUpdateWidget(old);
+    // Nothing a holding widget says is final; the next one is compared with
+    // it, and whatever really changed is caught then.
+    if (widget.holding) return;
     if (old.highlightNotifier != widget.highlightNotifier) {
       old.highlightNotifier.removeListener(_onHighlight);
       widget.highlightNotifier.addListener(_onHighlight);
@@ -296,6 +318,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
       _calibratedFor = null;
+      _calibrations.clear();
+      _naturalBySpacing.clear();
     }
     // The tint is a re-parse of the engrave already on screen. (A re-engrave
     // kicked above re-tints on its own, through [_publish].)
@@ -328,15 +352,38 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// nothing to the margins, so the only way they can move the geometry is
   /// through the xml, which is already in the key. That is what makes toggling
   /// chord symbols a repaint rather than a re-engrave.
+  ///
+  /// The note spacing ([_spacingLinear]) is in it too: it changes every bar's
+  /// width, which is the very thing the calibration measures.
   String _calibrationKeyFor(int spacingUnits) =>
       '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits'
-      '|${widget.showNoteNames}';
+      '|${widget.showNoteNames}|$_spacingLinear';
 
   /// Natural (unjustified) width of every engraved measure in MEI units, for
   /// the section layout — measured once per calibration from a one-line
   /// engrave. Keyed like the calibration it belongs to.
   List<double> _naturalWidths = const [];
-  String? _naturalWidthsFor;
+
+  /// [_naturalWidthsAt]'s results, by calibration key. Fit reads the piece at
+  /// two spacings to decide how far to squeeze, and the section layout reads
+  /// the one it engraves at, so one engrave each serves all of them.
+  final Map<String, List<double>> _naturalBySpacing = {};
+
+  /// Every calibration this score has had, by key, so that moving between
+  /// note spacings restores one rather than re-measuring it. Fit calibrates at
+  /// the default spacing and then at the one it squeezes to, on every pass;
+  /// starting either afresh each time would throw away what refinement learned
+  /// and reset its counter, and the refinement would never stop.
+  final Map<String, _Calibration> _calibrations = {};
+
+  /// The note spacing every engrave of the current request uses: the size's
+  /// own ([spacingLinearForSize]), or what Fit squeezed to ([_fitSpacing]).
+  double _spacingLinear = spacingLinearDefault;
+
+  /// The annotated view: fingering chips and note names need room across the
+  /// line, so the spacing never goes below [spacingLinearMinAnnotated].
+  bool get _annotated =>
+      widget.fingeringAnnotations.isNotEmpty || widget.showNoteNames;
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -373,57 +420,27 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   Future<void> _engrave(_EngraveRequest req) async {
     final seq = ++_engraveSeq;
     try {
-      // 1. Calibrate. unitsPerMeasure is a property of the piece, invariant in
-      //    both scale and width, so one probe engrave per score serves every
-      //    later zoom level. The probe uses the pre-zoom option set, so an
-      //    un-zoomed piece reuses the cache entry it always had.
-      EngravedScore? probe;
-      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
-        // BARE — the staff-spacing preference and Verovio's own page margin,
-        // with no annotation reserve. The probe's job now includes measuring how
-        // much room this score's layout already leaves, and it cannot measure
-        // that through a reserve it was given up front.
-        probe = await _engraveAt(
-          req.widthPx,
-          staffScaleProbe,
-          spacingSystem: req.spacingUnits,
-        );
-        if (!mounted || seq != _engraveSeq) return;
-        _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
-        _refinements = 0;
-        _measureCount = probe.measures.length;
-        _calibratedFor = _calibrationKeyFor(req.spacingUnits);
-        _tightenCalibration(probe);
+      // 0. Note spacing: the size's own. Fit starts from the default and may
+      //    squeeze below it once it has seen how the piece lays out.
+      _spacingLinear = widget.zoomable
+          ? spacingLinearForSize(req.size, annotated: _annotated)
+          : spacingLinearDefault;
+      var cal = await _calibrate(req, seq);
+      if (cal.stale) return;
+      var probe = cal.probe;
 
-        // What the rows are short of, if anything, at Verovio's own spacing.
-        if (_reservesAnnotationRoom) {
-          final room = annotationRoomOf(probe);
-          final reserve = annotationReserveFor(
-            interSystemRoomSpaces: room.inter,
-            firstSystemRoomSpaces: room.first,
-            wantSpaces: annotationWantSpaces(
-              probe,
-              staffScaleProbe,
-              withNameRow: widget.showNoteNames,
-            ),
-          );
-          _reserveSpacingUnits = reserve.spacingUnits;
-          _reservePageMarginUnits = reserve.pageMarginTopUnits;
-        } else {
-          _reserveSpacingUnits = 0;
-          _reservePageMarginUnits = 0;
+      // 1b. Fit: tighten the note spacing until the plan fills the screen.
+      int? fitTarget;
+      if (req.size == StaffSize.fit && widget.zoomable && !widget.printedLines) {
+        final fit = await _fitSpacing(req, seq);
+        if (fit == null) return; // stale
+        fitTarget = fit.flowTarget;
+        if (fit.spacing != _spacingLinear) {
+          _spacingLinear = fit.spacing;
+          cal = await _calibrate(req, seq);
+          if (cal.stale) return;
+          probe = cal.probe;
         }
-
-        // The auto-fit predicts total height from this, and
-        // `systemHeightViewBox` INCLUDES the inter-system gap — so a bare probe
-        // under-reports by exactly the reserve the real engrave is about to add.
-        // Add it back before `autoMeasuresPerLine` reads it, or the fit
-        // overfills the viewport and the score runs off the bottom.
-        _systemHeightPx =
-            probe.systemHeightViewBox +
-            _reserveSpacingUnits *
-                spacesPerSpacingSystemUnit *
-                probe.staffSpaceViewBox;
       }
 
       if (req.sections) {
@@ -434,22 +451,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       // 2. Resolve the size to a measures-per-line target and solve for
       //    Verovio's scale. Fit never packs more bars than Small would.
       final target = req.size == StaffSize.fit
-          ? math.min(
-              autoMeasuresPerLine(
-                widthPx: req.widthPx,
-                viewportHeightPx: req.viewportHeightPx,
-                shortestSidePx: req.shortestSidePx,
-                unitsPerMeasure: _unitsPerMeasure,
-                systemHeightPx: _systemHeightPx,
-                measureCount: _measureCount,
-              ),
-              measuresPerLineForSize(
-                size: StaffSize.small,
-                widthPx: req.widthPx,
-                unitsPerMeasure: _unitsPerMeasure,
-                shortestSidePx: req.shortestSidePx,
-              ),
-            )
+          ? fitTarget ?? _flowFitTarget(req)
           : measuresPerLineForSize(
               size: req.size,
               widthPx: req.widthPx,
@@ -476,7 +478,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           'reserve=${_reserveSpacingUnits}u/${_reservePageMarginUnits}m '
           'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
           'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
-          'size=${req.size.name} n=$target '
+          'size=${req.size.name} n=$target sl=$_spacingLinear '
           'scale=${scale.toStringAsFixed(1)} refine=$_refinements',
         );
       }
@@ -566,6 +568,260 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     }
   }
 
+  /// 1. Calibrate, at [_spacingLinear]. unitsPerMeasure is a property of the
+  /// piece (at a given note spacing), invariant in both scale and width, so one
+  /// probe engrave serves every later size. The probe uses the pre-zoom option
+  /// set, so an un-zoomed piece reuses the cache entry it always had.
+  ///
+  /// [stale]: a newer request superseded this one while it waited.
+  Future<({bool stale, EngravedScore? probe})> _calibrate(
+    _EngraveRequest req,
+    int seq,
+  ) async {
+    EngravedScore? probe;
+    final key = _calibrationKeyFor(req.spacingUnits);
+    if (_calibratedFor != key) {
+      // Keep what the one being left learned, and come back to it later.
+      final leaving = _calibratedFor;
+      if (leaving != null) _calibrations[leaving] = _saveCalibration();
+      final known = _calibrations[key];
+      if (known != null) {
+        _restoreCalibration(known);
+        _calibratedFor = key;
+        return (stale: false, probe: null);
+      }
+    }
+    if (_calibratedFor != key) {
+      // BARE — the staff-spacing preference and Verovio's own page margin,
+      // with no annotation reserve. The probe's job now includes measuring how
+      // much room this score's layout already leaves, and it cannot measure
+      // that through a reserve it was given up front.
+      probe = await _engraveAt(
+        req.widthPx,
+        staffScaleProbe,
+        spacingSystem: req.spacingUnits,
+      );
+      if (!mounted || seq != _engraveSeq) return (stale: true, probe: null);
+      _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
+      _refinements = 0;
+      _measureCount = probe.measures.length;
+      _calibratedFor = _calibrationKeyFor(req.spacingUnits);
+      _tightenCalibration(probe);
+
+      // What the rows are short of, if anything, at Verovio's own spacing.
+      if (_reservesAnnotationRoom) {
+        final room = annotationRoomOf(probe);
+        final reserve = annotationReserveFor(
+          interSystemRoomSpaces: room.inter,
+          firstSystemRoomSpaces: room.first,
+          wantSpaces: annotationWantSpaces(
+            probe,
+            staffScaleProbe,
+            withNameRow: widget.showNoteNames,
+          ),
+        );
+        _reserveSpacingUnits = reserve.spacingUnits;
+        _reservePageMarginUnits = reserve.pageMarginTopUnits;
+      } else {
+        _reserveSpacingUnits = 0;
+        _reservePageMarginUnits = 0;
+      }
+
+      // The auto-fit predicts total height from this, and
+      // `systemHeightViewBox` INCLUDES the inter-system gap — so a bare probe
+      // under-reports by exactly the reserve the real engrave is about to add.
+      // Add it back before `autoMeasuresPerLine` reads it, or the fit
+      // overfills the viewport and the score runs off the bottom.
+      _systemHeightPx =
+          probe.systemHeightViewBox +
+          _reserveSpacingUnits *
+              spacesPerSpacingSystemUnit *
+              probe.staffSpaceViewBox;
+    }
+    return (stale: false, probe: probe);
+  }
+
+  _Calibration _saveCalibration() => (
+        unitsPerMeasure: _unitsPerMeasure,
+        systemHeightPx: _systemHeightPx,
+        measureCount: _measureCount,
+        refinements: _refinements,
+        reserveSpacingUnits: _reserveSpacingUnits,
+        reservePageMarginUnits: _reservePageMarginUnits,
+      );
+
+  void _restoreCalibration(_Calibration c) {
+    _unitsPerMeasure = c.unitsPerMeasure;
+    _systemHeightPx = c.systemHeightPx;
+    _measureCount = c.measureCount;
+    _refinements = c.refinements;
+    _reserveSpacingUnits = c.reserveSpacingUnits;
+    _reservePageMarginUnits = c.reservePageMarginUnits;
+  }
+
+  /// Every engraved measure's natural (unjustified) width in MEI units at note
+  /// spacing [spacing], from one engrave of the whole piece on a single line.
+  /// Null when a newer request superseded this one.
+  Future<List<double>?> _naturalWidthsAt(
+    double spacing,
+    _EngraveRequest req,
+    int seq,
+  ) async {
+    final was = _spacingLinear;
+    _spacingLinear = spacing;
+    final key = _calibrationKeyFor(req.spacingUnits);
+    try {
+      final known = _naturalBySpacing[key];
+      if (known != null) return known;
+      final line = await _engraveAt(
+        sectionNaturalLineWidthPx,
+        staffScaleProbe,
+        spacingSystem: req.spacingUnits,
+        breaks: 'none',
+      );
+      if (!mounted || seq != _engraveSeq) return null;
+      return _naturalBySpacing[key] = [
+        for (final m in line.measures) m.rect.width * 100 / staffScaleProbe,
+      ];
+    } finally {
+      _spacingLinear = was;
+    }
+  }
+
+  /// Fit's measures-per-line in the free flow: the whole piece on one screen,
+  /// never more bars a line than Small would put there.
+  int _flowFitTarget(_EngraveRequest req) => math.min(
+        autoMeasuresPerLine(
+          widthPx: req.widthPx,
+          viewportHeightPx: req.viewportHeightPx,
+          shortestSidePx: req.shortestSidePx,
+          unitsPerMeasure: _unitsPerMeasure,
+          systemHeightPx: _systemHeightPx,
+          measureCount: _measureCount,
+        ),
+        measuresPerLineForSize(
+          size: StaffSize.small,
+          widthPx: req.widthPx,
+          unitsPerMeasure: _unitsPerMeasure,
+          shortestSidePx: req.shortestSidePx,
+        ),
+      );
+
+  /// Fraction of Fit's height budget the squeeze aims for. A little under
+  /// the budget, because the spacing is interpolated: aiming at the budget
+  /// itself would sometimes land just over it, and the section layout's search
+  /// would then fall back a whole plan, to smaller notes than no squeeze at all.
+  static const _fitSqueezeAim = 0.95;
+
+  /// The note spacing Fit engraves at, and for the free flow the bars a line
+  /// ([fitSpacingLinear]). Two layouts are weighed: the one that fits at the
+  /// default spacing, squeezed until it fills the screen, and the next bigger
+  /// one, which doesn't fit, loosened until it does. Whichever ends up with
+  /// the bigger notes wins. On Lightly Row in the flow that is the difference
+  /// between 4 bars a line squeezed (half the screen) and 3 loosened (full).
+  ///
+  /// Costs two one-line engraves of the piece, at the default spacing and the
+  /// tightest allowed, both cached; none at all when the layout already fills
+  /// the screen.
+  ///
+  /// [flowTarget] is the free flow's measures-per-line, held through the new
+  /// spacing: re-solved there, the auto-fit would pick its count afresh and
+  /// undo the choice. Null when stale.
+  Future<({double spacing, int? flowTarget})?> _fitSpacing(
+    _EngraveRequest req,
+    int seq,
+  ) async {
+    final none = (spacing: _spacingLinear, flowTarget: null);
+    final budget = req.viewportHeightPx * staffAutoFillFraction;
+    if (budget <= 0 || _systemHeightPx <= 0) return none;
+    final atDefault = await _naturalWidthsAt(_spacingLinear, req, seq);
+    if (atDefault == null) return null;
+
+    // Each layout's height and scale at the default spacing, the one that fits
+    // first. A section plan's scale is its own; the flow's is solved from n.
+    final candidates = <({double height, double scale, int? n})>[];
+    if (req.sections) {
+      final c = sectionFitCandidates(
+        musicXml: widget.musicXml,
+        naturalWidths: atDefault,
+        widthPx: req.widthPx,
+        viewportHeightPx: req.viewportHeightPx,
+        systemHeightPx: _systemHeightPx,
+        minScale: staffScaleForSize(StaffSize.small, req.shortestSidePx),
+      );
+      for (final plan in [c.fits, ?c.bigger]) {
+        candidates.add((
+          height: plan.lines * _systemHeightPx * plan.scale / staffScaleProbe,
+          scale: plan.scale,
+          n: null,
+        ));
+      }
+    } else {
+      final n0 = _flowFitTarget(req);
+      for (final n in [n0, if (n0 > measuresPerLineMin) n0 - 1]) {
+        candidates.add((
+          height: predictedHeightPx(
+            widthPx: req.widthPx,
+            unitsPerMeasure: _unitsPerMeasure,
+            systemHeightPx: _systemHeightPx,
+            measureCount: _measureCount,
+            n: n,
+          ),
+          scale: scaleFor(
+            widthPx: req.widthPx,
+            unitsPerMeasure: _unitsPerMeasure,
+            n: n,
+          ),
+          n: n,
+        ));
+      }
+    }
+    final aim = budget * _fitSqueezeAim;
+    // Already full: nothing to squeeze, and anything bigger can only overflow.
+    if (candidates.first.height >= aim) {
+      return (spacing: _spacingLinear, flowTarget: candidates.first.n);
+    }
+
+    final minSpacing =
+        _annotated ? spacingLinearMinAnnotated : spacingLinearMin;
+    final atMin = await _naturalWidthsAt(minSpacing, req, seq);
+    if (atMin == null) return null;
+    double sum(List<double> w) => w.fold(0.0, (a, b) => a + b);
+    final w0 = sum(atDefault), wMin = sum(atMin);
+
+    ({double spacing, int? flowTarget})? best;
+    var bestScale = 0.0;
+    for (final c in candidates) {
+      final spacing = fitSpacingLinear(
+        predictedHeightPx: c.height,
+        budgetPx: aim,
+        widthAtDefault: w0,
+        widthAtMin: wMin,
+        minSpacing: minSpacing,
+      );
+      if (spacing == null) continue; // too big even at the widest spacing
+      final width = naturalWidthAtSpacing(spacing,
+          widthAtDefault: w0, widthAtMin: wMin, minSpacing: minSpacing);
+      final scale = width > 0 ? c.scale * w0 / width : c.scale;
+      // Whatever the spacing model says, a layout that would still run past
+      // the budget is not a fit. (With no usable measurement the model leaves
+      // every layout at its default size, and the bigger one would otherwise
+      // win on scale alone: 2 bars a line, nearly two screens tall.)
+      if (c.height * scale / c.scale > budget) continue;
+      if (VerovioEngraver.debugLogging) {
+        debugPrint('[fit] candidate n=${c.n} height=${c.height.round()} '
+            'aim=${aim.round()} width ${w0.round()}→min ${wMin.round()} '
+            'spacing=$spacing scale ${c.scale.toStringAsFixed(1)}'
+            '→${scale.toStringAsFixed(1)}');
+      }
+      if (scale > bestScale) {
+        bestScale = scale;
+        best = (spacing: spacing, flowTarget: c.n);
+      }
+    }
+    return best ?? (spacing: _spacingLinear, flowTarget: candidates.first.n);
+  }
+
   /// [score]'s SVG as a drawable, with the notehead tint applied if it's on.
   ///
   /// jovial parse is synchronous and fast (a few ms); currentColor resolves
@@ -628,19 +884,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       0,
       verovioSpacingSystemMax,
     );
-    if (_naturalWidthsFor != _calibratedFor) {
-      final line = await _engraveAt(
-        sectionNaturalLineWidthPx,
-        staffScaleProbe,
-        spacingSystem: spacing,
-        breaks: 'none',
-      );
-      if (!mounted || seq != _engraveSeq) return;
-      _naturalWidths = [
-        for (final m in line.measures) m.rect.width * 100 / staffScaleProbe,
-      ];
-      _naturalWidthsFor = _calibratedFor;
-    }
+    final widths = await _naturalWidthsAt(_spacingLinear, req, seq);
+    if (widths == null) return;
+    _naturalWidths = widths;
 
     // A fixed size is a floor on the note size: each section takes the fewest
     // lines that keep its notes at least that big. Fit searches for the
@@ -676,7 +922,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         'segments=${lines - solved.breaks.length} lines=$lines '
         'widest=${solved.widestUnits.round()}u '
         'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
-        'scale=${scale.toStringAsFixed(1)} breaks=${(solved.breaks.toList()..sort())} '
+        'scale=${scale.toStringAsFixed(1)} sl=$_spacingLinear breaks=${(solved.breaks.toList()..sort())} '
         'minLastJust=${solved.minLastJustification}',
       );
     }
@@ -757,6 +1003,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       tabMode: widget.tabMode,
       tabFingerLabels: widget.tabFingerLabels,
       stripRepeatClefs: !widget.tabMode,
+      spacingLinear:
+          _spacingLinear == spacingLinearDefault ? null : _spacingLinear,
       minLastJustification: minLastJustification,
     );
   }
@@ -914,10 +1162,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             _bucket(width) != _bucket(_engravedWidth) ||
             size != _engravedSize ||
             spacingUnits != _engravedSpacingUnits;
-        if (width > 0 && stale()) {
+        if (width > 0 && !widget.holding && stale()) {
           // Scheduled post-frame so we don't setState during layout.
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && stale()) {
+            if (mounted && !widget.holding && stale()) {
               _request((
                 widthPx: width,
                 viewportHeightPx: viewportHeight,
@@ -1058,7 +1306,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         );
         // Re-engraving: the stale score dimmed, with a spinner over it. Only
         // the whole-piece views; a preview's box is too small to need it.
-        final busy = _engraving && widget.zoomable;
+        final busy = (_engraving || widget.holding) && widget.zoomable;
         return Stack(
           children: [
             AnimatedOpacity(

@@ -166,6 +166,11 @@ class VerovioEngraver {
   ///   keeps Verovio's 0.8. 0 always justifies it, 1 never does. The section
   ///   layout sets it so the last line matches the others' note density (see
   ///   `justifyLastSectionLine`).
+  /// - [spacingLinear]: Verovio's linear note spacing, how much room each note
+  ///   gets in proportion to its length; null keeps Verovio's 0.25. Lower packs
+  ///   the notes closer, so a bar is narrower and the same line engraves at a
+  ///   bigger scale (`spacingLinearForSize`). Keyed only when set, so engraves
+  ///   at the default keep hitting the entries they always had.
   Future<EngravedScore> engrave(
     String musicXml, {
     required double widthPx,
@@ -179,6 +184,7 @@ class VerovioEngraver {
     String breaks = 'auto',
     bool tight = false,
     double? minLastJustification,
+    double? spacingLinear,
   }) {
     // Both lane flags go in the key, not just their count: a chords-only and a
     // fingering-only score engrave identically, but the bands are read back off
@@ -188,6 +194,7 @@ class VerovioEngraver {
         '|$mnumInterval|$spacingSystem|$pageMarginTop|$breaks'
         '|${tight ? 1 : 0}|'
         '${minLastJustification == null ? '' : 'mlj$minLastJustification|'}'
+        '${spacingLinear == null ? '' : 'sl$spacingLinear|'}'
         '${tabFingerLabels == null ? '-' : tabFingerLabels.join(',').hashCode}';
     final key = _keyFor(musicXml, widthPx, scale, variant);
     final cached = _cache[key];
@@ -210,6 +217,7 @@ class VerovioEngraver {
           breaks: breaks,
           tight: tight,
           minLastJustification: minLastJustification,
+          spacingLinear: spacingLinear,
         ), diskKey: () => _diskKeyFor(musicXml, widthPx, scale, variant));
   }
 
@@ -302,6 +310,7 @@ class VerovioEngraver {
     String breaks = 'auto',
     bool tight = false,
     double? minLastJustification,
+    double? spacingLinear,
   }) async {
     final spawnSw = Stopwatch()..start();
     final svc = await _ensureService();
@@ -344,17 +353,24 @@ class VerovioEngraver {
       // move the layout (verified: identical viewBox and system count with it
       // on and off).
       'svgBoundingBoxes': true,
-      if (minLastJustification != null)
-        'minLastJustification': minLastJustification,
+      // Every option an engrave may vary is sent on EVERY engrave, with
+      // Verovio's own default when the caller has no value. The toolkit is
+      // shared and never reset, and its options are cumulative: an option left
+      // out keeps whatever the previous engrave set. Leaving these out when
+      // "default" meant a Flowing engrave inherited the section layout's last-
+      // line justification, an engrave at the default note spacing inherited
+      // Fit's squeeze (Lightly Row's natural width measured the same at 0.25
+      // as at 0.2), and every engrave after the title bar's preamble inherited
+      // its zero side margins. Defaults read from Verovio 6.2's getOptions.
+      'minLastJustification': minLastJustification ?? 0.8,
+      'spacingLinear': spacingLinear ?? 0.25,
       // For an engrave that is nothing but its glyphs (the title bar's
       // clef/key/time): no side margins, and a measure only as wide as what's
       // in it. Measured headlessly, with the barline the preview also drops,
       // this takes the preview from 415 to 187 units wide.
-      if (tight) ...{
-        'pageMarginLeft': 0,
-        'pageMarginRight': 0,
-        'measureMinWidth': 1,
-      },
+      'pageMarginLeft': tight ? 0 : 50,
+      'pageMarginRight': tight ? 0 : 50,
+      'measureMinWidth': tight ? 1 : 15,
     };
     await svc.setOptionsJson(jsonEncode(options));
     final tOpts = sw.elapsedMilliseconds;

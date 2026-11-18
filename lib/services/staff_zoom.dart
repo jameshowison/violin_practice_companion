@@ -45,10 +45,16 @@ const double staffScaleMax = 220;
 const int measuresPerLineMin = 1;
 const int measuresPerLineMax = 8;
 
-/// Fraction of the viewport the auto default aims to fill, leaving the rest as
-/// breathing room. Only applies when the whole piece fits — see
-/// [autoMeasuresPerLine].
-const double staffAutoFillFraction = 0.75;
+/// Fraction of the viewport Fit aims to fill, leaving the rest as breathing
+/// room. Only applies when the whole piece fits — see [autoMeasuresPerLine].
+///
+/// 0.75 until 2026-11-18, which partly allowed for the play tray over the
+/// bottom of the score. The tray hides itself a few seconds after a piece
+/// opens, so that room was empty most of the time: on Lightly Row it was the
+/// whole difference between 3 bars a line and 4 (the 3-bar layout is 81% of
+/// the viewport). The note-spacing squeeze ([fitSpacingLinear]) closes most of
+/// the rest of any gap.
+const double staffAutoFillFraction = 0.9;
 
 // ── The floor: how small the auto-fit is allowed to make the notes ───────────
 //
@@ -195,6 +201,103 @@ int measuresPerLineForSize({
       shortestSidePx: shortestSidePx,
       minScale: staffScaleForSize(size, shortestSidePx),
     );
+
+// ── Note spacing: the size control's second lever ────────────────────────────
+//
+// Verovio's `spacingLinear` sets how much room a note gets for its length.
+// Lower packs the notes closer, so a bar is narrower and a line of the same
+// bars engraves at a bigger scale. Measured headlessly on Lightly Row: a
+// 3-bar line is 86% as wide at 0.2 and 72% at 0.15, and the whole piece
+// stops shrinking at about half width (the glyphs touch). `spacingNonLinear`
+// is left alone: lowering it mostly takes room from long notes, so half notes
+// stop looking long, which is the wrong trade for beginners reading rhythm.
+
+/// Verovio's own default.
+const double spacingLinearDefault = 0.25;
+
+/// The tightest Fit may squeeze to, and what Small uses.
+const double spacingLinearMin = 0.15;
+
+/// The widest Fit may loosen to, to bring a layout one step too big back onto
+/// the screen ([fitSpacingLinear]). Airier than the default, which reads fine.
+const double spacingLinearMax = 0.3;
+
+/// The tightest any size goes in the annotated view, whose fingering chips and
+/// note names need room across the line too.
+const double spacingLinearMinAnnotated = 0.2;
+
+/// The spacing a fixed size engraves at: Small is for seeing more of the
+/// piece, so it packs tight and fits more bars at the same note size; Large is
+/// for reading closely and keeps the default room. Fit starts from the
+/// default and squeezes ([fitSpacingLinear]).
+///
+/// The annotated view keeps the same three steps inside its own floor
+/// ([spacingLinearMinAnnotated]), so Small and Medium stay distinct there.
+double spacingLinearForSize(StaffSize size, {bool annotated = false}) =>
+    switch ((size, annotated)) {
+      (StaffSize.small, false) => spacingLinearMin,
+      (StaffSize.small, true) => spacingLinearMinAnnotated,
+      (StaffSize.medium, false) => 0.2,
+      (StaffSize.medium, true) => 0.225,
+      (StaffSize.fit || StaffSize.large, _) => spacingLinearDefault,
+    };
+
+/// The spacing at which one of Fit's layouts fills [budgetPx] of height, or
+/// null when no spacing in range brings it there.
+///
+/// Height grows with scale, and scale with the inverse of the line's natural
+/// width, so the width wanted is `widthAtDefault × predictedHeightPx /
+/// budgetPx`. The spacing that gives it is read off a straight line through
+/// the piece's measured natural widths at [spacingLinearDefault] and at
+/// [minSpacing] ([naturalWidthAtSpacing]), which is close to linear over that
+/// range (Lightly Row: 100%, 86%, 72%).
+///
+/// It works both ways. A layout that leaves room is squeezed (tighter
+/// spacing, bigger notes), down to [minSpacing], below which it simply stays
+/// a little short. A layout one step too big for the screen is loosened
+/// (wider spacing, smaller notes) to come back inside it, up to [maxSpacing];
+/// past that it is unreachable, and null says so. Fit tries both its
+/// current layout and the next bigger one, and keeps whichever ends up with
+/// the bigger notes.
+///
+/// Rounded UP to a step of 0.005, which errs toward a little more width and
+/// so a little less height, never a score that runs past the budget, and
+/// keeps nearby requests on one engrave-cache entry. Returns
+/// [spacingLinearDefault] when nothing was measured.
+double? fitSpacingLinear({
+  required double predictedHeightPx,
+  required double budgetPx,
+  required double widthAtDefault,
+  required double widthAtMin,
+  double minSpacing = spacingLinearMin,
+  double maxSpacing = spacingLinearMax,
+}) {
+  if (predictedHeightPx <= 0 ||
+      budgetPx <= 0 ||
+      widthAtDefault <= 0 ||
+      widthAtMin <= 0 ||
+      widthAtMin >= widthAtDefault) {
+    return spacingLinearDefault;
+  }
+  final want = widthAtDefault * predictedHeightPx / budgetPx;
+  final t = (widthAtDefault - want) / (widthAtDefault - widthAtMin);
+  final s = spacingLinearDefault - t * (spacingLinearDefault - minSpacing);
+  if (s > maxSpacing + 1e-9) return null;
+  return ((s * 200).ceil() / 200).clamp(minSpacing, maxSpacing);
+}
+
+/// The piece's natural width at [spacing], on the straight line
+/// [fitSpacingLinear] reads its spacing off.
+double naturalWidthAtSpacing(
+  double spacing, {
+  required double widthAtDefault,
+  required double widthAtMin,
+  double minSpacing = spacingLinearMin,
+}) =>
+    widthAtDefault -
+    (spacingLinearDefault - spacing) /
+        (spacingLinearDefault - minSpacing) *
+        (widthAtDefault - widthAtMin);
 
 /// Extra page width asked for beyond the strict `n × unitsPerMeasure` solve.
 ///

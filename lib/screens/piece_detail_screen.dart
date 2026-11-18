@@ -2204,7 +2204,8 @@ class _NotationView extends ConsumerWidget {
     // for it anyway would spend gap that the staff-spacing preference could
     // otherwise close up. The trade is that toggling chords now re-flows the
     // page, which it previously didn't.
-    Widget buildStaff(String xml, {bool fingeringChannel = false}) {
+    Widget buildStaff(String xml,
+        {bool fingeringChannel = false, bool holding = false}) {
       // [service] is whichever engine is driving this piece — see the screen's
       // `activeService`. A recording's own service carries a permanently null
       // count-in notifier (there is nothing to count off into a fixed
@@ -2220,6 +2221,7 @@ class _NotationView extends ConsumerWidget {
         // line a pre-broken segment (see [staffByPrintedLinesProvider]).
         sectionLayout: bySection || byPrintedLines,
         printedLines: byPrintedLines,
+        holding: holding,
         sectionTints: sectionTints,
         chordRuns: chordRuns,
         fingeringAnnotations: annotations,
@@ -2237,20 +2239,23 @@ class _NotationView extends ConsumerWidget {
     // one is ready, instead of blanking the music to a spinner meanwhile.
     switch (mode) {
       case DisplayMode.staff:
-        return ref.watch(staffXmlProvider).when(
+        final staffXml = ref.watch(staffXmlProvider);
+        return staffXml.when(
           skipLoadingOnReload: true,
           data: (xml) => xml != null
-              ? buildStaff(xml)
+              ? buildStaff(xml, holding: staffXml.isLoading)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
         );
 
       case DisplayMode.staffFingering:
-        return ref.watch(staffFingeringXmlProvider).when(
+        final fingeringXml = ref.watch(staffFingeringXmlProvider);
+        return fingeringXml.when(
           skipLoadingOnReload: true,
           data: (xml) => xml != null
-              ? buildStaff(xml, fingeringChannel: true)
+              ? buildStaff(xml,
+                  fingeringChannel: true, holding: fingeringXml.isLoading)
               : const Center(child: CircularProgressIndicator()),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),

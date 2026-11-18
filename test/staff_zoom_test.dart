@@ -825,6 +825,102 @@ void main() {
       }
     });
 
+    test('Small packs tightest, Large keeps the default room', () {
+      expect(spacingLinearForSize(StaffSize.small), spacingLinearMin);
+      expect(spacingLinearForSize(StaffSize.medium), 0.2);
+      expect(spacingLinearForSize(StaffSize.large), spacingLinearDefault);
+      expect(spacingLinearForSize(StaffSize.fit), spacingLinearDefault,
+          reason: 'Fit starts at the default and squeezes from there');
+    });
+
+    test('the annotated view never packs below its own minimum', () {
+      for (final size in StaffSize.values) {
+        expect(spacingLinearForSize(size, annotated: true),
+            greaterThanOrEqualTo(spacingLinearMinAnnotated),
+            reason: size.name);
+      }
+      // Clamping Small up to the floor made it Medium's twin; the three
+      // fixed sizes keep three different spacings there too.
+      final fixed = [StaffSize.small, StaffSize.medium, StaffSize.large]
+          .map((s) => spacingLinearForSize(s, annotated: true))
+          .toList();
+      expect(fixed.toSet(), hasLength(3));
+      expect(fixed, orderedEquals([...fixed]..sort()));
+    });
+
+    // Lightly Row's whole piece measured 100% wide at 0.25 and 51% at 0.15
+    // (headless Verovio); the numbers here are those, scaled to 1000.
+    group('fitSpacingLinear', () {
+      double? fit(double height, {double budget = 600}) => fitSpacingLinear(
+            predictedHeightPx: height,
+            budgetPx: budget,
+            widthAtDefault: 1000,
+            widthAtMin: 510,
+          );
+
+      test('a layout that exactly fills the budget is left alone', () {
+        expect(fit(600), spacingLinearDefault);
+      });
+
+      // The next bigger layout, a little too tall, comes back on screen with
+      // wider spacing: 700/600 wants 117% of the width, a third of the
+      // default-to-minimum step past the default, so 0.284, rounded up.
+      test('loosens a layout a little too big for the screen', () {
+        expect(fit(700), 0.285);
+      });
+
+      test('a layout far too big is out of reach', () {
+        expect(fit(900), isNull, reason: 'would need spacing past the max');
+      });
+
+      test('the width model passes through both measurements', () {
+        expect(
+            naturalWidthAtSpacing(spacingLinearDefault,
+                widthAtDefault: 1000, widthAtMin: 510),
+            1000);
+        expect(
+            naturalWidthAtSpacing(spacingLinearMin,
+                widthAtDefault: 1000, widthAtMin: 510),
+            closeTo(510, 1e-9));
+      });
+
+      test('squeezes more the more room is left, down to the minimum', () {
+        final a = fit(550)!, b = fit(450)!, c = fit(350)!;
+        expect(a, lessThan(spacingLinearDefault));
+        expect(b, lessThan(a));
+        expect(c, lessThan(b));
+        expect(fit(100), spacingLinearMin, reason: 'clamped at the minimum');
+      });
+
+      test('interpolates the width it needs between the two measurements', () {
+        // 75% of the budget used → want 75% of the width: (1000-750)/(1000-510)
+        // of the way from 0.25 to 0.15, i.e. 0.199, rounded up to 0.2.
+        expect(fit(450), 0.2);
+      });
+
+      test('honours a higher minimum', () {
+        expect(
+            fitSpacingLinear(
+              predictedHeightPx: 100,
+              budgetPx: 600,
+              widthAtDefault: 1000,
+              widthAtMin: 700,
+              minSpacing: spacingLinearMinAnnotated,
+            ),
+            spacingLinearMinAnnotated);
+      });
+
+      test('no measurement, no squeeze', () {
+        expect(
+            fitSpacingLinear(
+                predictedHeightPx: 300,
+                budgetPx: 600,
+                widthAtDefault: 0,
+                widthAtMin: 0),
+            spacingLinearDefault);
+      });
+    });
+
     // Stored by name per piece; renaming one would drop every saved size.
     test('names are the stored values', () {
       expect(StaffSize.values.map((s) => s.name),
