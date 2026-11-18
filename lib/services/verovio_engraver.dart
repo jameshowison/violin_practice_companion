@@ -129,8 +129,8 @@ class VerovioEngraver {
   ///   fingering. Null leaves Verovio's native fret numbers (fret mode).
   /// - [tabMode]: the score has a second (tab) staff; exclude its notes/rests
   ///   from the note anchors so the highlight/cursor stay on the melody staff.
-  /// - [stripRepeatClefs]: keep the single-staff practice view's "clef/keySig on
-  ///   the first system only" trim. Set false for the tab view so the small
+  /// - [stripRepeatClefs]: keep the single-staff practice view's "clef on the
+  ///   first system only" trim (the key signature repeats). Set false for the tab view so the small
   ///   "T-A-B" clef repeats per system (standard tab engraving).
   ///
   /// Zoom options (see `staff_zoom.dart`):
@@ -677,13 +677,7 @@ class VerovioEngraver {
       measures: measures,
       notes: notes,
       meterSigs: meterSigs,
-      keyAccids: [
-        // First system only: the key-signature label is drawn there alone
-        // (`_paintKeySignature` in staff_view_verovio.dart). Later systems
-        // repeat the key signature in the SVG, but nothing labels them.
-        for (final r in keyAccidRects)
-          if (lineForY(r.top) == 0) r,
-      ],
+      keyAccids: keyAccidRects,
       measureLine: measureLine,
       lineBands: lineBands,
       lineContent: lineContent,
@@ -1512,8 +1506,9 @@ class EngravedScore {
   /// [meterSigOnLine].
   final List<Rect> meterSigs;
 
-  /// The first system's key-signature accidentals (viewBox coords), in
-  /// engraved order — F C G… for sharps, B E A… for flats. Empty in C.
+  /// Every system's key-signature accidentals (viewBox coords), in document
+  /// order — within a system F C G… for sharps, B E A… for flats. Empty in C.
+  /// The key repeats on every line; see [keyAccidsOnLine] for one line's.
   final List<Rect> keyAccids;
 
   /// Per measure index → its system-line index.
@@ -1818,6 +1813,18 @@ class EngravedScore {
       if (r.center.dy >= c.top && r.center.dy <= c.bottom) return r;
     }
     return null;
+  }
+
+  /// The key-signature accidentals engraved on system line [l], in engraved
+  /// order; empty in C or when [l] is out of range. Matched by vertical
+  /// overlap, like [meterSigOnLine].
+  List<Rect> keyAccidsOnLine(int l) {
+    if (l < 0 || l >= lineContent.length) return const [];
+    final c = lineContent[l];
+    return [
+      for (final r in keyAccids)
+        if (r.center.dy >= c.top && r.center.dy <= c.bottom) r,
+    ];
   }
 
   /// Anchor for the note at document measure [measureIndex], positional

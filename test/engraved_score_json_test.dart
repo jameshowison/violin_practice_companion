@@ -52,4 +52,30 @@ void main() {
     expect(back.renderMs, 42);
     expect(back.systemHeightViewBox, score.systemHeightViewBox);
   });
+
+  // The key signature repeats on every system, and the rest-beat boxes need
+  // each line's to start after it; the key label only wants the first line's.
+  test('keyAccidsOnLine picks one system\'s key signature', () {
+    const a0 = Rect.fromLTRB(10, 20, 14, 30); // line 0: F#, C#
+    const a1 = Rect.fromLTRB(16, 25, 20, 35);
+    const b0 = Rect.fromLTRB(10, 220, 14, 230); // line 1: F#, C#
+    const b1 = Rect.fromLTRB(16, 225, 20, 235);
+    final score = EngravedScore(
+      viewBox: const Size(800, 400),
+      svg: '<svg/>',
+      bboxById: const {},
+      measures: const [],
+      notes: const [],
+      keyAccids: const [a0, a1, b0, b1],
+      measureLine: const [0, 1],
+      lineBands: const [(top: 0, bottom: 150), (top: 150, bottom: 400)],
+      lineContent: const [(top: 0, bottom: 100), (top: 200, bottom: 300)],
+      pageWidthUnits: 2000,
+      renderMs: 0,
+    );
+    expect(score.keyAccidsOnLine(0), [a0, a1]);
+    expect(score.keyAccidsOnLine(1), [b0, b1]);
+    expect(score.keyAccidsOnLine(2), isEmpty);
+    expect(score.keyAccidsOnLine(-1), isEmpty);
+  });
 }

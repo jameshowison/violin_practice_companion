@@ -2053,7 +2053,7 @@ class _ChordLanePainter extends CustomPainter {
     if (bar == null) return;
     final size = (bar.bottom - bar.top) * chordLabelSizeFraction;
     if (size <= 0) return;
-    final accids = score.keyAccids;
+    final accids = score.keyAccidsOnLine(0);
     final n = math.min(accids.length, key.letters.length);
 
     // Letters. Their band is the fingering row where there is one.
