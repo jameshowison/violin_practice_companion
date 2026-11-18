@@ -208,7 +208,7 @@ class SectionMinimap extends ConsumerWidget {
                             // Back to the whole piece. Only offered while
                             // something is selected — with nothing selected
                             // it would be a no-op taking a row.
-                            if (selection != null && runs.isNotEmpty)
+                            if (selection != null)
                               _AllEmblem(
                                 scale: scale,
                                 onTap: () => ref

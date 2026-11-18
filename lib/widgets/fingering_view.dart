@@ -7,6 +7,7 @@ import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart';
 import 'notation_layout_engine.dart';
 import 'notation_run_scroll.dart';
+import 'measure_drag_select.dart';
 import 'section_run_header.dart';
 
 class FingeringView extends StatefulWidget {
@@ -14,6 +15,14 @@ class FingeringView extends StatefulWidget {
   final Set<int> selectedMeasures;
   final Map<int, String> sectionLabels;
   final ValueChanged<int>? onMeasureTap;
+
+  /// Hold-and-drag range selection (see [MeasureDragSelect]): the held bar
+  /// and the bar under the finger.
+  final void Function(int anchor, int current)? onMeasureRange;
+  final ValueChanged<bool>? onMeasureDragging;
+
+  /// What sits over the view's bottom edge, for the drag's edge auto-scroll.
+  final double dragBottomInset;
   final bool combined;
   final ValueNotifier<int?> Function(int measureNumber) notifierForMeasure;
   final ValueListenable<int?>? currentMeasureNotifier;
@@ -44,6 +53,9 @@ class FingeringView extends StatefulWidget {
     required this.sectionLabels,
     required this.notifierForMeasure,
     this.onMeasureTap,
+    this.onMeasureRange,
+    this.onMeasureDragging,
+    this.dragBottomInset = 0,
     this.combined = false,
     this.currentMeasureNotifier,
     this.sectionColors = const {},
@@ -142,10 +154,20 @@ class _FingeringViewState extends State<FingeringView> with NotationRunScroll {
             ),
       ];
 
-      return SingleChildScrollView(
-        controller: _scrollController,
-        padding: EdgeInsets.only(bottom: widget.bottomClearance),
-        child: Column(children: children),
+      return Builder(
+        builder: (context) => MeasureDragSelect(
+          controller: _scrollController,
+          enabled: widget.onMeasureRange != null,
+          measureAt: (g) => measureTagAt(context, g),
+          onRange: (a, b) => widget.onMeasureRange?.call(a, b),
+          onDragging: widget.onMeasureDragging,
+          bottomInset: widget.dragBottomInset,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: EdgeInsets.only(bottom: widget.bottomClearance),
+            child: Column(children: children),
+          ),
+        ),
       );
     });
   }
@@ -186,7 +208,9 @@ class _FingeringRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (int i = 0; i < measures.length; i++) ...[
-              _FingeringMeasure(
+              MeasureTag(
+                number: measures[i].number,
+                child: _FingeringMeasure(
                 measure: measures[i],
                 isSelected: selectedMeasures.contains(measures[i].number),
                 isFlagged: flaggedMeasures.contains(measures[i].number),
@@ -196,7 +220,7 @@ class _FingeringRow extends StatelessWidget {
                 combined: combined,
                 rowHeight: rowH,
                 scale: scale,
-              ),
+              )),
               if (i < measures.length - 1)
                 Container(
                   width: NotationLayout.barlineWidth * scale,
@@ -240,6 +264,8 @@ class _FingeringMeasure extends StatelessWidget {
     final naturalWidth = NotationLayout.measureWidth(measure);
     final scaledWidth = naturalWidth * scale;
     return GestureDetector(
+      // The whole bar, gaps included: a tap between notes is still this bar.
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Stack(
         children: [

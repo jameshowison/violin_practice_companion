@@ -110,8 +110,24 @@ class _SectionChipRowState extends ConsumerState<SectionChipRow> {
       child: Row(
         children: [
           Expanded(
+            // A piece with no sections still gets its `All` chip: it is
+            // the one sure way back to the whole piece from a selection.
             child: runs.isEmpty
-                ? const SizedBox.shrink()
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                      child: _Chip(
+                        label: 'All',
+                        color: null,
+                        active: selection == null,
+                        tooltip: 'Play the whole piece',
+                        onTap: () => ref
+                            .read(measureSelectionProvider.notifier)
+                            .state = null,
+                      ),
+                    ),
+                  )
                 : ValueListenableBuilder<HighlightEvent?>(
                     valueListenable: widget.service.currentHighlightNotifier,
                     builder: (_, play, _) {

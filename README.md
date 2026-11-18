@@ -34,7 +34,9 @@ notation that works for your family:
 
 **Practise smarter:**
 
-- Select any measure or range of measures for targeted practice
+- Select any measure or range of measures for targeted practice: tap a bar
+  to select it; hold a bar and slide to select a range, or widen and trim
+  it one bar at a time with the ‹ › handles at its ends
 - Pieces can be annotated with their section structure (ABAA etc.) so you can
   work on just one part at a time
 - MIDI playback at adjustable tempo, with a bouncing ball or measure highlight

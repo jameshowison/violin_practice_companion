@@ -1248,21 +1248,38 @@ class MeasureSelection {
 
   /// New selection after tapping [tapped], given the [current] selection.
   ///
-  /// "Tap anchor, tap to extend" semantics, shared by every notation view
-  /// (staff, jianpu, fingering):
-  ///   • nothing selected        → single-measure selection
-  ///   • single anchor selected  → extend to the inclusive range anchor..tapped
-  ///   • tap inside an existing range → clear (deselect)
-  ///   • tap outside a range      → start a fresh single-measure anchor
+  /// A tap always means "this bar", shared by every notation view (staff,
+  /// jianpu, fingering): it selects exactly [tapped], replacing whatever was
+  /// selected — a range included. Tapping the bar that is already the whole
+  /// selection clears it. Ranges come from a hold-and-drag ([spanning]) or
+  /// the selection's end handles ([nudgeStart], [nudgeEnd]), never from a
+  /// second tap: "tap to extend" made the same tap mean three things, and
+  /// testers kept getting the one they didn't want.
   static MeasureSelection? afterTap(MeasureSelection? current, int tapped) {
-    if (current == null) return MeasureSelection(tapped, tapped);
-    if (current.contains(tapped)) return null;
-    if (current.isSingle) {
-      final s = current.startMeasure;
-      return MeasureSelection(s < tapped ? s : tapped, s > tapped ? s : tapped);
-    }
-    return MeasureSelection(tapped, tapped);
+    final single = MeasureSelection(tapped, tapped);
+    return current == single ? null : single;
   }
+
+  /// The whole bars from [anchor] to [other], in either order — what a
+  /// hold-and-drag from [anchor] selects with the finger over [other].
+  factory MeasureSelection.spanning(int anchor, int other) => MeasureSelection(
+      anchor < other ? anchor : other, anchor > other ? anchor : other);
+
+  /// This selection with its first bar moved by [delta] (negative grows it
+  /// leftwards), kept within [first]..[last] and never past its own end. The
+  /// result is whole bars: a nudged section loses its mid-bar edges and pass.
+  MeasureSelection nudgeStart(int delta,
+          {required int first, required int last}) =>
+      MeasureSelection(
+          (startMeasure + delta).clamp(first, endMeasure.clamp(first, last)),
+          endMeasure.clamp(first, last));
+
+  /// This selection with its last bar moved by [delta] (positive grows it
+  /// rightwards), kept within [first]..[last] and never before its own start.
+  MeasureSelection nudgeEnd(int delta,
+          {required int first, required int last}) =>
+      MeasureSelection(startMeasure.clamp(first, last),
+          (endMeasure + delta).clamp(startMeasure.clamp(first, last), last));
 
   @override
   bool operator ==(Object other) =>
@@ -1282,6 +1299,11 @@ class MeasureSelection {
 }
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
+
+/// A hold-and-drag range selection is in progress on the notation. The tray,
+/// which rises on any new selection, waits for the finger to lift rather
+/// than rising under it.
+final measureDragActiveProvider = StateProvider<bool>((_) => false);
 
 // ── Playback ──────────────────────────────────────────────────────────────────
 

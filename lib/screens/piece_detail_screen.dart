@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -712,7 +713,13 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               // One section: the same as a span of just that run.
               void onTapRun(int i) => onTapSpan(i, i);
 
-              final hasSectionUi = unfoldedRuns.isNotEmpty || canEditSelection;
+              // And whenever anything is selected, for its `All` — the way
+              // back to the whole piece must never be missing. The phone's
+              // row is always there, sections or not.
+              final hasSectionUi = useCompact ||
+                  unfoldedRuns.isNotEmpty ||
+                  canEditSelection ||
+                  selection != null;
 
               if (useCompact && editing != null) {
                 // Editing a bar: the play tray (and its sections) step aside
@@ -1575,8 +1582,17 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
     // Play is one tap away. Clearing the selection leaves it where it is.
     // After the frame: _setTray publishes the tray inset to providers, and a
     // selection can change mid-build, where Riverpod forbids that write.
+    // Not mid-drag, though: the tray would rise under the finger. It rises
+    // when the finger lifts instead.
     ref.listen(measureSelectionProvider, (prev, next) {
       if (next == null || next == prev) return;
+      if (ref.read(measureDragActiveProvider)) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _setTray(true);
+      });
+    });
+    ref.listen(measureDragActiveProvider, (prev, next) {
+      if (next || ref.read(measureSelectionProvider) == null) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _setTray(true);
       });
@@ -2119,8 +2135,9 @@ class _NotationView extends ConsumerWidget {
   // one notation view on screen, and the widget itself is rebuilt constantly.
   static ({int measure, DateTime at, MeasureSelection? before})? _lastTap;
 
-  // Shared "tap anchor, tap to extend" selection logic, used by every notation
-  // view (staff, jianpu, fingering). See MeasureSelection.afterTap.
+  // Shared tap logic, used by every notation view (staff, jianpu,
+  // fingering): a tap selects just that bar. See MeasureSelection.afterTap;
+  // ranges come from _selectRange (hold and drag) and _nudge (end handles).
   //
   // A second tap on the same bar within the double-tap window selects the
   // whole section run it's in (see sectionRunForDoubleTap). That's detected
@@ -2147,6 +2164,44 @@ class _NotationView extends ConsumerWidget {
     selection.state = MeasureSelection.afterTap(current, measure);
   }
 
+  // Hold and drag: the bars from the held one to the one under the finger.
+  void _selectRange(WidgetRef ref, int anchor, int current) {
+    _lastTap = null; // a drag is never half of a double-tap
+    ref.read(measureSelectionProvider.notifier).state =
+        MeasureSelection.spanning(anchor, current);
+  }
+
+  void _setDragging(WidgetRef ref, bool on) =>
+      ref.read(measureDragActiveProvider.notifier).state = on;
+
+  // An end handle's ‹ or ›: that end of the selection one bar along, within
+  // the piece's own bars.
+  // A dragged end handle: that end onto [measure], measured against the
+  // selection as it is NOW (the widget's copy can be a frame behind).
+  void _moveEdge(WidgetRef ref, bool atStart, int measure) {
+    final current = ref.read(measureSelectionProvider);
+    if (current == null) return;
+    final delta =
+        measure - (atStart ? current.startMeasure : current.endMeasure);
+    if (delta != 0) _nudge(ref, atStart, delta);
+  }
+
+  void _nudge(WidgetRef ref, bool atStart, int delta) {
+    final selection = ref.read(measureSelectionProvider.notifier);
+    final current = selection.state;
+    final numbers = [
+      for (final m in ref.read(parsedPieceProvider).valueOrNull?.measures ??
+          const <Measure>[])
+        m.number,
+    ];
+    if (current == null || numbers.isEmpty) return;
+    final first = numbers.reduce(math.min), last = numbers.reduce(math.max);
+    _lastTap = null;
+    selection.state = atStart
+        ? current.nudgeStart(delta, first: first, last: last)
+        : current.nudgeEnd(delta, first: first, last: last);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selection = ref.watch(measureSelectionProvider);
@@ -2155,6 +2210,17 @@ class _NotationView extends ConsumerWidget {
     // Minimap → custom-view navigation, and custom-view scroll → minimap.
     final navTarget = ref.watch(navTargetRunProvider);
     final bottomClearance = ref.watch(notationBottomClearanceProvider);
+    // While a bar is open in the editor the selection is that bar, so no
+    // ranges: no hold-and-drag, no end handles.
+    final editing = ref.watch(measureEditProvider) != null;
+    final onRange =
+        editing ? null : (int a, int b) => _selectRange(ref, a, b);
+    final onNudge =
+        editing ? null : (bool atStart, int d) => _nudge(ref, atStart, d);
+    final onMoveEdge =
+        editing ? null : (bool atStart, int m) => _moveEdge(ref, atStart, m);
+    void onDragging(bool on) => _setDragging(ref, on);
+    final dragInset = ref.watch(staffViewBottomInsetProvider);
     // Report the top-most visible run's first measure so the minimap can light
     // its (unfolded) section while scrolling the jianpu/fingering views.
     void onVisibleRun(int i) {
@@ -2215,6 +2281,10 @@ class _NotationView extends ConsumerWidget {
         highlightNotifier: service.currentHighlightNotifier,
         selection: selection,
         onMeasureTapped: (m) => _selectMeasure(ref, m),
+        onMeasureRange: onRange,
+        onMeasureDragging: onDragging,
+        onNudgeSelection: onNudge,
+        onMoveSelectionEdge: onMoveEdge,
         flaggedMeasures: flaggedMeasures,
         measureMap: measureMap,
         // The printed page's lines engrave the section layout's way: each
@@ -2275,6 +2345,9 @@ class _NotationView extends ConsumerWidget {
           onVisibleRunChanged: onVisibleRun,
           bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
+          onMeasureRange: onRange,
+          onMeasureDragging: onDragging,
+          dragBottomInset: dragInset,
           keySignature: keySignature,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -2291,6 +2364,9 @@ class _NotationView extends ConsumerWidget {
           onVisibleRunChanged: onVisibleRun,
           bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
+          onMeasureRange: onRange,
+          onMeasureDragging: onDragging,
+          dragBottomInset: dragInset,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
         );
@@ -2306,6 +2382,9 @@ class _NotationView extends ConsumerWidget {
           onVisibleRunChanged: onVisibleRun,
           bottomClearance: bottomClearance,
           onMeasureTap: (m) => _selectMeasure(ref, m),
+          onMeasureRange: onRange,
+          onMeasureDragging: onDragging,
+          dragBottomInset: dragInset,
           combined: true,
           notifierForMeasure: service.notifierForMeasure,
           currentMeasureNotifier: service.currentMeasureNotifier,
@@ -2320,6 +2399,10 @@ class _NotationView extends ConsumerWidget {
                   highlightNotifier: service.currentHighlightNotifier,
                   selection: selection,
                   onMeasureTapped: (m) => _selectMeasure(ref, m),
+                  onMeasureRange: onRange,
+                  onMeasureDragging: onDragging,
+                  onNudgeSelection: onNudge,
+                  onMoveSelectionEdge: onMoveEdge,
                   flaggedMeasures: flaggedMeasures,
                   measureMap: measureMap,
                   sectionTints: sectionTints,

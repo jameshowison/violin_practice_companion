@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -11,12 +13,14 @@ import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
+import '../services/playback_service_base.dart' show PlaybackState;
 import '../services/providers.dart';
 import '../services/section_engraving.dart';
 import '../services/staff_zoom.dart';
 import '../services/system_break_injector.dart';
 import '../services/verovio_engraver.dart';
 import 'chord_swatch.dart';
+import 'measure_drag_select.dart';
 
 /// Native staff renderer: Verovio engraves (coordinates + per-element bboxes),
 /// jovial_svg draws the SVG in Flutter's own pipeline, and native CustomPaint
@@ -30,6 +34,20 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   final ValueNotifier<HighlightEvent?> highlightNotifier;
   final MeasureSelection? selection;
   final ValueChanged<int>? onMeasureTapped;
+
+  /// Hold-and-drag range selection (see [MeasureDragSelect]): the held bar
+  /// and the bar under the finger, as model measure numbers.
+  final void Function(int anchor, int current)? onMeasureRange;
+  final ValueChanged<bool>? onMeasureDragging;
+
+  /// The selection's end handles: move its first ([atStart]) or last bar by
+  /// [delta] bars. Null shows no handles.
+  final void Function(bool atStart, int delta)? onNudgeSelection;
+
+  /// A dragged end handle: put the selection's first ([atStart]) or last bar
+  /// on [measure]. The bar itself, not a step: several moves can land in one
+  /// frame, before this widget sees the selection they made.
+  final void Function(bool atStart, int measure)? onMoveSelectionEdge;
   final Set<int> flaggedMeasures;
 
   /// Engraved measure index ↔ model measure number (and, for a bar split at a
@@ -141,6 +159,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     required this.highlightNotifier,
     this.selection,
     this.onMeasureTapped,
+    this.onMeasureRange,
+    this.onMeasureDragging,
+    this.onNudgeSelection,
+    this.onMoveSelectionEdge,
     this.flaggedMeasures = const {},
     this.measureMap = EngravedMeasureMap.empty,
     this.sectionLayout = false,
@@ -209,6 +231,24 @@ typedef _EngraveRequest = ({
 
 class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   final _scrollController = ScrollController();
+
+  /// The engraved page inside the scroll view: global → page coordinates
+  /// for the hold-and-drag, whose positions arrive global.
+  final _pageKey = GlobalKey();
+
+  /// A hold-and-drag is in progress: the end handles step aside.
+  bool _dragging = false;
+
+  /// The end handles show for a while after the selection changes or a
+  /// handle is used, then fade (see [_showHandles]).
+  bool _handlesShown = false;
+  Timer? _handlesTimer;
+
+  /// When a bar was last tapped. The corners appear with that tap's
+  /// selection, and their targets cover much of a narrow bar, so the second
+  /// tap of a double-tap would land on one and grow the selection; within
+  /// [kDoubleTapTimeout] a corner tap is passed on as a bar tap instead.
+  DateTime? _lastBarTap;
 
   EngravedScore? _score;
   ScalableImage? _image;
@@ -301,6 +341,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   @override
   void didUpdateWidget(StaffViewVerovio old) {
     super.didUpdateWidget(old);
+    if (widget.selection != old.selection) {
+      if (widget.selection == null) {
+        _hideHandles(rebuild: false);
+      } else {
+        _showHandles(rebuild: false);
+      }
+    }
     // Nothing a holding widget says is final; the next one is compared with
     // it, and whatever really changed is caught then.
     if (widget.holding) return;
@@ -344,6 +391,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   @override
   void dispose() {
+    _handlesTimer?.cancel();
     widget.highlightNotifier.removeListener(_onHighlight);
     _scrollController.dispose();
     super.dispose();
@@ -1137,26 +1185,160 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   // ── Taps ───────────────────────────────────────────────────────────────
 
-  void _onTapDown(Offset local) {
+  /// The model measure number at [local] (page coordinates, screen px), or
+  /// null. See [measureIndexAtPoint].
+  int? _measureAt(Offset local) {
     final score = _score;
-    if (score == null) return;
-    final scale = _scale;
-    final p = Offset(local.dx / scale, local.dy / scale);
-    // Measure tap (existing select-on-notation behavior).
-    for (final m in score.measures) {
-      if (m.rect.contains(p)) {
-        if (m.index >= 0 && m.index < widget.measureMap.length) {
-          widget.onMeasureTapped?.call(widget.measureMap.numberAt(m.index));
-        }
-        return;
-      }
+    if (score == null) return null;
+    final i = measureIndexAtPoint(score, local / _scale);
+    if (i == null || i < 0 || i >= widget.measureMap.length) return null;
+    return widget.measureMap.numberAt(i);
+  }
+
+  int? _measureAtGlobal(Offset global) {
+    final box = _pageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return _measureAt(box.globalToLocal(global));
+  }
+
+  void _onTapUp(Offset local) {
+    _lastBarTap = DateTime.now();
+    final m = _measureAt(local);
+    if (m != null) widget.onMeasureTapped?.call(m);
+  }
+
+  /// Shows the end handles, and fades them [selectionHandleLinger] after
+  /// the last reason to: they're for adjusting a selection just made, not
+  /// furniture over the music.
+  void _showHandles({bool rebuild = true}) {
+    _handlesTimer?.cancel();
+    _handlesTimer = Timer(selectionHandleLinger, () {
+      if (mounted) setState(() => _handlesShown = false);
+    });
+    if (rebuild) {
+      setState(() => _handlesShown = true);
+    } else {
+      _handlesShown = true;
     }
+  }
+
+  void _hideHandles({bool rebuild = true}) {
+    _handlesTimer?.cancel();
+    if (rebuild) {
+      setState(() => _handlesShown = false);
+    } else {
+      _handlesShown = false;
+    }
+  }
+
+  /// The selection's end handles: thin L-shaped marks at its outer
+  /// corners, like a crop frame's, two at each end. A tap on either mark at
+  /// an end widens the selection there by a bar; a drag puts that end on
+  /// any bar, either way.
+  ///
+  /// No tap to narrow: a fresh tap on a bar and a few taps on the corner
+  /// make any range, and one mark per corner stays out of the music's way.
+  /// The marks sit just inside the shaded band's corners, as part of the
+  /// selection rather than laid beside it. Each takes touches across a full
+  /// [selectionHandleTarget] square, reaching into the selection.
+  List<Widget> _selectionHandles(
+      EngravedScore score, double scale, double width, ThemeData theme) {
+    final sel = widget.selection!;
+    final nudge = widget.onNudgeSelection!;
+    final r = widget.measureMap.range(
+        sel.startMeasure, sel.startNote, sel.endMeasure, sel.endNote,
+        startPerf: sel.startPerf);
+    if (r == null) return const [];
+    final rows = _rangeRowRects(score, scale, r.startMeasureIndex,
+        r.startNote, r.endMeasureIndex, r.endNote);
+    if (rows.isEmpty) return const [];
+    final color = theme.colorScheme.primary.withValues(alpha: 0.45);
+    final active = _handlesShown && !_dragging;
+    const inset = selectionCornerInset, half = selectionHandleTarget / 2;
+
+    Widget corner(Rect row, bool atStart, bool top) {
+      final x = atStart ? row.left + inset : row.right - inset;
+      final y = top ? row.top + inset : row.bottom - inset;
+      // The target reaches INTO the selection from the corner, so the mark
+      // sits at its outer corner; kept on the page.
+      final cx = (x + (atStart ? half - 4 : -half + 4))
+          .clamp(half, math.max(half, width - half));
+      final cy = y + (top ? half - 4 : -half + 4);
+      final end = atStart ? 'start' : 'end';
+      return Positioned(
+        left: cx - half,
+        top: cy - half,
+        width: selectionHandleTarget,
+        height: selectionHandleTarget,
+        child: _CornerHandle(
+          key: ValueKey('sel_${end}_${top ? 'top' : 'bottom'}'),
+          corner: Offset(x - (cx - half), y - (cy - half)),
+          pointsRight: atStart,
+          pointsDown: top,
+          color: color,
+          label: atStart ? 'Start one bar earlier' : 'End one bar later',
+          onTap: (global) {
+            final last = _lastBarTap;
+            if (last != null &&
+                DateTime.now().difference(last) < kDoubleTapTimeout) {
+              _lastBarTap = null;
+              final m = _measureAtGlobal(global);
+              if (m != null) widget.onMeasureTapped?.call(m);
+              return;
+            }
+            nudge(atStart, atStart ? -1 : 1);
+            _showHandles();
+          },
+          onDragTo: (global) {
+            final m = _measureAtGlobal(global);
+            if (m != null) widget.onMoveSelectionEdge?.call(atStart, m);
+            _showHandles();
+          },
+        ),
+      );
+    }
+
+    return [
+      Positioned.fill(
+        child: IgnorePointer(
+          ignoring: !active,
+          child: AnimatedOpacity(
+            opacity: active ? 1 : 0,
+            duration: const Duration(milliseconds: 350),
+            child: Stack(clipBehavior: Clip.none, children: [
+              corner(rows.first, true, true),
+              corner(rows.first, true, false),
+              corner(rows.last, false, true),
+              corner(rows.last, false, false),
+            ]),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _setDragging(bool on) {
+    setState(() => _dragging = on);
+    widget.onMeasureDragging?.call(on);
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // Playing hides the end handles; stopping brings them back for a while,
+    // the moment one is most likely wanted (that loop was a bar short).
+    if (widget.onNudgeSelection != null) {
+      ref.listen(activePlaybackStateProvider, (prev, next) {
+        final playing = next.valueOrNull == PlaybackState.playing;
+        final was = prev?.valueOrNull == PlaybackState.playing;
+        if (playing && !was) {
+          _hideHandles();
+        } else if (was && !playing && widget.selection != null) {
+          _showHandles();
+        }
+      });
+    }
     if (_error != null) {
       return Center(
         child: Text('Staff view error: $_error', textAlign: TextAlign.center),
@@ -1237,10 +1419,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
               bottom: widget.zoomable
                   ? ref.watch(notationBottomClearanceProvider)
                   : 0),
+          // On tap UP, not down: a press that turns into a scroll is the
+          // scroll's, and must not move the selection on its way.
           child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTapDown: (d) => _onTapDown(d.localPosition),
+                onTapUp: (d) => _onTapUp(d.localPosition),
                 child: SizedBox(
+                  key: _pageKey,
                   width: width,
                   height: renderH,
                   child: Stack(
@@ -1337,6 +1522,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                             ),
                           ),
                         ),
+                      if (widget.onNudgeSelection != null &&
+                          widget.selection != null)
+                        ..._selectionHandles(score, scale, width, theme),
                     ],
                   ),
                 ),
@@ -1350,7 +1538,17 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             AnimatedOpacity(
               opacity: busy ? 0.35 : 1,
               duration: const Duration(milliseconds: 150),
-              child: page,
+              child: MeasureDragSelect(
+                controller: _scrollController,
+                enabled: widget.onMeasureRange != null,
+                measureAt: _measureAtGlobal,
+                onRange: (a, b) => widget.onMeasureRange?.call(a, b),
+                onDragging: _setDragging,
+                bottomInset: widget.zoomable
+                    ? ref.watch(staffViewBottomInsetProvider)
+                    : 0,
+                child: page,
+              ),
             ),
             // At the bottom, just above the play tray: the size panel opens
             // over the top of the score, so a spinner there was hidden behind
@@ -2726,6 +2924,66 @@ Offset measureNumberLabelOrigin({
   return Offset(x, staffTop - space * measureNumberLift - baseline);
 }
 
+/// The touch target round each selection end handle, logical px: Apple's
+/// 44 pt minimum.
+const double selectionHandleTarget = 44;
+
+/// A corner mark's arm length and stroke, logical px.
+const double selectionCornerArm = 12;
+const double selectionCornerStroke = 2;
+
+/// How far a corner mark sits inside the shaded band, logical px: off the
+/// band's edge, so its arms don't lie on the barline.
+const double selectionCornerInset = 2.5;
+
+/// How long the end handles stay after the selection last changed or a
+/// handle was last used.
+const Duration selectionHandleLinger = Duration(seconds: 3);
+
+/// The engraved measure index at [p] (viewBox coordinates), or null on an
+/// empty page.
+///
+/// By line band, not by ink box: a measure's box is its ink, so a tap in the
+/// gap between two systems, or above a bar's short notes, used to hit
+/// nothing. The point picks the system whose tiled band ([lineBands])
+/// holds it — the first or last above or below the page — then the bar on
+/// that line whose span holds x, or the nearest one past a line's end.
+int? measureIndexAtPoint(EngravedScore score, Offset p) {
+  final lines = score.lineBands;
+  if (score.measures.isEmpty) return null;
+  int line;
+  if (lines.isEmpty) {
+    line = -1;
+  } else if (p.dy < lines.first.top) {
+    line = 0;
+  } else {
+    line = lines.length - 1;
+    for (var l = 0; l < lines.length; l++) {
+      if (p.dy < lines[l].bottom) {
+        line = l;
+        break;
+      }
+    }
+  }
+  int? best;
+  var bestDist = double.infinity;
+  for (final m in score.measures) {
+    if (line >= 0 && score.lineOfMeasure(m.index) != line) continue;
+    if (line < 0 && !m.rect.contains(p)) continue;
+    final dx = p.dx < m.rect.left
+        ? m.rect.left - p.dx
+        : p.dx > m.rect.right
+            ? p.dx - m.rect.right
+            : 0.0;
+    if (dx < bestDist) {
+      bestDist = dx;
+      best = m.index;
+      if (dx == 0) break;
+    }
+  }
+  return best;
+}
+
 /// Gap between a system-first label and the first note, in staff spaces.
 const double measureNumberNoteGap = 0.2;
 
@@ -3015,4 +3273,178 @@ class _OverlayPainter extends CustomPainter {
       // flagColor too: a theme change that moves only the error colour would
       // otherwise leave every flag painted in the old one.
       old.flagColor != flagColor;
+}
+
+
+/// One corner mark of the selection: an L drawn at [corner] (in this
+/// box), its arms running right or left ([pointsRight]) and down or up
+/// ([pointsDown]) along the selection's edges, inside a full-size touch
+/// target. A tap is [onTap]; a drag reports where the finger is
+/// ([onDragTo], global) as it moves.
+///
+/// It claims the pointer the moment it lands ([_EagerPointerRecognizer]):
+/// a drag that starts on a corner is the corner's, in any direction, not
+/// the scroll view's. Safe because the marks are small and only there
+/// briefly.
+class _CornerHandle extends StatefulWidget {
+  const _CornerHandle({
+    super.key,
+    required this.corner,
+    required this.pointsRight,
+    required this.pointsDown,
+    required this.color,
+    required this.label,
+    required this.onTap,
+    required this.onDragTo,
+  });
+
+  final Offset corner;
+  final bool pointsRight;
+  final bool pointsDown;
+  final Color color;
+  final String label;
+
+  /// Tapped, with where the finger came down (global).
+  final ValueChanged<Offset> onTap;
+  final ValueChanged<Offset> onDragTo;
+
+  @override
+  State<_CornerHandle> createState() => _CornerHandleState();
+}
+
+class _CornerHandleState extends State<_CornerHandle> {
+  Offset? _down;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.label,
+      onTap: () {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null) widget.onTap(box.localToGlobal(box.size.center(Offset.zero)));
+      },
+      child: RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: {
+          _EagerPointerRecognizer:
+              GestureRecognizerFactoryWithHandlers<_EagerPointerRecognizer>(
+            _EagerPointerRecognizer.new,
+            (r) => r
+              ..onDown = (p) {
+                _down = p;
+                _dragging = false;
+              }
+              ..onMove = (p) {
+                final down = _down;
+                if (down == null) return;
+                if (!_dragging && (p - down).distance > kTouchSlop) {
+                  _dragging = true;
+                }
+                if (_dragging) widget.onDragTo(p);
+              }
+              ..onUp = () {
+                final down = _down;
+                if (down != null && !_dragging) widget.onTap(down);
+                _down = null;
+                _dragging = false;
+              }
+              ..onCancel = () {
+                _down = null;
+                _dragging = false;
+              },
+          ),
+        },
+        child: CustomPaint(
+          painter: _CornerPainter(
+            corner: widget.corner,
+            dx: widget.pointsRight ? 1 : -1,
+            dy: widget.pointsDown ? 1 : -1,
+            color: widget.color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerPainter extends CustomPainter {
+  _CornerPainter({
+    required this.corner,
+    required this.dx,
+    required this.dy,
+    required this.color,
+  });
+
+  final Offset corner;
+  final double dx, dy;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arm = selectionCornerArm;
+    canvas.drawPath(
+      Path()
+        ..moveTo(corner.dx + dx * arm, corner.dy)
+        ..lineTo(corner.dx, corner.dy)
+        ..lineTo(corner.dx, corner.dy + dy * arm),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = selectionCornerStroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CornerPainter old) =>
+      old.corner != corner ||
+      old.dx != dx ||
+      old.dy != dy ||
+      old.color != color;
+}
+
+/// Wins the gesture arena on pointer down, then reports the pointer's
+/// global position until it lifts.
+class _EagerPointerRecognizer extends OneSequenceGestureRecognizer {
+  _EagerPointerRecognizer({super.debugOwner});
+
+  ValueChanged<Offset>? onDown;
+  ValueChanged<Offset>? onMove;
+  VoidCallback? onUp;
+  VoidCallback? onCancel;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+    onDown?.call(event.position);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) {
+      onMove?.call(event.position);
+    } else if (event is PointerUpEvent) {
+      onUp?.call();
+      stopTrackingPointer(event.pointer);
+    } else if (event is PointerCancelEvent) {
+      onCancel?.call();
+      stopTrackingPointer(event.pointer);
+    }
+  }
+
+  @override
+  void rejectGesture(int pointer) {
+    onCancel?.call();
+    super.rejectGesture(pointer);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  @override
+  String get debugDescription => 'selection edge pin';
 }
