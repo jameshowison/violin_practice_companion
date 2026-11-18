@@ -3,7 +3,6 @@ import 'package:xml/xml.dart';
 
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
 
 /// Serializes edited notes back into a piece's MusicXML, one measure at a time.
 ///
@@ -961,47 +960,6 @@ class MeasureXmlEditor {
       if (cur == null || cur == 0) continue;
       m.setAttribute('number', '${n++}');
     }
-  }
-
-  /// A minimal single-measure `<score-partwise>`, once the measure editor's
-  /// live preview; since the editor works in place in the whole piece
-  /// (399f8aa) only tests call it. Same structure as `PaletteXmlGenerator`'s:
-  /// one part/measure with a synthesized `<attributes>` (divisions/key/time/
-  /// treble clef) followed by [notes].
-  static String buildSingleMeasurePreviewXml(
-      List<NoteEvent> notes, ParsedPiece parsed,
-      {bool repeatStart = false, bool repeatEnd = false}) {
-    final buf = StringBuffer()
-      ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
-      ..writeln('<score-partwise version="3.1">')
-      ..writeln('<part-list>'
-          '<score-part id="P1"><part-name/></score-part>'
-          '</part-list>')
-      ..writeln('<part id="P1">')
-      ..writeln('<measure number="1">')
-      ..writeln('<attributes>'
-          '<divisions>${parsed.divisions}</divisions>'
-          '<key><fifths>${parsed.keyFifths}</fifths></key>'
-          '<time><beats>${parsed.beatsPerMeasure}</beats>'
-          '<beat-type>${parsed.beatType}</beat-type></time>'
-          '<clef><sign>G</sign><line>2</line></clef>'
-          '</attributes>');
-    if (repeatStart) {
-      buf.writeln('<barline location="left"><bar-style>heavy-light</bar-style>'
-          '<repeat direction="forward"/></barline>');
-    }
-    for (final n in notes) {
-      buf.writeln(_noteXml(n, parsed.divisions));
-    }
-    if (repeatEnd) {
-      buf.writeln('<barline location="right"><bar-style>light-heavy</bar-style>'
-          '<repeat direction="backward"/></barline>');
-    }
-    buf
-      ..writeln('</measure>')
-      ..writeln('</part>')
-      ..writeln('</score-partwise>');
-    return buf.toString();
   }
 
   static String _lyricsXml(NoteEvent n) {

@@ -79,8 +79,8 @@ tray.
 
 - **Fiddle set:** add `fiddle` to the enum with `chords: true`, and a radio tile.
 - **Library tags,** if the list gets crowded: give each catalog entry
-  `instruments: [...]` and have `PieceRepository.loadAll` or
-  `visiblePiecesProvider` filter on it. Not needed while every piece is
+  `instruments: [...]` and have `PieceRepository.loadAll` or the piece
+  list's `applyLibrary` call filter on it. Not needed while every piece is
   playable on the violin.
 - **Android `applicationId`** is `name.howison.violinPracticeCompanion`, matching
   the iOS bundle id (changed 2026-11-12, before any Play upload).

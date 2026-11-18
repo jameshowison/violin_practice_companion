@@ -492,9 +492,7 @@ Set<String> collectionIdsOf(PieceLibrary lib, String pieceId) => {
 /// `piece_filter.dart`).
 ///
 /// IDs in a collection with no matching piece are skipped, not errors. An
-/// unknown [collectionId] yields an empty list. (`resolveActiveCollection` in
-/// `piece_library_view.dart` guards against one but has had no caller in `lib/`
-/// since the Manage screen was retired.)
+/// unknown [collectionId] yields an empty list.
 List<Piece> applyLibrary(
   PieceLibrary lib,
   List<Piece> pieces, {

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
 import 'package:violin_practice_companion/services/measure_xml_editor.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
@@ -332,40 +331,6 @@ void main() {
     });
   });
 
-  test('buildSingleMeasurePreviewXml is valid and carries attributes', () {
-    const parsed = ParsedPiece(
-      keySignature: 'D',
-      keyFifths: 2,
-      keyMode: KeyMode.major,
-      divisions: 4,
-      beatsPerMeasure: 4,
-      beatType: 4,
-      measures: [],
-    );
-    final xml = MeasureXmlEditor.buildSingleMeasurePreviewXml(
-      [
-        const NoteEvent(
-            pitch: 'F#5',
-            midiNumber: 78,
-            octave: 5,
-            noteValue: NoteValue.quarter,
-            dotted: false,
-            isRest: false),
-      ],
-      parsed,
-    );
-
-    final doc = XmlDocument.parse(xml); // throws if malformed
-    expect(doc.findAllElements('divisions').single.innerText, '4');
-    expect(doc.findAllElements('fifths').single.innerText, '2');
-    expect(doc.findAllElements('clef').length, 1);
-    expect(doc.findAllElements('measure').length, 1);
-
-    // The single note re-parses correctly.
-    final reparsed = MusicXmlParser().parse(xml);
-    expect(reparsed.measures.single.notes.single.pitch, 'F#5');
-  });
-
   test('setMeasureRepeats adds start + end repeat barlines that re-parse', () {
     final withRepeats =
         MeasureXmlEditor.setMeasureRepeats(_baseXml, 1, start: true, end: true);
@@ -428,32 +393,4 @@ void main() {
     expect(m.notes.single.pitch, 'G4');
   });
 
-  test('buildSingleMeasurePreviewXml emits repeat barlines when requested', () {
-    const parsed = ParsedPiece(
-      keySignature: 'C',
-      keyFifths: 0,
-      keyMode: KeyMode.major,
-      divisions: 4,
-      beatsPerMeasure: 4,
-      beatType: 4,
-      measures: [],
-    );
-    final xml = MeasureXmlEditor.buildSingleMeasurePreviewXml(
-      [
-        const NoteEvent(
-            pitch: 'C4',
-            midiNumber: 60,
-            octave: 4,
-            noteValue: NoteValue.whole,
-            dotted: false,
-            isRest: false),
-      ],
-      parsed,
-      repeatStart: true,
-      repeatEnd: true,
-    );
-    final m = MusicXmlParser().parse(xml).measures.single;
-    expect(m.repeatStart, isTrue);
-    expect(m.repeatEnd, isTrue);
-  });
 }

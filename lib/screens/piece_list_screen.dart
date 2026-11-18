@@ -892,14 +892,12 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
           ),
         );
       }
-      final state = libraryEmptyState(
+      final message = libraryEmptyMessage(
         hasAnyPieces: pieces.isNotEmpty,
-        collectionName: null,
         hiddenCount: hidden,
       );
       return Column(children: [
-        Expanded(
-            child: _EmptyState(message: state.message)),
+        Expanded(child: _EmptyState(message: message)),
         if (hidden > 0) _HiddenFooter(count: hidden),
       ]);
     }

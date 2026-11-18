@@ -5,58 +5,6 @@
 /// decisions live here as plain functions, and the widgets stay thin.
 library;
 
-import 'piece.dart';
-import 'piece_library.dart';
-
-/// One row with its library state: the piece plus the three library
-/// facts about it that deliberately are NOT fields on [Piece].
-typedef LibraryRow = ({
-  Piece piece,
-  bool isBundled,
-  bool hidden,
-  List<String> collectionNames,
-});
-
-/// Builds [LibraryRow]s.
-///
-/// [isBundled] is passed in rather than derived from [Piece.musicXmlAssetPath],
-/// which would be WRONG: once a bundled fixture has been edited the repository
-/// re-points it at its writable copy, making it field-for-field
-/// indistinguishable from a scan. Deciding Hide-vs-Delete on the path field
-/// would silently offer Delete on exactly the fixtures the user had edited.
-List<LibraryRow> libraryRows(
-  PieceLibrary lib,
-  List<Piece> pieces,
-  bool Function(String id) isBundled,
-) {
-  final nameById = {for (final c in lib.collections) c.id: c.name};
-  return [
-    for (final p in pieces)
-      (
-        piece: p,
-        isBundled: isBundled(p.id),
-        hidden: lib.hiddenIds.contains(p.id),
-        collectionNames: [
-          for (final c in lib.collections)
-            if (c.pieceIds.contains(p.id)) nameById[c.id]!
-        ],
-      ),
-  ];
-}
-
-/// A row's second line.
-///
-/// The collection names are dropped when a chip is already selected — repeating
-/// "Book 1" on every row under the Book 1 filter is noise.
-String pieceSubtitle(
-  Piece piece,
-  List<String> collectionNames, {
-  required bool includeCollections,
-}) {
-  final sections = '${piece.sections.length} sections';
-  if (!includeCollections || collectionNames.isEmpty) return sections;
-  return '$sections · ${collectionNames.join(' · ')}';
-}
 
 /// Whether [title] matches the search box's [query].
 ///
@@ -74,59 +22,20 @@ String _searchText(String s) => s
     .replaceAll(RegExp(r"['’]"), '')
     .replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
 
-/// What an empty list should say, and whether it offers a way out.
+/// What an empty list should say.
 ///
-/// Genuinely different situations, so different messages: an empty filter is a
-/// curation problem (`offerManage`; the Manage screen it pointed to is retired
-/// and the piece list ignores the flag), an empty library is an onboarding one
-/// (the add-piece button is already on screen, so no button), and an all-hidden
-/// list is neither — the "show hidden" footer is the way out, so the message
-/// must not claim the pieces don't exist.
-///
-/// [hiddenCount] is scoped to the active collection by the caller, which is what
-/// makes the all-hidden case distinguishable from the genuinely-empty one. A
-/// collection of nothing but hidden pieces (as the retired "OMR demos" seed
-/// was) must not be told "No pieces in … yet"; that would be a plain lie.
-typedef LibraryEmptyState = ({String message, bool offerManage});
-
-LibraryEmptyState libraryEmptyState({
+/// An empty library is an onboarding problem (the add-piece button is already
+/// on screen); an all-hidden list is not — the "hidden pieces" footer is the
+/// way out, so the message must not claim the pieces don't exist.
+/// [hiddenCount] is scoped by the caller to the list being shown.
+String libraryEmptyMessage({
   required bool hasAnyPieces,
-  required String? collectionName,
   required int hiddenCount,
 }) {
-  if (collectionName != null) {
-    return hiddenCount > 0
-        ? (
-            message: hiddenCount == 1
-                ? 'The one piece in "$collectionName" is hidden.'
-                : 'All $hiddenCount pieces in "$collectionName" are hidden.',
-            offerManage: false,
-          )
-        : (message: 'No pieces in "$collectionName" yet.', offerManage: true);
-  }
   if (!hasAnyPieces) {
-    return (
-      message: 'No pieces yet.\nScan a page or import from ABC to get started.',
-      offerManage: false,
-    );
+    return 'No pieces yet.\nScan a page or import from ABC to get started.';
   }
-  return (
-    message: hiddenCount > 0 ? 'All pieces are hidden.' : 'Nothing to show.',
-    offerManage: hiddenCount == 0,
-  );
-}
-
-/// The active collection ID, or null if it names one that no longer exists.
-///
-/// A guard, not a nicety: deleting the selected collection (or restoring a
-/// library from another device) would otherwise leave a chip selected that
-/// filters everything away, with no chip visible to deselect.
-String? resolveActiveCollection(String? requested, List<Collection> collections) {
-  if (requested == null) return null;
-  for (final c in collections) {
-    if (c.id == requested) return requested;
-  }
-  return null;
+  return hiddenCount > 0 ? 'All pieces are hidden.' : 'Nothing to show.';
 }
 
 /// Tablet-class width: the piece list keeps its filter panel out as a

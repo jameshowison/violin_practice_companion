@@ -85,7 +85,7 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 /// could not run headless), would force this into a family so every
 /// `ref.invalidate(piecesProvider)` site had to care about a flag unrelated to
 /// importing a score, and would leave the hidden-pieces sheet — which needs
-/// everything, with hidden marked — without a source. See [visiblePiecesProvider].
+/// everything, with hidden marked — without a source.
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
   await ref.watch(devLibraryProvider.future);
   return LaunchTiming.span(
@@ -205,66 +205,14 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
       _mutate((l) => plib.forgetPiece(l, pieceId));
 }
 
-/// The collection whose chip is selected, by ID — null is the "All" chip.
-///
-/// An ID rather than a name, so renaming the active collection doesn't drop the
-/// filter. Session-only, like the other display-preference providers.
-final activeCollectionProvider = StateProvider<String?>((_) => null);
-
-/// The piece list's search box. Narrows within the active collection, and lasts
-/// for the session like the chip does.
+/// The piece list's search box. Lasts for the session.
 final pieceSearchProvider = StateProvider<String>((_) => '');
 
-/// Every piece with its user-chosen title applied — nothing filtered, nothing
-/// reordered, hidden ones included.
-///
-/// The library is read with `valueOrNull` rather than awaited: while the
-/// metadata read is in flight the raw list shows instead of a spinner.
-/// Decoration must never gate the library screen.
-final libraryPiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
-  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
-  return ref
-      .watch(piecesProvider)
-      .whenData((pieces) => applyLibrary(lib, pieces, showHidden: true));
-});
-
-/// The everyday piece list: overridden titles, hidden pieces dropped, and — when
-/// a chip is selected — that collection's members in its hand-set order. With no
-/// chip selected the repository's own order stands.
-///
-/// There is deliberately no "show hidden" escape hatch here. This list once had
-/// a session-sticky toggle, and it was a trap: leave it on and hiding silently
-/// stops applying on the one screen hiding exists to protect, with nothing but a
-/// grey footer at the bottom of a long list to say so. That footer now opens a
-/// sheet listing the hidden pieces, each with a Show button — one place, no
-/// mode.
-final visiblePiecesProvider = Provider<AsyncValue<List<Piece>>>((ref) {
-  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
-  final collectionId = ref.watch(activeCollectionProvider);
-  return ref
-      .watch(piecesProvider)
-      .whenData(
-        (pieces) => applyLibrary(lib, pieces, collectionId: collectionId),
-      );
-});
-
-/// The chip row's collections, in display order. Empty while loading.
+/// The user's collections (the Keywords picker), in display order. Empty
+/// while loading.
 final collectionsProvider = Provider<List<Collection>>(
   (ref) => ref.watch(libraryProvider).valueOrNull?.collections ?? const [],
 );
-
-/// The count behind "10 hidden pieces", scoped to the active collection so the
-/// footer never promises pieces that showing hidden wouldn't reveal. 0 hides the
-/// footer entirely.
-final hiddenPieceCountProvider = Provider<int>((ref) {
-  final lib = ref.watch(libraryProvider).valueOrNull ?? PieceLibrary.empty;
-  final pieces = ref.watch(piecesProvider).valueOrNull ?? const <Piece>[];
-  return hiddenCount(
-    lib,
-    pieces,
-    collectionId: ref.watch(activeCollectionProvider),
-  );
-});
 
 /// Which collections a piece belongs to — the tag dialog's initial checkboxes.
 /// Derived, never stored: a persisted reverse index would be a second copy of
