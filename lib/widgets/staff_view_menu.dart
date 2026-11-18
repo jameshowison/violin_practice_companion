@@ -123,9 +123,24 @@ class _StaffViewPanel extends ConsumerWidget {
                   icon: Icon(Icons.fit_screen_outlined),
                 ),
               ],
-              selected: {if (size == StaffSize.fit) StaffSize.fit},
-              onSelectionChanged:
-                  sizeFixed ? null : (_) => setSize(StaffSize.fit),
+              // Under Original no size applies, so none shows as chosen. Fit
+              // stays live there, as the way out: the whole piece on one screen
+              // means leaving the printed lines, for Sections where the piece
+              // has them and Flowing where it doesn't.
+              selected: {
+                if (size == StaffSize.fit && !sizeFixed) StaffSize.fit,
+              },
+              onSelectionChanged: (_) {
+                if (sizeFixed) {
+                  setStaffLayout(
+                    ref,
+                    layouts.contains(StaffLayout.sections)
+                        ? StaffLayout.sections
+                        : StaffLayout.flowing,
+                  );
+                }
+                setSize(StaffSize.fit);
+              },
             ),
             const SizedBox(height: 6),
             SegmentedButton<StaffSize>(
@@ -140,7 +155,7 @@ class _StaffViewPanel extends ConsumerWidget {
                 ])
                   ButtonSegment(value: s, label: Text(s.label)),
               ],
-              selected: {if (size != StaffSize.fit) size},
+              selected: {if (size != StaffSize.fit && !sizeFixed) size},
               onSelectionChanged: sizeFixed
                   ? null
                   : (v) {

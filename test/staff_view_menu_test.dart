@@ -127,6 +127,30 @@ void main() {
       expect(c.read(staffSizeProvider), StaffSize.fit, reason: 'disabled');
     });
 
+    testWidgets('Fit under Original leaves the printed lines for Sections',
+        (tester) async {
+      final c = await pump(tester, printed: true);
+      c.read(printedLayoutProvider.notifier).state = true;
+      c.read(staffSizeProvider.notifier).state = StaffSize.large;
+      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Fit whole piece'));
+      await tester.pumpAndSettle();
+      expect(c.read(staffLayoutProvider), StaffLayout.sections);
+      expect(c.read(staffSizeProvider), StaffSize.fit);
+    });
+
+    testWidgets('…or for Flowing when the piece has no sections',
+        (tester) async {
+      final c = await pump(tester, printed: true, sections: false);
+      c.read(printedLayoutProvider.notifier).state = true;
+      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Fit whole piece'));
+      await tester.pumpAndSettle();
+      expect(c.read(staffLayoutProvider), StaffLayout.flowing);
+    });
+
     testWidgets('tab offers sizes only', (tester) async {
       await pump(tester, mode: DisplayMode.tab);
       await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
