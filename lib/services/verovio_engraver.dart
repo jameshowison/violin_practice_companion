@@ -412,7 +412,8 @@ class VerovioEngraver {
     // parser skips them, so they must not take a positional noteIndex. Only
     // the toolkit can say which they are: the native build ignores
     // `svgAdditionalAttribute` (no `data-grace` in its SVG, though the wasm
-    // build writes one). One call per note, so only for a score that has any.
+    // build writes one; both checked 2026-11-17 on the Gossec Gavotte, native
+    // on dev-iphone). One call per note, so only for a score that has any.
     final graceIds = <String>{};
     if (musicXml.contains('<grace')) {
       for (final h in hitMap.byType) {

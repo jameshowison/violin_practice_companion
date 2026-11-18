@@ -903,8 +903,9 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
     _loadedBpm.state = result.isPlayable ? _service.recordingBpm : null;
     // The alignment cache may have just been written (first load) or redone.
     ref.invalidate(pieceRecordingBpmProvider(widget.piece.id));
-    // just_audio's playback rate is a player-level setting and is not reliably
-    // preserved across loading a new source, so it is always reapplied.
+    // Each medium has its own speed (it depends on the recording's tempo), so
+    // it is set after every load. just_audio itself would keep the previous
+    // one across the new source.
     if (result.isPlayable) await _service.setPlaybackSpeed(_speed);
     if (!mounted) return;
     setState(() {

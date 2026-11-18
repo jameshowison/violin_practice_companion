@@ -888,7 +888,10 @@ class MediaPlaybackService extends PlaybackServiceBase {
     Future<void> reclip() async {
       try {
         await _player.setAudioSource(_source(), initialPosition: target);
-        // Not reliably kept across a new source (see _MediaTransport._load).
+        // just_audio 0.10.6 keeps the speed across a new source (its Dart
+        // layer re-sends it to a new platform player; iOS reapplies its
+        // stored rate on load and play; ExoPlayer's parameters persist), so
+        // this is insurance only.
         await _player.setSpeed(playbackSpeed.value);
         await _player.seek(target);
       } catch (e) {
