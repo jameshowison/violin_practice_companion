@@ -177,9 +177,14 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   platform patterns first (Material's top app bar overflow and adaptive
   actions, iOS toolbar/`UIMenu` overflow, how reading apps such as Books and
   forScore fold their bars) before choosing.
-- **Abandon the `fit-to-screen` branch.** Its plain, scannable page for
+- **The `fit-to-screen` branch is parked** (PR #1, closed unmerged
+  2026-11-18; the branch is kept on purpose). Its plain, scannable page for
   sharing a tune to another device has errors, and sharing a `.stringlings`
-  file does the job better. Delete the branch once nothing on it is wanted.
+  file does the job better, so the feature itself is not coming back. The
+  branch stays as prior art for page turning (below). It is far behind
+  `main`: rebase before reusing anything, and rename its "Fit to screen"
+  switch, which clashes with the View menu's "Fit whole piece". Delete it
+  if page turning is dropped too.
 - **Page turning for long pieces (idea, probably out of scope).** A piece
   too long for one screen even at Small's note size now scrolls (Fit falls
   back to Small and says so; on a phone in portrait that is anything much
