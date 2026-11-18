@@ -1,5 +1,6 @@
 // Pure Dart, so tool/replay_tuner_session.dart says exactly what the screen does.
 import 'tuner_model.dart';
+import 'unison_meter.dart';
 
 /// The tuner's status line for [r]: which way to turn and, from the
 /// model's [TunerReading.trend], whether the last turn went the right way. "Wrong
@@ -75,3 +76,20 @@ String _mandolin(TunerReading r, {required bool flat, required bool very}) {
 /// end (true) or toward the body (false). Tested by hand on a mandolin.
 bool mandolinRollsToEnd(String course, {required bool tighten}) =>
     (course == 'G' || course == 'D') == tighten;
+
+/// Before a pluck, with both strings of a mandolin course to be played together.
+const unisonPrompt = 'Play both strings together';
+
+/// What to say once a pluck of both strings of a course has been judged
+/// ([UnisonMeter]): [v] is null when it rang too briefly to say, [r] is the
+/// course's reading, the pair's pitch together. Only "together, and in tune"
+/// passes; [unisonPassed] says whether it did, and anything else sends the
+/// player back to tuning each string.
+String unisonStatus(UnisonVerdict? v, TunerReading? r) {
+  if (v == null) return 'Let both strings ring a little longer';
+  if (!v.together) return 'They beat, about ${v.cents.round()}¢ apart · tune each string again';
+  if (r != null && !r.inTune) return 'Together, but both ${r.cents < 0 ? 'flat' : 'sharp'} · tune each string again';
+  return 'Together! Both strings in tune';
+}
+
+bool unisonPassed(UnisonVerdict? v, TunerReading? r) => v != null && v.together && (r == null || r.inTune);

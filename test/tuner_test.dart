@@ -17,6 +17,8 @@ import 'package:violin_practice_companion/services/tuner_model.dart';
 import 'package:violin_practice_companion/services/tuner_recording.dart';
 import 'package:violin_practice_companion/ui/stringlings/stringling_climber.dart';
 
+import 'support/plucked_pair.dart';
+
 /// Frames every ~10.7 ms (a 512-sample hop at 48 kHz), from [ms] onwards.
 TunerFrame frame(int i, double? hz, {double clarity = 0.97, double rms = 0.05}) =>
     TunerFrame(Duration(microseconds: (i * 512 * 1e6 / 48000).round()),
@@ -55,6 +57,10 @@ class FakeTunerInput implements TunerInputBase {
 
   @override
   set onPcm(void Function(Uint8List pcm)? f) {}
+
+  double? probe;
+  @override
+  set probeHz(double? hz) => probe = hz;
 }
 
 void main() {
@@ -719,6 +725,62 @@ void main() {
       expect(climber().pickedLine, 0);
       expect(climber().pickedLabel, 'inside');
       expect(head().which, MandolinString.inner);
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    // Both strings of a course, plucked: through the real tracker, probing
+    // the frequency the screen asked for, so the frames carry their bands.
+    Future<void> pluckPair(WidgetTester tester, FakeTunerInput fake, double hz, double cents,
+        {double second = 1}) async {
+      for (var i = 0; i < 45; i++) {
+        fake.ctl!.add(frame(clock++, null));
+      }
+      final tracker = PitchTracker(
+          YinDetector(sampleRate: pluckRate.toDouble(), minHz: fake.range!.minHz, maxHz: fake.range!.maxHz))
+        ..probeHz = fake.probe;
+      for (final r in tracker.addSamples(pluck(hz, cents, second: second))) {
+        fake.ctl!.add(TunerFrame(frame(clock++, null).at, r.pitch, r.bands));
+      }
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    testWidgets('mandolin: a third tap is both strings together, judged by their beats', (tester) async {
+      final fake = await pumpTuner(tester, mandolin: true);
+      await openSettings(tester);
+      await tester.tap(find.text('Mandolin'));
+      await tester.pump();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump(const Duration(milliseconds: 400));
+      await listen(tester);
+      StringlingClimber climber() => tester.widget(find.byKey(const ValueKey('tuner_climber')));
+      MandolinHeadstock head() => tester.widget(find.byKey(const ValueKey('tuner_headstock')));
+      Future<void> tapA() async {
+        await tester.tap(find.byKey(const ValueKey('tuner_string_A')));
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+
+      await tapA(); // already A: this is its other string
+      await tapA();
+      if (climber().pickedLine != 2) await tapA();
+      expect(climber().pickedLine, 2);
+      expect(climber().pickedLabel, 'both');
+      expect(head().which, isNull, reason: 'both buttons, not one');
+      expect(fake.probe, closeTo(440, 0.01), reason: 'the A course is listened to for beats');
+      await tester.pump(const Duration(seconds: 3)); // the "A: both strings" note passes
+      expect(status(tester), 'Play both strings together');
+
+      await pluckPair(tester, fake, 440, 0);
+      expect(status(tester), 'Together! Both strings in tune');
+      expect(climber().pickedLine, 2, reason: 'passed: stays on both');
+
+      await pluckPair(tester, fake, 440, 8);
+      expect(status(tester), startsWith('They beat, about '));
+      expect(status(tester), endsWith('¢ apart · tune each string again'));
+      expect(climber().pickedLine, 0, reason: 'failed: back to the first string');
+      expect(climber().pickedLabel, 'inside');
+
+      await pluckPair(tester, fake, 440, 0, second: 0); // the first string: the verdict gives way
+      expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 3));
     });
 

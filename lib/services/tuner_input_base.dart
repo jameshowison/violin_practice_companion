@@ -4,13 +4,17 @@ import 'package:string_tuner/string_tuner.dart';
 
 /// One pitch reading from the microphone.
 class TunerFrame {
-  const TunerFrame(this.at, this.pitch);
+  const TunerFrame(this.at, this.pitch, [this.bands]);
 
   /// Time since the microphone started, at the end of the analysed frame.
   final Duration at;
 
   /// The estimate, or null when the frame was silent.
   final PitchEstimate? pitch;
+
+  /// The frame's level at the 1st, 2nd and 3rd harmonics of
+  /// [TunerInputBase.probeHz], when one is set (PitchReading.bands).
+  final List<double>? bands;
 }
 
 /// The microphone was refused.
@@ -43,4 +47,9 @@ abstract class TunerInputBase {
   /// [TunerFrame]'s clock, from the first sample), for the developer's
   /// session recording (tuner_recording.dart). Null to skip.
   set onPcm(void Function(Uint8List pcm)? f);
+
+  /// A frequency whose first three harmonics each frame also measures
+  /// ([TunerFrame.bands]): the course being tuned, for hearing whether its
+  /// two strings beat. Null to skip. Holds across restarts.
+  set probeHz(double? hz);
 }

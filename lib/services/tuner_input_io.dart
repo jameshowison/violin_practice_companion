@@ -42,6 +42,14 @@ class TunerInput implements TunerInputBase {
   void Function(Uint8List pcm)? _onPcm;
 
   @override
+  set probeHz(double? hz) {
+    _probeHz = hz;
+    _toWorker?.send(hz ?? double.nan);
+  }
+
+  double? _probeHz;
+
+  @override
   bool get isSupported => true;
 
   @override
@@ -80,19 +88,22 @@ class TunerInput implements TunerInputBase {
       if (msg is SendPort) {
         ready.complete(msg);
       } else if (msg is Float64List) {
-        // [endSample, hz, clarity, rms] per reading; hz is NaN when silent.
-        for (var i = 0; i + 3 < msg.length; i += 4) {
+        // [endSample, hz, clarity, rms, band1..3] per reading; hz is NaN when
+        // silent, band1 when there is no probe.
+        for (var i = 0; i + 6 < msg.length; i += 7) {
           final at = Duration(microseconds: (msg[i] * 1e6 / sampleRate).round());
           final hz = msg[i + 1];
           out.add(TunerFrame(
               at,
               hz.isNaN
                   ? null
-                  : PitchEstimate(hz: hz, clarity: msg[i + 2], rms: msg[i + 3])));
+                  : PitchEstimate(hz: hz, clarity: msg[i + 2], rms: msg[i + 3]),
+              msg[i + 4].isNaN ? null : [msg[i + 4], msg[i + 5], msg[i + 6]]));
         }
       }
     });
     _toWorker = await ready.future;
+    if (_probeHz != null) _toWorker!.send(_probeHz!);
 
     final pcm = await recorder.startStream(const RecordConfig(
       encoder: AudioEncoder.pcm16bits,
@@ -156,16 +167,23 @@ void _workerMain((SendPort, double, double, double) args) {
   final inbox = ReceivePort();
   toMain.send(inbox.sendPort);
   inbox.listen((msg) {
+    if (msg is double) {
+      tracker.probeHz = msg.isNaN ? null : msg;
+      return;
+    }
     if (msg is! TransferableTypedData) return;
     final readings = tracker.addPcm16(msg.materialize().asUint8List());
     if (readings.isEmpty) return;
-    final packed = Float64List(readings.length * 4);
+    final packed = Float64List(readings.length * 7);
     for (var i = 0; i < readings.length; i++) {
-      final p = readings[i].pitch;
-      packed[4 * i] = readings[i].endSample.toDouble();
-      packed[4 * i + 1] = p?.hz ?? double.nan;
-      packed[4 * i + 2] = p?.clarity ?? 0;
-      packed[4 * i + 3] = p?.rms ?? 0;
+      final p = readings[i].pitch, b = readings[i].bands;
+      packed[7 * i] = readings[i].endSample.toDouble();
+      packed[7 * i + 1] = p?.hz ?? double.nan;
+      packed[7 * i + 2] = p?.clarity ?? 0;
+      packed[7 * i + 3] = p?.rms ?? 0;
+      for (var h = 0; h < 3; h++) {
+        packed[7 * i + 4 + h] = b?[h] ?? double.nan;
+      }
     }
     toMain.send(packed);
   });

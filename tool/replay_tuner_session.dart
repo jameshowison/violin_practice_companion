@@ -13,6 +13,10 @@
 //       trendAfter; cents for outlierCents, trendCents; minClarity)
 //   dart run tool/replay_tuner_session.dart <session>.wav --frames 12.0-14.5
 //       every frame between two times (seconds), recorded and replayed
+//   dart run tool/replay_tuner_session.dart <session>.wav --unison
+//       a mandolin session: every pluck judged as both strings of the course
+//       played together (UnisonMeter), whatever was picked, with the beat
+//       heard and the verdict
 //
 // Pull sessions off a device with scripts/pull_tuner_sessions.sh.
 // ignore_for_file: avoid_print
@@ -23,6 +27,7 @@ import 'package:string_tuner/string_tuner.dart';
 import 'package:violin_practice_companion/services/tuner_advice.dart';
 import 'package:violin_practice_companion/services/tuner_input_base.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';
+import 'package:violin_practice_companion/services/unison_meter.dart';
 
 void main(List<String> args) {
   if (args.isEmpty || !args.first.endsWith('.wav')) {
@@ -34,7 +39,9 @@ void main(List<String> args) {
   final csvPath = '${wavPath.substring(0, wavPath.length - 4)}.csv';
   final sets = <String, double>{};
   (double, double)? frames;
+  var unisonAll = false;
   for (var i = 1; i < args.length; i++) {
+    if (args[i] == '--unison') unisonAll = true;
     if (args[i] == '--set' && i + 1 < args.length) {
       final kv = args[++i].split('=');
       sets[kv[0]] = double.parse(kv[1]);
@@ -80,11 +87,44 @@ void main(List<String> args) {
       frameSize: 2048,
       hopSize: 512);
   final replayed = <_Row>[];
+  final unison = UnisonMeter(), every = UnisonMeter();
+  final verdicts = <(double, String, double?, UnisonVerdict?)>[];
+  // As the screen: both strings of a course together, and what the last
+  // pluck of them showed.
+  var together = false, held = false;
+  String? everyCourse;
+  String? pairSays;
   var ev = 0;
-  for (final r in tracker.addSamples(samples)) {
+  // In hop-sized chunks, as the microphone delivers them, so a change of
+  // string (the probe's frequency) lands on the frames after it.
+  Iterable<PitchReading> readings() sync* {
+    for (var i = 0; i < samples.length; i += 512) {
+      yield* tracker.addSamples(Float32List.sublistView(samples, i, (i + 512).clamp(0, samples.length)));
+    }
+  }
+
+  for (final r in readings()) {
+    final course = model.pinned == null
+        ? null
+        : model.tuning.strings.firstWhere((s) => s.name == model.pinned);
+    tracker.probeHz = header['instrument'] == 'Mandolin' ? course?.hz : null;
     final t = r.endSample / rate;
     while (ev < events.length && events[ev].$1 <= t) {
       final e = events[ev++].$2;
+      // The screen's own going back, which the replay does for itself below.
+      if (e.endsWith('back to the first string')) continue;
+      if (e.startsWith('picked ')) {
+        together = e.endsWith(' both');
+        unison.reset();
+        held = false;
+        pairSays = together ? unisonPrompt : null;
+      }
+      if (e == 'sense' || e.startsWith('choose ') || e.startsWith('tuning ')) {
+        together = false;
+        held = false;
+        unison.reset();
+        pairSays = null;
+      }
       if (e.startsWith('picked ') && model.pinned != null) {
         // 'picked A4 inside': the same name again is the pair's other string.
         final name = e.substring(7).split(' ').first;
@@ -102,10 +142,40 @@ void main(List<String> args) {
         model.tuning = tuning;
       }
     }
-    model.add(TunerFrame(Duration(microseconds: (t * 1e6).round()), r.pitch));
+    final at = Duration(microseconds: (t * 1e6).round());
+    model.add(TunerFrame(at, r.pitch, r.bands));
     final x = model.reading;
+    final bands = r.bands;
+    if (bands != null && course != null) {
+      switch (unison.add(at, bands, courseHz: course.hz, onset: model.lastOnset, judge: together)) {
+        case UnisonEvent.plucked:
+          held = false;
+          pairSays = null;
+        case UnisonEvent.judged:
+          final v = unison.verdict;
+          verdicts.add((t, course.name, x?.cents, v));
+          pairSays = unisonStatus(v, x);
+          held = true;
+          if (v != null && !unisonPassed(v, x)) {
+            together = false;
+            model.newString();
+          }
+        case UnisonEvent.none:
+          break;
+      }
+    }
+    if (course?.name != everyCourse) {
+      every.reset();
+      everyCourse = course?.name;
+    }
+    if (unisonAll && course != null && bands != null) {
+      if (every.add(at, bands, courseHz: course.hz, onset: model.lastOnset) == UnisonEvent.judged) {
+        verdicts.add((t, course.name, x?.cents, every.verdict));
+      }
+    }
+    final hearing = together ? unison.waiting : !held && model.listening;
     replayed.add(_Row(t, model.lastDecision.name, x?.cents,
-        _status(x, fine, hearing: model.listening), onset: model.lastOnset, live: x?.live ?? false, trend: x?.trend));
+        hearing ? 'Listening…' : pairSays ?? _status(x, fine), onset: model.lastOnset, live: x?.live ?? false, trend: x?.trend));
   }
 
   print('${header['instrument']} a4=${header['a4']} pinned=${pin.isEmpty ? 'none (Sense)' : pin} '
@@ -151,6 +221,13 @@ void main(List<String> args) {
     }
   }
   note(replayed.length);
+
+  if (verdicts.isNotEmpty) {
+    print('\nboth strings together? (judged at the end of each pluck${unisonAll ? ', every pluck' : ''})');
+    for (final (t, name, cents, v) in verdicts) {
+      print('  ${t.toStringAsFixed(2).padLeft(6)}s  $name  reads ${_c(cents)}  ${v ?? 'too short to say'}');
+    }
+  }
 
   print('\nwhat the screen said');
   String? said;

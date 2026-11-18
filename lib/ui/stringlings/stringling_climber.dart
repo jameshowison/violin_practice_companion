@@ -104,8 +104,9 @@ class StringlingClimber extends StatefulWidget {
   final int? picked;
 
   /// With [doubled], which of the [picked] rung's two rules is the string
-  /// being tuned: 0 the lower, 1 the upper; null for both. That one is drawn
-  /// solid, with [pickedLabel] at its end, and the other faint.
+  /// being tuned: 0 the lower, 1 the upper, 2 both played together; null
+  /// when none is picked. A picked one is drawn solid, with [pickedLabel] at
+  /// its end (under the lower rule, or over the upper), and the other faint.
   final int? pickedLine;
   final String? pickedLabel;
 
@@ -962,12 +963,13 @@ class _ClimberPainter extends CustomPainter {
     }
     if (doubled) {
       // One string of the pair picked: it solid and a little thicker, the
-      // other faint. The upper rule is drawn first (at y), the lower second.
+      // other faint; both picked (2, played together): both so. The upper
+      // rule is drawn first (at y), the lower second.
       final t = thick * 0.42, big = thick * 0.5;
       final faint = Paint()..color = color.withValues(alpha: color.a * 0.25);
-      final upper = line == null ? paint : line == 1 ? paint : faint;
-      final lower = line == null ? paint : line == 0 ? paint : faint;
-      final tu = line == 1 ? big : t, tl = line == 0 ? big : t;
+      final upper = line == null || line != 0 ? paint : faint;
+      final lower = line == null || line != 1 ? paint : faint;
+      final tu = line == 1 || line == 2 ? big : t, tl = line == 0 || line == 2 ? big : t;
       canvas.drawRRect(RRect.fromLTRBR(x1, y, x2, y + tu, Radius.circular(tu / 2)), upper);
       canvas.drawRRect(
           RRect.fromLTRBR(x1, y + thick - tl, x2, y + thick, Radius.circular(tl / 2)), lower);

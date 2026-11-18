@@ -16,6 +16,7 @@ import '../services/tuner_advice.dart';
 import '../services/tuner_input.dart';
 import '../services/tuner_model.dart';
 import '../services/tuner_recording.dart';
+import '../services/unison_meter.dart';
 import '../theme/brand.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/mandolin_headstock.dart';
@@ -85,9 +86,21 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   bool _leftHanded = false;
 
   /// Which string of the picked mandolin course is being tuned: 0 the lower
-  /// of its two rules, 1 the upper. A first tap on a course picks the lower,
-  /// each tap after that the other.
+  /// of its two rules, 1 the upper, 2 both played together. A first tap on a
+  /// course picks the lower, the next the upper, the next both; then round
+  /// again.
   int _line = 0;
+
+  /// Both strings of the course, played together: listening for beats.
+  bool get _together => _mandolin && !_auto && _line == 2;
+  final _unison = UnisonMeter();
+
+  /// With both strings together: what the last pluck showed, or the prompt
+  /// before one. Shown in place of the status line until the next pluck.
+  final _pairSays = ValueNotifier<String?>(null);
+
+  /// A verdict on both strings is showing, until the next pluck.
+  bool _held = false;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
 
@@ -255,6 +268,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _spring.dispose();
     _reading.dispose();
     _hearing.dispose();
+    _pairSays.dispose();
     _play.dispose();
     super.dispose();
   }
@@ -297,6 +311,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _rec = rec;
       _input.onPcm = rec?.addPcm;
     }
+    _aimProbe();
     try {
       final frames = await _input.start(minHz: range.minHz, maxHz: range.maxHz);
       if (!mounted) return;
@@ -341,14 +356,39 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           '${_model.reading?.cents.toStringAsFixed(1)}¢');
     }
     final changed = _model.add(f);
-    final hearing = _model.listening;
-    _rec?.addFrame(f, _model,
-        tunerStatus(_model.reading,
-            listening: true, playing: false, fineTuners: !_mandolin, hearing: hearing));
+    final b = f.bands;
+    if (b != null) {
+      switch (_unison.add(f.at, b,
+          courseHz: _model.tuning.strings[_rung].hz, onset: _model.lastOnset, judge: _together)) {
+        case UnisonEvent.plucked:
+          _held = false; // a new pluck: the last verdict gives way
+          _pairSays.value = null;
+        case UnisonEvent.judged:
+          _judged();
+        case UnisonEvent.none:
+          break;
+      }
+    } else if (_model.lastOnset && _held) {
+      _held = false; // no bands to go by (no probe): any note will do
+      _pairSays.value = null;
+    }
+    // Both strings together: listening until the pluck has rung long enough
+    // to hear a beat, not just until its pitch settles (and the beat's swells,
+    // which the model takes for fresh notes, don't keep it listening). Then
+    // the verdict holds until the next pluck.
+    final hearing = _together ? _unison.waiting : !_held && _model.listening;
+    _rec?.addFrame(
+        f,
+        _model,
+        hearing
+            ? 'Listening…'
+            : _pairSays.value ??
+                tunerStatus(_model.reading,
+                    listening: true, playing: false, fineTuners: !_mandolin, hearing: hearing));
     final settled = _hearing.value && !hearing;
     _hearing.value = hearing;
     // While listening the last pose holds; the settled reading lands at once.
-    if (hearing || (!changed && !settled)) return;
+    if (hearing || _held || (!changed && !settled)) return;
     final r = _model.reading;
     if (r?.trend == TunerTrend.wrongWay && _reading.value?.trend != TunerTrend.wrongWay) {
       HapticFeedback.mediumImpact(); // a nudge: stop, the other way
@@ -359,6 +399,30 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       if (i >= 0 && i != _rung) setState(() => _rung = i);
     }
   }
+
+  /// A pluck of both strings has rung: say what it showed. Anything short
+  /// of together and in tune goes back to the first string, to tune each
+  /// again.
+  void _judged() {
+    final v = _unison.verdict, r = _model.reading;
+    _rec?.event('together ${v ?? 'too short'}');
+    _pairSays.value = unisonStatus(v, r);
+    // The verdict, and the pose it was given in, stay until the next pluck:
+    // the pair rings on, and its beats are no reading of either string.
+    _held = true;
+    _reading.value = r;
+    if (unisonPassed(v, r)) {
+      HapticFeedback.lightImpact();
+    } else if (v != null) {
+      setState(() => _line = 0);
+      _model.newString();
+      _rec?.event('picked ${_model.pinned} back to the first string');
+    }
+  }
+
+  /// The course picked on a mandolin: its harmonics are watched for beats.
+  void _aimProbe() =>
+      _input.probeHz = _mandolin && !_auto ? _model.tuning.strings[_rung].hz : null;
 
   void _retune({double? a4, bool? mandolin}) {
     final prefs = ref.read(sharedPreferencesProvider);
@@ -375,6 +439,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _rec?.event('tuning ${_model.tuning.name} a4=${_model.tuning.a4}');
     _reading.value = null;
     _hearing.value = false;
+    _line = 0;
+    _unison.reset();
+    _held = false;
+    _pairSays.value = null;
+    _aimProbe();
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
   }
 
@@ -384,13 +453,21 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     final name = _model.tuning.strings[i].name;
     final again = _mandolin && !_auto && i == _rung && _model.pinned == name;
     setState(() {
-      _line = again ? 1 - _line : 0;
+      _line = again ? (_line + 1) % 3 : 0;
       _rung = i;
       if (!_auto) _model.pinned = name;
-      // The pair's other string: the same note, but nothing to compare with.
+      // The pair's other string, or both: the same note, but nothing to
+      // compare with.
       if (again) _model.newString();
     });
-    if (_mandolin && !_auto) {
+    _unison.reset();
+    _held = false;
+    _pairSays.value = _together ? unisonPrompt : null;
+    _aimProbe();
+    if (_together) {
+      _say('${name[0]}: both strings together');
+      _rec?.event('picked $name both');
+    } else if (_mandolin && !_auto) {
       final which = _pairString(name[0], _line) == MandolinString.outer ? 'outside' : 'inside';
       _say('${name[0]}: the $which string');
       _rec?.event('picked $name $which');
@@ -414,6 +491,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       _auto = on;
       _model.pinned = on ? null : _model.tuning.strings[_rung].name;
     });
+    _line = 0;
+    _unison.reset();
+    _held = false;
+    _pairSays.value = null;
+    _aimProbe();
     _say(on ? 'Sense: following the string you play' : 'Choose: tap the string to tune');
     _rec?.event(on ? 'sense' : 'choose ${_model.pinned}');
     _reading.value = null;
@@ -530,7 +612,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
         ClimberRung(letter: s.name[0], color: _colorOf(s.name[0])),
     ];
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
-    final shown = Listenable.merge([_reading, _play, _hearing]);
+    final shown = Listenable.merge([_reading, _play, _hearing, _pairSays]);
     TunerReading? current() => _listening ? _reading.value : _pretend(_play.value);
 
     return Scaffold(
@@ -628,12 +710,14 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         stretches: _stretches,
                                         picked: _auto ? null : _rung,
                                         pickedLine: _mandolin && !_auto ? _line : null,
-                                        pickedLabel: _mandolin && !_auto
-                                            ? (_pairString(_model.tuning.strings[_rung].name[0], _line) ==
-                                                    MandolinString.outer
-                                                ? 'outside'
-                                                : 'inside')
-                                            : null,
+                                        pickedLabel: !_mandolin || _auto
+                                            ? null
+                                            : _line == 2
+                                                ? 'both'
+                                                : _pairString(_model.tuning.strings[_rung].name[0], _line) ==
+                                                        MandolinString.outer
+                                                    ? 'outside'
+                                                    : 'inside',
                                         onPick: _pick,
                                         party: SkinStyle.of(context).mascots,
                                       ),
@@ -653,7 +737,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                           return MandolinHeadstock(
                                             key: const ValueKey('tuner_headstock'),
                                             course: course,
-                                          which: _mandolin && !_auto && course == _model.tuning.strings[_rung].name[0]
+                                          which: _mandolin && !_auto && _line < 2 && course == _model.tuning.strings[_rung].name[0]
                                               ? _pairString(course!, _line)
                                               : null,
                                             tighten: r == null || r.inTune || (_listening && _hearing.value)
@@ -715,6 +799,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                     note: _note,
                     listening: _listening,
                     hearing: _listening && _hearing.value,
+                    say: _listening ? _pairSays.value : null,
                     fineTuners: !_mandolin,
                     onDrag: _listening ? null : _dragTo,
                     onLetGo: _springBack,
@@ -861,10 +946,15 @@ class _Readout extends StatelessWidget {
     this.note,
     required this.listening,
     this.hearing = false,
+    this.say,
     required this.fineTuners,
     required this.onDrag,
     required this.onLetGo,
   });
+
+  /// Said in place of the advice, unless it is listening (both strings of a
+  /// course together: the verdict on the last pluck).
+  final String? say;
 
   final TunerReading? reading;
 
@@ -916,8 +1006,9 @@ class _Readout extends StatelessWidget {
     );
   }
 
-  String _status(TunerReading? r) =>
-      tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners, hearing: hearing);
+  String _status(TunerReading? r) => listening && !hearing && say != null
+      ? say!
+      : tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners, hearing: hearing);
 }
 
 /// −50..+50 cents with the ±3 in-tune zone, and "flat" and "sharp" under its

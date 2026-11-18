@@ -1,10 +1,11 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'yin.dart';
 
 /// A pitch reading at a point in a stream.
 class PitchReading {
-  const PitchReading(this.endSample, this.pitch);
+  const PitchReading(this.endSample, this.pitch, [this.bands]);
 
   /// Index, counted from the first sample ever added, of the sample just
   /// after the analysed frame. Divide by the sample rate for seconds.
@@ -12,6 +13,10 @@ class PitchReading {
 
   /// The estimate, or null when the frame was silent.
   final PitchEstimate? pitch;
+
+  /// With [PitchTracker.probeHz] set: the frame's level at 1, 2 and 3 times
+  /// that frequency (a Hann-windowed DFT bin each, in rms units).
+  final Float64List? bands;
 }
 
 /// Cuts a continuous stream of samples into overlapping frames and runs a
@@ -31,6 +36,51 @@ class PitchTracker {
 
   final YinDetector detector;
   final int frameSize, hopSize;
+
+  /// A frequency to watch, or null. Each reading then carries the frame's
+  /// level at its first three harmonics ([PitchReading.bands]). Two strings
+  /// tuned a few cents apart both fall inside one such band, so its level
+  /// swells and fades at their difference: a beat. The frame is short
+  /// (43 ms at 48 kHz) and so the band wide (about ±45 Hz) enough to hold
+  /// both strings, but narrow enough to keep the neighbouring notes out.
+  double? get probeHz => _probeHz;
+  set probeHz(double? hz) {
+    if (hz == _probeHz) return;
+    _probeHz = hz;
+    _probe = null;
+  }
+
+  double? _probeHz;
+  List<Float64List>? _probe; // per harmonic: cos, sin, windowed
+
+  Float64List? _bands() {
+    final hz = _probeHz;
+    if (hz == null) return null;
+    final n = frameSize;
+    final probe = _probe ??= [
+      for (var h = 1; h <= 3; h++)
+        Float64List(2 * n)
+          ..setAll(0, [
+            for (var i = 0; i < n; i++)
+              (0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1))) * math.cos(2 * math.pi * h * hz * i / detector.sampleRate),
+            for (var i = 0; i < n; i++)
+              (0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1))) * math.sin(2 * math.pi * h * hz * i / detector.sampleRate),
+          ]),
+    ];
+    final out = Float64List(3);
+    for (var h = 0; h < 3; h++) {
+      final w = probe[h];
+      var re = 0.0, im = 0.0;
+      for (var i = 0; i < n; i++) {
+        re += _frame[i] * w[i];
+        im += _frame[i] * w[n + i];
+      }
+      // A sine of amplitude A, through a Hann window (which sums to n/2),
+      // reads A/2 · n/2: so 4/n gives A, and 1/sqrt2 its rms.
+      out[h] = math.sqrt(re * re + im * im) * 4 / n / math.sqrt2;
+    }
+    return out;
+  }
 
   final Float32List _frame;
   int _filled = 0; // samples in _frame, up to frameSize
@@ -58,7 +108,7 @@ class PitchTracker {
         i += take;
         _total += take;
         if (_filled == frameSize) {
-          out.add(PitchReading(_total, detector.detect(_frame)));
+          out.add(PitchReading(_total, detector.detect(_frame), _bands()));
           _sinceLast = 0;
         }
       } else {
@@ -71,7 +121,7 @@ class PitchTracker {
         i += take;
         _total += take;
         if (_sinceLast == hopSize) {
-          out.add(PitchReading(_total, detector.detect(_frame)));
+          out.add(PitchReading(_total, detector.detect(_frame), _bands()));
           _sinceLast = 0;
         }
       }
