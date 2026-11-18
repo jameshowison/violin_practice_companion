@@ -259,6 +259,25 @@ were identified and prioritized by payoff/dependency:
   selections (`MeasureSelection(measure, measure)`), and no "tappable" visual
   affordance was added. Carried forward to `docs/plan.md`. (Since done; the
   2026-10-08 prune of `plan.md` removed it as finished.)
+  - **Revisited 2026-11-18** (`80a1408`), after watching testers mis-tap.
+    "Tap anchor, tap to extend" made one tap mean three things (extend,
+    clear, new anchor), and selecting on tap-DOWN let a press that became a
+    scroll move the selection. Now: a tap (on tap-up) selects exactly that
+    bar, re-tapping the sole bar clears, double-tap selects the section.
+    Ranges by **hold ~500 ms, then slide** (`MeasureDragSelect`), with edge
+    auto-scroll. The old "no drag" rule stands for a *plain* drag, which
+    fights the vertical scroll (Google Photos ships that bug); once a hold
+    is recognised the long-press owns the pointer, so it can't.
+  - Tap-only path (WCAG 2.5.7, and children who won't find a long-press):
+    faint L-shaped marks inside the selection's corners. Tap one to grow that
+    end a bar, drag it to move the end either way. No tap-to-shrink by
+    choice: re-tap a bar and grow, which also teaches the drag. The marks
+    show after a selection change, fade after 3 s, hide while playing; a
+    corner tap inside the double-tap window counts as a bar tap. Rejected
+    after an interactive mock: solid ‹ › pills (sat on the music), iOS-style
+    +/− lollipop pins, ghost arrows.
+  - "All" is always offered: the phone's chip row shows it even with no
+    sections.
 
 Subsequent layout work (staff-default view, always-visible play bar,
 page-turn scroll, safe-area handling, build-hash display in debug AppBar —

@@ -2936,6 +2936,11 @@ const double selectionCornerStroke = 2;
 /// band's edge, so its arms don't lie on the barline.
 const double selectionCornerInset = 2.5;
 
+/// Where a selection's bar number may start, from its bar's left edge,
+/// logical px: past the top-left corner mark (inset, stroke, a gap).
+const double selectionLabelCornerClearance =
+    selectionCornerInset + selectionCornerStroke + 2.5;
+
 /// How long the end handles stay after the selection last changed or a
 /// handle was last used.
 const Duration selectionHandleLinger = Duration(seconds: 3);
@@ -3051,7 +3056,7 @@ class _MeasureNumberPainter extends CustomPainter {
       final opensSystem = m.index == 0 ||
           score.lineOfMeasure(m.index - 1) != score.lineOfMeasure(m.index);
       final firstNote = opensSystem ? score.noteAt(m.index, 0) : null;
-      final at = measureNumberLabelOrigin(
+      var at = measureNumberLabelOrigin(
         barLeft: staff.left * scale,
         staffTop: staff.top * scale,
         space: space,
@@ -3059,6 +3064,12 @@ class _MeasureNumberPainter extends CustomPainter {
         firstNoteLeft: firstNote == null ? null : firstNote.rect.left * scale,
         textWidth: ink.width,
       );
+      // Always clear of the selection's corner marks (whether or not they
+      // are showing, so the number doesn't jump when they fade): the
+      // top-left mark's arm runs down the bar's left edge, where the label
+      // would otherwise start.
+      final clear = staff.left * scale + selectionLabelCornerClearance;
+      if (at.dx < clear) at = Offset(clear, at.dy);
       halo.paint(canvas, at);
       ink.paint(canvas, at);
     }
