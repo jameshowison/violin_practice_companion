@@ -156,6 +156,8 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   `EngravedMeasureMap.locate` and `firstIndexOf` resolve a number to its
   first copy. Fix by keying the lookup on the performance occurrence rather
   than the measure number.
+- **Fix zooming, including a zoom in and out button.** Pinching is cute
+  but awkward.
 - **Platforms: iOS and Android only** (decided 2026-11-17). Web was never
   finished (Verovio's WASM build drew no staff lines or stems), and macOS
   had no Verovio build (`verovio_flutter` has no macOS target) and is
