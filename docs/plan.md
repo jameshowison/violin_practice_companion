@@ -180,6 +180,21 @@ The native Verovio + jovial_svg renderer is the only renderer (see
 - **Abandon the `fit-to-screen` branch.** Its plain, scannable page for
   sharing a tune to another device has errors, and sharing a `.stringlings`
   file does the job better. Delete the branch once nothing on it is wanted.
+- **Page turning for long pieces (idea, probably out of scope).** A piece
+  too long for one screen even at Small's note size now scrolls (Fit falls
+  back to Small and says so; on a phone in portrait that is anything much
+  over ~30 bars). The alternative is pages: lay the piece out in
+  screen-sized pages and turn them, by tap or swipe, or automatically as
+  playback reaches the last line, the way page-turner apps for performers
+  work. It would keep every note still while reading, where scrolling moves
+  the music under the eye. But it leaves the brief: first-year pieces are
+  short and mostly fit, and page turning matters most for the longer
+  repertoire of more advanced players. Costs to weigh if it is ever taken
+  up: page breaks that respect systems and sections, a half-page turn
+  (bottom half shows the next page early), autoscroll's cursor tracking
+  rewritten for pages, and the no-swap rule (a layout must not change
+  under the reader once shown). The `fit-to-screen` branch's PageView of
+  screen-sized pages is prior art, but with the errors noted above.
 - **Platforms: iOS and Android only** (decided 2026-11-17). Web was never
   finished (Verovio's WASM build drew no staff lines or stems), and macOS
   had no Verovio build (`verovio_flutter` has no macOS target) and is
