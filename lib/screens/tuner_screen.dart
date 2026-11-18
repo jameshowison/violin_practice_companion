@@ -101,6 +101,16 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
 
   /// A verdict on both strings is showing, until the next pluck.
   bool _held = false;
+
+  /// The last pluck of both strings passed: together and in tune. On a
+  /// mandolin with its strings picked, this is the celebration, not a single
+  /// string's run: two strings each in tune alone can still be 6 cents
+  /// apart ("one slightly flat, one slightly sharp, both showing up as in
+  /// tune"). Until the next pluck.
+  bool _pairPassed = false;
+
+  /// The party waits for the pair on a mandolin whose strings are picked.
+  bool get _partyForPair => _mandolin && !_auto;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
 
@@ -362,6 +372,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           courseHz: _model.tuning.strings[_rung].hz, onset: _model.lastOnset, judge: _together)) {
         case UnisonEvent.plucked:
           _held = false; // a new pluck: the last verdict gives way
+          _pairPassed = false;
           _pairSays.value = null;
         case UnisonEvent.judged:
           _judged();
@@ -411,7 +422,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     // the pair rings on, and its beats are no reading of either string.
     _held = true;
     _reading.value = r;
-    if (unisonPassed(v, r)) HapticFeedback.lightImpact();
+    _pairPassed = unisonPassed(v, r);
+    if (_pairPassed) HapticFeedback.lightImpact();
   }
 
   /// The course picked on a mandolin: its harmonics are watched for beats.
@@ -436,6 +448,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _line = 0;
     _unison.reset();
     _held = false;
+    _pairPassed = false;
     _pairSays.value = null;
     _aimProbe();
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
@@ -456,6 +469,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     });
     _unison.reset();
     _held = false;
+    _pairPassed = false;
     _pairSays.value = _together ? unisonPrompt : null;
     _aimProbe();
     if (_together) {
@@ -488,6 +502,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _line = 0;
     _unison.reset();
     _held = false;
+    _pairPassed = false;
     _pairSays.value = null;
     _aimProbe();
     _say(on ? 'Sense: following the string you play' : 'Choose: tap the string to tune');
@@ -695,8 +710,12 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         rungs: rungs,
                                         target: _rung,
                                         cents: current()?.cents,
-                                        inTune: _listening ? current()?.inTune : null,
-                                        inTuneRun: _listening ? current()?.inTuneRun ?? 0 : null,
+                                        inTune: _listening ? (_pairPassed ? true : current()?.inTune) : null,
+                                        inTuneRun: !_listening
+                                            ? null
+                                            : _partyForPair
+                                                ? (_pairPassed ? TunerModel.celebrateAfter : 0)
+                                                : current()?.inTuneRun ?? 0,
                                         wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
                                         doubled: _mandolin,
                                         fineTuners: !_mandolin,

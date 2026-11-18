@@ -851,8 +851,11 @@ void main() {
       await pluckPair(tester, fake, 440, 0);
       expect(status(tester), 'Together! Both strings in tune');
       expect(climber().pickedLine, 2, reason: 'passed: stays on both');
+      expect(climber().inTuneRun, TunerModel.celebrateAfter, reason: 'the party is for the pair');
+      expect(climber().inTune, isTrue);
 
       await pluckPair(tester, fake, 440, 8);
+      expect(climber().inTuneRun, 0, reason: 'beating: no party');
       expect(status(tester), startsWith('They beat, '));
       expect(status(tester), endsWith('¢ apart · tap to tune each'));
       expect(climber().pickedLine, 2, reason: 'failed: stays on both until the player taps');
@@ -864,6 +867,7 @@ void main() {
       await tester.pump(const Duration(seconds: 3)); // "A: the inside string" passes
       await pluckPair(tester, fake, 440, 0, second: 0); // the first string: the verdict gives way
       expect(status(tester), startsWith('In tune!'));
+      expect(climber().inTuneRun, 0, reason: "on a mandolin one string's run is no party");
       await tester.pump(const Duration(seconds: 3));
     });
 
