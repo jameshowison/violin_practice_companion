@@ -36,6 +36,20 @@ void main() {
     expect(say(at('D', -12, trend: TunerTrend.closer)), 'Closer! Keep rolling toward the headstock end');
   });
 
+  test('a violin close to the note gets half a turn only; further out, a turn', () {
+    final violin = InstrumentTuning.violin();
+    final a = violin.strings.firstWhere((s) => s.name[0] == 'A');
+    String v(double c, [TunerTrend trend = TunerTrend.none]) => tunerStatus(
+        TunerReading(a, c, a.hz, live: true, inTune: false, trend: trend),
+        listening: true, playing: false, fineTuners: true);
+    expect(v(-25), 'Flat · turn the fine tuner clockwise');
+    expect(v(-12), 'Flat · half a turn clockwise, no more');
+    expect(v(8), 'Sharp · half a turn anti-clockwise, no more');
+    expect(v(8, TunerTrend.overshot), 'Too far! Half a turn back, anti-clockwise');
+    expect(v(-8, TunerTrend.wrongWay), 'Wrong way! Half a turn clockwise instead');
+    expect(v(-30, TunerTrend.wrongWay), 'Wrong way! Turn clockwise instead');
+  });
+
   testWidgets('draws every course, both hands, both views, twisting or still', (tester) async {
     for (final buttonOnly in [false, true]) {
       for (final left in [false, true]) {

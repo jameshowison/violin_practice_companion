@@ -664,10 +664,10 @@ void main() {
       expect(status(tester), 'Wrong way! Turn clockwise instead');
       expect(climber(tester).wrongWay, isTrue, reason: 'the arrow pulses red');
       await play(tester, fake, off(440, -12), n: 100);
-      expect(status(tester), 'Closer! Keep turning clockwise');
+      expect(status(tester), 'Closer! Another half turn clockwise', reason: 'close: half a turn only');
       expect(climber(tester).wrongWay, isFalse);
       await play(tester, fake, off(440, 10), n: 100);
-      expect(status(tester), 'Too far! Back a little, anti-clockwise');
+      expect(status(tester), 'Too far! Half a turn back, anti-clockwise');
       await play(tester, fake, off(440, 1), n: 100);
       expect(status(tester), 'In tune!');
       await tester.pump(const Duration(seconds: 4)); // the celebration

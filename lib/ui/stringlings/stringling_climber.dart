@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../services/tuner_advice.dart' show fineTunerHalfTurn;
 import '../splash/stringlings_art.g.dart';
 
 /// One string's rung on the ladder.
@@ -707,7 +708,8 @@ class _ClimberPainter extends CustomPainter {
       final r = math.max(11.0, math.min(22.0, gap * 0.2));
       final ax = math.min(x2 - r - 10, cx0 + rx * 2.4 + r);
       _turnArrow(canvas, Offset(ax, rungY(s.rung) - r * _dialTilt - 10), r,
-          clockwise: s.shown < 0, t: s.still ? 0 : s.t, wrongWay: w.wrongWay);
+          clockwise: s.shown < 0, t: s.still ? 0 : s.t, wrongWay: w.wrongWay,
+          halfTurn: fineTunerHalfTurn(s.shown));
     }
 
     if (inTune && s.held > 0.2) {
@@ -861,8 +863,12 @@ class _ClimberPainter extends CustomPainter {
   /// with an arrow running round it the way to turn. The far side of the
   /// head is up the screen, so the arrow's sense on screen is its sense seen
   /// from above, which is how "clockwise" on a fine tuner is meant.
+  ///
+  /// With [halfTurn] (close to the note) the arrow stops spinning: it is half
+  /// a circle, and a mark on the screw head walks along it slowly, half a
+  /// turn, then rests, so the hand copies a small, slow turn and waits.
   void _turnArrow(Canvas canvas, Offset c, double r,
-      {required bool clockwise, required double t, bool wrongWay = false}) {
+      {required bool clockwise, required double t, bool wrongWay = false, bool halfTurn = false}) {
     final k = _dialTilt;
     // Turned the wrong way: bigger, red, and beating, to stop the hand.
     if (wrongWay) r *= 1.25 + 0.12 * math.sin(t * 9);
@@ -882,9 +888,10 @@ class _ClimberPainter extends CustomPainter {
           ..strokeWidth = 1.2);
 
     final dir = clockwise ? 1.0 : -1.0;
-    const sweep = math.pi * 1.45;
+    final sweep = halfTurn ? math.pi : math.pi * 1.45;
     // Rotating in the disc's own angle is the head turning, seen at a slant.
-    final start = -math.pi / 2 + dir * t * 1.8 - dir * sweep / 2;
+    // Half a turn holds still, over the far side of the head.
+    final start = -math.pi / 2 + (halfTurn ? 0 : dir * t * 1.8) - dir * sweep / 2;
     const steps = 36;
     final arc = Path();
     for (var i = 0; i <= steps; i++) {
@@ -913,6 +920,14 @@ class _ClimberPainter extends CustomPainter {
           ..lineTo(tip.dx - out.dx * h * 0.7, tip.dy - out.dy * h * 0.7)
           ..close(),
         Paint()..color = ink);
+
+    if (halfTurn) {
+      // A mark on the head: 2.4 s to go half a turn, then a 1.2 s rest.
+      // Reduced motion (t == 0) leaves it at the start.
+      final phase = math.min(1.0, (t % 3.6) / 2.4);
+      final eased = phase * phase * (3 - 2 * phase);
+      canvas.drawCircle(at(start + dir * math.pi * eased, 0.42), r * 0.18, Paint()..color = ink);
+    }
   }
 
   /// Sound waves coming in to the head from both sides, the nearest

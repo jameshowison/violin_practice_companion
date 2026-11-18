@@ -21,21 +21,31 @@ String tunerStatus(TunerReading? r,
   final way = peg
       ? (flat ? 'the peg up' : 'the peg down')
       : (flat ? 'clockwise' : 'anti-clockwise');
+  final half = fineTunerHalfTurn(c);
   switch (r.trend) {
     case TunerTrend.wrongWay:
-      return 'Wrong way! Turn $way instead';
+      return half ? 'Wrong way! Half a turn $way instead' : 'Wrong way! Turn $way instead';
     case TunerTrend.overshot:
-      return 'Too far! Back a little, $way';
+      return half ? 'Too far! Half a turn back, $way' : 'Too far! Back a little, $way';
     case TunerTrend.closer:
-      return 'Closer! Keep turning $way';
+      return half ? 'Closer! Another half turn $way' : 'Closer! Keep turning $way';
     case TunerTrend.none:
       break;
   }
   if (peg) {
     return flat ? 'Very flat · the peg needs a turn up' : 'Very sharp · the peg needs a turn down';
   }
+  if (half) return flat ? 'Flat · half a turn clockwise, no more' : 'Sharp · half a turn anti-clockwise, no more';
   return flat ? 'Flat · turn the fine tuner clockwise' : 'Sharp · turn the fine tuner anti-clockwise';
 }
+
+/// Close enough that a fine tuner wants only half a turn before listening
+/// again. A teacher's rule ("half turn only") for a student who kept turning
+/// past the note: the screen says it, and the arrow turns half a turn, slowly,
+/// and stops.
+const fineTunerHalfTurnCents = 15.0;
+
+bool fineTunerHalfTurn(double cents) => cents.abs() <= fineTunerHalfTurnCents;
 
 /// A mandolin's tuners stick out of the headstock's two edges, G and D on the
 /// side nearer the player's eye, A and E on the far side, and their gears
