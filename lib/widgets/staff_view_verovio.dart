@@ -43,7 +43,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   final bool sectionLayout;
 
   /// With [sectionLayout]: the segments are the printed page's lines (the
-  /// Page layout), and each is kept whole — exactly the page's breaks, none
+  /// Like original scan), and each is kept whole — exactly the page's breaks, none
   /// added. The notes are then as big as the widest line allows, and the
   /// piece's size setting doesn't apply.
   final bool printedLines;
@@ -1126,7 +1126,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     }
     // The previews (measure editor, palette) opt out of the piece's size so it
     // doesn't shrink their single bar: they always fit their box.
-    // The Page layout's size is fixed by its widest printed line.
+    // Like original scan's size is fixed by its widest printed line.
     final size = widget.zoomable && !widget.printedLines
         ? ref.watch(staffSizeProvider)
         : StaffSize.fit;

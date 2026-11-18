@@ -79,91 +79,97 @@ void main() {
       return container;
     }
 
-    testWidgets('picks a size and stays open for the next tap',
-        (tester) async {
-      final c = await pump(tester);
-      expect(c.read(staffSizeProvider), StaffSize.fit);
+    Future<void> open(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
       await tester.pumpAndSettle();
+    }
+
+    testWidgets('opens on Fit; a size picks Custom and stays open',
+        (tester) async {
+      final c = await pump(tester);
+      expect(c.read(effectiveStaffViewModeProvider), StaffViewMode.fit);
+      expect(c.read(staffSizeProvider), StaffSize.fit);
+      await open(tester);
 
       await tester.tap(find.text('Large'));
       await tester.pumpAndSettle();
+      expect(c.read(staffViewModeProvider), StaffViewMode.custom);
       expect(c.read(staffSizeProvider), StaffSize.large);
       // Non-modal, live: still open, so the next choice is one tap away.
       expect(find.text('Medium'), findsOneWidget);
-
-      await tester.tap(find.text('Fit whole piece'));
-      await tester.pumpAndSettle();
-      expect(c.read(staffSizeProvider), StaffSize.fit);
       expect(tester.takeException(), isNull, reason: 'no overflow on an SE');
-      // Off the screen edge: the panel's 12pt padding plus an 8pt margin.
+      // Off the screen edge: the panel's padding plus an 8pt margin.
       final right =
           tester.getRect(find.byKey(const ValueKey('staff_size_fixed'))).right;
-      expect(right, lessThanOrEqualTo(375 - 8 - 12 + 0.5));
+      expect(right, lessThanOrEqualTo(375 - 8));
     });
 
-    testWidgets('switches layout through the two stored switches',
+    testWidgets('Custom remembers its size and layout through Fit',
         (tester) async {
       final c = await pump(tester);
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
+      await open(tester);
+      await tester.tap(find.text('Small'));
       await tester.pumpAndSettle();
-      expect(c.read(staffLayoutProvider), StaffLayout.sections);
-
       await tester.tap(find.text('Flowing'));
       await tester.pumpAndSettle();
-      expect(c.read(sectionLayoutProvider), isFalse);
-      expect(c.read(staffLayoutProvider), StaffLayout.flowing);
-    });
+      expect(c.read(staffBySectionProvider), isFalse);
 
-    testWidgets('Page fixes the size: the printed lines set it',
-        (tester) async {
-      final c = await pump(tester, printed: true);
-      c.read(printedLayoutProvider.notifier).state = true;
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
-      await tester.pumpAndSettle();
-      expect(c.read(staffLayoutProvider), StaffLayout.page);
-      await tester.tap(find.text('Large'));
-      await tester.pumpAndSettle();
-      expect(c.read(staffSizeProvider), StaffSize.fit, reason: 'disabled');
-    });
-
-    testWidgets('Fit under Original leaves the printed lines for Sections',
-        (tester) async {
-      final c = await pump(tester, printed: true);
-      c.read(printedLayoutProvider.notifier).state = true;
-      c.read(staffSizeProvider.notifier).state = StaffSize.large;
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Fit whole piece'));
       await tester.pumpAndSettle();
-      expect(c.read(staffLayoutProvider), StaffLayout.sections);
       expect(c.read(staffSizeProvider), StaffSize.fit);
+      expect(c.read(staffBySectionProvider), isTrue,
+          reason: 'Fit lays out by section where it can');
+
+      await tester.tap(find.text('Custom'));
+      await tester.pumpAndSettle();
+      expect(c.read(staffSizeProvider), StaffSize.small);
+      expect(c.read(staffBySectionProvider), isFalse);
     });
 
-    testWidgets('…or for Flowing when the piece has no sections',
+    testWidgets('Like original scan: printed lines, then back to Fit',
         (tester) async {
-      final c = await pump(tester, printed: true, sections: false);
-      c.read(printedLayoutProvider.notifier).state = true;
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
+      final c = await pump(tester, printed: true);
+      await open(tester);
+      await tester.tap(find.text('Like original scan'));
       await tester.pumpAndSettle();
+      expect(c.read(staffByPrintedLinesProvider), isTrue);
+      expect(c.read(staffBySectionProvider), isFalse);
+
       await tester.tap(find.text('Fit whole piece'));
       await tester.pumpAndSettle();
-      expect(c.read(staffLayoutProvider), StaffLayout.flowing);
+      expect(c.read(staffByPrintedLinesProvider), isFalse);
+      expect(c.read(staffBySectionProvider), isTrue);
     });
 
-    testWidgets('tab offers sizes only', (tester) async {
-      await pump(tester, mode: DisplayMode.tab);
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
-      await tester.pumpAndSettle();
+    testWidgets('a piece that was not scanned has no Like original scan',
+        (tester) async {
+      final c = await pump(tester);
+      c.read(staffViewModeProvider.notifier).state = StaffViewMode.original;
+      await open(tester);
+      expect(find.text('Like original scan'), findsNothing);
+      expect(c.read(effectiveStaffViewModeProvider), StaffViewMode.fit,
+          reason: 'a stale choice falls back to Fit');
+    });
+
+    testWidgets('no sections, no Layout row', (tester) async {
+      await pump(tester, sections: false);
+      await open(tester);
       expect(find.text('Small'), findsOneWidget);
       expect(find.text('Layout'), findsNothing);
     });
 
+    testWidgets('tab offers Fit and the sizes only', (tester) async {
+      await pump(tester, mode: DisplayMode.tab, printed: true);
+      await open(tester);
+      expect(find.text('Small'), findsOneWidget);
+      expect(find.text('Layout'), findsNothing);
+      expect(find.text('Like original scan'), findsNothing);
+    });
+
     testWidgets('a tap outside closes it', (tester) async {
       await pump(tester);
-      await tester.tap(find.byKey(const ValueKey('staff_view_menu_button')));
-      await tester.pumpAndSettle();
-      await tester.tapAt(const Offset(40, 500));
+      await open(tester);
+      await tester.tapAt(const Offset(40, 600));
       await tester.pumpAndSettle();
       expect(find.text('Small'), findsNothing);
     });

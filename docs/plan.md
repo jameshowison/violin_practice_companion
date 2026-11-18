@@ -157,9 +157,11 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   first copy. Fix by keying the lookup on the performance occurrence rather
   than the measure number.
 - **Zoom is a menu now (2026-11-18), to verify on devices.** A magnifier in
-  the piece screen's app bar opens a non-modal panel: Size (Fit whole piece,
-  or Small / Medium / Large, fixed staff heights in mm) and Layout (Flowing /
-  Sections / Original). Pinch, the measures-per-line slider and Lock exactly are
+  the piece screen's app bar opens a non-modal panel of three modes: Fit
+  whole piece (the app picks size and layout, Sections where the piece has
+  them); Custom (Small / Medium / Large, fixed staff heights in mm, and
+  Flowing / Sections, remembered while another mode is on); and, for scans,
+  Like original scan (the printed lines exactly). Pinch, the measures-per-line slider and Lock exactly are
   gone; the size is per piece, no longer per orientation. Check the mm values
   by eye on the SE and an iPad (`staff_zoom.dart`, "The size control").
   Each size also sets Verovio's note spacing (`spacingLinear`: Small 0.15,

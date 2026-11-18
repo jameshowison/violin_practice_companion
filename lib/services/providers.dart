@@ -429,21 +429,68 @@ final abcSourceStoreProvider = Provider<AbcSourceStore>(
   (_) => AbcSourceStore(),
 );
 
-/// How big the staff views draw the notes, per piece (see [StaffSize]). Fit by
-/// default: the whole piece on one screen where the notes stay readable.
-final staffSizeProvider = pieceDisplayEnumPref<StaffSize>(
-  'staffSize',
-  StaffSize.fit,
+/// The view menu's three ways to show a piece, one at a time, per piece.
+///
+/// * [fit]: the app chooses everything — the biggest notes that keep the
+///   whole piece on one screen, laid out by section when the piece has them.
+/// * [custom]: the reader's own size ([customStaffSizeProvider]) and layout
+///   ([sectionLayoutProvider]), remembered while another mode is on.
+/// * [original]: the scanned page's own lines; offered for scans only
+///   ([printedLayoutAvailableProvider]).
+enum StaffViewMode {
+  fit('Fit whole piece'),
+  custom('Custom'),
+  original('Like original scan');
+
+  const StaffViewMode(this.label);
+  final String label;
+}
+
+/// The mode the reader chose for the selected piece. Fit by default.
+final staffViewModeProvider = pieceDisplayEnumPref<StaffViewMode>(
+  'staffMode',
+  StaffViewMode.fit,
+  StaffViewMode.values,
+);
+
+/// The mode actually in force: [StaffViewMode.original] needs a scan, and
+/// falls back to Fit on a piece that has none.
+final effectiveStaffViewModeProvider = Provider<StaffViewMode>((ref) {
+  final mode = ref.watch(staffViewModeProvider);
+  if (mode == StaffViewMode.original &&
+      !ref.watch(printedLayoutAvailableProvider)) {
+    return StaffViewMode.fit;
+  }
+  return mode;
+});
+
+/// Custom's size: Small, Medium or Large, Medium by default. Kept while Fit
+/// or Like original scan is on, so going back to Custom loses nothing.
+final customStaffSizeProvider = pieceDisplayEnumPref<StaffSize>(
+  'customStaffSize',
+  StaffSize.medium,
   StaffSize.values,
 );
+
+/// How big the staff views draw the notes (see [StaffSize]): Fit unless the
+/// reader chose Custom. Under Like original scan the printed lines set the
+/// size and this is not read.
+final staffSizeProvider = Provider<StaffSize>((ref) {
+  if (ref.watch(effectiveStaffViewModeProvider) != StaffViewMode.custom) {
+    return StaffSize.fit;
+  }
+  final size = ref.watch(customStaffSizeProvider);
+  return size == StaffSize.fit ? StaffSize.medium : size;
+});
 
 /// Measures per line the renderer actually achieved on the last engrave. Set
 /// by the staff view; the section minimap sizes its emblems from it.
 final effectiveMeasuresPerLineProvider = StateProvider<int?>((_) => null);
 
-/// "Layout by section": each section of a sectioned piece starts its own line
-/// and fills whole lines (see [staffBySectionProvider] for when it applies).
-/// On by default; remembered per piece ([pieceDisplayPref]).
+/// Custom's layout: true for Sections (each section of a sectioned piece
+/// starts its own line and fills whole lines), false for Flowing. See
+/// [staffBySectionProvider] for when it applies; Fit always uses Sections
+/// where it can. On by default; remembered per piece ([pieceDisplayPref]).
 final sectionLayoutProvider = pieceDisplayPref<bool>(
   'sectionLayout',
   true,
@@ -451,34 +498,21 @@ final sectionLayoutProvider = pieceDisplayPref<bool>(
   decode: bool.parse,
 );
 
-/// "Layout like printed page": a scanned piece keeps the lines its page was
-/// printed in (the `<print new-system>` breaks the scan recorded), still with
-/// the section wash — so the screen can be checked against the paper. Takes
-/// precedence over [sectionLayoutProvider] while on. Off by default;
-/// remembered per piece. See [staffByPrintedLinesProvider].
-final printedLayoutProvider = pieceDisplayPref<bool>(
-  'printedLayout',
-  false,
-  encode: (v) => '$v',
-  decode: bool.parse,
-);
-
-/// Whether "Layout like printed page" is offered: the piece's MusicXML
-/// records where its printed lines broke (a scan does).
+/// Whether Like original scan is offered: the piece's MusicXML records where
+/// its printed lines broke (a scan does).
 final printedLayoutAvailableProvider = Provider<bool>((ref) {
   final parsed = ref.watch(parsedPieceProvider).valueOrNull;
   return parsed != null && parsed.measures.skip(1).any((m) => m.systemStart);
 });
 
-/// Whether the staff views break where the printed page did
-/// ([printedLayoutProvider]). Lines are then engraved like the section
+/// Whether the staff views break where the printed page did (Like original
+/// scan). Lines are then engraved like the section
 /// layout's segments — one segment per printed line, each kept whole, so the
 /// widest printed line sets the note size (`StaffViewVerovio.printedLines`).
 /// Never the tab view.
 final staffByPrintedLinesProvider = Provider<bool>(
   (ref) =>
-      ref.watch(printedLayoutAvailableProvider) &&
-      ref.watch(printedLayoutProvider),
+      ref.watch(effectiveStaffViewModeProvider) == StaffViewMode.original,
 );
 
 /// Lines per section the last section-layout engrave used — the most any
@@ -906,8 +940,8 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 );
 
 /// Whether the staff views lay the selected piece out by section: it has two
-/// or more sections, and the Sections layout
-/// ([sectionLayoutProvider]) is on. Every section then starts a line, and a
+/// or more sections, and either Fit is on or Custom with its Sections layout
+/// ([sectionLayoutProvider]). Every section then starts a line, and a
 /// section that starts on a lead-in mid-bar has that bar split so the lead-in
 /// opens its line ([sectionBarSplits]). The staff view decides how each
 /// section fills its lines, from [staffSizeProvider].
@@ -916,46 +950,19 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 final staffBySectionProvider = Provider<bool>(
   (ref) =>
       ref.watch(sectionLayoutAvailableProvider) &&
-      ref.watch(sectionLayoutProvider) &&
-      !ref.watch(staffByPrintedLinesProvider),
+      switch (ref.watch(effectiveStaffViewModeProvider)) {
+        StaffViewMode.fit => true,
+        StaffViewMode.custom => ref.watch(sectionLayoutProvider),
+        StaffViewMode.original => false,
+      },
 );
 
-/// Whether "Layout by section" is offered for the selected piece at all — the
-/// conditions of [staffBySectionProvider] short of the toggle itself.
+/// Whether the Sections layout is possible for the selected piece at all — the
+/// conditions of [staffBySectionProvider] short of the mode and the toggle.
 final sectionLayoutAvailableProvider = Provider<bool>((ref) {
   final piece = ref.watch(selectedPieceProvider);
   return piece != null && piece.sections.length >= 2;
 });
-
-/// The three staff layouts the view menu offers, one at a time. Stored as the
-/// two per-piece switches it has always been ([sectionLayoutProvider],
-/// [printedLayoutProvider]), so a piece keeps the layout it was left in.
-enum StaffLayout {
-  flowing('Flowing'),
-  sections('Sections'),
-  page('Original');
-
-  const StaffLayout(this.label);
-  final String label;
-}
-
-/// The layout the staff views are actually in: the printed page wins, then
-/// sections, else free flow — the same precedence [staffByPrintedLinesProvider]
-/// and [staffBySectionProvider] apply.
-final staffLayoutProvider = Provider<StaffLayout>((ref) {
-  if (ref.watch(staffByPrintedLinesProvider)) return StaffLayout.page;
-  if (ref.watch(staffBySectionProvider)) return StaffLayout.sections;
-  return StaffLayout.flowing;
-});
-
-/// Switches the selected piece to [layout] by setting both stored switches.
-void setStaffLayout(WidgetRef ref, StaffLayout layout) {
-  ref.read(printedLayoutProvider.notifier).state = layout == StaffLayout.page;
-  if (layout != StaffLayout.page) {
-    ref.read(sectionLayoutProvider.notifier).state =
-        layout == StaffLayout.sections;
-  }
-}
 
 /// The staff views' engraved measure map: one slice per measure, plus the
 /// extra slice of every bar a [staffBySectionProvider] layout splits. Must
