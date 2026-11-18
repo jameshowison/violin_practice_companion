@@ -177,6 +177,189 @@ class MeasureXmlEditor {
     return doc.toXmlString();
   }
 
+  /// Redraws every tuplet bracket in [musicXml] from the notes' timing, the
+  /// way Save writes them ([replaceMeasureNotes]): a bracket starts on the
+  /// first note of each [tupletGroups]-style group and stops on its last
+  /// primary note. Returns [musicXml] itself when every bracket already
+  /// agrees.
+  ///
+  /// MusicXML says a tuplet twice: `<time-modification>` on each note is the
+  /// timing, which the parser, playback and the measure editor read, and
+  /// `<tuplet type="start|stop">` is the bracket, which only the engraver
+  /// reads. A scan can get the second wrong while the first is right: Minuet 2's
+  /// triplet bars had the stop on the quarter after the three eighths, so the
+  /// staff bracketed four notes while the editor showed three. The staff is
+  /// drawn from the timing instead, so it can't disagree with the editor.
+  ///
+  /// A group's existing start keeps its attributes (`bracket`, `show-number`,
+  /// `placement`), so a correct file draws as before; a new one is written as
+  /// Save writes it. Grace notes and chord members never carry the marks.
+  /// Nested tuplets (a `number` other than 1) are left alone, as are
+  /// multi-voice bars, a voice at a time.
+  static String rebuildTupletBrackets(String musicXml) {
+    final doc = XmlDocument.parse(musicXml);
+    var changed = false;
+    for (final measure in doc.findAllElements('measure')) {
+      final notes = measure.findElements('note').toList();
+      if (!notes.any((n) =>
+          n.findElements('time-modification').isNotEmpty ||
+          n.findAllElements('tuplet').isNotEmpty)) {
+        continue;
+      }
+      if (measure.findAllElements('tuplet').any((t) =>
+          (t.getAttribute('number') ?? '1') != '1')) {
+        continue;
+      }
+      final voices = <String, List<XmlElement>>{};
+      for (final n in notes) {
+        if (n.findElements('grace').isNotEmpty) {
+          changed |= _dropTupletMarks(n);
+          continue;
+        }
+        final v = n.findElements('voice').firstOrNull?.innerText.trim() ?? '1';
+        (voices[v] ??= []).add(n);
+      }
+      for (final voice in voices.values) {
+        changed |= _rebracketVoice(voice);
+      }
+    }
+    return changed ? doc.toXmlString() : musicXml;
+  }
+
+  /// One voice of one bar, in order: see [rebuildTupletBrackets].
+  static bool _rebracketVoice(List<XmlElement> notes) {
+    bool isChord(XmlElement n) => n.findElements('chord').isNotEmpty;
+    String? ratio(XmlElement n) {
+      final tm = n.findElements('time-modification').firstOrNull;
+      if (tm == null) return null;
+      return '${tm.findElements('actual-notes').firstOrNull?.innerText.trim()}'
+          ':${tm.findElements('normal-notes').firstOrNull?.innerText.trim()}';
+    }
+
+    // The groups, as [tupletGroups] closes them: a run of one ratio, ended
+    // once it has filled `actual` of its shortest value.
+    final groups = <(int, int)>[];
+    int? start;
+    var nominal = 0.0;
+    var shortest = 0.0;
+    var last = -1;
+    void close() {
+      groups.add((start!, last));
+      start = null;
+      nominal = 0;
+      shortest = 0;
+    }
+
+    for (var i = 0; i < notes.length; i++) {
+      final n = notes[i];
+      if (isChord(n) && i > 0) continue;
+      final r = ratio(n);
+      if (start != null && r != ratio(notes[start!])) close();
+      if (r == null) continue;
+      start ??= i;
+      last = i;
+      final u = _nominalUnits(n);
+      nominal += u;
+      if (shortest == 0 || u < shortest) shortest = u;
+      final actual = int.tryParse(r.split(':').first) ?? 0;
+      if (nominal >= actual * shortest - 1e-9) close();
+    }
+    if (start != null) close();
+
+    final wantStart = {for (final g in groups) g.$1};
+    final wantStop = {for (final g in groups) g.$2};
+    bool has(XmlElement n, String type) => n
+        .findElements('notations')
+        .expand((x) => x.findElements('tuplet'))
+        .any((t) => t.getAttribute('type') == type);
+    var agrees = true;
+    for (var i = 0; i < notes.length && agrees; i++) {
+      agrees = has(notes[i], 'start') == wantStart.contains(i) &&
+          has(notes[i], 'stop') == wantStop.contains(i);
+    }
+    if (agrees) return false;
+
+    // Each group's start keeps the attributes of the start nearest it.
+    final oldStarts = <int, XmlElement>{};
+    for (var i = 0; i < notes.length; i++) {
+      for (final t in notes[i]
+          .findElements('notations')
+          .expand((x) => x.findElements('tuplet'))) {
+        if (t.getAttribute('type') == 'start') oldStarts[i] = t.copy();
+      }
+    }
+    for (final n in notes) {
+      _dropTupletMarks(n);
+    }
+    for (final (s, e) in groups) {
+      final near = oldStarts.entries
+          .where((o) => o.key >= s && o.key <= e)
+          .map((o) => o.value)
+          .firstOrNull;
+      final startEl = near ??
+          XmlElement(XmlName.parts('tuplet'),
+              [XmlAttribute(XmlName.parts('type'), 'start'), XmlAttribute(XmlName.parts('bracket'), 'yes')]);
+      _notationsOf(notes[s]).children.insert(0, startEl);
+      _notationsOf(notes[e]).children.insert(
+          s == e ? 1 : 0,
+          XmlElement(XmlName.parts('tuplet'), [XmlAttribute(XmlName.parts('type'), 'stop')]));
+    }
+    return true;
+  }
+
+  /// A note's written length in 32nd-note units, dots included, before any
+  /// tuplet: what [tupletGroups] counts as nominal.
+  static double _nominalUnits(XmlElement note) {
+    final type = note.findElements('type').firstOrNull?.innerText.trim();
+    var u = switch (type) {
+      'whole' => 32.0,
+      'half' => 16.0,
+      'quarter' => 8.0,
+      'eighth' => 4.0,
+      '16th' => 2.0,
+      '32nd' => 1.0,
+      '64th' => 0.5,
+      _ => 8.0,
+    };
+    var add = u;
+    for (final _ in note.findElements('dot')) {
+      add /= 2;
+      u += add;
+    }
+    return u;
+  }
+
+  /// Removes [note]'s `<tuplet>` marks, and its `<notations>` if that empties
+  /// it. True when there were any.
+  static bool _dropTupletMarks(XmlElement note) {
+    var any = false;
+    for (final notations in note.findElements('notations').toList()) {
+      for (final t in notations.findElements('tuplet').toList()) {
+        t.remove();
+        any = true;
+      }
+      if (any && notations.childElements.isEmpty) notations.remove();
+    }
+    return any;
+  }
+
+  /// [note]'s `<notations>`, made where MusicXML's order puts it (before any
+  /// `<lyric>`, `<play>` or `<listen>`) when it has none.
+  static XmlElement _notationsOf(XmlElement note) {
+    final existing = note.findElements('notations').firstOrNull;
+    if (existing != null) return existing;
+    final el = XmlElement(XmlName.parts('notations'));
+    final after = note.children.indexWhere((c) =>
+        c is XmlElement &&
+        const {'lyric', 'play', 'listen'}.contains(c.name.local));
+    if (after == -1) {
+      note.children.add(el);
+    } else {
+      note.children.insert(after, el);
+    }
+    return el;
+  }
+
   /// Removes every slur end in [part] that the edit left without its other
   /// end — a slur from a note that was deleted, or to one — except those in
   /// [keep]: a slur that was already broken before the edit is somebody
