@@ -118,14 +118,18 @@ class OmrService implements OmrServiceBase {
   }
 
   Future<List<Uint8List>?> _acquireFromCamera() async {
-    // VisionKit's VNDocumentCameraViewController (used by flutter_doc_scanner)
-    // is unsupported on the iOS Simulator / Android emulator — its initializer
-    // throws an uncatchable ObjC NSException that aborts the whole app. Detect
-    // a non-physical device and fail with a friendly message the ScanScreen can
-    // show instead. Use Photos or File to scan in the simulator.
+    // On iOS, flutter_doc_scanner uses VisionKit's
+    // VNDocumentCameraViewController, which is unsupported on the Simulator:
+    // its initializer throws an uncatchable ObjC NSException that aborts the
+    // whole app. So on a simulator, fail with a friendly message the
+    // ScanScreen can show instead. Use Photos or File to scan there.
+    //
+    // Android's scanner (Play Services ML Kit) runs fine on an emulator with
+    // a Play Store image, against its virtual camera scene (checked
+    // 2026-11-17 on dev-android), so it isn't refused there.
     if (!await _isPhysicalDevice()) {
       throw UnsupportedError(
-        'Camera scanning needs a real device — a simulator/emulator has no '
+        'Camera scanning needs a real device — the simulator has no '
         'document camera. Use "Choose from Photos" or "Choose File" instead.',
       );
     }
@@ -148,14 +152,12 @@ class OmrService implements OmrServiceBase {
     return pages;
   }
 
-  /// Whether we're running on real hardware (vs simulator/emulator). Only iOS
-  /// and Android have the document camera; other platforms return true so the
-  /// camera path is attempted and fails through the plugin normally.
+  /// False only on the iOS Simulator, where the document camera crashes the
+  /// app (see [_acquireFromCamera]). Everywhere else the camera path is
+  /// attempted, and fails through the plugin if there is no camera.
   Future<bool> _isPhysicalDevice() async {
-    final info = DeviceInfoPlugin();
-    if (Platform.isIOS) return (await info.iosInfo).isPhysicalDevice;
-    if (Platform.isAndroid) return (await info.androidInfo).isPhysicalDevice;
-    return true;
+    if (!Platform.isIOS) return true;
+    return (await DeviceInfoPlugin().iosInfo).isPhysicalDevice;
   }
 
   Future<List<Uint8List>?> _acquireFromPhotos() async {

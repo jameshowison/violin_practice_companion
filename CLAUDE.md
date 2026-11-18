@@ -151,8 +151,9 @@ kills other sessions' iOS pipe holders.
 browser, uCrop. `uiautomator` dumps native views *and* Flutter's semantics nodes
 with pixel bounds, and `adb shell input` taps them. `scripts/android_ui.sh` wraps
 it as tap-by-label (`ui_tap "Choose from Photos"`, `ui_wait "Crop"`); set
-`SERIAL` first. That makes the whole scan flow agent-testable on the emulator
-(camera excepted: the app refuses it on emulators). Photos for the picker:
+`SERIAL` first. That makes the whole scan flow agent-testable on the emulator,
+camera included: the Play Services scanner runs against the emulator's virtual
+camera scene (the app refuses the camera only on the iOS Simulator). Photos for the picker:
 `adb push x.png /sdcard/Pictures/` then broadcast `MEDIA_SCANNER_SCAN_FILE`.
 
 Two uCrop traps: the frame resizes **only by its corners**, which sit inside the
