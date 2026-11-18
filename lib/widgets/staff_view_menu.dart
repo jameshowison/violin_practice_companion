@@ -165,7 +165,7 @@ class _StaffViewPanel extends ConsumerWidget {
               Text(switch (layout) {
                 StaffLayout.flowing => 'Bars run on from line to line.',
                 StaffLayout.sections => 'Each section starts a new line.',
-                StaffLayout.page => 'The printed page\'s lines, as they are: '
+                StaffLayout.page => 'The lines as printed in the original: '
                     'the widest one sets the size.',
               }, style: caption),
             ],

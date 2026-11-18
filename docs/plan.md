@@ -159,7 +159,7 @@ The native Verovio + jovial_svg renderer is the only renderer (see
 - **Zoom is a menu now (2026-11-18), to verify on devices.** A magnifier in
   the piece screen's app bar opens a non-modal panel: Size (Fit whole piece,
   or Small / Medium / Large, fixed staff heights in mm) and Layout (Flowing /
-  Sections / Page). Pinch, the measures-per-line slider and Lock exactly are
+  Sections / Original). Pinch, the measures-per-line slider and Lock exactly are
   gone; the size is per piece, no longer per orientation. Check the mm values
   by eye on the SE and an iPad (`staff_zoom.dart`, "The size control").
   Each size also sets Verovio's note spacing (`spacingLinear`: Small 0.15,

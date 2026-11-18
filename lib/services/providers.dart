@@ -933,7 +933,7 @@ final sectionLayoutAvailableProvider = Provider<bool>((ref) {
 enum StaffLayout {
   flowing('Flowing'),
   sections('Sections'),
-  page('Page');
+  page('Original');
 
   const StaffLayout(this.label);
   final String label;
