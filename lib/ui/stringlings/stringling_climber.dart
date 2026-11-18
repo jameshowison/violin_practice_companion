@@ -171,7 +171,8 @@ class CelebrationClock {
 
   /// [steady] is false while climbing; [cents] null is idle. [earned] is
   /// when an in-tune string has earned it (the tuner's run of in-tune
-  /// plucks); null for as soon as it is in tune (the slider).
+  /// plucks), with or without being out first; null for as soon as it is in
+  /// tune after being out (the slider).
   void update(double dt,
       {required double? cents, required bool steady, required bool inTune, bool? earned}) {
     if (steady && cents != null && cents.abs() > armCents) {
@@ -180,10 +181,13 @@ class CelebrationClock {
     } else {
       _out = 0;
     }
+    // Counted by the tuner, a run of in-tune plucks has earned it however
+    // close it started (a string 4 cents out, tuned and checked three times,
+    // never celebrated); left to itself, only after being really out.
     final e = inTune && (earned ?? true);
     if (!inTune) {
       since = null;
-    } else if (e && !_wasEarned && armed) {
+    } else if (e && !_wasEarned && (armed || earned != null)) {
       since = 0;
       armed = false;
     } else if (since != null) {

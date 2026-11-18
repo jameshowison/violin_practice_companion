@@ -138,8 +138,12 @@ void main() {
       sound(60, off(g.hz * 2, -60)); // the detector on the second harmonic, steady
       expect(m.reading!.cents, closeTo(-60, 2));
       silence(50);
-      sound(100, off(g.hz * 2, -40), rms: 0.2); // a fresh pluck read wholly an octave up
-      expect(m.reading!.cents, closeTo(-60, 2), reason: 'never the octave');
+      // A fresh pluck heard wholly an octave up (an inside G with a weak
+      // fundamental, 2026-11-17): read as the string, not thrown away.
+      sound(100, off(g.hz * 2, -40), rms: 0.2);
+      expect(m.reading!.cents, closeTo(-40, 2), reason: 'the string, read back down from its octave');
+      sound(60, off(g.hz * 3, -40), rms: 0.2); // and from its twelfth
+      expect(m.reading!.cents, closeTo(-40, 2));
       sound(100, off(g.hz, -40), rms: 0.3);
       expect(m.reading!.cents, closeTo(-40, 2));
     });
@@ -440,6 +444,15 @@ void main() {
       run(c, 1, cents: 0, earned: false); // the first in-tune pluck
       expect(c.since, isNull);
       run(c, 1, cents: 1, earned: false); // the second
+      expect(c.since, isNull);
+      run(c, 1, cents: 0, earned: true); // the third
+      expect(c.since, closeTo(1, 0.05));
+    });
+
+    test('a run of in-tune plucks earns it even when the string was never far out', () {
+      final c = CelebrationClock();
+      run(c, 1, cents: -4, earned: false); // 4 cents flat: not "really out"
+      run(c, 2, cents: 0, earned: false); // two in tune
       expect(c.since, isNull);
       run(c, 1, cents: 0, earned: true); // the third
       expect(c.since, closeTo(1, 0.05));
@@ -833,7 +846,7 @@ void main() {
       expect(head().which, isNull, reason: 'both buttons, not one');
       expect(fake.probe, closeTo(440, 0.01), reason: 'the A course is listened to for beats');
       await tester.pump(const Duration(seconds: 3)); // the "A: both strings" note passes
-      expect(status(tester), 'Play both strings together');
+      expect(status(tester), unisonPrompt);
 
       await pluckPair(tester, fake, 440, 0);
       expect(status(tester), 'Together! Both strings in tune');

@@ -266,25 +266,41 @@ class TunerModel {
   /// keeps the last pose, rather than move with the glide and be chased.
   bool get listening {
     final start = _start, last = _noteLast;
-    if (start == null || _now - start >= settleAfter) return false;
+    if (start == null) return false;
     if (last != null && _now - last > noteGap) return false;
+    if (_now - start >= settleAfter) return _dwelling;
     if (_history.isEmpty) return last != null || _now - start < attack + noteGap;
-    return !_mayEnterInTune(_now);
+    return !_mayEnterInTune(_now) || _dwelling;
   }
 
-  /// One more in the run once this note, settled, shows in tune: as the
-  /// screen shows it, live or held when it has stopped, and at any point as
-  /// it rings (a mandolin's pluck may settle a little sharp and sink into
-  /// tune). A note that never does ends the run, when the next begins.
+  /// In tune, and holding there the [inTuneFor] it takes to say so: still
+  /// listening, so a note that is in tune doesn't first say "Flat" for that
+  /// moment.
+  bool get _dwelling => !_inTune && _inSince != null && _now - _inSince! < inTuneFor;
+
+  /// A note counts by what the screen says once it has settled ("Listening…"
+  /// gives way), or within [countGrace] of that: in tune is one more in the
+  /// run, anything else ends it. Not by where it drifts as it rings on: a
+  /// pluck that said "Flat" and crept into tune two seconds later was, to
+  /// the player, flat ("I saw Flat… rather than in tune three times").
   void _count() {
     final start = _start;
     if (_counted || start == null || _noteFrames < minNoteFrames) return; // no reading of its own yet
-    final settled = _now - start >= settleAfter || (_history.isNotEmpty && _mayEnterInTune(_now));
-    if (settled && (reading?.inTune ?? false)) {
+    if (_settledAt == null) {
+      if (_now - start < settleAfter && !(_history.isNotEmpty && _mayEnterInTune(_now))) return;
+      _settledAt = _now;
+    }
+    if (reading?.inTune ?? false) {
       _counted = true;
       _run++;
+    } else if (_now - _settledAt! > countGrace) {
+      _counted = true;
+      _run = 0;
     }
   }
+
+  static const countGrace = Duration(milliseconds: 500);
+  Duration? _settledAt; // when this note settled
 
   /// Notes in a row on this string that have settled in tune: the screen
   /// celebrates the [celebrateAfter]th, not a first that may be luck.
@@ -339,6 +355,18 @@ class TunerModel {
     _peak = math.max(_peak, level);
     lastDecision = TunerDecision.attack;
     if (at - start < attack) return false;
+    // The picked string's overtone or undertone (its octave, or the twelfth
+    // a flat string's harmonics lean to) is that string, heard by a pitch
+    // detector that slipped: turning a tuner can't move it that far. Read
+    // back down (or up) to the string. Left as heard, a G 60 cents flat
+    // showed +1165, "Very sharp", the wrong way; thrown away, an inside G
+    // whose fundamental was weak (heard at its octave from first to last)
+    // gave no reading at all, "Play a string".
+    final pin = _follower.pinned;
+    if (pin != null) {
+      final k = _harmonicRatio(centsBetween(p.hz, pin.hz));
+      if (k != null) p = PitchEstimate(hz: p.hz / k, clarity: p.clarity, rms: p.rms);
+    }
     final local = _levels.isEmpty ? level : math.max(level, _levels.reduce(math.max));
     final pc = 1200 * math.log(p.hz / 440) / math.ln2;
     lastDecision = level < _peak / 8 ? TunerDecision.tail : TunerDecision.dip;
@@ -346,12 +374,6 @@ class TunerModel {
     lastDecision = TunerDecision.outlier;
 
     if (centsBetween(p.hz, tuning.strings.first.hz) < -belowLowest) return false;
-    // An overtone or undertone of the picked string (its octave, or the
-    // twelfth a flat string's harmonics lean to), never the string: turning
-    // a tuner can't move it that far. Read as the string, a G 60 cents flat
-    // showed +1165, "Very sharp", the wrong way.
-    final pin = _follower.pinned;
-    if (pin != null && _harmonicOf(centsBetween(p.hz, pin.hz))) return false;
     // Against this note's own frames once it has some, shown or not;
     // before that, against the last note's.
     final pitch = _accepted.isEmpty ? _pitch : _median(_accepted);
@@ -440,9 +462,9 @@ class TunerModel {
     final s = _string, p = _pitch;
     if (s != null && p != null) {
       _previous = (midi: s.midi, cents: _settled ?? centsBetween(_hz(p), s.hz));
-      // A note that settled and was never in tune, ending out: the run is over.
-      if (!_counted && _settled != null && centsBetween(_hz(p), s.hz).abs() > outOfTuneCents) _run = 0;
     }
+    // Settled, and not in tune before the next came: the run is over.
+    if (_settledAt != null && !_counted) _run = 0;
     _start = at;
     if (!keepPeak) _peak = 0;
     _accepted.clear();
@@ -456,6 +478,7 @@ class TunerModel {
     _settled = null;
     _inSince = null;
     _counted = false;
+    _settledAt = null;
     // _pitch, _lastAccepted and _string stay: the last pose holds until this
     // note has a reading of its own. _inTune too, so "In tune!" isn't lost
     // to a re-pluck of an in-tune string.
@@ -535,11 +558,15 @@ class TunerModel {
 
   /// Within [harmonicCents] of an octave (either way), a twelfth or two
   /// octaves: where a pitch detector slips to on a plucked string.
-  static bool _harmonicOf(double cents) {
-    for (final k in const [1200.0, -1200.0, 1902.0, -1902.0, 2400.0]) {
-      if ((cents - k).abs() < harmonicCents) return true;
+  static bool _harmonicOf(double cents) => _harmonicRatio(cents) != null;
+
+  /// The harmonic [cents] is within [harmonicCents] of, as a frequency
+  /// ratio (2 an octave up, 1/3 a twelfth down), or null.
+  static double? _harmonicRatio(double cents) {
+    for (final (c, k) in const [(1200.0, 2.0), (-1200.0, 0.5), (1902.0, 3.0), (-1902.0, 1 / 3), (2400.0, 4.0)]) {
+      if ((cents - c).abs() < harmonicCents) return k;
     }
-    return false;
+    return null;
   }
 
   static double _median(List<(Duration, double)> frames) {
@@ -568,6 +595,7 @@ class TunerModel {
     _inTune = false;
     _run = 0;
     _counted = false;
+    _settledAt = null;
     _string = null;
     _previous = null;
   }

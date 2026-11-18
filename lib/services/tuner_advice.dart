@@ -86,8 +86,10 @@ String _mandolin(TunerReading r, {required bool flat, required bool very}) {
 bool mandolinRollsToEnd(String course, {required bool tighten}) =>
     (course == 'G' || course == 'D') == tighten;
 
-/// Before a pluck, with both strings of a mandolin course to be played together.
-const unisonPrompt = 'Play both strings together';
+/// Before a pluck, with both strings of a mandolin course to be played
+/// together: a down stroke through one and an up stroke through the other,
+/// the way a player found works ("that should be the instruction").
+const unisonPrompt = 'Both strings: down on one, up on the other';
 
 /// What to say once a pluck of both strings of a course has been judged
 /// ([UnisonMeter]): [v] is null when it rang too briefly to say, [r] is the
@@ -97,8 +99,15 @@ const unisonPrompt = 'Play both strings together';
 String unisonStatus(UnisonVerdict? v, TunerReading? r) {
   if (v == null) return 'Let both strings ring a little longer';
   if (!v.together) return 'They beat, about ${v.cents.round()}¢ apart · tune each string again';
-  if (r != null && !r.inTune) return 'Together, but both ${r.cents < 0 ? 'flat' : 'sharp'} · tune each string again';
+  if (!_pairInTune(r)) return 'Together, but both ${r!.cents < 0 ? 'flat' : 'sharp'} · tune each string again';
   return 'Together! Both strings in tune';
 }
 
-bool unisonPassed(UnisonVerdict? v, TunerReading? r) => v != null && v.together && (r == null || r.inTune);
+bool unisonPassed(UnisonVerdict? v, TunerReading? r) => v != null && v.together && _pairInTune(r);
+
+/// Each string has been tuned by then; the pair is a check that they
+/// match. So its pitch fails only when clearly out (past
+/// [TunerModel.outOfTuneCents]), not on the edge of in tune: an E pair 3 to
+/// 5 cents flat, each string just "In tune!" alone, was sent back three
+/// times (a short-ringing E never settles long enough to say "In tune!").
+bool _pairInTune(TunerReading? r) => r == null || r.cents.abs() <= TunerModel.outOfTuneCents;

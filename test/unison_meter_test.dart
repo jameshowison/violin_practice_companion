@@ -73,6 +73,7 @@ void main() {
     expect(unisonStatus(one, at(-9)), 'Together, but both flat · tune each string again');
     expect(unisonPassed(one, at(-9)), isFalse);
     expect(unisonStatus(one, at(1, inTune: true)), 'Together! Both strings in tune');
+    expect(unisonPassed(one, at(-4.5)), isTrue, reason: 'within 5: each string was checked alone');
     expect(unisonPassed(one, at(1, inTune: true)), isTrue);
     expect(unisonStatus(null, null), 'Let both strings ring a little longer');
   });

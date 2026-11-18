@@ -19,10 +19,16 @@ class UnisonVerdict {
   final double strength;
 
   /// A shallow beat, or one too slow to tell from none: the pair sounds as
-  /// one. Both limits are first guesses, from two sessions with no pluck
-  /// known to be a matched pair; the flow measures each string before the
-  /// pair, so its own recordings say whether they hold.
-  bool get together => cents < UnisonMeter.togetherCents || strength < UnisonMeter.togetherStrength;
+  /// one. Too slow is under [UnisonMeter.togetherCents] apart, or a beat
+  /// slower than [UnisonMeter.togetherHz] whatever the cents: one swell in
+  /// 1.7 s is less than a pluck's ring can show, to the meter or the ear. At
+  /// G that is 5 cents, and a 3-cent rule alone sent a G pair back three
+  /// times running though each string had just said "In tune!" alone
+  /// (2026-11-17).
+  bool get together =>
+      cents < UnisonMeter.togetherCents ||
+      beatHz < UnisonMeter.togetherHz ||
+      strength < UnisonMeter.togetherStrength;
 
   @override
   String toString() =>
@@ -58,7 +64,7 @@ class UnisonMeter {
   final Duration minRing, maxRing;
 
   static const minHz = 0.3, maxHz = 6.0;
-  static const togetherCents = 3.0, togetherStrength = 0.6;
+  static const togetherCents = 3.0, togetherHz = 0.6, togetherStrength = 0.6;
 
   Duration? _start; // the pluck being judged, or the last judged
   double _peak = 0; // the fundamental's loudest since the last pluck
