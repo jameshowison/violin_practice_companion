@@ -21,6 +21,8 @@ import 'system_break_injector.dart';
 ///   line may be.
 /// * [linesPerSection] — the user's lines-per-section zoom, or null for the
 ///   fewest that fit.
+/// * [sectionLabels] — engraved position → label at each section's start
+///   (`sectionLabelPositions`): same-label sections take the same line count.
 ///
 /// The returned [xml] carries the planned breaks; engrave it with
 /// `breaks: 'encoded'` at [scale] and [minLastJustification].
@@ -32,6 +34,7 @@ import 'system_break_injector.dart';
   required double minScale,
   double maxScale = staffScaleMax,
   int? linesPerSection,
+  Map<int, String> sectionLabels = const {},
 }) {
   final usableUnits =
       (widthPx * 100 / minScale - sectionPageMarginUnits) / staffFitSlack;
@@ -41,6 +44,7 @@ import 'system_break_injector.dart';
     segmentStarts: starts,
     maxLineUnits: usableUnits - sectionLineStartUnits,
     lines: linesPerSection,
+    segmentLabels: sectionLabels,
   );
   final scale = (widthPx *
           100 /
@@ -96,6 +100,7 @@ import 'system_break_injector.dart';
   double maxScale = staffScaleMax,
   double measuredAtScale = staffScaleProbe,
   int steps = 16,
+  Map<int, String> sectionLabels = const {},
 }) =>
     sectionFitCandidates(
       musicXml: musicXml,
@@ -107,6 +112,7 @@ import 'system_break_injector.dart';
       maxScale: maxScale,
       measuredAtScale: measuredAtScale,
       steps: steps,
+      sectionLabels: sectionLabels,
     ).fits;
 
 /// [solveSectionLayoutToFit]'s answer ([fits]), and the plan its search
@@ -129,6 +135,7 @@ import 'system_break_injector.dart';
   double maxScale = staffScaleMax,
   double measuredAtScale = staffScaleProbe,
   int steps = 16,
+  Map<int, String> sectionLabels = const {},
 }) {
   ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
       double widestUnits, double? minLastJustification}) at(double floor) =>
@@ -137,6 +144,7 @@ import 'system_break_injector.dart';
         naturalWidths: naturalWidths,
         widthPx: widthPx,
         minScale: floor,
+        sectionLabels: sectionLabels,
       );
   if (viewportHeightPx <= 0 || systemHeightPx <= 0 || maxScale <= minScale) {
     return (fits: at(minScale), bigger: null);

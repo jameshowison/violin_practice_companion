@@ -18,6 +18,7 @@ import 'providers.dart';
 typedef StaffOverlays = ({
   EngravedMeasureMap measureMap,
   List<SectionTintRegion> sectionTints,
+  Map<int, String> sectionLabels, // engraved start position → label
   List<ChordRunRegion> chordRuns,
   List<FingeringAnnotation> annotations,
   List<StringRunRegion> stringRuns,
@@ -117,6 +118,9 @@ StaffOverlays staffOverlaysFor(
   return (
     measureMap: measureMap,
     sectionTints: sectionTints,
+    sectionLabels: (parsed == null || sections.isEmpty)
+        ? const <int, String>{}
+        : sectionLabelPositions(measureMap, sections, parsed.measures),
     chordRuns: chordRuns,
     annotations: annotations,
     stringRuns: stringRuns,

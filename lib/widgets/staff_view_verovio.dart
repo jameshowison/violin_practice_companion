@@ -63,6 +63,11 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// Per-section background washes, with note-level edges (engraved-index space).
   final List<SectionTintRegion> sectionTints;
 
+  /// With [sectionLayout]: each section's label at its engraved start
+  /// position, so same-label sections take the same number of lines (see
+  /// `planSectionLines`).
+  final Map<int, String> sectionLabels;
+
   /// Chord runs, drawn as labelled colored bars in a lane above each system. This
   /// renderer owns the chord label entirely — the callers keep `<harmony>` so
   /// Verovio reserves the row, and its `<harm>` ink is cut back out of the SVG
@@ -143,6 +148,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.holding = false,
     this.stretchLastSystem = true,
     this.sectionTints = const [],
+    this.sectionLabels = const {},
     this.chordRuns = const [],
     this.fingeringAnnotations = const [],
     this.stringColourStyle = StringColourStyle.chips,
@@ -313,6 +319,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         old.tabMode != widget.tabMode ||
         old.sectionLayout != widget.sectionLayout ||
         old.printedLines != widget.printedLines ||
+        !mapEquals(old.sectionLabels, widget.sectionLabels) ||
         old.showNoteNames != widget.showNoteNames ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
@@ -754,6 +761,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         viewportHeightPx: req.viewportHeightPx,
         systemHeightPx: _systemHeightPx,
         minScale: staffScaleForSize(StaffSize.small, req.shortestSidePx),
+        sectionLabels: widget.sectionLabels,
       );
       for (final plan in [c.fits, ?c.bigger]) {
         candidates.add((
@@ -935,12 +943,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             viewportHeightPx: req.viewportHeightPx,
             systemHeightPx: _systemHeightPx,
             minScale: staffScaleForSize(StaffSize.small, req.shortestSidePx),
+            sectionLabels: widget.sectionLabels,
           )
         : solveSectionLayout(
             musicXml: widget.musicXml,
             naturalWidths: _naturalWidths,
             widthPx: req.widthPx,
             minScale: staffScaleForSize(req.size, req.shortestSidePx),
+            sectionLabels: widget.sectionLabels,
           );
     final scale = solved.scale;
     final lines = solved.lines;

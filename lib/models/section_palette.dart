@@ -77,3 +77,21 @@ List<SectionTintRegion> sectionTintRegions(
   }
   return regions;
 }
+
+/// Each section's label at the engraved position where it starts (the
+/// segment the section layout gives it), for `planSectionLines`, which lays
+/// same-label sections out alike. Empty without sections.
+Map<int, String> sectionLabelPositions(
+  EngravedMeasureMap measureMap,
+  List<Section> sections,
+  List<Measure> measures,
+) {
+  final out = <int, String>{};
+  for (final r in resolveSectionRanges(sections, measures)) {
+    final at = measureMap.range(
+        r.startMeasure, r.startNote, r.endMeasure, r.endNote);
+    if (at == null) continue;
+    out.putIfAbsent(at.startMeasureIndex, () => r.label);
+  }
+  return out;
+}

@@ -129,6 +129,41 @@ class PieceLayout {
 
   int get measureCount => rows.fold(0, (s, r) => s + r.length);
 
+  /// Returns [xml] without the invisible rests that pad the opening pickup out
+  /// in front of its first note (`<note print-object="no"><rest/>`), for the
+  /// staff's engraved copy only.
+  ///
+  /// Verovio turns such a rest into a `<space>` that keeps its full width, so
+  /// the pickup note stands off from the barline and the first section measures
+  /// wider than its twins: on Happy Farmer, an eighth rest before the lead-in D
+  /// made section A 59 units wider than the same A later on (129 against 70),
+  /// enough to put it on two lines where they took one. A `<forward>` of the
+  /// same length is drawn the same, so the rest goes altogether.
+  ///
+  /// Timing doesn't need it here: playback reads the parsed piece, which keeps
+  /// it (`hiddenLeadNotes`), and the engraved anchors number only visible notes.
+  /// Verovio's own qstamps shift by the rest's length, which nothing reads
+  /// back. Not for the tab view, whose second staff is built to the melody's
+  /// durations. Only the first measure, before its first printed note, and
+  /// only a single-voice one (no `<backup>`): a hidden rest anywhere else is
+  /// holding real time in a full bar.
+  static String dropOpeningHiddenRests(String xml) {
+    final doc = XmlDocument.parse(xml);
+    var changed = false;
+    for (final part in doc.findAllElements('part')) {
+      final first = part.findElements('measure').firstOrNull;
+      if (first == null || first.findElements('backup').isNotEmpty) continue;
+      for (final note in first.findElements('note').toList()) {
+        final hidden = note.getAttribute('print-object') == 'no';
+        if (!hidden) break;
+        if (note.findElements('rest').isEmpty) break;
+        note.remove();
+        changed = true;
+      }
+    }
+    return changed ? doc.toXmlString() : xml;
+  }
+
   /// Returns [xml] with all print/spacing elements stripped so the engraver can
   /// determine its own system breaks.
   static String stripLayoutHints(String xml) {

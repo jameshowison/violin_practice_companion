@@ -17,6 +17,15 @@ import 'dart:math' as math;
 ///   per bar, if it has fewer bars), whatever the width: the user's own
 ///   lines-per-section zoom. [maxLineUnits] is then ignored.
 ///
+/// * [segmentLabels] — engraved position → section label, at each section's
+///   start (see `sectionLabelPositions`). Segments sharing a label take the
+///   same number of lines: the most any of them needs, so a repeated A that
+///   happens to fit on one line doesn't sit beside its twins on two (Happy
+///   Farmer on the SE: A at 1175, 1116 and 1152 units against a line limit
+///   between 1116 and 1152 — two lines, one, two). Each is still cut by its own widths. A
+///   label landing inside a segment rather than at its start (a section whose
+///   line opens on the piece's pickup) labels that segment.
+///
 /// Returns the positions of the extra breaks planned inside segments, the
 /// width of the widest resulting line, which sets the scale, and the most
 /// lines any segment took.
@@ -36,19 +45,42 @@ import 'dart:math' as math;
   required List<int> segmentStarts,
   required double maxLineUnits,
   int? lines,
+  Map<int, String> segmentLabels = const {},
 }) {
   final starts = {...segmentStarts, 0}.where((s) => s < widths.length).toList()
     ..sort();
+  final segs = [
+    for (var g = 0; g < starts.length; g++)
+      widths.sublist(
+          starts[g], g + 1 < starts.length ? starts[g + 1] : widths.length),
+  ];
+  // Each segment's label: the first label at or after its start and before
+  // the next segment's.
+  final labelOf = <int, String>{};
+  for (final e in (segmentLabels.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key)))) {
+    final g = starts.lastIndexWhere((s) => s <= e.key);
+    if (g < 0) continue;
+    labelOf.putIfAbsent(g, () => e.value);
+  }
+  // Lines per segment: the fewest that fit, raised to the most any segment
+  // of the same label needs.
+  final count = [
+    for (final seg in segs)
+      lines ?? _fewestLines(seg, maxLineUnits).breaks.length + 1,
+  ];
+  if (lines == null) {
+    final most = <String, int>{};
+    labelOf.forEach((g, label) =>
+        most[label] = math.max(most[label] ?? 0, count[g]));
+    labelOf.forEach((g, label) => count[g] = most[label]!);
+  }
   final breaks = <int>{};
   var widest = 0.0;
   var maxLines = 0;
   for (var g = 0; g < starts.length; g++) {
     final from = starts[g];
-    final to = g + 1 < starts.length ? starts[g + 1] : widths.length;
-    final seg = widths.sublist(from, to);
-    final plan = lines == null
-        ? _fewestLines(seg, maxLineUnits)
-        : balancedLines(seg, lines);
+    final plan = balancedLines(segs[g], count[g]);
     for (final b in plan.breaks) {
       breaks.add(from + b);
     }

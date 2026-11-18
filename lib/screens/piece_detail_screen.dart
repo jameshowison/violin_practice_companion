@@ -2223,6 +2223,7 @@ class _NotationView extends ConsumerWidget {
         printedLines: byPrintedLines,
         holding: holding,
         sectionTints: sectionTints,
+        sectionLabels: overlays.sectionLabels,
         chordRuns: chordRuns,
         fingeringAnnotations: annotations,
         stringColourStyle: colourStyle,

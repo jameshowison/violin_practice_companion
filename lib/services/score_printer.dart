@@ -210,6 +210,7 @@ Future<PrintLayout> layoutScoreForPrint(
     minScale: _scaleForStaffMm(printMinStaffHeightMm),
     maxScale: _scaleForStaffMm(printMaxStaffHeightMm),
     linesPerSection: job.linesPerSection,
+    sectionLabels: job.overlays.sectionLabels,
   );
   final firstPageH = printableH - _titleHeight - _footerHeight;
   final pageH = printableH - _footerHeight;

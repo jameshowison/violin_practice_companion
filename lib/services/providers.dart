@@ -1044,6 +1044,7 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   // The printed page's lines, before [PieceLayout.stripLayoutHints] drops them.
   final printedLines = systemStartPositions(xml);
   xml = PieceLayout.stripLayoutHints(xml);
+  xml = PieceLayout.dropOpeningHiddenRests(xml);
   if (!print) xml = _hidePreambleFor(ref, xml);
   if (!fingering) {
     xml = FingeringXmlInjector.stripFingerings(xml);
