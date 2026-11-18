@@ -853,8 +853,8 @@ void main() {
       expect(climber().pickedLine, 2, reason: 'passed: stays on both');
 
       await pluckPair(tester, fake, 440, 8);
-      expect(status(tester), startsWith('They beat, about '));
-      expect(status(tester), endsWith('¢ apart · tap the string to tune each'));
+      expect(status(tester), startsWith('They beat, '));
+      expect(status(tester), endsWith('¢ apart · tap to tune each'));
       expect(climber().pickedLine, 2, reason: 'failed: stays on both until the player taps');
 
       await tester.tap(find.byKey(const ValueKey('tuner_string_A'))); // the player says
@@ -876,9 +876,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       await play(tester, fake, off(440, 15), n: 100);
-      expect(status(tester), 'Sharp · roll the top toward the headstock end');
+      expect(status(tester), 'Sharp · roll top toward the headstock end');
       await play(tester, fake, off(440, 24), n: 100);
-      expect(status(tester), 'Wrong way! Roll the top toward the headstock end');
+      expect(status(tester), 'Wrong way! Roll top toward the headstock end');
     });
 
     testWidgets('without TUNER_RECORDING a long press on the title does nothing',
@@ -956,7 +956,7 @@ void main() {
       await play(tester, fake, 196.0); // equal-tempered G: in tune here
       expect(status(tester), startsWith('In tune!'));
       await play(tester, fake, off(196.0, -15));
-      expect(status(tester), 'Flat · roll the top toward the headstock end');
+      expect(status(tester), 'Flat · roll top toward the headstock end');
     });
 
     testWidgets('a picked string is measured against even off-string', (tester) async {

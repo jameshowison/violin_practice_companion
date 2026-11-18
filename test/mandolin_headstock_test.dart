@@ -17,22 +17,22 @@ void main() {
   // Checked by hand on a right-handed mandolin: seen end-on, clockwise
   // loosens every tuner, so the tops roll opposite ways on the two sides.
   test('to tighten, G and D roll toward the end, A and E toward the body', () {
-    expect(say(at('G', -10)), 'Flat · roll the top toward the headstock end');
-    expect(say(at('D', -10)), 'Flat · roll the top toward the headstock end');
-    expect(say(at('A', -10)), 'Flat · roll the top toward the body');
-    expect(say(at('E', -10)), 'Flat · roll the top toward the body');
-    expect(say(at('G', 10)), 'Sharp · roll the top toward the body');
-    expect(say(at('E', 10)), 'Sharp · roll the top toward the headstock end');
+    expect(say(at('G', -10)), 'Flat · roll top toward the headstock end');
+    expect(say(at('D', -10)), 'Flat · roll top toward the headstock end');
+    expect(say(at('A', -10)), 'Flat · roll top toward the body');
+    expect(say(at('E', -10)), 'Flat · roll top toward the body');
+    expect(say(at('G', 10)), 'Sharp · roll top toward the body');
+    expect(say(at('E', 10)), 'Sharp · roll top toward the headstock end');
   });
 
   test('a mandolin has no pegs: a long way out is the same roll', () {
-    expect(say(at('A', -45)), 'Very flat · roll the top toward the body');
-    expect(say(at('D', 45)), 'Very sharp · roll the top toward the body');
+    expect(say(at('A', -45)), 'Very flat · roll top toward the body');
+    expect(say(at('D', 45)), 'Very sharp · roll top toward the body');
   });
 
   test('trends say the way to roll', () {
-    expect(say(at('E', 12, trend: TunerTrend.wrongWay)), 'Wrong way! Roll the top toward the headstock end');
-    expect(say(at('G', 12, trend: TunerTrend.overshot)), 'Too far! Roll it back a little, toward the body');
+    expect(say(at('E', 12, trend: TunerTrend.wrongWay)), 'Wrong way! Roll top toward the headstock end');
+    expect(say(at('G', 12, trend: TunerTrend.overshot)), 'Too far! Roll back toward the body');
     expect(say(at('D', -12, trend: TunerTrend.closer)), 'Closer! Keep rolling toward the headstock end');
   });
 
@@ -46,7 +46,7 @@ void main() {
     expect(v(-12), 'Flat · half a turn clockwise, no more');
     expect(v(8), 'Sharp · half a turn anti-clockwise, no more');
     expect(v(8, TunerTrend.overshot), 'Too far! Half a turn back, anti-clockwise');
-    expect(v(-8, TunerTrend.wrongWay), 'Wrong way! Half a turn clockwise instead');
+    expect(v(-8, TunerTrend.wrongWay), 'Wrong way! Half a turn clockwise');
     expect(v(-30, TunerTrend.wrongWay), 'Wrong way! Turn clockwise instead');
   });
 

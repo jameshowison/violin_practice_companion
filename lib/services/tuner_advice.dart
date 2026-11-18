@@ -34,7 +34,7 @@ String tunerStatus(TunerReading? r,
   final half = fineTunerHalfTurn(c);
   switch (r.trend) {
     case TunerTrend.wrongWay:
-      return half ? 'Wrong way! Half a turn $way instead' : 'Wrong way! Turn $way instead';
+      return half ? 'Wrong way! Half a turn $way' : 'Wrong way! Turn $way instead';
     case TunerTrend.overshot:
       return half ? 'Too far! Half a turn back, $way' : 'Too far! Back a little, $way';
     case TunerTrend.closer:
@@ -68,16 +68,16 @@ String _mandolin(TunerReading r, {required bool flat, required bool very}) {
   final towards = 'toward ${mandolinRollsToEnd(r.string.name[0], tighten: flat) ? 'the headstock end' : 'the body'}';
   switch (r.trend) {
     case TunerTrend.wrongWay:
-      return 'Wrong way! Roll the top $towards';
+      return 'Wrong way! Roll top $towards';
     case TunerTrend.overshot:
-      return 'Too far! Roll it back a little, $towards';
+      return 'Too far! Roll back $towards';
     case TunerTrend.closer:
       return 'Closer! Keep rolling $towards';
     case TunerTrend.none:
       break;
   }
   final what = very ? (flat ? 'Very flat' : 'Very sharp') : (flat ? 'Flat' : 'Sharp');
-  return '$what · roll the top $towards';
+  return '$what · roll top $towards';
 }
 
 /// Whether, to [tighten] (or loosen) a string of [course] (`'G'`, `'D'`,
@@ -100,8 +100,8 @@ const unisonPrompt = 'Both strings: down on one, up on the other';
 /// mode").
 String unisonStatus(UnisonVerdict? v, TunerReading? r) {
   if (v == null) return 'Let both strings ring a little longer';
-  if (!v.together) return 'They beat, about ${v.cents.round()}¢ apart · tap the string to tune each';
-  if (!_pairInTune(r)) return 'Together, but both ${r!.cents < 0 ? 'flat' : 'sharp'} · tap the string to tune each';
+  if (!v.together) return 'They beat, ${v.cents.round()}¢ apart · tap to tune each';
+  if (!_pairInTune(r)) return 'Together, but both ${r!.cents < 0 ? 'flat' : 'sharp'} · tap to tune each';
   return 'Together! Both strings in tune';
 }
 

@@ -978,24 +978,21 @@ class _Readout extends StatelessWidget {
           const SizedBox(height: 4),
           // In Play mode, the hint sits here until there is advice to give.
           if (note != null)
-            Text(note!,
+            _OneLine(Text(note!,
                 key: const ValueKey('tuner_note'),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))
+                maxLines: 1,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)))
           else if (_playing && _status(r).isEmpty)
-            Text('Slide the dot to make it squirm',
+            _OneLine(Text('Slide the dot to make it squirm',
                 key: const ValueKey('tuner_play_hint'),
-                textAlign: TextAlign.center,
-                maxLines: 2,
+                maxLines: 1,
                 style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF6A6180)))
+                    ?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF6A6180))))
           else
-            Text(_status(r),
+            _OneLine(Text(_status(r),
                 key: const ValueKey('tuner_status'),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                maxLines: 1,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -1004,6 +1001,19 @@ class _Readout extends StatelessWidget {
   String _status(TunerReading? r) => listening && !hearing && say != null
       ? say!
       : tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners, hearing: hearing);
+}
+
+/// A message under the slider: always one line, centred, so a long one
+/// can't wrap and push the screen about (it did on an SE). A line too long
+/// for the width is shrunk to fit rather than wrapped; the messages are
+/// worded to fit an SE at full size.
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.text);
+  final Text text;
+
+  @override
+  Widget build(BuildContext context) =>
+      Center(child: FittedBox(fit: BoxFit.scaleDown, child: text));
 }
 
 /// −50..+50 cents with the ±3 in-tune zone, and "flat" and "sharp" under its
