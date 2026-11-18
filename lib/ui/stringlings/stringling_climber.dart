@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../services/tuner_advice.dart' show fineTunerHalfTurn;
+import '../../services/tuner_model.dart' show TunerModel;
 import '../splash/stringlings_art.g.dart';
 
 /// One string's rung on the ladder.
@@ -63,7 +64,13 @@ class StringlingClimber extends StatefulWidget {
     this.pickedLabel,
     this.onPick,
     this.party = false,
+    this.inTuneRun,
   });
+
+  /// The tuner's count of in-tune notes in a row: with one, the celebration
+  /// waits for the [TunerModel.celebrateAfter]th, not a first that may be
+  /// luck. Null (the slider) celebrates at once.
+  final int? inTuneRun;
 
   final List<ClimberRung> rungs;
   final int target;
@@ -160,25 +167,29 @@ class CelebrationClock {
   double? since;
 
   double _out = 0;
-  bool _wasInTune = false;
+  bool _wasEarned = false;
 
-  /// [steady] is false while climbing; [cents] null is idle.
-  void update(double dt, {required double? cents, required bool steady, required bool inTune}) {
+  /// [steady] is false while climbing; [cents] null is idle. [earned] is
+  /// when an in-tune string has earned it (the tuner's run of in-tune
+  /// plucks); null for as soon as it is in tune (the slider).
+  void update(double dt,
+      {required double? cents, required bool steady, required bool inTune, bool? earned}) {
     if (steady && cents != null && cents.abs() > armCents) {
       _out += dt;
       if (_out > armAfter) armed = true;
     } else {
       _out = 0;
     }
+    final e = inTune && (earned ?? true);
     if (!inTune) {
       since = null;
-    } else if (!_wasInTune && armed) {
+    } else if (e && !_wasEarned && armed) {
       since = 0;
       armed = false;
     } else if (since != null) {
       since = since! + dt;
     }
-    _wasInTune = inTune;
+    _wasEarned = e;
   }
 
   /// 1 while celebrating, easing to 0 over the last [fadeOut] seconds.
@@ -291,7 +302,12 @@ class _StringlingClimberState extends State<StringlingClimber>
     }
     final inTune = climb == null && widget.cents != null && (widget.inTune ?? shown.abs() <= 3);
     held = inTune ? held + dt : 0;
-    party.update(dt, cents: widget.cents == null ? null : shown, steady: climb == null, inTune: inTune);
+    final run = widget.inTuneRun;
+    party.update(dt,
+        cents: widget.cents == null ? null : shown,
+        steady: climb == null,
+        inTune: inTune,
+        earned: run == null ? null : run >= TunerModel.celebrateAfter);
     final since = party.since;
     // They always get a dance in, even past the end of the sparkles.
     final on = widget.party &&

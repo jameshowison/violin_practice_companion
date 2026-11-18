@@ -13,6 +13,7 @@ import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
+import 'package:violin_practice_companion/services/tuner_advice.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';
 import 'package:violin_practice_companion/services/tuner_recording.dart';
 import 'package:violin_practice_companion/ui/stringlings/stringling_climber.dart';
@@ -313,6 +314,30 @@ void main() {
       void pluck(double cents) =>
           sound(112, pluckHz(off(a.hz, cents), glide: 12), rms: fading);
 
+      test('counts in-tune plucks in a row, and starts again when one is out', () {
+        start(mandolin, pin: 'A4');
+        silence(3);
+        pluck(-20);
+        expect(m.reading!.inTuneRun, 0);
+        pluck(1);
+        expect(m.reading!.inTuneRun, 1);
+        pluck(-1);
+        expect(m.reading!.inTuneRun, 2);
+        pluck(0.5);
+        expect(m.reading!.inTuneRun, 3);
+        expect(tunerStatus(m.reading, listening: true, playing: false, fineTuners: false), 'In tune!');
+        pluck(12);
+        expect(m.reading!.inTuneRun, 0, reason: 'out again: the run is over');
+        pluck(0);
+        expect(m.reading!.inTuneRun, 1);
+        expect(tunerStatus(m.reading, listening: true, playing: false, fineTuners: false),
+            'In tune! Play it again to check');
+        m.newString();
+        silence(3);
+        pluck(0);
+        expect(m.reading!.inTuneRun, 1, reason: "the pair's other string counts its own");
+      });
+
       test('between plucks: wrong way, closer, too far', () {
         start(mandolin, pin: 'A4');
         silence(3);
@@ -402,11 +427,23 @@ void main() {
   });
 
   group('CelebrationClock', () {
-    void run(CelebrationClock c, double secs, {double? cents, bool steady = true}) {
+    void run(CelebrationClock c, double secs, {double? cents, bool steady = true, bool? earned}) {
       for (var t = 0.0; t < secs; t += 1 / 60) {
-        c.update(1 / 60, cents: cents, steady: steady, inTune: steady && cents != null && cents.abs() <= 3);
+        c.update(1 / 60,
+            cents: cents, steady: steady, inTune: steady && cents != null && cents.abs() <= 3, earned: earned);
       }
     }
+
+    test('with the tuner counting, it waits until the run has earned it', () {
+      final c = CelebrationClock();
+      run(c, 0.5, cents: -20, earned: false);
+      run(c, 1, cents: 0, earned: false); // the first in-tune pluck
+      expect(c.since, isNull);
+      run(c, 1, cents: 1, earned: false); // the second
+      expect(c.since, isNull);
+      run(c, 1, cents: 0, earned: true); // the third
+      expect(c.since, closeTo(1, 0.05));
+    });
 
     test('nothing on opening in tune, or after a climb', () {
       final c = CelebrationClock();
@@ -647,11 +684,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the celebration waits for three in-tune notes in a row', (tester) async {
+      final fake = await pumpTuner(tester);
+      await listen(tester);
+      await play(tester, fake, off(440, -20));
+      expect(climber(tester).inTuneRun, 0);
+      await play(tester, fake, 440.5);
+      expect(status(tester), 'In tune! Play it again to check');
+      expect(climber(tester).inTuneRun, 1);
+      await play(tester, fake, 440.5);
+      expect(status(tester), 'In tune! Once more');
+      expect(climber(tester).inTuneRun, 2);
+      await play(tester, fake, 440.5);
+      expect(status(tester), 'In tune!');
+      expect(climber(tester).inTuneRun, 3, reason: 'now it celebrates');
+      await tester.pump(const Duration(seconds: 4));
+    });
+
     testWidgets('in tune, then Play Mode stops listening', (tester) async {
       final fake = await pumpTuner(tester);
       await listen(tester);
       await play(tester, fake, 440.5);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.pump(const Duration(seconds: 2)); // sparkles
       await tester.tap(find.byKey(const ValueKey('tuner_mode_play')));
       await tester.pump();
@@ -687,7 +741,7 @@ void main() {
       await play(tester, fake, off(440, 10), n: 100);
       expect(status(tester), 'Too far! Half a turn back, anti-clockwise');
       await play(tester, fake, off(440, 1), n: 100);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.pump(const Duration(seconds: 4)); // the celebration
       expect(tester.takeException(), isNull);
     });
@@ -792,7 +846,7 @@ void main() {
       expect(climber().pickedLabel, 'inside');
 
       await pluckPair(tester, fake, 440, 0, second: 0); // the first string: the verdict gives way
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.pump(const Duration(seconds: 3));
     });
 
@@ -842,7 +896,7 @@ void main() {
       await tester.pump();
       expect(fake.ctl, isNotNull, reason: 'listening without a recording');
       await play(tester, fake, 440);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.longPress(find.byKey(const ValueKey('tuner_title')));
       await tester.pump();
       expect(find.byKey(const ValueKey('tuner_rec')), findsNothing);
@@ -863,7 +917,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
       expect(fake.starts, 2, reason: 'the range moved, so the mic restarts');
       await play(tester, fake, 442);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       final sp = await SharedPreferences.getInstance();
       expect(sp.getInt(tunerA4Key), 442);
     });
@@ -883,7 +937,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       await play(tester, fake, 196.0); // equal-tempered G: in tune here
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await play(tester, fake, off(196.0, -15));
       expect(status(tester), 'Flat · roll the top toward the headstock end');
     });
@@ -903,14 +957,14 @@ void main() {
       expect(climber().picked, 2);
       await listen(tester);
       await play(tester, fake, 440);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await play(tester, fake, 196.0); // a G, but A is picked
       expect(climber().target, 2);
       await tester.tap(find.byKey(const ValueKey('tuner_string_D')));
       await tester.pump();
       expect(climber().picked, 1);
       await play(tester, fake, 293.66);
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.pump(const Duration(seconds: 2));
       expect(tester.takeException(), isNull);
     });
@@ -932,7 +986,7 @@ void main() {
       expect(climber(tester).target, 0, reason: 'followed to G');
       await tester.pump(const Duration(seconds: 3));
       expect(find.byKey(const ValueKey('tuner_note')), findsNothing, reason: 'the note goes');
-      expect(status(tester), 'In tune!');
+      expect(status(tester), startsWith('In tune!'));
       await tester.tap(find.byKey(const ValueKey('tuner_choose')));
       await tester.pump();
       expect(sp.getBool(tunerAutoStringKey), isFalse);

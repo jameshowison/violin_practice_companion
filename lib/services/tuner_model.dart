@@ -51,7 +51,7 @@ enum TunerDecision {
 /// What the tuner screen shows.
 class TunerReading {
   const TunerReading(this.string, this.cents, this.hz,
-      {required this.live, bool? inTune, this.trend = TunerTrend.none})
+      {required this.live, bool? inTune, this.trend = TunerTrend.none, this.inTuneRun})
       : _inTune = inTune; // ignore: prefer_initializing_formals
 
   final TunedString string;
@@ -73,6 +73,11 @@ class TunerReading {
   bool get inTune => _inTune ?? cents.abs() <= TunerModel.inTuneCents;
 
   final TunerTrend trend;
+
+  /// How many notes in a row on this string have settled in tune, this one
+  /// included once it has ([TunerModel.inTuneRun]); null when not counted
+  /// (a reading made up for Play Mode's slider).
+  final int? inTuneRun;
 }
 
 /// Turns microphone frames into the reading on screen, one NOTE at a time.
@@ -213,6 +218,8 @@ class TunerModel {
   Duration? _withinNoneSince; // when the bow's own comparison last went quiet
   bool _withinSpoke = false; // the bow has had a trend of its own
   double? _settled; // cents at settleAfter
+  int _run = 0; // notes in a row on this string that settled in tune
+  bool _counted = false; // this note is one of them
   Duration? _inSince;
   bool _inTune = false;
   TunedString? _string;
@@ -265,6 +272,26 @@ class TunerModel {
     return !_mayEnterInTune(_now);
   }
 
+  /// One more in the run once this note, settled, shows in tune: as the
+  /// screen shows it, live or held when it has stopped, and at any point as
+  /// it rings (a mandolin's pluck may settle a little sharp and sink into
+  /// tune). A note that never does ends the run, when the next begins.
+  void _count() {
+    final start = _start;
+    if (_counted || start == null || _noteFrames < minNoteFrames) return; // no reading of its own yet
+    final settled = _now - start >= settleAfter || (_history.isNotEmpty && _mayEnterInTune(_now));
+    if (settled && (reading?.inTune ?? false)) {
+      _counted = true;
+      _run++;
+    }
+  }
+
+  /// Notes in a row on this string that have settled in tune: the screen
+  /// celebrates the [celebrateAfter]th, not a first that may be luck.
+  int get inTuneRun => _run;
+
+  static const celebrateAfter = 3;
+
   /// The reading to show, or null when idle.
   TunerReading? get reading {
     final p = _pitch, s = _string, last = _lastAccepted;
@@ -279,7 +306,8 @@ class TunerModel {
     return TunerReading(s, cents, hz,
         live: live,
         inTune: inTune,
-        trend: inTune ? TunerTrend.none : _trend(cents, s, live: live));
+        trend: inTune ? TunerTrend.none : _trend(cents, s, live: live),
+        inTuneRun: inTune ? math.max(_run, 1) : 0);
   }
 
   /// Takes one frame. Returns true when [reading] may have changed.
@@ -293,6 +321,7 @@ class TunerModel {
     final changed = p != null && p.clarity >= minClarity && _take(f.at, p, level);
     _levels.add(level);
     if (_levels.length > _levelFrames) _levels.removeAt(0);
+    _count();
     if (changed) return true;
     final after = reading;
     return (before == null) != (after == null) || before?.live != after?.live;
@@ -370,6 +399,7 @@ class TunerModel {
       _previous = null;
       _inSince = null;
       _inTune = false;
+      _run = 0;
     }
     _string = r.string;
     final cents = centsBetween(_hz(_pitch!), r.string.hz);
@@ -410,6 +440,8 @@ class TunerModel {
     final s = _string, p = _pitch;
     if (s != null && p != null) {
       _previous = (midi: s.midi, cents: _settled ?? centsBetween(_hz(p), s.hz));
+      // A note that settled and was never in tune, ending out: the run is over.
+      if (!_counted && _settled != null && centsBetween(_hz(p), s.hz).abs() > outOfTuneCents) _run = 0;
     }
     _start = at;
     if (!keepPeak) _peak = 0;
@@ -423,6 +455,7 @@ class TunerModel {
     _withinNoneSince = null;
     _settled = null;
     _inSince = null;
+    _counted = false;
     // _pitch, _lastAccepted and _string stay: the last pose holds until this
     // note has a reading of its own. _inTune too, so "In tune!" isn't lost
     // to a re-pluck of an in-tune string.
@@ -533,6 +566,8 @@ class TunerModel {
     _settled = null;
     _inSince = null;
     _inTune = false;
+    _run = 0;
+    _counted = false;
     _string = null;
     _previous = null;
   }

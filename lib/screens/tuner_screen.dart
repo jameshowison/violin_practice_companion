@@ -702,6 +702,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         target: _rung,
                                         cents: current()?.cents,
                                         inTune: _listening ? current()?.inTune : null,
+                                        inTuneRun: _listening ? current()?.inTuneRun ?? 0 : null,
                                         wrongWay: _listening && current()?.trend == TunerTrend.wrongWay,
                                         doubled: _mandolin,
                                         fineTuners: !_mandolin,

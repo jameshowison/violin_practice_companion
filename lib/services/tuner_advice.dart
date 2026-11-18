@@ -15,7 +15,16 @@ String tunerStatus(TunerReading? r,
   if (listening && hearing) return 'Listening…';
   if (r == null) return listening ? 'Play a string' : '';
   final c = r.cents, a = c.abs();
-  if (r.inTune) return playing ? '' : 'In tune!';
+  if (r.inTune) {
+    if (playing) return '';
+    // One in tune may be luck: the celebration waits for a run of them.
+    final more = TunerModel.celebrateAfter - (r.inTuneRun ?? TunerModel.celebrateAfter);
+    return more >= 2
+        ? 'In tune! Play it again to check'
+        : more == 1
+            ? 'In tune! Once more'
+            : 'In tune!';
+  }
   final flat = c < 0;
   if (!fineTuners) return _mandolin(r, flat: flat, very: a > 40);
   final peg = a > 40;
