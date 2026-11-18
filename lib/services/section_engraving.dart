@@ -74,6 +74,50 @@ import 'system_break_injector.dart';
   );
 }
 
+/// [solveSectionLayout] for the Fit size: the biggest notes at which the whole
+/// piece fits in [viewportHeightPx] (to [staffAutoFillFraction], as the free
+/// flow's [autoMeasuresPerLine]), and never smaller than [minScale].
+///
+/// Searched rather than solved, because a section's line count moves in whole
+/// steps as the floor drops: the floor is tried from [maxScale] down to
+/// [minScale] in [steps] even ratios, and the first plan whose predicted height
+/// fits wins. Past the floor the floor's plan is returned, and the piece scrolls.
+///
+/// [systemHeightPx] is one system's on-screen height at [measuredAtScale], as
+/// [predictedHeightPx] takes it. Every try is a pure plan (no engrave).
+({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+    double widestUnits, double? minLastJustification}) solveSectionLayoutToFit({
+  required String musicXml,
+  required List<double> naturalWidths,
+  required double widthPx,
+  required double viewportHeightPx,
+  required double systemHeightPx,
+  required double minScale,
+  double maxScale = staffScaleMax,
+  double measuredAtScale = staffScaleProbe,
+  int steps = 16,
+}) {
+  ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+      double widestUnits, double? minLastJustification}) at(double floor) =>
+      solveSectionLayout(
+        musicXml: musicXml,
+        naturalWidths: naturalWidths,
+        widthPx: widthPx,
+        minScale: floor,
+      );
+  if (viewportHeightPx <= 0 || systemHeightPx <= 0 || maxScale <= minScale) {
+    return at(minScale);
+  }
+  final budget = viewportHeightPx * staffAutoFillFraction;
+  final ratio = math.pow(minScale / maxScale, 1 / steps);
+  for (var i = 0; i < steps; i++) {
+    final plan = at(maxScale * math.pow(ratio, i));
+    final h = plan.lines * systemHeightPx * plan.scale / measuredAtScale;
+    if (h <= budget) return plan;
+  }
+  return at(minScale);
+}
+
 /// Whether the section layout's LAST line should be stretched to the full
 /// width, so that its notes sit about as far apart as everyone else's.
 ///

@@ -40,125 +40,10 @@ const double staffScaleProbe = 40;
 const double staffScaleMin = 20;
 const double staffScaleMax = 220;
 
-/// Slider bounds for the measures-per-line target. Exposed as top-level consts
-/// so a test can assert `min < max`: a zero-range [Slider] cannot claim drag
-/// gestures and they leak to parent handlers (the settings Drawer's
-/// swipe-to-close). See `test/staff_spacing_slider_test.dart`.
+/// Bounds on the measures-per-line target the sizes resolve to (see
+/// [measuresPerLineForSize] and [autoMeasuresPerLine]).
 const int measuresPerLineMin = 1;
 const int measuresPerLineMax = 8;
-
-// ── Orientation ──────────────────────────────────────────────────────────────
-
-/// Which way up the screen is, for the purpose of storing a zoom.
-///
-/// The zoom preference is per orientation because measures-per-line means a
-/// different note size in each: a phone in landscape is roughly twice as wide as
-/// in portrait, and the score is engraved to the full width either way, so the
-/// same count gives glyphs of very different sizes. One saved value cannot serve
-/// both.
-///
-/// Deliberately NOT Flutter's `Orientation` — this file and [StaffZoomStore] are
-/// both plain Dart, and the widget layer converts at the one point where it
-/// reads `MediaQuery`.
-///
-/// Note this is a different question from the phone/tablet split that
-/// [minStaffScaleFor] asks, which is orientation-INVARIANT by design (see
-/// [tabletShortestSidePx]). Device class sets how small notes may get; this sets
-/// which saved number to get it from.
-enum StaffOrientation {
-  portrait,
-  landscape;
-
-  StaffOrientation get other => this == StaffOrientation.portrait
-      ? StaffOrientation.landscape
-      : StaffOrientation.portrait;
-}
-
-// ── Pinch ────────────────────────────────────────────────────────────────────
-//
-// A pinch has to be expressed in the one unit this app has: measures per line.
-// There is no free-floating zoom factor to turn — note size IS `scale`, and
-// `scale` is fixed by how many measures have to fit across the viewport.
-
-/// The measures-per-line a pinch of accumulated factor [scale] is asking for,
-/// having started from [from].
-///
-/// Inverse, because the two are one knob: [scaleFor] makes the Verovio `scale`
-/// (hence the glyph size) proportional to `1/n`, so notes [scale] times bigger
-/// want `n / scale` measures on a line. Pinching OUT therefore packs FEWER
-/// measures per line, which is what makes the gesture feel right — the page
-/// under the fingers grows.
-///
-/// Clamped to the same [measuresPerLineMin]..[measuresPerLineMax] the slider
-/// uses, so a pinch can't reach a zoom the slider then can't represent.
-int pinchTargetMeasuresPerLine({required int from, required double scale}) {
-  if (from <= 0 || scale <= 0 || !scale.isFinite) {
-    return from.clamp(measuresPerLineMin, measuresPerLineMax);
-  }
-  return (from / scale).round().clamp(measuresPerLineMin, measuresPerLineMax);
-}
-
-/// The range a pinch preview may usefully be drawn over, starting from [from]:
-/// the scales beyond which [pinchTargetMeasuresPerLine] stops moving.
-///
-/// The preview is a plain `Transform.scale` of the already-engraved page, so
-/// nothing stops it growing forever — but the release can only deliver a target
-/// inside the clamp. Past the ends of this range the picture would be promising
-/// a zoom that is not coming, and the layout would visibly spring back on
-/// release. Bounding the transform here means what is on screen when the fingers
-/// lift is what gets engraved.
-///
-/// The ends are the factors at which the picture is *exactly* the size the
-/// extreme layouts engrave at — `from/min` and `from/max`, the same ratio the
-/// widget holds the preview at while it waits for the new score. Stopping at the
-/// midpoint where [num.round] flips would be a little easier on the fingers, but
-/// it lands the preview on a size no layout has, and at `from == 2` the tie
-/// rounds the wrong way and the outermost target becomes unreachable.
-///
-/// Both ends therefore include 1 (the rest position) for free, since [from] is
-/// itself inside the clamp — and the degenerate ends fall out right: at
-/// `from == 1` the score is already as large as it goes, so the range is
-/// `(…, 1]`, pinch in but not out.
-///
-/// Reaching an extreme takes a full-range pinch (4× to get from 4 measures a
-/// line to 1). That is fine, and normal: each release commits, so a second pinch
-/// starts from the new count.
-({double min, double max}) pinchScaleLimits(int from) {
-  if (from <= 0) return (min: 1, max: 1);
-  return (
-    min: math.min(1, from / measuresPerLineMax),
-    max: math.max(1, from / measuresPerLineMin),
-  );
-}
-
-// ── The section layout's zoom: lines per section ─────────────────────────────
-//
-// Under the section layout (`StaffViewVerovio.sectionLayout`) the same slider
-// and pinch set how many lines each section spreads over instead. The knob
-// runs the other way: MORE lines per section ⇒ fewer bars a line ⇒ bigger
-// notes, so the note size is roughly proportional to the line count.
-
-const int linesPerSectionMin = 1;
-const int linesPerSectionMax = 4;
-
-/// The lines-per-section a pinch of accumulated factor [scale] is asking for,
-/// having started from [from] — [pinchTargetMeasuresPerLine]'s mirror image:
-/// notes [scale] times bigger want [scale] times the lines.
-int pinchTargetLinesPerSection({required int from, required double scale}) {
-  if (from <= 0 || scale <= 0 || !scale.isFinite) {
-    return from.clamp(linesPerSectionMin, linesPerSectionMax);
-  }
-  return (from * scale).round().clamp(linesPerSectionMin, linesPerSectionMax);
-}
-
-/// [pinchScaleLimits] for [pinchTargetLinesPerSection].
-({double min, double max}) pinchScaleLimitsForLines(int from) {
-  if (from <= 0) return (min: 1, max: 1);
-  return (
-    min: math.min(1, linesPerSectionMin / from),
-    max: math.max(1, linesPerSectionMax / from),
-  );
-}
 
 /// Fraction of the viewport the auto default aims to fill, leaving the rest as
 /// breathing room. Only applies when the whole piece fits — see
@@ -243,6 +128,73 @@ double minStaffScaleFor(double shortestSidePx) {
   // scale = staffHeightPx * 100 / staffHeightUnits.
   return mm / _mmPerInch * ptPerInch * 100 / staffHeightUnits;
 }
+
+// ── The size control: Fit, Small, Medium, Large ──────────────────────────────
+//
+// What the reader picks from the piece screen's view menu. Small, Medium and
+// Large are PHYSICAL staff heights, so a size looks the same in every piece and
+// on either orientation; the layout then puts as many bars on a line as fit at
+// that size (rounding the notes up a little so the lines justify). Fit is the
+// one size worked out per piece: the whole piece on one screen
+// ([autoMeasuresPerLine]), never smaller than Small.
+
+/// How big the staff view draws the notes. Stored per piece.
+enum StaffSize {
+  fit('Fit whole piece'),
+  small('Small'),
+  medium('Medium'),
+  large('Large');
+
+  const StaffSize(this.label);
+
+  /// What the size control calls it.
+  final String label;
+}
+
+/// Staff height in millimetres for each fixed size, phone class. Small is the
+/// legibility floor the auto-fit has always stopped at ([minStaffHeightMmPhone]);
+/// Medium and Large step up by about 40% each, which on an SE takes Lightly Row
+/// from 4 bars a line to 3 and then 2.
+const double mediumStaffHeightMmPhone = 4.0;
+const double largeStaffHeightMmPhone = 5.5;
+
+/// The same, tablet class: each about 20% bigger than the phone's, as the floor
+/// is, because an iPad is read from a music stand.
+const double mediumStaffHeightMmTablet = 5.0;
+const double largeStaffHeightMmTablet = 7.0;
+
+/// The smallest Verovio `scale` the notes may be drawn at for [size] on a
+/// screen whose shortest side is [shortestSidePx]. For [StaffSize.fit] that is
+/// Small's, the floor Fit never goes below.
+double staffScaleForSize(StaffSize size, double shortestSidePx) {
+  final tablet = shortestSidePx >= tabletShortestSidePx;
+  final mm = switch (size) {
+    StaffSize.fit || StaffSize.small =>
+      tablet ? minStaffHeightMmTablet : minStaffHeightMmPhone,
+    StaffSize.medium =>
+      tablet ? mediumStaffHeightMmTablet : mediumStaffHeightMmPhone,
+    StaffSize.large =>
+      tablet ? largeStaffHeightMmTablet : largeStaffHeightMmPhone,
+  };
+  final ptPerInch = tablet ? tabletPtPerInch : phonePtPerInch;
+  return mm / _mmPerInch * ptPerInch * 100 / staffHeightUnits;
+}
+
+/// Measures per line for a FIXED [size] (not [StaffSize.fit], which needs the
+/// viewport — see [autoMeasuresPerLine]): the most bars that fit across
+/// [widthPx] with notes at least that size.
+int measuresPerLineForSize({
+  required StaffSize size,
+  required double widthPx,
+  required double unitsPerMeasure,
+  required double shortestSidePx,
+}) =>
+    maxMeasuresPerLineFor(
+      widthPx: widthPx,
+      unitsPerMeasure: unitsPerMeasure,
+      shortestSidePx: shortestSidePx,
+      minScale: staffScaleForSize(size, shortestSidePx),
+    );
 
 /// Extra page width asked for beyond the strict `n × unitsPerMeasure` solve.
 ///
@@ -838,8 +790,9 @@ int maxMeasuresPerLineFor({
   required double widthPx,
   required double unitsPerMeasure,
   required double shortestSidePx,
+  double? minScale,
 }) {
-  final minScale = minStaffScaleFor(shortestSidePx);
+  minScale ??= minStaffScaleFor(shortestSidePx);
   if (widthPx <= 0 || unitsPerMeasure <= 0 || minScale <= 0) {
     return measuresPerLineMax;
   }

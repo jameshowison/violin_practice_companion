@@ -52,7 +52,6 @@ import 'piece_media_store.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
-import 'staff_zoom_store.dart';
 import 'system_break_injector.dart';
 import 'launch_timing.dart';
 import 'measure_xml_editor.dart';
@@ -143,8 +142,8 @@ class PieceLibraryNotifier extends AsyncNotifier<PieceLibrary> {
 
   /// Applies [f], publishes the result immediately, then writes.
   ///
-  /// State first, persist after — the same order as [MeasuresPerLineNotifier],
-  /// so a chip tap or a drag never waits on storage. The write is best-effort
+  /// State first, persist after, so a chip tap or a drag never waits on
+  /// storage. The write is best-effort
   /// ([PieceLibraryStore.save] swallows failures); the session still holds the
   /// value.
   Future<void> _mutate(PieceLibrary Function(PieceLibrary) f) async {
@@ -229,7 +228,7 @@ final libraryActionsProvider = Provider<LibraryActions>(LibraryActions.new);
 /// The one library operation that spans more than one store.
 ///
 /// It does not live on [PieceRepository] because two of the stores involved
-/// ([StaffZoomStore], [PieceLibraryStore]) deliberately bypass it, and it does
+/// ([PieceLibraryStore], the media store) deliberately bypass it, and it does
 /// not live on [PieceLibraryNotifier] because the library has no business
 /// deleting files. It is the composition, and nothing else.
 class LibraryActions {
@@ -239,7 +238,7 @@ class LibraryActions {
 
   /// Everything a user-added piece owns comes out together: its MusicXML, its
   /// index row / prefs keys, its section-override sidecar, any editable copy,
-  /// its staff-zoom preference, every medium recorded or imported for it, the
+  /// every medium recorded or imported for it, the
   /// images it was scanned from, and its membership in every collection — plus the selection, if it happened
   /// to be selected.
   ///
@@ -258,8 +257,6 @@ class LibraryActions {
       );
     }
     await repo.deletePiece(pieceId);
-    await _ref.read(staffZoomStoreProvider).clear(pieceId);
-    await _ref.read(linesPerSectionStoreProvider).clear(pieceId);
     // Media are files under the documents directory, not prefs rows, so
     // leaving them behind would leak a recording's worth of disk per deleted
     // piece with nothing left in the app pointing at it.
@@ -408,10 +405,11 @@ final staffSpacingProvider = pieceDisplayPref<double>(
 
 final measuresPerRowProvider = StateProvider<int>((_) => 4);
 
-// ── Staff zoom: measures per line ─────────────────────────────────────────────
+// ── Staff size: Fit, Small, Medium, Large ────────────────────────────────────
 // The staff/annotation/tab views engrave to exactly the viewport width, so
 // "fewer measures per line" and "bigger notes" are the same knob (Verovio's
-// `scale`). See `staff_zoom.dart` for the maths and `measuresPerLineMin/Max`.
+// `scale`). The reader picks a size ([staffSizeProvider]); the staff view turns
+// it into a layout. See `staff_zoom.dart` for the maths.
 //
 // Note this is NOT [measuresPerRowProvider], which is derived purely from screen
 // width and drives the jianpu/fingering row layout.
@@ -431,105 +429,16 @@ final abcSourceStoreProvider = Provider<AbcSourceStore>(
   (_) => AbcSourceStore(),
 );
 
-final staffZoomStoreProvider = Provider<StaffZoomStore>(
-  (_) => StaffZoomStore(),
+/// How big the staff views draw the notes, per piece (see [StaffSize]). Fit by
+/// default: the whole piece on one screen where the notes stay readable.
+final staffSizeProvider = pieceDisplayEnumPref<StaffSize>(
+  'staffSize',
+  StaffSize.fit,
+  StaffSize.values,
 );
 
-/// Which way up the screen is, pushed from the piece detail screen's layout —
-/// the same shape as [measuresPerRowProvider], and for the same reason: a
-/// provider cannot read `MediaQuery` itself.
-///
-/// The zoom is stored per orientation because measures-per-line means a
-/// different note size in each (see [StaffZoomStore]).
-final staffOrientationProvider = StateProvider<StaffOrientation>(
-  (_) => StaffOrientation.portrait,
-);
-
-/// The user's measures-per-line override ([value]; null = auto, meaning fit a
-/// short piece to ~75% of the viewport), plus whether the per-piece setting has
-/// been read back from storage yet.
-///
-/// [restored] exists so the staff view can hold off its first engrave: the read
-/// is async, so acting on the initial `null` would engrave the auto default and
-/// then immediately re-engrave at the saved value — a wasted ~600ms engrave and a
-/// visible reflow on every piece that has a saved zoom.
-///
-/// [locked]: guarantee [value] exactly, via explicit MusicXML system breaks
-/// (`insertSystemBreaks`) and `breaks: 'encoded'`, rather than Verovio's
-/// own approximate auto-breaking. Only meaningful alongside a non-null
-/// [value] — [MeasuresPerLineNotifier.commit] forces it false whenever
-/// [value] is cleared back to auto.
-typedef MeasuresPerLineState = ({int? value, bool restored, bool locked});
-
-/// Persisted per piece AND per orientation, so the notifier is rebuilt — and
-/// re-read — whenever either changes.
-///
-/// Watching the orientation is what makes rotation cost a single engrave rather
-/// than two: the rebuild drops `restored` back to false, and the staff view
-/// already holds off its first engrave until the read returns (see
-/// `staff_view_verovio.dart`), so the old orientation's value is never rendered
-/// and thrown away.
-final measuresPerLineProvider =
-    StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
-      return MeasuresPerLineNotifier(
-        ref.watch(staffZoomStoreProvider),
-        ref.watch(selectedPieceProvider)?.id,
-        ref.watch(staffOrientationProvider),
-      );
-    });
-
-class MeasuresPerLineNotifier extends StateNotifier<MeasuresPerLineState> {
-  MeasuresPerLineNotifier(this._store, this._pieceId, this._orientation)
-    // With no piece there is nothing to read, so we're trivially restored.
-    : super((value: null, restored: _pieceId == null, locked: false)) {
-    if (_pieceId != null) _restore();
-  }
-
-  final StaffZoomStore _store;
-  final String? _pieceId;
-  final StaffOrientation _orientation;
-  bool _touched = false;
-
-  Future<void> _restore() async {
-    final id = _pieceId!;
-    final value = await _store.load(id, _orientation);
-    final locked = await _store.loadLocked(id, _orientation);
-    if (!mounted) return;
-    // A user move that landed before the async read returned wins.
-    state = (
-      value: _touched ? state.value : value,
-      restored: true,
-      locked: _touched ? state.locked : locked,
-    );
-  }
-
-  /// Live slider position — state only, no write (a drag would otherwise write
-  /// on every frame). Keeps whatever lock state was already set.
-  void preview(int? v) {
-    _touched = true;
-    state = (value: v, restored: state.restored, locked: state.locked);
-  }
-
-  /// Settles on [v] (null = back to auto) and persists it for this piece.
-  /// [locked], when given, sets whether [v] is enforced exactly (see
-  /// [MeasuresPerLineState.locked]); omitted, the current lock state carries
-  /// over. Clearing back to auto (`v == null`) always forces it off — locking
-  /// only means something against an explicit value.
-  void commit(int? v, {bool? locked}) {
-    _touched = true;
-    final newLocked = v == null ? false : (locked ?? state.locked);
-    state = (value: v, restored: state.restored, locked: newLocked);
-    final id = _pieceId;
-    if (id != null) {
-      _store.save(id, _orientation, v);
-      _store.saveLocked(id, _orientation, newLocked);
-    }
-  }
-}
-
-/// Measures per line the renderer actually achieved on the last engrave — the
-/// slider position and readout while on auto, and honest feedback that Verovio's
-/// musical break points may differ from the target by one. Set by the staff view.
+/// Measures per line the renderer actually achieved on the last engrave. Set
+/// by the staff view; the section minimap sizes its emblems from it.
 final effectiveMeasuresPerLineProvider = StateProvider<int?>((_) => null);
 
 /// "Layout by section": each section of a sectioned piece starts its own line
@@ -563,36 +472,17 @@ final printedLayoutAvailableProvider = Provider<bool>((ref) {
 
 /// Whether the staff views break where the printed page did
 /// ([printedLayoutProvider]). Lines are then engraved like the section
-/// layout's segments — one segment per printed line, each kept whole unless
-/// it cannot fit at the minimum note size (lines-per-section zoom 1 forces
-/// it whole). Never the tab view.
+/// layout's segments — one segment per printed line, each kept whole, so the
+/// widest printed line sets the note size (`StaffViewVerovio.printedLines`).
+/// Never the tab view.
 final staffByPrintedLinesProvider = Provider<bool>(
   (ref) =>
       ref.watch(printedLayoutAvailableProvider) &&
       ref.watch(printedLayoutProvider),
 );
 
-final linesPerSectionStoreProvider = Provider<StaffZoomStore>(
-  (_) => StaffZoomStore(prefix: 'linesPerSection.'),
-);
-
-/// The section layout's zoom: how many lines each section spreads over (null =
-/// auto, the fewest that fit at the minimum staff size). The same state shape,
-/// notifier and per-piece, per-orientation storage as [measuresPerLineProvider],
-/// under its own keys; `locked` is unused, the section layout's breaks being
-/// exact by construction.
-final linesPerSectionProvider =
-    StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>((ref) {
-      return MeasuresPerLineNotifier(
-        ref.watch(linesPerSectionStoreProvider),
-        ref.watch(selectedPieceProvider)?.id,
-        ref.watch(staffOrientationProvider),
-      );
-    });
-
 /// Lines per section the last section-layout engrave used — the most any
-/// section took. The slider readout and thumb while on auto, as
-/// [effectiveMeasuresPerLineProvider] is for the measures-per-line zoom.
+/// section took. Set by the staff view.
 final effectiveLinesPerSectionProvider = StateProvider<int?>((_) => null);
 
 // ── Piece layout (single source of truth for all notation views) ──────────────
@@ -1016,12 +906,11 @@ final fingeringDensityPolicyProvider = StateProvider<FingeringDensityPolicy>(
 );
 
 /// Whether the staff views lay the selected piece out by section: it has two
-/// or more sections, and "Layout by section"
+/// or more sections, and the Sections layout
 /// ([sectionLayoutProvider]) is on. Every section then starts a line, and a
 /// section that starts on a lead-in mid-bar has that bar split so the lead-in
 /// opens its line ([sectionBarSplits]). The staff view decides how each
-/// section fills its lines, from [linesPerSectionProvider]; the measures-per-
-/// line zoom is set aside.
+/// section fills its lines, from [staffSizeProvider].
 ///
 /// Never the tab view, whose xml is not broken by section.
 final staffBySectionProvider = Provider<bool>(
@@ -1037,6 +926,36 @@ final sectionLayoutAvailableProvider = Provider<bool>((ref) {
   final piece = ref.watch(selectedPieceProvider);
   return piece != null && piece.sections.length >= 2;
 });
+
+/// The three staff layouts the view menu offers, one at a time. Stored as the
+/// two per-piece switches it has always been ([sectionLayoutProvider],
+/// [printedLayoutProvider]), so a piece keeps the layout it was left in.
+enum StaffLayout {
+  flowing('Flowing'),
+  sections('Sections'),
+  page('Page');
+
+  const StaffLayout(this.label);
+  final String label;
+}
+
+/// The layout the staff views are actually in: the printed page wins, then
+/// sections, else free flow — the same precedence [staffByPrintedLinesProvider]
+/// and [staffBySectionProvider] apply.
+final staffLayoutProvider = Provider<StaffLayout>((ref) {
+  if (ref.watch(staffByPrintedLinesProvider)) return StaffLayout.page;
+  if (ref.watch(staffBySectionProvider)) return StaffLayout.sections;
+  return StaffLayout.flowing;
+});
+
+/// Switches the selected piece to [layout] by setting both stored switches.
+void setStaffLayout(WidgetRef ref, StaffLayout layout) {
+  ref.read(printedLayoutProvider.notifier).state = layout == StaffLayout.page;
+  if (layout != StaffLayout.page) {
+    ref.read(sectionLayoutProvider.notifier).state =
+        layout == StaffLayout.sections;
+  }
+}
 
 /// The staff views' engraved measure map: one slice per measure, plus the
 /// extra slice of every bar a [staffBySectionProvider] layout splits. Must
@@ -1063,8 +982,6 @@ EngravedMeasureMap staffMeasureMapFor(
 ///  * like the printed page ([staffByPrintedLinesProvider]): a break at each
 ///    of [printedLines] (document positions, read before the scan's own
 ///    breaks were stripped). The staff view plans the rest, as by section.
-///  * locked: every N measures, and before every section start
-///    (`insertSystemBreaks`).
 ///  * otherwise untouched; Verovio breaks it.
 String _breaksFor(
   Ref ref,
@@ -1081,9 +998,7 @@ String _breaksFor(
     xml = moveRepeatsOntoLeadIns(xml, movedRepeats(sections, parsed.measures));
     return insertSystemBreaks(xml, sections: sections);
   }
-  final mpl = ref.watch(measuresPerLineProvider);
-  if (!mpl.locked || mpl.value == null) return xml;
-  return insertSystemBreaks(xml, measuresPerLine: mpl.value!, sections: sections);
+  return xml;
 }
 
 /// Hides the piece's own opening clef/key/time so the main render's first
@@ -1472,9 +1387,7 @@ final countInStoreProvider = Provider<CountInStore>((_) => CountInStore());
 /// forces a longer lead-in.
 ///
 /// One setting for the whole app rather than per piece, so it is restored once
-/// per launch and not on every piece change (contrast [measuresPerLineProvider],
-/// which is rebuilt per piece and so needs a `restored` flag to hold off the
-/// first engrave). Nothing here has to wait for storage: the count-in matters
+/// per launch and not on every piece change. Nothing here has to wait for storage: the count-in matters
 /// only when Play is pressed, by which time the read has long since landed.
 final countInProvider = StateNotifierProvider<CountInNotifier, int>(
   (ref) => CountInNotifier(ref.watch(countInStoreProvider)),

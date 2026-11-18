@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -39,10 +38,15 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
 
   /// Lay the piece out by section: every section starts a line (the xml
   /// already carries those breaks) and fills one line, or the fewest that
-  /// fit, balanced by measured width — see `planSectionLines`. The zoom is
-  /// then [linesPerSectionProvider] (auto = the fewest that fit) in place of
-  /// [measuresPerLineProvider], for the slider and the pinch alike.
+  /// fit at the chosen size, balanced by measured width — see
+  /// `planSectionLines` and [staffSizeProvider].
   final bool sectionLayout;
+
+  /// With [sectionLayout]: the segments are the printed page's lines (the
+  /// Page layout), and each is kept whole — exactly the page's breaks, none
+  /// added. The notes are then as big as the widest line allows, and the
+  /// piece's size setting doesn't apply.
+  final bool printedLines;
 
   /// Parity with [StaffView]; the engraver always wraps systems to the page
   /// width, so there's no last-system justification to toggle.
@@ -107,11 +111,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// for Verovio's native fret numbers. Null → fret mode (native numbers stay).
   final List<String>? tabFingerLabels;
 
-  /// Whether the user's [measuresPerLineProvider] override applies. False for
-  /// incidental previews (the measure editor, the note palette) that show a bar
-  /// or two and should always just auto-fit their box — a whole-piece zoom of
-  /// "4 measures per line" would render a single-measure preview at a quarter
-  /// size.
+  /// Whether the piece's [staffSizeProvider] applies. False for incidental
+  /// previews (the measure editor, the note palette) that show a bar or two and
+  /// should always just auto-fit their box — a whole-piece size of Small would
+  /// render a single-measure preview at a fraction of its box.
   final bool zoomable;
 
   /// Told the height the engraved page draws at, whenever it changes — for a
@@ -128,6 +131,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.flaggedMeasures = const {},
     this.measureMap = EngravedMeasureMap.empty,
     this.sectionLayout = false,
+    this.printedLines = false,
     this.stretchLastSystem = true,
     this.sectionTints = const [],
     this.chordRuns = const [],
@@ -149,9 +153,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   ConsumerState<StaffViewVerovio> createState() => _StaffViewVerovioState();
 }
 
-/// One engrave request: the box to fill, the measures-per-line target (null =
-/// auto, resolved against [viewportHeightPx] once calibrated), and the vertical
-/// gap between systems.
+/// One engrave request: the box to fill, the note size (Fit is resolved against
+/// [viewportHeightPx] once calibrated), and the vertical gap between systems.
 ///
 /// [shortestSidePx] is the screen's shortest side, which fixes the device class
 /// and so the auto-fit's minimum physical note size (`minStaffScaleFor`). It gets
@@ -174,9 +177,8 @@ typedef _EngraveRequest = ({
   double widthPx,
   double viewportHeightPx,
   double shortestSidePx,
-  int? target,
+  StaffSize size,
   int spacingUnits,
-  bool locked,
   bool sections,
 });
 
@@ -192,10 +194,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   // Assigned only after a successful engrave, so it always describes [_score].
   double _engravedWidth = 0;
 
-  /// The measures-per-line target the current [_score] satisfies — the raw
-  /// request value, so null means "this score came from auto". Compared against
-  /// the live provider to decide whether a re-engrave is needed.
-  int? _engravedTarget;
+  /// The size the current [_score] was engraved at. Compared against the live
+  /// provider to decide whether a re-engrave is needed.
+  StaffSize? _engravedSize;
 
   /// The effective `spacingSystem` the current [_score] was engraved with; a
   /// change means a re-engrave (and a re-calibration, since it moves the system
@@ -206,10 +207,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// viewBox→screen scale, shared by the painters, hit testing and autoscroll.
   double _layoutWidth = 0;
 
-  /// The height the last build drew the page at (`viewBox.height × _scale`) —
-  /// the counterpart to [_layoutWidth]. Only the pinch needs it, to turn a focal
-  /// point into a [Transform] alignment: the gesture's box is the page, which is
-  /// taller than this widget whenever the score scrolls.
+  /// The height the last build drew the page at (`viewBox.height × _scale`),
+  /// reported through [StaffViewVerovio.onContentHeight] when it changes.
   double _renderHeight = 0;
 
   /// Calibration for [_calibratedFor] (the XML/variant it was measured on):
@@ -258,97 +257,6 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   bool _engraving = false;
   _EngraveRequest? _pending; // latest-wins queue
 
-  // ── Pinch ──────────────────────────────────────────────────────────────
-  //
-  // Zoom is an integer measures-per-line, and every change of it costs a full
-  // re-engrave. So the pinch does NOT drive the target continuously: it scales
-  // the already-rendered page with a Transform for as long as the fingers are
-  // down, and commits exactly one new target when they lift. One engrave per
-  // gesture, at 60fps throughout.
-  //
-  // The honest cost is that the preview does not reflow — measures don't move
-  // between systems until the release — so the layout visibly settles at the
-  // end. [pinchScaleLimits] at least keeps the *size* promise truthful by
-  // refusing to grow the picture past what the clamped target can deliver.
-
-  /// Live pinch factor applied to the rendered page; 1 at rest.
-  double _pinchScale = 1;
-
-  /// Measures-per-line the current pinch started from, and the bounds the
-  /// preview may be driven between. Captured once at [_onScaleStart] so the
-  /// gesture is measured against a fixed origin rather than drifting.
-  int _pinchFrom = measuresPerLineMin;
-  ({double min, double max}) _pinchLimits = (min: 1, max: 1);
-
-  /// Where the transform is anchored — the point between the fingers, so the
-  /// music under them stays put instead of sliding off.
-  Alignment _pinchAnchor = Alignment.center;
-
-  void _onScaleStart(ScaleStartDetails d) {
-    // Same expression the drawer's slider parks its thumb on: the explicit
-    // override if there is one, else what the renderer actually achieved.
-    if (widget.sectionLayout) {
-      _pinchFrom =
-          (ref.read(linesPerSectionProvider).value ??
-                  ref.read(effectiveLinesPerSectionProvider) ??
-                  linesPerSectionMin)
-              .clamp(linesPerSectionMin, linesPerSectionMax);
-      _pinchLimits = pinchScaleLimitsForLines(_pinchFrom);
-    } else {
-      _pinchFrom =
-          (ref.read(measuresPerLineProvider).value ??
-                  ref.read(effectiveMeasuresPerLineProvider) ??
-                  measuresPerLineForWidth(_layoutWidth))
-              .clamp(measuresPerLineMin, measuresPerLineMax);
-      _pinchLimits = pinchScaleLimits(_pinchFrom);
-    }
-    _pinchAnchor = (_layoutWidth <= 0 || _renderHeight <= 0)
-        ? Alignment.center
-        : Alignment(
-            (d.localFocalPoint.dx / _layoutWidth) * 2 - 1,
-            (d.localFocalPoint.dy / _renderHeight) * 2 - 1,
-          );
-    setState(() => _pinchScale = 1);
-  }
-
-  void _onScaleUpdate(ScaleUpdateDetails d) {
-    // One finger is a scroll, not a zoom — see [_PinchOnlyScaleRecognizer].
-    if (d.pointerCount < 2) return;
-    final next = d.scale.clamp(_pinchLimits.min, _pinchLimits.max);
-    if (next == _pinchScale) return;
-    setState(() => _pinchScale = next);
-  }
-
-  void _onScaleEnd(ScaleEndDetails d) {
-    final zoom = _zoomProvider;
-    final target = widget.sectionLayout
-        ? pinchTargetLinesPerSection(from: _pinchFrom, scale: _pinchScale)
-        : pinchTargetMeasuresPerLine(from: _pinchFrom, scale: _pinchScale);
-    final current = ref.read(zoom).value;
-    if (target == current) {
-      // Nothing to engrave, so nothing will come along to clear the preview.
-      setState(() => _pinchScale = 1);
-      return;
-    }
-    // Hold the preview at the size the new target will render at — cleared when
-    // the fresh score is published (see [_engrave]). Dropping it at the release
-    // instead would snap back to the old size for the length of the engrave and
-    // then jump.
-    setState(
-      () => _pinchScale = widget.sectionLayout
-          ? target / _pinchFrom
-          : _pinchFrom / target,
-    );
-    ref.read(zoom.notifier).commit(target);
-  }
-
-  /// The zoom this view answers to: lines per section under the section
-  /// layout, else measures per line.
-  StateNotifierProvider<MeasuresPerLineNotifier, MeasuresPerLineState>
-      get _zoomProvider => widget.sectionLayout
-          ? linesPerSectionProvider
-          : measuresPerLineProvider;
-
   /// Whether the score being engraved carries the annotations the app draws its
   /// own rows on, and so needs the room reserved from Verovio. See
   /// [scoreReservesAnnotationRoom].
@@ -382,6 +290,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     if (old.musicXml != widget.musicXml ||
         old.tabMode != widget.tabMode ||
         old.sectionLayout != widget.sectionLayout ||
+        old.printedLines != widget.printedLines ||
         old.showNoteNames != widget.showNoteNames ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
@@ -419,19 +328,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// nothing to the margins, so the only way they can move the geometry is
   /// through the xml, which is already in the key. That is what makes toggling
   /// chord symbols a repaint rather than a re-engrave.
-  ///
-  /// `locked` is in the key for a different reason: it doesn't change the
-  /// geometry, it changes which direction `_tightenCalibration` can move.
-  /// `breaks: 'auto'` can discover Verovio packing MORE measures per line than
-  /// asked, tightening `_unitsPerMeasure` down; `breaks: 'encoded'` (locked)
-  /// can only ever land on the target count or fewer (section-forced breaks),
-  /// so it can never loosen a bound the auto side over-tightened. Sharing one
-  /// key let a locked engrave inherit an auto-tightened bound it had no way to
-  /// correct, inflating `scale` — the whole page rendering bigger the moment
-  /// Lock was switched on. Splitting the key forces a fresh probe on each
-  /// side of the toggle instead.
-  String _calibrationKeyFor(int spacingUnits, bool locked) =>
-      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits|$locked'
+  String _calibrationKeyFor(int spacingUnits) =>
+      '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits'
       '|${widget.showNoteNames}';
 
   /// Natural (unjustified) width of every engraved measure in MEI units, for
@@ -456,6 +354,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
 
   Future<void> _drain() async {
     _engraving = true;
+    // A re-engrave keeps the old score up until the new one lands, which can
+    // take seconds; [build] dims it and shows a spinner meanwhile, so a size
+    // or layout change visibly registers.
+    if (mounted && _score != null) setState(() {});
     try {
       while (mounted && _pending != null) {
         final req = _pending!;
@@ -464,6 +366,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       }
     } finally {
       _engraving = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -475,7 +378,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    later zoom level. The probe uses the pre-zoom option set, so an
       //    un-zoomed piece reuses the cache entry it always had.
       EngravedScore? probe;
-      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits, req.locked)) {
+      if (_calibratedFor != _calibrationKeyFor(req.spacingUnits)) {
         // BARE — the staff-spacing preference and Verovio's own page margin,
         // with no annotation reserve. The probe's job now includes measuring how
         // much room this score's layout already leaves, and it cannot measure
@@ -489,7 +392,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         _unitsPerMeasure = 0; // fresh bound; the probe is its first observation
         _refinements = 0;
         _measureCount = probe.measures.length;
-        _calibratedFor = _calibrationKeyFor(req.spacingUnits, req.locked);
+        _calibratedFor = _calibrationKeyFor(req.spacingUnits);
         _tightenCalibration(probe);
 
         // What the rows are short of, if anything, at Verovio's own spacing.
@@ -528,17 +431,31 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         return;
       }
 
-      // 2. Resolve the target and solve for Verovio's scale.
-      final target =
-          req.target ??
-          autoMeasuresPerLine(
-            widthPx: req.widthPx,
-            viewportHeightPx: req.viewportHeightPx,
-            shortestSidePx: req.shortestSidePx,
-            unitsPerMeasure: _unitsPerMeasure,
-            systemHeightPx: _systemHeightPx,
-            measureCount: _measureCount,
-          );
+      // 2. Resolve the size to a measures-per-line target and solve for
+      //    Verovio's scale. Fit never packs more bars than Small would.
+      final target = req.size == StaffSize.fit
+          ? math.min(
+              autoMeasuresPerLine(
+                widthPx: req.widthPx,
+                viewportHeightPx: req.viewportHeightPx,
+                shortestSidePx: req.shortestSidePx,
+                unitsPerMeasure: _unitsPerMeasure,
+                systemHeightPx: _systemHeightPx,
+                measureCount: _measureCount,
+              ),
+              measuresPerLineForSize(
+                size: StaffSize.small,
+                widthPx: req.widthPx,
+                unitsPerMeasure: _unitsPerMeasure,
+                shortestSidePx: req.shortestSidePx,
+              ),
+            )
+          : measuresPerLineForSize(
+              size: req.size,
+              widthPx: req.widthPx,
+              unitsPerMeasure: _unitsPerMeasure,
+              shortestSidePx: req.shortestSidePx,
+            );
       final scale = scaleFor(
         widthPx: req.widthPx,
         unitsPerMeasure: _unitsPerMeasure,
@@ -559,7 +476,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           'reserve=${_reserveSpacingUnits}u/${_reservePageMarginUnits}m '
           'floor=${minStaffScaleFor(req.shortestSidePx).toStringAsFixed(1)} '
           'ceiling=${maxMeasuresPerLineFor(widthPx: req.widthPx, unitsPerMeasure: _unitsPerMeasure, shortestSidePx: req.shortestSidePx)} '
-          '${req.target == null ? 'auto' : 'set'}=$target '
+          'size=${req.size.name} n=$target '
           'scale=${scale.toStringAsFixed(1)} refine=$_refinements',
         );
       }
@@ -571,12 +488,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    here; it no longer varies, both engraves passing mnumInterval 0.
       //    The probe is engraved BARE, so it is only reusable when the score
       //    turned out to need no reserve at all — otherwise it is a different
-      //    layout from the one we are about to ask for. Locked mode never
-      //    reuses it: the probe is always engraved `breaks: 'auto'`, which
-      //    would not honor the encoded system breaks the real engrave needs.
+      //    layout from the one we are about to ask for.
       final reusable =
           probe != null &&
-          !req.locked &&
           (scale - staffScaleProbe).abs() < 0.05 &&
           _reserveSpacingUnits == 0 &&
           _reservePageMarginUnits == 0;
@@ -590,24 +504,16 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 verovioSpacingSystemMax,
               ),
               pageMarginTopReserve: _reservePageMarginUnits,
-              // Guaranteed-exact mode: the xml already carries explicit system
-              // breaks (`insertSystemBreaks`, via `measuresPerLineProvider`
-              // locked); tell Verovio to honor them instead of computing its
-              // own. The probe stays 'auto' — it exists only to measure the
-              // natural per-measure width, and encoded breaks don't change that.
-              breaks: req.locked ? 'encoded' : 'auto',
             );
       if (!mounted || seq != _engraveSeq) return;
 
       // 3b. Auto mode's own dead-margin fix: freeze whatever break points
       //     Verovio's `breaks: 'auto'` engrave above just chose, hiding the
-      //     preamble at each — the same recovery locked mode gets from its
-      //     own (computed, not discovered) break points. Skipped for
-      //     previews (zoomable: false — measureMap is empty there, and a
-      //     1-2 bar preview has nothing to freeze anyway) and already-locked
-      //     engraves (already frozen upstream). One more full engrave, so
-      //     only worth it when there is more than one system to fix.
-      if (!req.locked && widget.zoomable && !widget.measureMap.hasSplits) {
+      //     preamble at each. Skipped for previews (zoomable: false —
+      //     measureMap is empty there, and a 1-2 bar preview has nothing to
+      //     freeze anyway). One more full engrave, so only worth it when
+      //     there is more than one system to fix.
+      if (widget.zoomable && !widget.measureMap.hasSplits) {
         final breakNumbers = <int>{};
         for (var i = 1; i < score.measureLine.length; i++) {
           if (i >= widget.measureMap.length) break;
@@ -640,7 +546,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       //    for. If the bound moves enough to change the solve, engrave once more
       //    at the corrected scale — that is the difference between "3 bars a
       //    line, notes sized for 3" and "4 bars a line, notes sized for 3".
-      if (_tightenCalibration(score, lockedTarget: req.locked ? target : null) &&
+      if (_tightenCalibration(score) &&
           _refinements < _maxRefinements &&
           _pending == null) {
         final corrected = scaleFor(
@@ -655,10 +561,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       }
     } catch (e) {
       if (mounted && seq == _engraveSeq) {
-        setState(() {
-          _error = '$e';
-          _pinchScale = 1; // nothing is coming; don't strand the preview
-        });
+        setState(() => _error = '$e');
       }
     }
   }
@@ -692,15 +595,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       _image = image;
       _error = null;
       _engravedWidth = req.widthPx;
-      _engravedTarget = req.target;
+      _engravedSize = req.size;
       _engravedSpacingUnits = req.spacingUnits;
-      // The real layout has landed, so a pinch preview standing in for it has
-      // nothing left to say. Cleared here rather than at the release so the
-      // page doesn't shrink back for the length of the engrave.
-      _pinchScale = 1;
     });
     // Report what Verovio actually did — its break points are musical, so a
-    // dense bar can land one short of the target. Drives the slider readout.
+    // dense bar can land one short of the target.
     // Only the whole-piece views speak for it; a one-bar preview would
     // otherwise overwrite the readout with its own count.
     if (widget.zoomable) {
@@ -743,13 +642,32 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
       _naturalWidthsFor = _calibratedFor;
     }
 
-    final solved = solveSectionLayout(
-      musicXml: widget.musicXml,
-      naturalWidths: _naturalWidths,
-      widthPx: req.widthPx,
-      minScale: minStaffScaleFor(req.shortestSidePx),
-      linesPerSection: req.target,
-    );
+    // A fixed size is a floor on the note size: each section takes the fewest
+    // lines that keep its notes at least that big. Fit searches for the
+    // biggest floor at which the whole piece is on one screen, Small at worst.
+    final solved = widget.printedLines
+        ? solveSectionLayout(
+            musicXml: widget.musicXml,
+            naturalWidths: _naturalWidths,
+            widthPx: req.widthPx,
+            minScale: staffScaleMin,
+            linesPerSection: 1,
+          )
+        : req.size == StaffSize.fit
+        ? solveSectionLayoutToFit(
+            musicXml: widget.musicXml,
+            naturalWidths: _naturalWidths,
+            widthPx: req.widthPx,
+            viewportHeightPx: req.viewportHeightPx,
+            systemHeightPx: _systemHeightPx,
+            minScale: staffScaleForSize(StaffSize.small, req.shortestSidePx),
+          )
+        : solveSectionLayout(
+            musicXml: widget.musicXml,
+            naturalWidths: _naturalWidths,
+            widthPx: req.widthPx,
+            minScale: staffScaleForSize(req.size, req.shortestSidePx),
+          );
     final scale = solved.scale;
     final lines = solved.lines;
     if (VerovioEngraver.debugLogging) {
@@ -795,31 +713,14 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// Only ever tightens (never loosens), so a later engrave that happens to pack
   /// loosely — the corrective one usually does, having been given the room it
   /// asked for — cannot undo the correction and start it oscillating.
-  ///
-  /// [lockedTarget], when set, replaces `measuresPerLineOf(score.measureLine)`
-  /// as the achieved count. Locked mode's own break injector
-  /// (`insertSystemBreaks`) lets a pickup measure join a system for free,
-  /// without charging it against the per-line budget — so a system opening on
-  /// a pickup (this piece's own opening measure, or a section that starts
-  /// mid-pickup, e.g. Old Joe Clark's second strain) reports one MORE physical
-  /// measure than the budget it was actually engraved at, and that inflated
-  /// count is baked into the encoded breaks: no refinement at any scale ever
-  /// reports fewer. Read at face value, `pageWidthUnits / (target + 1)`
-  /// understates the true per-measure width every time, and the ratchet
-  /// (`tighterUnitsPerMeasure` only ever shrinks) has no way to recover —
-  /// each "correction" just pushes `scale` higher until `_maxRefinements`
-  /// tops out, which is what made Lock exactly balloon note size. Since
-  /// locked mode dictates its own break points, the budget it asked for
-  /// (`lockedTarget`) is already the true achieved count for every
-  /// non-boundary-truncated system; there's nothing left to discover from
-  /// the rendered SVG.
-  bool _tightenCalibration(EngravedScore score, {int? lockedTarget}) {
+
+  bool _tightenCalibration(EngravedScore score) {
     final before = _unitsPerMeasure;
     _unitsPerMeasure = tighterUnitsPerMeasure(
       before,
       unitsPerMeasureFrom(
         pageWidthUnits: score.pageWidthUnits,
-        measuresPerLine: lockedTarget ?? measuresPerLineOf(score.measureLine),
+        measuresPerLine: measuresPerLineOf(score.measureLine),
       ),
     );
     return _unitsPerMeasure < before; // false on the first observation
@@ -975,34 +876,13 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         child: Text('Staff view error: $_error', textAlign: TextAlign.center),
       );
     }
-    // Null = auto-fit. The previews (measure editor, palette) opt out so a
-    // whole-piece zoom doesn't shrink their single bar.
-    final zoom = ref.watch(_zoomProvider);
-    final target = widget.zoomable ? zoom.value : null;
-    // Only meaningful alongside an explicit target — the notifier already
-    // forces it false whenever value is cleared back to auto. The section
-    // layout's breaks are exact anyway, and its own.
-    final locked = widget.zoomable && zoom.locked && !widget.sectionLayout;
-    // Hold off the first engrave until the piece's saved zoom has been read,
-    // otherwise every piece with an override engraves the auto default first and
-    // throws it away. Previews don't read the setting, so they never wait.
-    //
-    // The same gate covers rotation, which is the other way the setting can be
-    // in flight — and there it is load-bearing, not just an optimisation. The
-    // zoom is stored per orientation, but `staffOrientationProvider` is pushed
-    // from the screen's layout a frame later, so for that one frame the new
-    // width is paired with the OLD orientation's target. Left alone, every
-    // rotation engraves the other orientation's zoom (measured: a portrait
-    // setting of 1 engraved at `scale` 150 across the landscape width) and then
-    // throws it away. Holding off while the provider disagrees with MediaQuery
-    // costs a frame and saves that engrave.
+    // The previews (measure editor, palette) opt out of the piece's size so it
+    // doesn't shrink their single bar: they always fit their box.
+    // The Page layout's size is fixed by its widest printed line.
+    final size = widget.zoomable && !widget.printedLines
+        ? ref.watch(staffSizeProvider)
+        : StaffSize.fit;
     final screen = MediaQuery.sizeOf(context);
-    final orientation = screen.width >= screen.height
-        ? StaffOrientation.landscape
-        : StaffOrientation.portrait;
-    final waitingForZoom =
-        widget.zoomable &&
-        (!zoom.restored || ref.watch(staffOrientationProvider) != orientation);
     // Vertical gap between systems: the preference ALONE. The annotation
     // reserve used to be added here, from a constant; it is now measured off the
     // calibration probe in [_engrave] and added to the real engrave only. Which
@@ -1032,19 +912,18 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         bool stale() =>
             _score == null ||
             _bucket(width) != _bucket(_engravedWidth) ||
-            target != _engravedTarget ||
+            size != _engravedSize ||
             spacingUnits != _engravedSpacingUnits;
-        if (width > 0 && !waitingForZoom && stale()) {
+        if (width > 0 && stale()) {
           // Scheduled post-frame so we don't setState during layout.
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && !waitingForZoom && stale()) {
+            if (mounted && stale()) {
               _request((
                 widthPx: width,
                 viewportHeightPx: viewportHeight,
                 shortestSidePx: shortestSide,
-                target: target,
+                size: size,
                 spacingUnits: spacingUnits,
-                locked: locked,
                 sections: widget.sectionLayout,
               ));
             }
@@ -1064,7 +943,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           });
         }
         _renderHeight = renderH;
-        return SingleChildScrollView(
+        final page = SingleChildScrollView(
           controller: _scrollController,
           // Room past the last system to scroll it clear of the play tray.
           // Not for the previews, which sit nowhere near the tray.
@@ -1072,18 +951,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
               bottom: widget.zoomable
                   ? ref.watch(notationBottomClearanceProvider)
                   : 0),
-          // The pinch preview. Transform.scale changes what is drawn without
-          // changing what is laid out, so the page grows past its box and the
-          // scroll view's own clip trims it — which is what "zoomed into the
-          // page" looks like. No ClipRect needed. It sits above the
-          // GestureDetector, so Flutter un-transforms tap coordinates for free,
-          // and every overlay below (cursor, lanes, count-in) tracks the preview
-          // without knowing about it.
-          child: _pinchable(
-            child: Transform.scale(
-              scale: _pinchScale,
-              alignment: _pinchAnchor,
-              child: GestureDetector(
+          child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (d) => _onTapDown(d.localPosition),
                 child: SizedBox(
@@ -1186,36 +1054,31 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                     ],
                   ),
                 ),
-              ),
-            ),
           ),
         );
-      },
-    );
-  }
-
-  /// Wraps the page in the two-finger zoom gesture — or doesn't, for the
-  /// previews (measure editor, palette), which opt out of the whole-piece zoom
-  /// via `zoomable: false` and would otherwise let a pinch resize their one bar.
-  ///
-  /// A RawGestureDetector rather than a GestureDetector because the recognizer
-  /// has to be the gated one: a stock ScaleGestureRecognizer treats a lone
-  /// pointer as a pan and would take one-finger drags away from the enclosing
-  /// SingleChildScrollView, costing the score its scrolling.
-  Widget _pinchable({required Widget child}) {
-    if (!widget.zoomable) return child;
-    return RawGestureDetector(
-      gestures: {
-        _PinchOnlyScaleRecognizer:
-            GestureRecognizerFactoryWithHandlers<_PinchOnlyScaleRecognizer>(
-              () => _PinchOnlyScaleRecognizer(debugOwner: this),
-              (r) => r
-                ..onStart = _onScaleStart
-                ..onUpdate = _onScaleUpdate
-                ..onEnd = _onScaleEnd,
+        // Re-engraving: the stale score dimmed, with a spinner over it. Only
+        // the whole-piece views; a preview's box is too small to need it.
+        final busy = _engraving && widget.zoomable;
+        return Stack(
+          children: [
+            AnimatedOpacity(
+              opacity: busy ? 0.35 : 1,
+              duration: const Duration(milliseconds: 150),
+              child: page,
             ),
+            if (busy)
+              const Positioned(
+                top: 24,
+                left: 0,
+                right: 0,
+                child: Center(
+                  key: ValueKey('staff_reengraving'),
+                  child: CircularProgressIndicator.adaptive(),
+                ),
+              ),
+          ],
+        );
       },
-      child: child,
     );
   }
 
@@ -1294,24 +1157,6 @@ Map<String, String> noteheadFillsFor(
     out[id] = '#${rgb.toRadixString(16).padLeft(6, '0')}';
   }
   return out;
-}
-
-/// A [ScaleGestureRecognizer] that cannot win on a single pointer.
-///
-/// The staff sits inside a [SingleChildScrollView], so its vertical drag
-/// recognizer is in the arena on every touch. A stock scale recognizer treats
-/// one pointer as a pan, declares victory once it clears its slop, and the score
-/// stops scrolling. Withholding sub-two-pointer moves from the state machine is
-/// what keeps it from ever getting that far — it stays unresolved and is simply
-/// rejected when the scroll view claims the gesture.
-class _PinchOnlyScaleRecognizer extends ScaleGestureRecognizer {
-  _PinchOnlyScaleRecognizer({super.debugOwner});
-
-  @override
-  void handleEvent(PointerEvent event) {
-    if (event is PointerMoveEvent && pointerCount < 2) return;
-    super.handleEvent(event);
-  }
 }
 
 /// Drawn (viewBox→screen scaled) rects for an engraved range, one per system

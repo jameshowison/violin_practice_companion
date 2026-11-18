@@ -13,8 +13,8 @@ builds anything.
 ## 1. Sections: detection with lead-ins, and note-level markers (next)
 
 The staff can lay a piece out by section: each section starts its own line,
-and a bar is split where a section starts on a lead-in ("Layout by section" in
-the display drawer, with lines per section on the zoom slider). How good that
+and a bar is split where a section starts on a lead-in (the Sections layout in
+the app bar's size and layout menu). How good that
 looks depends entirely on where the section markers sit.
 
 ### 1.1 Lead-ins as part of section detection
@@ -156,8 +156,23 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   `EngravedMeasureMap.locate` and `firstIndexOf` resolve a number to its
   first copy. Fix by keying the lookup on the performance occurrence rather
   than the measure number.
-- **Fix zooming, including a zoom in and out button.** Pinching is cute
-  but awkward.
+- **Zoom is a menu now (2026-11-18), to verify on devices.** A magnifier in
+  the piece screen's app bar opens a non-modal panel: Size (Fit whole piece,
+  or Small / Medium / Large, fixed staff heights in mm) and Layout (Flowing /
+  Sections / Page). Pinch, the measures-per-line slider and Lock exactly are
+  gone; the size is per piece, no longer per orientation. Check the mm values
+  by eye on the SE and an iPad (`staff_zoom.dart`, "The size control").
+- **App bar overflow on small screens (decision).** Print moved into the
+  gear drawer to make room for the view menu on a phone. The bar will keep
+  gaining actions, so pick a folding rule rather than moving one at a time:
+  e.g. a single overflow (⋮ or hamburger) holding the gear's drawer and Print
+  on compact widths, with the tablet bar showing them inline. Research the
+  platform patterns first (Material's top app bar overflow and adaptive
+  actions, iOS toolbar/`UIMenu` overflow, how reading apps such as Books and
+  forScore fold their bars) before choosing.
+- **Abandon the `fit-to-screen` branch.** Its plain, scannable page for
+  sharing a tune to another device has errors, and sharing a `.stringlings`
+  file does the job better. Delete the branch once nothing on it is wanted.
 - **Platforms: iOS and Android only** (decided 2026-11-17). Web was never
   finished (Verovio's WASM build drew no staff lines or stems), and macOS
   had no Verovio build (`verovio_flutter` has no macOS target) and is

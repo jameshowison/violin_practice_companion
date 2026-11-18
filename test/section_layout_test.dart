@@ -282,14 +282,6 @@ void main() {
           2);
     });
 
-    test('pinching out asks for more lines per section', () {
-      expect(pinchTargetLinesPerSection(from: 1, scale: 2), 2);
-      expect(pinchTargetLinesPerSection(from: 2, scale: 0.5), 1);
-      expect(pinchTargetLinesPerSection(from: 2, scale: 10), linesPerSectionMax);
-      expect(pinchScaleLimitsForLines(1), (min: 1.0, max: 4.0));
-      expect(pinchScaleLimitsForLines(2), (min: 0.5, max: 2.0));
-    });
-
     test('ties go to the lighter first line', () {
       final plan = balancedLines([50.0, 100, 100, 100, 100, 50], 2);
       // 250 | 250, the one exact balance.

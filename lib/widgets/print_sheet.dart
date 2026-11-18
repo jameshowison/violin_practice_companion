@@ -54,17 +54,11 @@ class _PrintSheetState extends ConsumerState<_PrintSheet> {
 
   /// How the printer plans each pre-broken segment of the xml, so the page
   /// follows the screen's layout (the xml already breaks as the screen does —
-  /// see `printStaffXmlProvider`): a printed-page or locked line is kept
-  /// whole; a section takes the screen's lines-per-section, or the fewest
-  /// that fit the page when that is on auto; free flow, the fewest that fit.
-  int? _linesPerSegment() {
-    if (ref.read(staffByPrintedLinesProvider)) return 1;
-    if (ref.read(staffBySectionProvider)) {
-      return ref.read(linesPerSectionProvider).value;
-    }
-    final mpl = ref.read(measuresPerLineProvider);
-    return mpl.locked && mpl.value != null ? 1 : null;
-  }
+  /// see `printStaffXmlProvider`): a printed-page line is kept whole; a
+  /// section, or free flow, takes the fewest lines that fit the paper. The
+  /// screen's size doesn't carry over: paper has its own staff-size bounds.
+  int? _linesPerSegment() =>
+      ref.read(staffByPrintedLinesProvider) ? 1 : null;
 
   /// Reads everything the print needs from the providers, once.
   Future<PrintJob> _job() async {

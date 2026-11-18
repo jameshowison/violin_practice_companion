@@ -770,98 +770,65 @@ void main() {
     });
   });
 
-  // A pinch drives the same integer measures-per-line the slider does — there is
-  // no second, continuous zoom. What these pin down is the direction (pinching
-  // out must make notes BIGGER, which means fewer measures) and the promise that
-  // the preview transform can't outrun what the release will deliver.
-  group('pinchTargetMeasuresPerLine', () {
-    test('a pinch that goes nowhere changes nothing', () {
-      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
-        expect(pinchTargetMeasuresPerLine(from: n, scale: 1), n, reason: 'n=$n');
+  // The size control. Small, Medium and Large are physical sizes, so they
+  // must step up, land on the floor at Small, and come out bigger on a tablet.
+  group('StaffSize', () {
+    const phone = 375.0, tablet = 834.0;
+
+    test('the fixed sizes step up, and Fit floors at Small', () {
+      for (final side in [phone, tablet]) {
+        final small = staffScaleForSize(StaffSize.small, side);
+        final medium = staffScaleForSize(StaffSize.medium, side);
+        final large = staffScaleForSize(StaffSize.large, side);
+        expect(small, lessThan(medium), reason: 'side=$side');
+        expect(medium, lessThan(large), reason: 'side=$side');
+        expect(staffScaleForSize(StaffSize.fit, side), small);
+        expect(small, closeTo(minStaffScaleFor(side), 1e-9),
+            reason: 'Small is the legibility floor the auto-fit stops at');
       }
     });
 
-    test('pinching out packs fewer measures per line', () {
-      expect(pinchTargetMeasuresPerLine(from: 6, scale: 2), 3);
-      expect(pinchTargetMeasuresPerLine(from: 8, scale: 4), 2);
-    });
-
-    test('pinching in packs more', () {
-      expect(pinchTargetMeasuresPerLine(from: 2, scale: 0.5), 4);
-      expect(pinchTargetMeasuresPerLine(from: 3, scale: 0.5), 6);
-    });
-
-    test('is monotone non-increasing in the pinch factor', () {
-      var previous = measuresPerLineMax + 1;
-      for (var s = 0.2; s <= 6.0; s += 0.1) {
-        final n = pinchTargetMeasuresPerLine(from: 4, scale: s);
-        expect(n, lessThanOrEqualTo(previous),
-            reason: 'scale=${s.toStringAsFixed(1)}');
-        previous = n;
+    test('a tablet draws every size physically bigger', () {
+      for (final size in StaffSize.values) {
+        final mmPhone = staffScaleForSize(size, phone) *
+            staffHeightUnits / 100 / phonePtPerInch * 25.4;
+        final mmTablet = staffScaleForSize(size, tablet) *
+            staffHeightUnits / 100 / tabletPtPerInch * 25.4;
+        expect(mmTablet, greaterThan(mmPhone), reason: size.name);
       }
     });
 
-    test('clamps to the slider range, so a pinch cannot outrun the slider', () {
-      expect(pinchTargetMeasuresPerLine(from: 8, scale: 100),
-          measuresPerLineMin);
-      expect(pinchTargetMeasuresPerLine(from: 1, scale: 0.001),
-          measuresPerLineMax);
+    // Lightly Row's measured 313 units a bar, across an SE's ~351pt score.
+    test('on an SE, Lightly Row goes 4, 3, 2 bars a line', () {
+      int n(StaffSize size) => measuresPerLineForSize(
+            size: size,
+            widthPx: 351,
+            unitsPerMeasure: 313,
+            shortestSidePx: phone,
+          );
+      expect(n(StaffSize.small), 4);
+      expect(n(StaffSize.medium), 3);
+      expect(n(StaffSize.large), 2);
     });
 
-    test('degenerate input falls back to the starting point', () {
-      expect(pinchTargetMeasuresPerLine(from: 4, scale: 0), 4);
-      expect(pinchTargetMeasuresPerLine(from: 4, scale: double.nan), 4);
-      expect(pinchTargetMeasuresPerLine(from: 4, scale: double.infinity), 4);
-    });
-  });
-
-  group('pinchScaleLimits', () {
-    test('always contains the rest position', () {
-      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
-        final l = pinchScaleLimits(n);
-        expect(l.min, lessThanOrEqualTo(1), reason: 'n=$n');
-        expect(l.max, greaterThanOrEqualTo(1), reason: 'n=$n');
+    test('the bar count it picks keeps the notes at least that size', () {
+      for (final size in [StaffSize.small, StaffSize.medium, StaffSize.large]) {
+        final count = measuresPerLineForSize(
+          size: size,
+          widthPx: 351,
+          unitsPerMeasure: 313,
+          shortestSidePx: phone,
+        );
+        final scale = scaleFor(widthPx: 351, unitsPerMeasure: 313, n: count);
+        expect(scale, greaterThanOrEqualTo(staffScaleForSize(size, phone)),
+            reason: size.name);
       }
     });
 
-    // The point of the bounds: at the limit the picture is exactly the size the
-    // extreme layout engraves at, so what is on screen when the fingers lift is
-    // what gets engraved.
-    test('the ends of the range are exactly the ends of the target range', () {
-      for (var n = measuresPerLineMin; n <= measuresPerLineMax; n++) {
-        final l = pinchScaleLimits(n);
-        expect(pinchTargetMeasuresPerLine(from: n, scale: l.max),
-            measuresPerLineMin,
-            reason: 'n=$n pinched all the way out');
-        expect(pinchTargetMeasuresPerLine(from: n, scale: l.min),
-            measuresPerLineMax,
-            reason: 'n=$n pinched all the way in');
-      }
-    });
-
-    test('at the largest notes there is no room to pinch out further', () {
-      expect(pinchScaleLimits(measuresPerLineMin).max, 1);
-    });
-
-    test('at the smallest notes there is no room to pinch in further', () {
-      expect(pinchScaleLimits(measuresPerLineMax).min, 1);
-    });
-  });
-
-  group('StaffOrientation', () {
-    test('other is the opposite, and an involution', () {
-      expect(StaffOrientation.portrait.other, StaffOrientation.landscape);
-      expect(StaffOrientation.landscape.other, StaffOrientation.portrait);
-      for (final o in StaffOrientation.values) {
-        expect(o.other.other, o);
-      }
-    });
-
-    // The names go straight into the preferences key, so renaming a value would
-    // silently orphan every saved zoom.
-    test('names are the stored key suffixes', () {
-      expect(StaffOrientation.portrait.name, 'portrait');
-      expect(StaffOrientation.landscape.name, 'landscape');
+    // Stored by name per piece; renaming one would drop every saved size.
+    test('names are the stored values', () {
+      expect(StaffSize.values.map((s) => s.name),
+          ['fit', 'small', 'medium', 'large']);
     });
   });
 }

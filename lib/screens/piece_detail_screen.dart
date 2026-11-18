@@ -34,7 +34,6 @@ import '../services/media_catalog.dart';
 import '../services/measure_edit_session.dart';
 import '../services/media_playback_service.dart';
 import '../services/staff_overlays.dart';
-import '../services/staff_zoom.dart';
 import '../widgets/count_in_label.dart';
 import '../widgets/fingering_view.dart';
 import '../widgets/floating_video_overlay.dart';
@@ -50,6 +49,7 @@ import '../widgets/share_piece_sheet.dart';
 import '../widgets/section_chip_row.dart';
 import '../widgets/section_minimap.dart';
 import '../widgets/tempo_controls.dart';
+import '../widgets/staff_view_menu.dart';
 import '../widgets/staff_view_verovio.dart';
 import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
@@ -256,20 +256,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final screen = MediaQuery.sizeOf(context);
     final useCompact = screen.width < 600 || screen.height < 600;
 
-    // The staff zoom is saved per orientation, so the provider that reads it
-    // needs to know which way up we are. Pushed from here rather than read in
-    // the provider, which has no MediaQuery — the same arrangement as
-    // measuresPerRowProvider below. Taken from the SCREEN, not the body's box:
-    // it has to mean "how is the device being held".
-    final orientation = screen.width >= screen.height
-        ? StaffOrientation.landscape
-        : StaffOrientation.portrait;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (ref.read(staffOrientationProvider) != orientation) {
-        ref.read(staffOrientationProvider.notifier).state = orientation;
-      }
-    });
-
     final mascots = SkinStyle.of(context).mascots;
     // Back closes an open measure edit first (asking if it would lose work),
     // rather than leaving the piece with the edit still pending.
@@ -357,15 +343,10 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
         actions: [
           // No vocabulary button: the key's name on the left of the title
           // opens it (see [_KeySummary]), which gives the title the width.
-          // A phone's bar has no room to spare (the title gives it up first);
-          // there Print lives in the drawer only.
-          if (!useCompact && printAvailableFor(ref, displayMode))
-            IconButton(
-              key: const ValueKey('print_button'),
-              tooltip: 'Print',
-              icon: const Icon(Icons.print_outlined),
-              onPressed: () => showPrintSheet(context, displayMode),
-            ),
+          // Size and layout of the engraved staff. Print gave up its place
+          // here to make room on a phone, and lives in the drawer.
+          if (staffViewMenuAppliesTo(displayMode))
+            StaffViewMenuButton(mode: displayMode),
           // No mode toggles here any more. "Play Along", "Teacher Demo" and
           // "record a demo" were three app-bar buttons for what is one
           // question — what should play this piece — and two of them had to be
@@ -544,30 +525,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   if (displayMode == DisplayMode.staff ||
                       displayMode == DisplayMode.staffFingering ||
                       displayMode == DisplayMode.tab) ...[
-                    // Tab is never laid out by section (its xml carries no
-                    // section breaks — see [staffBySectionProvider]).
-                    if (displayMode != DisplayMode.tab &&
-                        ref.watch(printedLayoutAvailableProvider))
-                      SwitchListTile(
-                        key: const ValueKey('printed_layout_toggle'),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: const Text('Layout like printed page'),
-                        value: ref.watch(printedLayoutProvider),
-                        onChanged: (v) =>
-                            ref.read(printedLayoutProvider.notifier).state = v,
-                      ),
-                    if (displayMode != DisplayMode.tab &&
-                        ref.watch(sectionLayoutAvailableProvider) &&
-                        !ref.watch(staffByPrintedLinesProvider))
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: const Text('Layout by section'),
-                        value: ref.watch(sectionLayoutProvider),
-                        onChanged: (v) =>
-                            ref.read(sectionLayoutProvider.notifier).state = v,
-                      ),
+                    // Size and layout are in the app bar's view menu
+                    // ([StaffViewMenuButton]). Tab has no sections.
                     if (displayMode != DisplayMode.tab)
                       const Row(children: [
                         Text('Sections:'),
@@ -586,19 +545,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                           showPrintSheet(context, displayMode);
                         },
                       ),
-                    _MeasuresPerLineSlider(
-                      bySection: displayMode != DisplayMode.tab &&
-                          (ref.watch(staffBySectionProvider) ||
-                              ref.watch(staffByPrintedLinesProvider)),
-                    ),
-                    // Guaranteed-exact breaks aren't wired up for the tab
-                    // view (see `system_break_injector.dart`'s callers) —
-                    // only offer it where it actually takes effect. The
-                    // section layout's breaks are exact already.
-                    if (displayMode != DisplayMode.tab &&
-                        !ref.watch(staffBySectionProvider) &&
-                        !ref.watch(staffByPrintedLinesProvider))
-                      const _MeasuresPerLineLockToggle(),
                     if (features.chords)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -976,148 +922,6 @@ class _CountInSlider extends ConsumerWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// Staff zoom. Fewer measures per line ⇒ bigger notes: the score is always
-/// engraved to the viewport width, so the two are one knob (see `staff_zoom.dart`).
-///
-/// Null override = auto: the whole piece on one screen if that can be had
-/// without shrinking the notes past the device's minimum physical size, and that
-/// minimum otherwise (bigger notes and a scroll, rather than an illegible page).
-/// The floor is per device class — see `minStaffScaleFor` in `staff_zoom.dart`.
-///
-/// The readout shows what Verovio actually achieved — its break points are
-/// musical, so a dense bar can land one short of the target, hence "≈".
-///
-/// Saved per piece AND per orientation: the same count is a very different note
-/// size in landscape, where the score has nearly twice the width to fill. A
-/// caption under the label names which one is being edited. Pinching the staff
-/// drives this same setting (see `staff_view_verovio.dart`), so the thumb tracks
-/// a pinch.
-///
-/// [bySection]: the piece is laid out by section ([staffBySectionProvider]), and
-/// the same slider sets lines per section instead ([linesPerSectionProvider]):
-/// auto is the fewest lines that fit at the minimum note size, and more lines
-/// mean bigger notes. Its breaks are exact, so its readout never says "≈".
-class _MeasuresPerLineSlider extends ConsumerWidget {
-  const _MeasuresPerLineSlider({required this.bySection});
-
-  final bool bySection;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final provider =
-        bySection ? linesPerSectionProvider : measuresPerLineProvider;
-    final min = bySection ? linesPerSectionMin : measuresPerLineMin;
-    final max = bySection ? linesPerSectionMax : measuresPerLineMax;
-    final zoom = ref.watch(provider);
-    final override = zoom.value;
-    final achieved = ref.watch(bySection
-        ? effectiveLinesPerSectionProvider
-        : effectiveMeasuresPerLineProvider);
-    final orientation = ref.watch(staffOrientationProvider);
-    // On auto, park the thumb on whatever the renderer settled at.
-    final position = (override ??
-            achieved ??
-            (bySection
-                ? linesPerSectionMin
-                : measuresPerLineForWidth(MediaQuery.sizeOf(context).width)))
-        .clamp(min, max);
-    // Locked is guaranteed exact (explicit system breaks), so it drops the
-    // "≈" the approximate auto-breaking modes carry; so is the section layout.
-    final exact = bySection || zoom.locked;
-    final readout = exact && override != null
-        ? '$override'
-        : (achieved == null
-            ? (override == null ? 'Auto' : '$override')
-            : override == null
-                ? (exact ? 'Auto ($achieved)' : 'Auto (≈$achieved)')
-                : '≈$achieved');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // The orientation is named because the setting is saved per
-            // orientation: without it, setting a zoom and then rotating to find
-            // a different one reads as a bug rather than as the feature.
-            //
-            // Flexible, and on its own line rather than appended to the label:
-            // the drawer is only ~218pt wide on a phone in landscape, and
-            // "Measures per line, landscape" on one line overflows the row and
-            // pushes the Auto button off the edge.
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(bySection ? 'Lines per section' : 'Measures per line'),
-                  Text(orientation.name,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-            Row(
-              children: [
-                Text(readout, style: Theme.of(context).textTheme.bodySmall),
-                if (override != null)
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(provider.notifier).commit(null),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: const Text('Auto'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        Slider(
-          value: position.toDouble(),
-          min: min.toDouble(),
-          max: max.toDouble(),
-          divisions: max - min,
-          label: '$position',
-          // Drag moves the state (and so re-engraves); the write to disk waits
-          // for the finger to lift so a drag persists once, not per frame.
-          onChanged: (v) => ref.read(provider.notifier).preview(v.round()),
-          onChangeEnd: (v) => ref.read(provider.notifier).commit(v.round()),
-        ),
-      ],
-    );
-  }
-}
-
-/// Guarantees the measures-per-line count above exactly, via explicit
-/// MusicXML system breaks (`insertSystemBreaks`) and Verovio's
-/// `breaks: 'encoded'`, instead of the ordinary `scale`-solved approximation
-/// (see `_MeasuresPerLineSlider`'s "≈N" readout). Only meaningful against an
-/// explicit value, so it's disabled on "Auto".
-class _MeasuresPerLineLockToggle extends ConsumerWidget {
-  const _MeasuresPerLineLockToggle();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final zoom = ref.watch(measuresPerLineProvider);
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      title: const Text('Lock exactly'),
-      value: zoom.locked,
-      onChanged: zoom.value == null
-          ? null
-          : (v) => ref
-              .read(measuresPerLineProvider.notifier)
-              .commit(zoom.value, locked: v),
     );
   }
 }
@@ -2415,6 +2219,7 @@ class _NotationView extends ConsumerWidget {
         // The printed page's lines engrave the section layout's way: each
         // line a pre-broken segment (see [staffByPrintedLinesProvider]).
         sectionLayout: bySection || byPrintedLines,
+        printedLines: byPrintedLines,
         sectionTints: sectionTints,
         chordRuns: chordRuns,
         fingeringAnnotations: annotations,
