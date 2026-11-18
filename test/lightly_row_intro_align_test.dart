@@ -1,5 +1,6 @@
-// Regression test for the case that pins the UPPER bound on
-// `DtwAligner.skipPenaltyPerFrame`: a recording whose intro quotes the tune.
+// Regression test for the recording that sets the highest workable value of
+// `DtwAligner.skipPenaltyPerFrame` (the penalty must stay below ~0.23): a
+// recording whose intro quotes the tune.
 //
 // Lightly Row's bundled Play Along recording opens by restating the tune's
 // first phrase before the performance proper (audio pitch classes run
@@ -83,8 +84,8 @@ void main() {
         reason: 'anchor 0 must land at the real first note, not in the intro');
   }, timeout: const Timeout(Duration(minutes: 5)));
 
-  // This recording is what pins the UPPER edge of `skipPenaltyPerFrame`'s
-  // usable window, and Galopede pins the lower one — so the window rests on
+  // This recording sets the top of `skipPenaltyPerFrame`'s usable window (a
+  // higher penalty breaks it), and Galopede sets the bottom — so the window rests on
   // two recordings, one per edge, and a third that was both quiet AND opened
   // by quoting the tune could empty it (docs/audio-sync-next-steps.md item 3).
   //

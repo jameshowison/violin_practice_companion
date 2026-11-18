@@ -427,8 +427,8 @@ const double spacesPerPageMarginTopUnit = 1 / 18;
 // not done here.
 //
 // Known limitation while we are being honest: the reserve is derived once per
-// calibration, and the calibration key is (xml, tabMode, spacingUnits) with no
-// width term — so rotating the device does not re-derive it. Measured as
+// calibration, and the calibration key is (xml, tabMode, spacingUnits, locked,
+// showNoteNames) with no width term — so rotating the device does not re-derive it. Measured as
 // immaterial (portrait and landscape derived identically on both simulators),
 // which is why it is documented rather than fixed with an extra engrave.
 
@@ -915,8 +915,10 @@ int autoMeasuresPerLine({
 /// floor. Falling back here used to mean a long piece jumped from 8 measures a
 /// line to 2, quadrupling the note size and the scrolling in one step.
 ///
-/// Mirrors `measuresPerRowForWidth` in `models/piece_layout.dart` (which does the
-/// same job for the jianpu/fingering views), with an extra step for iPad portrait.
+/// The staff's counterpart to `measuresPerRowForWidth` in
+/// `models/piece_layout.dart` (the jianpu/fingering views), but the two are
+/// independent and their breakpoints differ: that one gives 4 from 600px and
+/// 2 below.
 int measuresPerLineForWidth(double widthPx) {
   if (widthPx >= 1000) return 4; // iPad landscape / desktop
   if (widthPx >= 700) return 3; // iPad portrait

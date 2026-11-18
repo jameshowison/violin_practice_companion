@@ -51,7 +51,7 @@ import '../models/section.dart';
 /// Verovio only skips RESERVING the horizontal space for a repeated
 /// clef/key/time when it's marked non-printing before layout runs — engraving
 /// normally and stripping the glyph out of the rendered SVG afterward (see
-/// `VerovioEngraver.clefKeySigFirstSystemOnly`) leaves the space reserved and
+/// `VerovioEngraver.clefFirstSystemOnly`) leaves the space reserved and
 /// empty, a fixed dead margin on every continuation line. Confirmed headlessly
 /// against the bundled wasm toolkit: hiding at the source moved a system's
 /// first note from x=1324 to x=180 versus letting Verovio auto-repeat and
@@ -369,7 +369,7 @@ bool _hasSystemBreak(XmlElement measure) => measure
 /// points. Auto mode's counterpart: the break POSITIONS come from what
 /// Verovio already decided (read off the engraved `measureLine`), not from a
 /// measures-per-line target — this only recovers the dead margin
-/// `VerovioEngraver.clefKeySigFirstSystemOnly` otherwise leaves on every
+/// `VerovioEngraver.clefFirstSystemOnly` otherwise leaves on every
 /// continuation line; it doesn't change which measures share a line.
 String freezeSystemBreaks(String musicXml, Set<int> breakMeasureNumbers) {
   final doc = XmlDocument.parse(musicXml);
@@ -399,7 +399,8 @@ String freezeSystemBreaks(String musicXml, Set<int> breakMeasureNumbers) {
 /// auto-repeated copy — so Verovio stops RESERVING the horizontal space for it
 /// on the very FIRST system too. Confirmed headlessly the same way as that
 /// trick: on Old Joe Clark the first note's x moved from 3546 to 1944 once its
-/// opening clef/key/time were hidden this way.
+/// opening clef/key/time were hidden this way (measured back when the key was
+/// hidden too; it no longer is, so the saving is now somewhat smaller).
 ///
 /// The key signature is deliberately left alone (still printed) — unlike
 /// clef/time it's cheap to keep restating per line, and doing so is standard

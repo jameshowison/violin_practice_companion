@@ -662,7 +662,7 @@ class VerovioEngraver {
     processedSvg = stripAnnotationGlyphs(processedSvg);
     processedSvg = stripEndings(processedSvg);
     if (stripRepeatClefs)
-      processedSvg = clefKeySigFirstSystemOnly(processedSvg);
+      processedSvg = clefFirstSystemOnly(processedSvg);
     if (tabFingerLabels != null) {
       processedSvg = _swapTabFingerings(processedSvg, tabFingerLabels);
     }
@@ -677,8 +677,9 @@ class VerovioEngraver {
       notes: notes,
       meterSigs: meterSigs,
       keyAccids: [
-        // First system only: the repeats are cut from the SVG (see
-        // [clefKeySigFirstSystemOnly]), and nothing labels them.
+        // First system only: the key-signature label is drawn there alone
+        // (`_paintKeySignature` in staff_view_verovio.dart). Later systems
+        // repeat the key signature in the SVG, but nothing labels them.
         for (final r in keyAccidRects)
           if (lineForY(r.top) == 0) r,
       ],
@@ -820,14 +821,14 @@ class VerovioEngraver {
   /// removed glyphs were — hitMap coordinates are untouched, so overlays,
   /// the cursor, and taps stay aligned.
   ///
-  /// The key signature is deliberately NOT included here — unlike clef/time
-  /// it's left to repeat on every system, standard engraving practice, so a
-  /// player can tell the key from wherever they land on the page. This is
-  /// mostly a fallback for `breaks: 'auto'` (no explicit system breaks): the
-  /// usual "locked measures per line" path already keeps the key signature
-  /// (and hides clef/time) at the MusicXML source, see `_hidePreamble` in
+  /// Only the clef: the key signature and time signature are left in. The key
+  /// repeats on every system, standard engraving practice, so a player can
+  /// tell the key from wherever they land on the page. This is mostly a
+  /// fallback for `breaks: 'auto'` (no explicit system breaks): the usual
+  /// "locked measures per line" path already hides the repeated clef and
+  /// time at the MusicXML source, keeping the key, see `_hidePreamble` in
   /// `system_break_injector.dart`.
-  static String clefKeySigFirstSystemOnly(String svg) => _removeGroups(svg, [
+  static String clefFirstSystemOnly(String svg) => _removeGroups(svg, [
     ..._repeatedGroupRanges(svg, 'clef'),
   ]);
 
@@ -1409,8 +1410,9 @@ class VerovioEngraver {
   ///
   /// That matters because staff lines, stems and barlines are bare
   /// `<path d="…" stroke-width="13"/>` with no stroke attribute of their own:
-  /// this rule is the only thing that makes them visible. They happen to render
-  /// anyway under Skia (host and iOS) but not under CanvasKit on web, so the
+  /// this rule is the only thing that makes them visible. They happened to
+  /// render anyway on iOS and in host tests (seen before this fix) but not
+  /// under CanvasKit on web, so the
   /// stylesheet has to actually apply rather than be relied on by accident.
   ///
   /// We render exactly one score per widget, so the id namespacing is redundant

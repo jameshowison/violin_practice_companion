@@ -8,8 +8,8 @@
 //
 // This recording is the pipeline's hardest real case and the reason for the
 // front-end and skip-penalty changes documented in
-// docs/audio-sync-dtw-interior-gaps.md: it is quiet, and it carries a low hum
-// that holds 81% of the recording's energy below 200 Hz. Before those changes
+// docs/audio-sync-dtw-interior-gaps.md: it is quiet, and 81% of its energy
+// lies below 200 Hz, mostly a low hum. Before those changes
 // the alignment put its first anchor at 22.0s when the first note is at 3s,
 // and declared the tune finished at 40.6s when it runs to 49s — so the
 // highlight raced through the whole score during the middle of the recording

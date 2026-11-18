@@ -102,8 +102,8 @@ class PieceListScreen extends ConsumerWidget {
             ? sidebarWidth(width)
             : skin.filtersInSearch
                 ? 56
-                // Icon and Filters icon: 96, the two actions' width, so the
-                // title stays on the true centre.
+                // Home button (12 padding + 32) and Filters button (48)
+                // come to 92; 100 leaves a little slack.
                 : 100,
         leading: wide
             ? const _AppBadge()

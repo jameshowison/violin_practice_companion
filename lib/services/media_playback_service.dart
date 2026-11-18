@@ -112,8 +112,11 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
   /// The file, clipped at [_clipEndAudioSec]. The clip's start is never set,
   /// so the player's position stays the file's own — every reader of it, the
-  /// seeks and the video included, is unaffected. Re-clipping the same file is
-  /// cheap: just_audio keeps the loaded item and only moves its end.
+  /// seeks and the video included, is unaffected. On iOS, moving the clip's
+  /// end on the same file is cheap: just_audio 0.10.6 keeps the loaded
+  /// AVPlayerItem and only resets its `forwardPlaybackEndTime` (`load:` in
+  /// its AudioPlayer.m). Dropping the clip (no end) loads a fresh item.
+  /// Android's ExoPlayer path is unchecked.
   AudioSource _source() {
     final UriAudioSource file = _sourceAsset != null
         ? AudioSource.asset(_sourceAsset!)

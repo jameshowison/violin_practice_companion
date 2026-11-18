@@ -418,7 +418,7 @@ class TunerModel {
     final then = _history.lastWhere((h) => h.$1 <= at - trendAfter, orElse: () => _history.first);
     if (at - then.$1 < trendAfter) return;
     _history.removeWhere((h) => h.$1 < then.$1);
-    // A pluck fades (by a third or more over the interval); a bow holds.
+    // A pluck fades (by 20% or more over the interval); a bow holds.
     if (level < 0.8 * then.$3 || level < 0.5 * _peak) return;
     if (then.$1 - _start! < _bowScrape) return;
     final t = _compare(then.$2, cents);

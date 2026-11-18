@@ -198,10 +198,11 @@ void main() {
       }
     });
 
-    test('the two policies differ where they are meant to: measure starts', () {
-      // A plain repeat at a measure start. "Changes" treats a landmark as worth
-      // a label at `fewer`; "difficulty" scores it 1, which also clears `fewer`
-      // — the divergence is at `least`, where only a real signal survives.
+    test('both policies label a plain repeat at a measure start at fewer, '
+        'and drop it at least', () {
+      // "Changes" treats a landmark as worth a label at `fewer`; "difficulty"
+      // scores it 1, which also clears `fewer`. At `least` only a real signal
+      // survives, so both drop it.
       final c = (
         note: _n('A', '1'),
         prev: _n('A', '1'),

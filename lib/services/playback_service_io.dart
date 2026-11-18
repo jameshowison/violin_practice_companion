@@ -143,8 +143,6 @@ class PlaybackService extends PlaybackServiceBase {
     }
   }
 
-  /// flutter_midi_pro's engines don't restart themselves after an audio
-  /// session change, so the synth would go silent: load it afresh.
   // The calibration click: claves from the General MIDI drum kit (bank 128),
   // on a channel the score never uses — a sharp attack through the very
   // synth path the notes take, where the violin's own attack is too soft to
@@ -212,6 +210,8 @@ class PlaybackService extends PlaybackServiceBase {
     });
   }
 
+  /// flutter_midi_pro's engines don't restart themselves after an audio
+  /// session change, so the synth would go silent: load it afresh.
   @override
   Future<void> restartAudio() async {
     _midiReady = false;

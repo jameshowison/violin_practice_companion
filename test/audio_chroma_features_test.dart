@@ -94,7 +94,8 @@ void main() {
 
     test('a loud low-frequency hum cannot outvote a much quieter note', () {
       // 86 Hz is the loudest stationary bin in the Galopede teacher demo,
-      // whose hum holds 81% of the recording's energy. It is below every note
+      // which has 81% of its energy below 200 Hz, mostly a low hum. It is
+      // below every note
       // a violin or mandolin can play (G3, 196 Hz), so the band must exclude
       // it: here it is 20x the amplitude of the A4 it is drowning, and A
       // (pitch class 9) must still win. The old 80 Hz band floor folded it

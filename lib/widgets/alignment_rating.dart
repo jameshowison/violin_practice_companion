@@ -32,7 +32,7 @@ bool ratedBeforeRealign(WidgetRef ref, PieceMedia media) {
 }
 
 /// One line describing [media]'s rating, for the picker row's subtitle.
-/// Short, bars first after the verdict: the picker is ~290pt wide on a
+/// Short, bars first after the verdict: the picker is ~280pt wide on a
 /// compact phone and this truncates, and the bars are the useful part.
 String? ratingSummary(PieceMedia media, {bool stale = false}) {
   final r = media.alignmentRating;

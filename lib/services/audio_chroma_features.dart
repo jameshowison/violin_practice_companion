@@ -36,8 +36,8 @@ class ChromaSequence {
 /// docs/audio-sync-dtw-interior-gaps.md for the measurements behind both.
 /// Folding *raw* magnitudes from 80 Hz up, as this once did, meant a quiet
 /// recording's own noise floor decided its chroma: the Galopede teacher demo
-/// carries a low hum whose loudest bins are 54-205 Hz and holds 81% of the
-/// recording's energy below 200 Hz, so every frame's chroma was a re-binning
+/// carries a low hum whose loudest bins are 54-205 Hz, and 81% of the
+/// recording's energy lies below 200 Hz, so every frame's chroma was a re-binning
 /// of that hum and near-identical to every other frame's. The alignment that
 /// came out put its first anchor 19s after the first note.
 class AudioChromaExtractor {

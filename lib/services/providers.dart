@@ -386,7 +386,8 @@ final notationBottomClearanceProvider = StateProvider<double>((_) => 0);
 // in the app bar, beside the title, rather than on the panel itself.
 final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 
-// ── Staff spacing (MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10) ──
+// ── Staff spacing (Verovio `spacingSystem` via verovioSpacingSystemFor; under ──
+// the OSMD fallback, MinSkyBottomDistBetweenSystems / MinimumDistanceBetweenSystems * 10)
 // Exposed as constants so tests can assert min < max (a zero-range slider
 // cannot claim drag gestures and they leak to parent handlers like Drawer close).
 const staffSpacingMin = 0.1;

@@ -18,8 +18,11 @@ import 'library_dialogs.dart';
 /// filter panel, and the piece screen's drawer. These used to live on the
 /// Manage screen, and the bodies are lifted from it.
 ///
-/// Every action writes through at once, as Manage did (a library edit has no
-/// coherent commit boundary). Failures show the house error dialog.
+/// Edits write through at once (a library edit has no coherent commit
+/// boundary), and Undo, where offered, writes the reverse. The exception is
+/// [delete]: the pieces leave the list at once, but the files are removed only
+/// when the Undo snackbar closes without Undo. Failures show the house error
+/// dialog.
 ///
 /// Built per use from a live [context] and [ref]; the [context] must outlive
 /// the dialogs it opens, so build it from the screen, not from a menu or a

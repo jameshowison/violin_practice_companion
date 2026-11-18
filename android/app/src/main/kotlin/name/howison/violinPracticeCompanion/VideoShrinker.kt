@@ -190,7 +190,8 @@ class VideoShrinker(private val context: Context) {
         } catch (e: Exception) {
             return "The new file can't be read: ${e.message}"
         }
-        // A copy shorter than its source has lost the end of the performance.
+        // More than 100 ms longer or shorter than its source, and the copy has
+        // lost or gained part of the performance.
         if (abs(after.durationMs - before.durationMs) > 100) {
             return "The new file is ${after.durationMs - before.durationMs} ms off the original's length."
         }

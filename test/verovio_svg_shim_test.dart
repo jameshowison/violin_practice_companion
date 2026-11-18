@@ -166,7 +166,7 @@ void main() {
         '</svg>';
 
     test('clef is stripped from every system after the first', () {
-      final out = VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(twoSharpKeySig));
+      final out = VerovioEngraver.clefFirstSystemOnly(twoSystems(twoSharpKeySig));
       expect(out, contains('<g class="note">B</g>'));
       expect(out, contains('<g class="rest">R</g>'));
       expect(RegExp(r'class="layer"').allMatches(out).length, 2);
@@ -179,13 +179,13 @@ void main() {
       // so the self-closing `<g class="keySig"/>` (a past footgun for the
       // group-removal machinery — see the mNum self-closing test above)
       // can't confuse anything here; it's simply never touched.
-      final out = VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(emptyKeySig));
+      final out = VerovioEngraver.clefFirstSystemOnly(twoSystems(emptyKeySig));
       expect(RegExp(r'class="keySig"').allMatches(out).length, 2);
     });
 
     test('a keySig with accidentals is left alone on every system', () {
       final out =
-          VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(twoSharpKeySig));
+          VerovioEngraver.clefFirstSystemOnly(twoSystems(twoSharpKeySig));
       expect(RegExp(r'class="keySig"').allMatches(out).length, 2);
       // Both systems' nested keyAccid children survive — 4, not 2.
       expect(RegExp(r'class="keyAccid"').allMatches(out).length, 4);
@@ -193,7 +193,7 @@ void main() {
 
     test('the first system keeps its clef and key signature', () {
       final out =
-          VerovioEngraver.clefKeySigFirstSystemOnly(twoSystems(twoSharpKeySig));
+          VerovioEngraver.clefFirstSystemOnly(twoSystems(twoSharpKeySig));
       final secondSystem =
           out.indexOf('class="system"', out.indexOf('class="system"') + 1);
       final firstSystem = out.substring(0, secondSystem);
@@ -206,7 +206,7 @@ void main() {
       final svg = '<svg viewBox="0 0 100 100">'
           '<g class="system">${staff(emptyKeySig, '<g class="note">A</g>')}</g>'
           '</svg>';
-      expect(VerovioEngraver.clefKeySigFirstSystemOnly(svg), svg);
+      expect(VerovioEngraver.clefFirstSystemOnly(svg), svg);
     });
   });
 

@@ -101,8 +101,8 @@ class DtwAligner {
   /// path keeps the local tempo through stretches it can't see, and those
   /// bars land within 0.1 s of their onsets.
   ///
-  /// It is small next to a typical match cost (~0.3), so a real tempo change
-  /// still pays for itself; Galopede, Gundagai, Lightly Row and Salt Creek
+  /// It is small next to a typical match cost, so a real tempo change still
+  /// pays for itself; Galopede, Gundagai, Lightly Row and Salt Creek
   /// align as before.
   final double stepPenalty;
 
