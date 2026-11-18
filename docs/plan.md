@@ -185,11 +185,32 @@ The native Verovio + jovial_svg renderer is the default (`staffRendererProvider`
     ONNX Runtime's third-party notices, the iOS pods, the Android Gradle
     libraries, and the GPL text itself.
 
-  **Still open (decision):** the Android build puts AGPL homr code in one
-  APK with proprietary ML Kit text recognition and the Play Services
-  document scanner. Those probably aren't "System Libraries" under GPL-3
-  §1, and F-Droid rejects both regardless. Options: a FOSS flavour without
-  them, or legal advice.
+  **Decided 2026-11-17: Android goes cleanly GPL.** The Android build
+  currently puts AGPL homr in one APK with two proprietary Google
+  components, and both have to go:
+  - **Title recognition**, `com.google.mlkit:text-recognition`
+    (`android/app/build.gradle.kts`, `TextRecognitionPlugin.kt`). This is
+    the *bundled* variant: Google's closed library and the Latin model are
+    compiled into our APK, and it runs without Play Services, so it is not
+    a system service. The unbundled variant
+    (`play-services-mlkit-text-recognition`) moves the model into Play
+    Services but still links a closed client library. Neither is clean.
+    Plan: build title recognition back into `homr_flutter` as open code
+    with open models, on both platforms, and retire the ML Kit plugin.
+    iOS Vision is a genuine OS framework, so it is a GPL-3 §1 System
+    Library, but one engine on both platforms is simpler to keep
+    consistent.
+  - **The document scanner**, `play-services-mlkit-document-scanner`
+    (via `flutter_doc_scanner`). Its UI and processing run inside Google
+    Play Services, but a closed client library is still in our APK, and
+    Play Services is a Google app, not part of Android (AOSP). It is absent
+    on de-Googled and Huawei phones. Calling it a System Library is
+    arguable, not settled. Replace it on Android with the camera,
+    photo-picker and cropper path that already exists.
+  - Once both are gone, F-Droid's rules (which reject any proprietary
+    dependency) are met too.
+  - ML Kit also tries to send usage logs to Firebase. Removing it ends
+    that.
 - **Cleanup**, only once the default is firmly `verovio` everywhere it can
   be:
   - `assets/engine/osmd/*`
