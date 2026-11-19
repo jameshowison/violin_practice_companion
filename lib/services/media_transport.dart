@@ -17,6 +17,19 @@ import 'package:just_audio/just_audio.dart';
 /// with a second, muted player showing the picture, the speaker took the sound
 /// and the picture never moved (Hazel iPad + a Sonos, 2026-11-18).
 abstract class MediaTransport {
+  /// Whether any recording player is playing right now — calibration's
+  /// included. The synth defers rebuilding for a new speaker until this is
+  /// false: its engines, started while an AVPlayer held an AirPlay speaker's
+  /// one stream, never reached the speaker, and stayed silent with nothing to
+  /// say so (Hazel iPad + Kitchen, switched mid-play, 2026-11-18).
+  static final ValueNotifier<bool> anyPlaying = ValueNotifier(false);
+  static final Set<Object> _playing = {};
+
+  static void _setPlaying(Object player, bool playing) {
+    playing ? _playing.add(player) : _playing.remove(player);
+    anyPlaying.value = _playing.isNotEmpty;
+  }
+
   /// Gives the player its file, stopping by itself at [end] (null: the
   /// file's end), positioned at [initialPosition].
   Future<void> setSource(
@@ -80,9 +93,16 @@ class JustAudioTransport implements MediaTransport {
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() {
+    MediaTransport._setPlaying(this, true);
+    return _player.play();
+  }
+
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() {
+    MediaTransport._setPlaying(this, false);
+    return _player.pause();
+  }
   @override
   Future<void> seek(Duration position) => _player.seek(position);
   @override
@@ -100,7 +120,10 @@ class JustAudioTransport implements MediaTransport {
   @override
   ValueListenable<VideoPicture?> get picture => _noPicture;
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() {
+    MediaTransport._setPlaying(this, false);
+    return _player.dispose();
+  }
 }
 
 /// One native AVPlayer for a file's sound, and its picture if it has one.
@@ -217,6 +240,7 @@ class NativeTransport implements MediaTransport {
   @override
   Future<void> play() async {
     _playing = true;
+    MediaTransport._setPlaying(this, true);
     _completed = false;
     _changes.add(null);
     await _call('play', {'rate': _speed});
@@ -225,6 +249,7 @@ class NativeTransport implements MediaTransport {
   @override
   Future<void> pause() async {
     _playing = false;
+    MediaTransport._setPlaying(this, false);
     _setSnap(position.inMicroseconds, 0);
     _changes.add(null);
     await _call('pause');
@@ -268,6 +293,7 @@ class NativeTransport implements MediaTransport {
   @override
   Future<void> dispose() async {
     if (_disposed) return;
+    MediaTransport._setPlaying(this, false);
     await _sub.cancel();
     _picture.value = null;
     await _call('dispose');

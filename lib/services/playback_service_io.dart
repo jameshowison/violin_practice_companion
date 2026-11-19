@@ -6,6 +6,7 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'audio_output.dart';
 import 'bundled_asset_path.dart';
+import 'media_transport.dart';
 import 'playback_service_base.dart';
 import 'midi_generator.dart';
 
@@ -34,6 +35,7 @@ class PlaybackService extends PlaybackServiceBase {
     if (outputLatency == null) {
       AudioOutput.ensureStarted();
       AudioOutput.route.addListener(_onRouteChanged);
+      MediaTransport.anyPlaying.addListener(_onRecordingPlaying);
     }
     _initMidi();
   }
@@ -41,6 +43,7 @@ class PlaybackService extends PlaybackServiceBase {
   @override
   void dispose() {
     AudioOutput.route.removeListener(_onRouteChanged);
+    MediaTransport.anyPlaying.removeListener(_onRecordingPlaying);
     _routeSettle?.cancel();
     super.dispose();
   }
@@ -72,11 +75,30 @@ class PlaybackService extends PlaybackServiceBase {
     });
   }
 
+  /// A recording stopped: catch up on a speaker change made while it played.
+  void _onRecordingPlaying() {
+    if (!MediaTransport.anyPlaying.value) unawaited(_followSpeaker());
+  }
+
   /// Rebuilds the synth if the speaker has changed since it was built.
   /// Safe to call at any time; concurrent calls share one rebuild.
+  ///
+  /// Not while a recording plays: synth engines started while an AVPlayer
+  /// held an AirPlay speaker's single stream never reached it, and stayed
+  /// silent with no engine reset to say so. The rebuild waits for the
+  /// recording to stop ([_onRecordingPlaying]); until then [_builtFor] still
+  /// names the old speaker, so calibration's own check catches it too.
   Future<void> _followSpeaker() async {
     while (_rebuilding != null) {
       await _rebuilding;
+    }
+    if (MediaTransport.anyPlaying.value) {
+      debugPrint('[playback] speaker changed during a recording; '
+          'rebuilding the synth once it stops');
+      _nativeAudio
+          .invokeMethod<void>('mark', 'synth: rebuild deferred (recording playing)')
+          .catchError((_) {});
+      return;
     }
     final now = _routeKey(AudioOutput.route.value);
     final built = _builtFor;
