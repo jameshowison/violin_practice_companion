@@ -877,9 +877,16 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// recording has still plays; starting mid-piece has no such intro to play
   /// and seeks straight to the mapped position as before.
   double _seekTargetAudioSec(double startOffsetSeconds) =>
-      startOffsetSeconds <= 0 || !isAligned
+      !isAligned || (startOffsetSeconds <= 0 && playsIntroWithoutCount)
           ? 0.0
           : _audioSecForScoreSec(startOffsetSeconds);
+
+  /// Whether a from-the-top play with no count-in still plays whatever comes
+  /// before the first anchor. True for a recording, whose intro is part of
+  /// the performance; false for a rendered score, whose intro is only the
+  /// woodblock count — with the count off, it starts on the first bar.
+  @protected
+  bool get playsIntroWithoutCount => true;
 
   /// Where in the recording a play from [scoreSeconds] would begin — the
   /// same choice [play] makes — for showing a paused video at that spot.

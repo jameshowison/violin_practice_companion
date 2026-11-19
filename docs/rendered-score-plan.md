@@ -236,8 +236,10 @@ sample (offset 0). Android: MPEG4Writer also records 2112, and Apple's
 decoder puts the audio 64 samples (1.5 ms) early. Whether ExoPlayer honours
 that edit list is not measured.
 
-**Behaviour to decide:** with the count-in off, a start from the top still
-plays the three woodblock bars (a recording's intro always plays from 0).
+**Count-in off skips the woodblocks** (decided 2026-11-19): a from-the-top
+start with no count seeks to the first bar
+(`MediaPlaybackService.playsIntroWithoutCount`, false for the rendered
+score). A recording's own intro still plays from 0.
 
 **Not done:** listening comparison with the live synth; device timing; phase
 4 (calibration retirement, open questions 3–4); phase 5 (Silent onto the

@@ -117,6 +117,11 @@ class RenderedScorePlaybackService extends MediaPlaybackService {
     }
   }
 
+  /// The intro is the woodblock count, so with the count-in off a play from
+  /// the top starts on the first bar.
+  @override
+  bool get playsIntroWithoutCount => false;
+
   /// Not the base class's regeneration, which would move the timeline out
   /// from under the anchors: a tempo is a render and a rate.
   @override
