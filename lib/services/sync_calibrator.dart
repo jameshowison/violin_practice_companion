@@ -25,11 +25,15 @@ typedef _PlayClicks = Future<List<double>> Function();
 /// on whatever speaker is connected, with the mic listening
 /// (`ios/Runner/AudioCalibrationPlugin.swift`). Two players, two delays:
 ///
-/// - **Recordings** — [CalibrationClip] through a just_audio player, timed by
-///   its own `position`. That is exactly what `MediaPlaybackService`
-///   subtracts from, so whatever AVPlayer already allows for itself is
-///   measured away rather than double-counted (531ms on a Sonos Roam over
-///   AirPlay, where iOS's estimate over-corrected).
+/// - **Recordings** — [CalibrationClip] through the player recordings play
+///   through (on iOS the native one, [NativeTransport]), timed by its own
+///   clock. That is exactly what `MediaPlaybackService` subtracts from.
+///   Through the native player it measures ~10ms on the iPad speaker and
+///   on a Sonos over AirPlay (2026-11-18): AVPlayer's position already is
+///   what is heard. The 531–584ms once measured here on AirPlay was
+///   just_audio's Dart-side position, which on iOS extrapolates from the
+///   last event it was sent; its `play` updates the native position
+///   without sending one, so the Dart clock ran ahead of the player.
 /// - **The synthesized score** — claves struck through the synth
 ///   (`PlaybackServiceBase.strikeCalibrationClick`), timed by when they were
 ///   struck. The synth has no such allowance, so its delay is markedly larger
