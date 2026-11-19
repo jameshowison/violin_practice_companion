@@ -8,6 +8,10 @@ note editor (§6) write-ups.
 Items marked **(decision)** need a call from the project owner before anyone
 builds anything.
 
+For the longer view — a family of practice apps for other instruments, and the
+libraries to spin off for it — see `docs/family/approach.md` and
+`docs/family/libraries.md`.
+
 ---
 
 ## 1. Sections: detection with lead-ins, and note-level markers (next)
