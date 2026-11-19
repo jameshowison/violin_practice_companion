@@ -90,9 +90,10 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
 
 /// Stateful only to own the wakelock. The screen is read from for minutes at a
 /// time without a touch — the player is looking at the score, not the phone —
-/// so the idle timer has to be held off for as long as a piece is open, rather
-/// than only while the app's own playback runs. Most practice happens with the
-/// audio off.
+/// so the idle timer is held off while a piece is open, rather than only while
+/// the app's own playback runs (most practice happens with the audio off). Not
+/// forever, though: [KeepAwake] lets the screen sleep five minutes after the
+/// last touch, and never while something plays.
 ///
 /// The hook sits on the screen and not on either layout because the two
 /// branches disagree in shape: the compact one is a widget with state, the wide
@@ -127,6 +128,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
 
   @override
   void dispose() {
+    KeepAwake.busy = false;
     KeepAwake.disable();
     final id = _pieceId;
     final section = _lastSection;
@@ -228,6 +230,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // listens to it (no recording service, no slider), so hold it here for the
     // whole visit — otherwise score → recording would reset it to 60.
     ref.listen(highlightLeadMsProvider, (_, _) {});
+
+    // Playing counts as activity for the screen's sleep countdown.
+    ref.listen(activePlaybackStateProvider, (_, next) {
+      KeepAwake.busy = next.valueOrNull == PlaybackState.playing;
+    });
 
     // The one service every view reads its highlight from.
     //
