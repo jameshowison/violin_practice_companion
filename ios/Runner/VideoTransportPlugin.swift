@@ -145,6 +145,8 @@ private class VideoTransport: NSObject, FlutterTexture {
   private var latest: CVPixelBuffer?
   private var observations: [NSKeyValueObservation] = []
   private var endObserver: NSObjectProtocol?
+  private var tokens: [NSObjectProtocol] = []
+  private var lastTraced = 0.0
   private var heartbeat: Timer?
 
   /// The rate Play asked for; AVPlayer's own `rate` is 0 when paused.
@@ -208,9 +210,25 @@ private class VideoTransport: NSObject, FlutterTexture {
     if picture { attachPicture(to: item) }
     player.replaceCurrentItem(with: item)
 
-    observations.append(player.observe(\.timeControlStatus) { [weak self] _, _ in
+    observations.append(player.observe(\.timeControlStatus) { [weak self] p, _ in
+      let status = ["paused", "waiting", "playing"][min(p.timeControlStatus.rawValue, 2)]
+      self?.trace("timeControl \(status) why=\(p.reasonForWaitingToPlay?.rawValue ?? "-")")
       self?.report()
     })
+    observations.append(item.observe(\.status) { [weak self] i, _ in
+      self?.trace("item status=\(i.status.rawValue) error=\(i.error?.localizedDescription ?? "-")")
+    })
+    let nc = NotificationCenter.default
+    for name in [AVPlayerItem.playbackStalledNotification,
+                 AVPlayerItem.failedToPlayToEndTimeNotification,
+                 AVPlayerItem.newErrorLogEntryNotification] {
+      tokens.append(nc.addObserver(forName: name, object: item, queue: .main) {
+        [weak self, weak item] n in
+        let err = (n.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?
+          .localizedDescription ?? item?.errorLog()?.events.last?.errorComment ?? "-"
+        self?.trace("\(n.name.rawValue) \(err)")
+      })
+    }
     endObserver = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
     ) { [weak self] _ in
@@ -275,9 +293,25 @@ private class VideoTransport: NSObject, FlutterTexture {
     ]
   }
 
+  /// Into the running diagnostic trace, if any (AudioCalibrationPlugin):
+  /// what this player did around a route change, with its clock.
+  private func trace(_ what: String) {
+    let c = clock()
+    AudioCalibrationPlugin.traceEvent(
+      "player\(id)",
+      "\(what) pos=\((c["positionUs"] as? Int ?? 0) / 1000)ms rate=\(c["rate"] ?? 0) "
+        + "playerRate=\(player.rate)")
+  }
+
   private func report() {
     var event = clock()
     if event.isEmpty { return }
+    // Every 2s while running, so a stall shows as a position that stops.
+    let now = CACurrentMediaTime()
+    if now - lastTraced > 2 {
+      lastTraced = now
+      trace("tick")
+    }
     event["id"] = id
     event["completed"] = completed
     plugin?.emit(event)
@@ -287,6 +321,7 @@ private class VideoTransport: NSObject, FlutterTexture {
     wantedRate = rate
     playing = true
     completed = false
+    trace("play rate=\(rate) pendingSeeks=\(pendingSeeks)")
     if pendingSeeks > 0 {
       playAfterSeek = true
       return
@@ -298,6 +333,7 @@ private class VideoTransport: NSObject, FlutterTexture {
   func pause() {
     playing = false
     playAfterSeek = false
+    trace("pause")
     player.pause()
     report()
   }
@@ -311,6 +347,7 @@ private class VideoTransport: NSObject, FlutterTexture {
   func seek(ms: Int, _ done: @escaping () -> Void) {
     completed = false
     pendingSeeks += 1
+    trace("seek to \(ms)ms")
     let target = CMTime(value: CMTimeValue(ms), timescale: 1000)
     player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
       DispatchQueue.main.async {
@@ -343,6 +380,8 @@ private class VideoTransport: NSObject, FlutterTexture {
     if let endObserver = endObserver {
       NotificationCenter.default.removeObserver(endObserver)
     }
+    tokens.forEach { NotificationCenter.default.removeObserver($0) }
+    tokens = []
     player.pause()
     player.replaceCurrentItem(with: nil)
     if textureId >= 0 { textures.unregisterTexture(textureId) }

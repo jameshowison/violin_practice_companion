@@ -38,6 +38,7 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
     let channel = FlutterMethodChannel(
       name: channelName, binaryMessenger: registrar.messenger())
     let instance = AudioCalibrationPlugin()
+    shared = instance
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.observeSession()
   }
@@ -52,7 +53,15 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
   // `traceStop`, stamped on the same wall clock as Dart's `DateTime.now()`.
 
   private var tracing = false
+  private var traceLabel = "calibration"
   private var trace: [[String: Any]] = []
+
+  /// For other native code to add to a running trace (the recording player,
+  /// VideoTransportPlugin.swift). A no-op when nothing is tracing.
+  private static weak var shared: AudioCalibrationPlugin?
+  static func traceEvent(_ kind: String, _ detail: String) {
+    shared?.record(kind, detail)
+  }
   private let traceLock = NSLock()
   private var volumeObservation: NSKeyValueObservation?
 
@@ -145,13 +154,13 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
   /// Appends a finished trace to `Documents/sync_cal_trace.txt`, so a release
   /// build (no `flutter run` attached) can be diagnosed: copy it off with
   /// `scripts/pull_sync_trace.sh <device>`. Keeps roughly the last 200KB.
-  private static func writeTraceFile(_ events: [[String: Any]]) {
+  private static func writeTraceFile(_ events: [[String: Any]], label: String) {
     guard let first = events.first?["t"] as? Double,
       let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
     else { return }
     let url = docs.appendingPathComponent("sync_cal_trace.txt")
     let stamp = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: first))
-    var text = "=== calibration \(stamp) ===\n"
+    var text = "=== \(label) \(stamp) ===\n"
     for e in events {
       let ms = ((e["t"] as? Double ?? first) - first) * 1000
       text += String(format: "+%6.0fms ", ms)
@@ -196,6 +205,7 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
       traceLock.lock()
       trace = []
       tracing = true
+      traceLabel = call.arguments as? String ?? "calibration"
       traceLock.unlock()
       mark("traceStart")
       result(nil)
@@ -207,9 +217,10 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
       traceLock.lock()
       tracing = false
       let out = trace
+      let label = traceLabel
       trace = []
       traceLock.unlock()
-      Self.writeTraceFile(out)
+      Self.writeTraceFile(out, label: label)
       result(out)
     default:
       result(FlutterMethodNotImplemented)

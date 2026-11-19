@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/parsed_piece.dart';
 import '../models/piece_media.dart';
@@ -875,8 +876,26 @@ class MediaPlaybackService extends PlaybackServiceBase {
   ///
   /// The player is also told where this play-through ends ([_clipEndAudioSec]),
   /// so it stops on that sample itself rather than being stopped late.
+  // Diagnostic: each play-through of a recording is traced like a
+  // calibration (AudioCalibrationPlugin.swift, "Trace") — route changes,
+  // interruptions, engine resets and the native player's state — and
+  // appended to Documents/sync_cal_trace.txt at Stop, for
+  // `scripts/pull_sync_trace.sh`. Hunting the mid-play switch to AirPlay
+  // going silent (Hazel iPad, 2026-11-18). A no-op where there's no plugin.
+  static const _trace =
+      MethodChannel('violin_practice_companion/audio_calibration');
+  bool _tracing = false;
+
+  void _traceCall(String method, [Object? args]) {
+    _trace.invokeMethod<Object?>(method, args).catchError((_) => null);
+  }
+
   @override
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
+    if (!_tracing) {
+      _tracing = true;
+      _traceCall('traceStart', 'playback ${_media?.id ?? '?'}');
+    }
     final generation = ++_playGeneration;
     _endTimer?.cancel();
     final lead = _leadIn;
@@ -964,6 +983,10 @@ class MediaPlaybackService extends PlaybackServiceBase {
     _leadInEndsAt = null;
     _seekPending = false;
     _player.pause();
+    if (_tracing) {
+      _tracing = false;
+      _traceCall('traceStop');
+    }
   }
 
   @override
