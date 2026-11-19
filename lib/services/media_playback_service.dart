@@ -89,12 +89,11 @@ class MediaLoadResult {
 /// two stores drifted into holding the same anchors under different keys with
 /// different migration behaviour.
 ///
-/// What is NOT here is the synthesized score. That is played by the soundfont
-/// engine in `PlaybackService`, which triggers real MIDI notes and has no
-/// audio file, no anchors and nothing to align. It appears alongside these
-/// media in the picker — see [PieceMedia.synthesized] — but merging its engine
-/// into this one would mean a class that is two unrelated things joined by an
-/// `if`, which is what this file exists to undo.
+/// The synthesized score plays here too, rendered to a file with its
+/// alignment written at render time (`RenderedScorePlaybackService`, via
+/// [loadAligned]; docs/rendered-score-plan.md), so it shares the recordings'
+/// player, clock, clip end and count-in. The live synth (`PlaybackService`)
+/// remains for the Silent option and behind a switch for comparison.
 class MediaPlaybackService extends PlaybackServiceBase {
   final MediaAlignmentStore _store;
   final AudioDecoderBase _decoder;
@@ -139,16 +138,24 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// The native player for any recording that is a file, where the platform
   /// has one — a video's picture with it when the video is that same file;
   /// just_audio otherwise.
-  Future<void> _useTransportFor(PieceMedia media, String? audioFile) async {
+  Future<void> _useTransportFor(PieceMedia media, String? audioFile) {
     final audio = media.audio!, video = media.video;
     final oneFile = video != null &&
         video.storage == audio.storage &&
         video.path == audio.path;
+    return _useTransport(audioFile, picture: oneFile);
+  }
+
+  /// Whether the current player shows its file's picture.
+  bool _picture = false;
+
+  Future<void> _useTransport(String? audioFile, {bool picture = false}) async {
+    _picture = picture;
     NativeTransport? next;
     try {
       next = audioFile == null
           ? null
-          : await NativeTransport.open(audioFile, picture: oneFile);
+          : await NativeTransport.open(audioFile, picture: picture);
     } catch (e) {
       // Not fatal: the sound-only player and the overlay's own video remain.
       debugPrint('MediaPlaybackService: video transport failed — $e');
@@ -176,11 +183,11 @@ class MediaPlaybackService extends PlaybackServiceBase {
   @override
   Future<void> restartAudio() async {
     try {
-      if (_player is NativeTransport && _media != null) {
+      if (_player is NativeTransport && _sourceFile != null) {
         // A fresh AVPlayer on the current route, as a new source is below.
         final at = _player.position;
         // Always a new player for a video.
-        await _useTransportFor(_media!, _sourceFile);
+        await _useTransport(_sourceFile, picture: _picture);
         await _player.seek(at);
         await _watchForCompletion();
       }
@@ -437,6 +444,40 @@ class MediaPlaybackService extends PlaybackServiceBase {
             'This file plays, but it could not be matched to the score, so the '
             'notation will not follow along.',
           );
+  }
+
+  /// Loads a file whose alignment is already known exactly — the rendered
+  /// score (`RenderedScorePlaybackService`), made from the note schedule
+  /// at [generationBpm] — so there is no medium, no store and no DTW: the
+  /// rest is a recording's path, from the player to the count-in.
+  @protected
+  Future<MediaLoadResult> loadAligned({
+    required ParsedPiece piece,
+    required String file,
+    required List<ScoreAudioAnchor> anchors,
+    required int generationBpm,
+  }) async {
+    _media = null;
+    _avOffsetMs = 0;
+    await _useTransport(file);
+    videoPathNotifier.value = null;
+    _anchors = sortAnchors(anchors);
+    alignmentLooksUncertain.value = false;
+    _generationBpm = generationBpm;
+    await loadPieceAtBpm(piece, generationBpm);
+    try {
+      _sourceFile = file;
+      _sourceAsset = null;
+      _clipEndAudioSec = null;
+      await _setSource();
+    } catch (e) {
+      debugPrint('MediaPlaybackService: player rejected $file — $e');
+      return MediaLoadResult(
+          MediaLoadOutcome.failed, "This file can't be played.");
+    }
+    await _watchForCompletion();
+    await setPlaybackSpeed(playbackSpeed.value);
+    return const MediaLoadResult(MediaLoadOutcome.ready);
   }
 
   /// Cached alignment, or a fresh one, or null when this medium cannot be

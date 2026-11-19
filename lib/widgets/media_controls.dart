@@ -13,6 +13,7 @@ import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
+import '../services/rendered_score_playback_service.dart';
 import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
@@ -788,27 +789,57 @@ class _SynthesizedTransport extends ConsumerStatefulWidget {
 class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
   @override
   Widget build(BuildContext context) {
-    final service = ref.watch(playbackServiceProvider);
-    final playState =
-        ref.watch(playbackStateProvider).valueOrNull ?? PlaybackState.stopped;
+    // The live synth, or the score rendered to a file and played as a
+    // recording (RenderedScorePlaybackService) — whichever is active.
+    final service = ref.watch(activePlaybackServiceProvider);
+    final playState = ref.watch(activePlaybackStateProvider).valueOrNull ??
+        PlaybackState.stopped;
     final isPlaying = playState == PlaybackState.playing;
+    final rendered = service is RenderedScorePlaybackService ? service : null;
 
-    return Row(
-      children: [
-        IconButton(
+    Widget playButton({required bool ready}) => IconButton(
           icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
           iconSize: 26,
           tooltip: isPlaying ? 'Pause' : 'Play',
-          onPressed: () {
-            if (isPlaying) {
-              service.pause();
-            } else {
-              // Paused and stopped both resume with a fresh count-off: the
-              // instrument has come down either way.
-              playSelection(ref, service);
-            }
-          },
-        ),
+          onPressed: !ready && !isPlaying
+              ? null
+              : () {
+                  if (isPlaying) {
+                    service.pause();
+                  } else {
+                    // A start mid-piece is counted in as a recording's is.
+                    if (rendered != null) {
+                      rendered.leadInMode = ref.read(recordingLeadInProvider);
+                    }
+                    // Paused and stopped both resume with a fresh count-off:
+                    // the instrument has come down either way.
+                    playSelection(ref, service);
+                  }
+                },
+        );
+
+    return Row(
+      children: [
+        if (rendered == null)
+          playButton(ready: true)
+        else
+          // Until the first render is in, there is nothing to play.
+          ValueListenableBuilder<int?>(
+            valueListenable: rendered.loadedRender,
+            builder: (context, loaded, _) => loaded != null
+                ? playButton(ready: true)
+                : const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator.adaptive(
+                            strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+          ),
         PlayModePill(service: service),
         // Named practice speeds rather than a slider: a slider's exact value
         // is hard to hit again tomorrow, and "slow / medium / performance" is

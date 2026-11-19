@@ -6,6 +6,17 @@ import 'midi_generator.dart';
 
 enum PlaybackState { playing, paused, stopped }
 
+/// A play-through's range, for starting it again part-way
+/// ([PlaybackServiceBase.resumePoint]).
+typedef ResumePoint = ({
+  int fromMeasure,
+  int fromNote,
+  int? toMeasure,
+  int toNote,
+  int fromIndex,
+  int toIndex,
+});
+
 /// Shared timing and highlight-tracking logic for both platform implementations.
 /// Subclasses handle the actual audio output.
 abstract class PlaybackServiceBase {
@@ -238,28 +249,40 @@ abstract class PlaybackServiceBase {
   void strikeCalibrationClick() {}
 
   void setTempo(int bpm) {
-    final wasPlaying = _state == PlaybackState.playing;
-    final savedMeasure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;
-    final savedFromNote = savedMeasure == _fromMeasure ? _fromNote : 0;
-    final savedTo = _toMeasure;
-    final savedToNote = _toNote;
-    final savedFromIndex = _lastEmittedMeasure > 0
-        ? currentHighlightNotifier.value?.performanceIndex ?? -1
-        : _fromIndex;
-    final savedToIndex = _toIndex;
+    final resume = _state == PlaybackState.playing ? resumePoint() : null;
     _stopInternal(silent: true);
     _bpm = bpm;
     if (_piece != null) _data = generator.generate(_piece!, bpm);
-    if (wasPlaying) {
-      play(
-          fromMeasure: savedMeasure,
-          fromNote: savedFromNote,
-          toMeasure: savedTo,
-          toNote: savedToNote,
-          fromIndex: savedFromIndex,
-          toIndex: savedToIndex);
-    }
+    if (resume != null) resumeAt(resume);
   }
+
+  /// Where a play-through interrupted now would pick up again: the bar being
+  /// played (from its first note, unless it is the start bar), to the same
+  /// end. For a change that needs a fresh start mid-play, as [setTempo] does.
+  @protected
+  ResumePoint resumePoint() {
+    final measure = _lastEmittedMeasure > 0 ? _lastEmittedMeasure : _fromMeasure;
+    return (
+      fromMeasure: measure,
+      fromNote: measure == _fromMeasure ? _fromNote : 0,
+      toMeasure: _toMeasure,
+      toNote: _toNote,
+      fromIndex: _lastEmittedMeasure > 0
+          ? currentHighlightNotifier.value?.performanceIndex ?? -1
+          : _fromIndex,
+      toIndex: _toIndex,
+    );
+  }
+
+  /// Plays from [p] at once, with no count: the practice is already going.
+  @protected
+  void resumeAt(ResumePoint p) => play(
+      fromMeasure: p.fromMeasure,
+      fromNote: p.fromNote,
+      toMeasure: p.toMeasure,
+      toNote: p.toNote,
+      fromIndex: p.fromIndex,
+      toIndex: p.toIndex);
 
   /// Moves where the current play-through ends — Play through switched on or
   /// off mid-play — without going back to the start: playback carries on from

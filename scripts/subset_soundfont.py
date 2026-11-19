@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Cut a SoundFont 2 bank down to the presets the app actually plays.
 
-The app plays two sounds through flutter_midi_pro (playback_service_io.dart):
-the violin (bank 0, program 40, from assets/engine/lookup_tables/midi_patch.json)
-and one claves note from the GM drum kit (bank 128, program 0, key 75) for the
-calibration click. GeneralUser GS is ~31 MB for all 260-odd presets; this keeps
+The app plays the violin (bank 0, program 40, from
+assets/engine/lookup_tables/midi_patch.json) and three notes of the GM drum kit
+(bank 128, program 0): the claves (75) for the calibration click, through
+flutter_midi_pro (playback_service_io.dart), and the high and low woodblocks
+(76, 77) for the rendered score's count-in (score_renderer.dart). GeneralUser GS is ~31 MB for all 260-odd presets; this keeps
 those two, the instrument zones they reach, and only the samples those zones
 play, so the bundled bank is a small fraction of that. GeneralUser GS's licence
 allows modifying it (assets/engine/licenses/generaluser_gs.txt).
 
     python3 scripts/subset_soundfont.py ../GeneralUser-GS/GeneralUser-GS.sf2 \
-        assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75
+        assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75,76,77
 
 --keep BANK:PROGRAM keeps a whole preset; BANK:PROGRAM:KEY[,KEY...] keeps only
 the zones whose key range covers one of those keys (plus global zones). If you

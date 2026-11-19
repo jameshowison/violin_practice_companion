@@ -289,6 +289,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0+7.7.0"
+  dart_melty_soundfont:
+    dependency: "direct main"
+    description:
+      name: dart_melty_soundfont
+      sha256: ed961db658b588da49ae1d9e21ebb3b725677f2d78721a80c5e47cddde72a5d0
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   dart_style:
     dependency: transitive
     description:

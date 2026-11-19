@@ -26,6 +26,10 @@ public class AudioDecoderPlugin: NSObject, FlutterPlugin {
       handleShrinkVideo(call, result: result)
       return
     }
+    if call.method == "encodeAac" {
+      handleEncodeAac(call, result: result)
+      return
+    }
     guard call.method == "decodeToPcm" else {
       result(FlutterMethodNotImplemented)
       return
@@ -347,5 +351,68 @@ extension AudioDecoderPlugin {
       "width": outWidth, "height": outHeight,
       "codec": codec == .hevc ? "hevc" : "h264", "bytes": bytes,
     ]
+  }
+}
+
+// MARK: - encodeAac
+
+/// The rendered score (lib/services/rendered_score_cache_io.dart): a WAV the
+/// Dart side rendered, re-encoded as the app's own recordings are — AAC, mono,
+/// 44.1 kHz, 64 kbps, in an MPEG-4 container — so it plays down the same path.
+/// AVAudioFile (ExtAudioFile underneath, as `afconvert` uses) records the
+/// encoder's 2112 priming frames in the file, so AVPlayer and the decoder skip
+/// them and every rendered sample keeps its time.
+extension AudioDecoderPlugin {
+  fileprivate func handleEncodeAac(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let input = arguments["input"] as? String,
+      let output = arguments["output"] as? String
+    else {
+      result(FlutterError(code: "bad_args", message: "input and output are required", details: nil))
+      return
+    }
+    let bitRate = arguments["bitRate"] as? Int ?? 64000
+    DispatchQueue.global(qos: .userInitiated).async {
+      do {
+        try AudioDecoderPlugin.encodeAac(input: input, output: output, bitRate: bitRate)
+        DispatchQueue.main.async { result(nil) }
+      } catch {
+        try? FileManager.default.removeItem(atPath: output)
+        DispatchQueue.main.async {
+          result(FlutterError(
+            code: "encode_failed", message: error.localizedDescription, details: input))
+        }
+      }
+    }
+  }
+
+  fileprivate static func encodeAac(input: String, output: String, bitRate: Int) throws {
+    let source = try AVAudioFile(forReading: URL(fileURLWithPath: input))
+    let format = source.processingFormat
+    let outURL = URL(fileURLWithPath: output)
+    try? FileManager.default.removeItem(at: outURL)
+    // Scoped so the writer is released, which is what finalises the file.
+    do {
+      let sink = try AVAudioFile(
+        forWriting: outURL,
+        settings: [
+          AVFormatIDKey: kAudioFormatMPEG4AAC,
+          AVSampleRateKey: format.sampleRate,
+          AVNumberOfChannelsKey: format.channelCount,
+          AVEncoderBitRateKey: bitRate,
+        ],
+        commonFormat: format.commonFormat,
+        interleaved: format.isInterleaved)
+      let frames: AVAudioFrameCount = 16384
+      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+        throw NSError(domain: "encodeAac", code: 1)
+      }
+      while source.framePosition < source.length {
+        try source.read(into: buffer, frameCount: frames)
+        if buffer.frameLength == 0 { break }
+        try sink.write(from: buffer)
+      }
+    }
   }
 }

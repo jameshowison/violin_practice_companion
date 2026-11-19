@@ -467,6 +467,22 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   if (selectedMedia.isSynthesized) ...[
                     const TempoSettingsPanel(),
                     const Divider(),
+                    // For comparing the two while the rendered score is new
+                    // (docs/rendered-score-plan.md, phase 2).
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Rendered score'),
+                      subtitle: const Text(
+                          'Off: the live synth, as before'),
+                      value: ref.watch(renderedScoreEnabledProvider),
+                      onChanged: (v) {
+                        ref.read(activePlaybackServiceProvider).stop();
+                        ref.read(renderedScoreEnabledProvider.notifier).state =
+                            v;
+                      },
+                    ),
+                    const Divider(),
                   ],
                   // Every note, or each bar's first. Shown for synthesized
                   // playback too: there the timing is exact, so per-note

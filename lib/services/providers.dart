@@ -1,4 +1,4 @@
-import 'dart:async' show scheduleMicrotask;
+import 'dart:async' show scheduleMicrotask, unawaited;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
@@ -48,6 +48,8 @@ import 'media_catalog.dart';
 import 'media_paths.dart';
 import 'audio_output.dart';
 import 'media_playback_service.dart';
+import 'rendered_score_cache.dart';
+import 'rendered_score_playback_service.dart';
 import 'piece_media_store.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
@@ -1393,10 +1395,55 @@ final activePlaybackServiceProvider =
   // plays is left silent.
   synth.muted = selected.isSilent;
   ref.onDispose(() => synth.muted = false);
+  if (selected.isSynthesized &&
+      !selected.isSilent &&
+      ref.watch(renderedScoreEnabledProvider)) {
+    return ref.watch(renderedScoreServiceProvider);
+  }
   return selected.isSynthesized
       ? synth
       : ref.watch(mediaPlaybackServiceProvider);
 });
+
+/// Whether the synthesized score plays as a rendered file
+/// ([RenderedScorePlaybackService]) rather than through the live synth.
+/// A switch for comparing the two while the rendered score is new
+/// (docs/rendered-score-plan.md, phase 2); not remembered across launches.
+final renderedScoreEnabledProvider = StateProvider<bool>((_) => true);
+
+/// The synthesized score as a rendered recording, for the selected piece at
+/// the tempo the tray asks for. autoDispose like the recording service: one
+/// player per visit. The renders it keeps (RenderedScoreCache) outlive it.
+final renderedScoreServiceProvider =
+    Provider.autoDispose<RenderedScorePlaybackService>((ref) {
+  AudioOutput.ensureStarted();
+  final service = RenderedScorePlaybackService(
+    ref.watch(midiGeneratorProvider),
+    cache: ref.watch(renderedScoreCacheProvider),
+  );
+  _followHighlightSettings(ref, service);
+  void configure() {
+    final piece = ref.read(parsedPieceProvider).valueOrNull;
+    if (piece == null) return;
+    unawaited(service.configure(
+      piece: piece,
+      performanceBpm: ref.read(performanceTempoProvider).bpm,
+      bpm: ref.read(tempoBpmProvider),
+    ));
+  }
+
+  ref.listen(parsedPieceProvider, (_, _) => configure());
+  ref.listen(performanceTempoProvider, (_, _) => configure());
+  ref.listen(tempoBpmProvider, (_, _) => configure());
+  configure();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+/// App-wide, so concurrent renders of one key are shared and the cache's
+/// directory is opened once.
+final renderedScoreCacheProvider =
+    Provider<RenderedScoreCache>((_) => RenderedScoreCache());
 
 /// [PlaybackState] of [activePlaybackServiceProvider].
 final activePlaybackStateProvider =

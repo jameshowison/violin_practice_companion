@@ -46,6 +46,25 @@ class AudioDecoderPlugin(messenger: BinaryMessenger, context: Context) :
             videoShrinker.handle(call, result)
             return
         }
+        if (call.method == "encodeAac") {
+            val input = call.argument<String>("input")
+            val output = call.argument<String>("output")
+            if (input == null || output == null) {
+                result.error("bad_args", "input and output are required", null)
+                return
+            }
+            val bitRate = call.argument<Int>("bitRate") ?: 64000
+            thread(name = "aac-encode") {
+                try {
+                    AacEncoder.encode(input, output, bitRate)
+                    postToMain { result.success(null) }
+                } catch (e: Exception) {
+                    java.io.File(output).delete()
+                    postToMain { result.error("encode_failed", e.message ?: "$e", input) }
+                }
+            }
+            return
+        }
         if (call.method != "decodeToPcm") {
             result.notImplemented()
             return

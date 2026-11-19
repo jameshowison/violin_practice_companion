@@ -1,7 +1,8 @@
 # Plan: play the synthesized score as a rendered recording
 
-Status: plan, revised 2026-11-18 after a review against the code. Nothing
-built yet.
+Status: phases 1–3 built on branch `rendered-score` (2026-11-19), checked on
+`dev-iphone-se` and `dev-android-low`; not yet heard by ear or timed on a
+physical device. See "Progress" at the end.
 
 ## Why
 
@@ -79,6 +80,9 @@ To play the score without sound, people choose the silent option (cursor and
 count, nothing heard). That needs no render and has nothing to sync, so it
 stays a clock-only player (`PlaybackServiceBase` with no audio). No volume
 control is added to `MediaTransport`.
+
+*Revised 2026-11-19:* Silent migrates too (phase 5), so that the live synth
+can go entirely and Silent's cursor runs on the same clock as the sound.
 
 ### Tempo: three renders, nearest plus stretch
 
@@ -172,7 +176,15 @@ both platforms (open question 1).
    score calibration, keep a small manual sync nudge as a safety valve, and
    keep the calibration tool as a diagnostic only. Android: the emulator
    check above.
-5. **Remove the live synth** once nothing plays through it: its
+5. **Silent migrates to the rendered path.** Silent today is the live synth
+   muted, so it still carries the synth's clock and its speaker-following.
+   Play the rendered file muted instead, through the same transport, so the
+   cursor, count-in and clip end behave exactly as they do with sound. This
+   needs a volume (or mute) on `MediaTransport` (AVPlayer `volume`/`isMuted`,
+   just_audio `setVolume`), which the Mute decision above ruled out; or a
+   clock-only `MediaTransport` with no file. Prefer the muted file: one code
+   path, and switching Silent off mid-play is just unmuting.
+6. **Remove the live synth** once nothing plays through it: its
    speaker-following (rebuild on route change, deferral, engine-reset
    checks). The calibration tool's score check is the last thing that plays
    claves through it, and goes with the score calibration.
@@ -187,3 +199,47 @@ both platforms (open question 1).
   nearest first; the other two may never be needed.
 - Android latency is unmeasured, and will stay so until there is a physical
   device.
+
+## Progress (2026-11-19)
+
+**Built:**
+- `lib/services/score_renderer.dart`: `MidiData` → mono PCM with the
+  pure-Dart MeltySynth port (`dart_melty_soundfont`, MIT), violin on channel 0
+  dry, woodblocks (76 high on each bar's first beat, 77 low) on channel 9,
+  three bars as `countInPlan` counts them, less the pickup. Events land on
+  32-sample blocks (0.7 ms). Exact anchors, one per performed measure.
+- `rendered_score_cache_io.dart`: render in an isolate, write a WAV, encode
+  with `encodeAac` on the decoder channel (AVAudioFile on iOS,
+  `AacEncoder.kt` MediaCodec + MediaMuxer on Android), WAV kept where there is
+  no encoder. Key = notes + measure onsets + bpm + meter/pickup + patch +
+  soundfont size + renderer version. LRU, 12 files.
+- `RenderedScorePlaybackService extends MediaPlaybackService`, through
+  `MediaPlaybackService.loadAligned`: three renders at 0.67/0.85/1.07 P,
+  nearest by ratio, rate for the rest; a band change mid-play reloads and
+  resumes at the bar (`PlaybackServiceBase.resumePoint/resumeAt`). The other
+  two render in the background, one at a time.
+- The synthesized tray plays whatever is active, and shows a spinner until
+  the first render is in. Settings has a "Rendered score" switch (default
+  on, not remembered) back to the live synth. Silent still uses the live
+  synth, muted.
+- Soundfont re-cut with `--keep 128:0:75,76,77` (README updated).
+
+**Open question 1 (renderer): pure Dart is fast enough.** Lightly Row
+(47–75 s with the count): host 400× real time; `dev-iphone-se` (debug, JIT)
+75 s in 223 ms + 170 ms encode; `dev-android-low` (debug) 55 s in 0.7 s,
+encode 1–1.5 s, but **6.4 s for the first encode after launch** (codec cold
+start?). Release on a phone and on Hazel iPad still to time.
+
+**Open question 2 (priming): fine on both.** iOS: AVAudioFile writes the
+2112 priming frames and a decode puts the first click on its rendered
+sample (offset 0). Android: MPEG4Writer also records 2112, and Apple's
+decoder puts the audio 64 samples (1.5 ms) early. Whether ExoPlayer honours
+that edit list is not measured.
+
+**Behaviour to decide:** with the count-in off, a start from the top still
+plays the three woodblock bars (a recording's intro always plays from 0).
+
+**Not done:** listening comparison with the live synth; device timing; phase
+4 (calibration retirement, open questions 3–4); phase 5 (Silent onto the
+rendered path); phase 6.
+

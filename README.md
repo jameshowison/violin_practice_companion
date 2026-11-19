@@ -672,13 +672,17 @@ and `docs/plan.md` for the remaining roadmap.
 | `packages/` | vendored `jovial_svg`, and our own `string_tuner` | yes, as code |
 
 **The soundfont** is not committed. Download GeneralUser GS (S. Christian
-Collins, schristiancollins.com) and cut it down to the two sounds the app plays,
-the violin and the calibration claves (31 MB → 0.9 MB):
+Collins, schristiancollins.com) and cut it down to the sounds the app plays:
+the violin, the calibration claves (75) and the rendered score's count-in
+woodblocks (76, 77) (31 MB → 1.0 MB):
 
 ```bash
 python3 scripts/subset_soundfont.py path/to/GeneralUser-GS.sf2 \
-    assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75
+    assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75,76,77
 ```
+
+A bank cut before the woodblocks were added counts in silently;
+`test/score_renderer_test.dart` fails on it.
 
 If the app starts playing another instrument, add its `--keep` and rerun.
 
