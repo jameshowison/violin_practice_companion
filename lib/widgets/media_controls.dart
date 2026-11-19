@@ -56,6 +56,12 @@ class MediaControls extends ConsumerStatefulWidget {
 class _MediaControlsState extends ConsumerState<MediaControls> {
   @override
   Widget build(BuildContext context) {
+    // Kept alive from the moment the tray shows, so the saved count-in and
+    // lead-in have been read back by the time Play reads them: read first at
+    // the tap, they were still their defaults, and the first Play after a
+    // launch counted in with the count-in off.
+    ref.watch(countInProvider);
+    ref.watch(recordingLeadInProvider);
     final theme = Theme.of(context);
     return Container(
       color: theme.colorScheme.surfaceContainerHighest,

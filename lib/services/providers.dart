@@ -1389,16 +1389,19 @@ final activePlaybackServiceProvider =
       const [PieceMedia.synthesized];
   final selected =
       MediaCatalog.resolve(media, ref.watch(selectedMediaIdProvider(piece.id)));
-  // "Silent" is the synthesized score with its sound off. Muting touches no
-  // notifier (only the synth's notes), so it is safe here; and it is undone
-  // on every re-resolve and on leaving the piece, so nothing else the synth
-  // plays is left silent.
-  synth.muted = selected.isSilent;
+  // "Silent" is the synthesized score with its sound off: the rendered score
+  // played at volume 0 (so its clock is the sounding score's, and switching
+  // Silent off mid-play just unmutes), or the live synth muted when the
+  // rendered score is switched off. Muting touches no notifier, so it is safe
+  // here; and the live synth's is undone on every re-resolve and on leaving
+  // the piece, so nothing else it plays is left silent.
+  final rendered =
+      selected.isSynthesized && ref.watch(renderedScoreEnabledProvider);
+  synth.muted = selected.isSilent && !rendered;
   ref.onDispose(() => synth.muted = false);
-  if (selected.isSynthesized &&
-      !selected.isSilent &&
-      ref.watch(renderedScoreEnabledProvider)) {
-    return ref.watch(renderedScoreServiceProvider);
+  if (rendered) {
+    return ref.watch(renderedScoreServiceProvider)
+      ..muted = selected.isSilent;
   }
   return selected.isSynthesized
       ? synth

@@ -241,7 +241,24 @@ start with no count seeks to the first bar
 (`MediaPlaybackService.playsIntroWithoutCount`, false for the rendered
 score). A recording's own intro still plays from 0.
 
+**Phase 5 (Silent), built:** `MediaTransport.setVolume` (AVPlayer `volume`
+natively, just_audio's on Android); `MediaPlaybackService.onMuteChanged`
+sets it, and a new transport inherits it. Silent resolves to the rendered
+service with `muted` set, so switching Silent ↔ Simulated mid-play keeps
+the one player and only changes its volume (trace on `dev-iphone-se`:
+`volume 1.0` at 7.3 s, no seek). With the rendered score switched off,
+Silent is still the live synth muted. Android's mute not yet heard.
+To check on a device: a muted AVPlayer still sends a (silent) stream to an
+AirPlay speaker, so Silent now holds the speaker as the sounding score does.
+
+**Device timing:** each render appends its timing line to
+`Documents/rendered_score_log.txt`; play-throughs trace as
+`=== playback rendered score`.
+
+**Found on the way:** the first Play after a launch counted in with the
+count-in off: the saved count was read back only once Play first asked,
+so Play got the default. The tray now watches it (and the lead-in mode).
+
 **Not done:** listening comparison with the live synth; device timing; phase
-4 (calibration retirement, open questions 3–4); phase 5 (Silent onto the
-rendered path); phase 6.
+4 (calibration retirement, open questions 3–4); phase 6.
 

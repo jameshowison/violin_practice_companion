@@ -165,6 +165,15 @@ class MediaPlaybackService extends PlaybackServiceBase {
     _player = next ?? JustAudioTransport();
     videoPicture.value = _player.picture.value;
     await old.dispose();
+    if (muted) await _player.setVolume(0);
+  }
+
+  /// Muted is the silent score: the player runs on at volume 0, so the
+  /// cursor, count-in and clip end are the sounding score's, and unmuting
+  /// mid-play just brings the sound back.
+  @override
+  void onMuteChanged(bool muted) {
+    unawaited(_player.setVolume(muted ? 0 : 1));
   }
 
   /// While stopped, shows the picture at [audioPosition] — where Play would
@@ -942,7 +951,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   void onPlayStarted(MidiData data, double startOffsetSeconds) {
     if (!_tracing) {
       _tracing = true;
-      _traceCall('traceStart', 'playback ${_media?.id ?? '?'}');
+      _traceCall('traceStart', 'playback ${_media?.id ?? 'rendered score'}');
     }
     final generation = ++_playGeneration;
     _endTimer?.cancel();

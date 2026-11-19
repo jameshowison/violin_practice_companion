@@ -111,6 +111,9 @@ public class VideoTransportPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     case "setRate":
       transport.setRate(Float(args["rate"] as? Double ?? 1))
       result(nil)
+    case "setVolume":
+      transport.setVolume(Float(args["volume"] as? Double ?? 1))
+      result(nil)
     case "seek":
       transport.seek(ms: args["ms"] as? Int ?? 0) { result(nil) }
     case "setEnd":
@@ -342,6 +345,12 @@ private class VideoTransport: NSObject, FlutterTexture {
     wantedRate = rate
     if playing && pendingSeeks == 0 { player.rate = rate }
     report()
+  }
+
+  /// The silent score: the clock runs on, nothing is heard.
+  func setVolume(_ volume: Float) {
+    trace("volume \(volume)")
+    player.volume = volume
   }
 
   func seek(ms: Int, _ done: @escaping () -> Void) {

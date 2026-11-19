@@ -39,6 +39,10 @@ abstract class MediaTransport {
   Future<void> seek(Duration position);
   Future<void> setSpeed(double speed);
 
+  /// 0 for silence, 1 for full: the clock runs on either way, which is what
+  /// the silent score is (a rendered score played muted).
+  Future<void> setVolume(double volume);
+
   /// Where the player has got to — not what is heard (see
   /// `MediaPlaybackService.heardAudioPosition`).
   Duration get position;
@@ -107,6 +111,8 @@ class JustAudioTransport implements MediaTransport {
   Future<void> seek(Duration position) => _player.seek(position);
   @override
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);
+  @override
+  Future<void> setVolume(double volume) => _player.setVolume(volume);
   @override
   Duration get position => _player.position;
   @override
@@ -269,6 +275,10 @@ class NativeTransport implements MediaTransport {
     _speed = speed;
     await _call('setRate', {'rate': speed});
   }
+
+  @override
+  Future<void> setVolume(double volume) =>
+      _call('setVolume', {'volume': volume});
 
   @override
   Duration get position {

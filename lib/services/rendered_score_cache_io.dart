@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -123,10 +124,12 @@ class RenderedScoreCache {
       } on PlatformException catch (e) {
         debugPrint('[rendered] AAC encode failed, keeping the WAV: $e');
       }
-      debugPrint('[rendered] ${rendered.seconds.toStringAsFixed(1)}s at '
+      final line = '[rendered] ${rendered.seconds.toStringAsFixed(1)}s at '
           '$bpm bpm: render ${renderMs}ms, encode ${sw.elapsedMilliseconds}ms '
           '-> ${audio.path.split('/').last} '
-          '(${(audio.lengthSync() / 1024).round()} KB)');
+          '(${(audio.lengthSync() / 1024).round()} KB)';
+      debugPrint(line);
+      unawaited(_logTiming(line));
       await sidecar.writeAsString(jsonEncode({
         'file': audio.path.split('/').last,
         'bpm': bpm,
@@ -146,6 +149,19 @@ class RenderedScoreCache {
       debugPrint('[rendered] render failed at $bpm bpm: $e\n$st');
       return null;
     }
+  }
+
+  /// Each render's timing, appended to Documents/rendered_score_log.txt, so a
+  /// release build on a device can be timed (copy it off with devicectl, as
+  /// `scripts/pull_sync_trace.sh` does the trace). Best effort.
+  static Future<void> _logTiming(String line) async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      await File('${docs.path}/rendered_score_log.txt').writeAsString(
+          '${DateTime.now().toIso8601String()} $line\n',
+          mode: FileMode.append,
+          flush: true);
+    } catch (_) {}
   }
 
   Future<RenderedScoreFile?> _read(File sidecar, Directory dir) async {
