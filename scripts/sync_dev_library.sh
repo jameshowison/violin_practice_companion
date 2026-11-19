@@ -5,6 +5,7 @@
 #   bash scripts/sync_dev_library.sh dev-iphone
 #   bash scripts/sync_dev_library.sh "Hazel iPad"
 #   bash scripts/sync_dev_library.sh dev-iphone --no-launch   # leave the app stopped
+#   bash scripts/sync_dev_library.sh dev-android      # Android: AVD name or adb serial
 #
 # Sync each device in turn ("sync dev-iphone, then sync Hazel iPad") and each
 # sees the other's work. The library is ../violin_dev_library, a private git
@@ -28,8 +29,22 @@ LAUNCH=1
 cd "$(dirname "$0")/.."
 LIB="${DEV_LIBRARY:-../violin_dev_library}"
 BUNDLE="name.howison.violinPracticeCompanion"
+source scripts/dev_library_android.sh
 
-if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
+ANDROID=""
+if android_resolve "$DEVICE"; then
+  # Android (scripts/dev_library_android.sh): an emulator or phone, by AVD name
+  # or adb serial. Everything below works on the serial.
+  ANDROID=1
+  SIM=""
+  android_check_installed
+  # A flutter run attached here loses its app to the force-stop; it can't
+  # pick the merge up with a hot restart (the merge runs at launch), so say so
+  # at the end rather than kill another session's run.
+  ATTACHED=$(android_flutter_runs "$DEVICE")
+  android_stop_app
+  DEVICE="$SERIAL"
+elif xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   SIM=1
   xcrun simctl boot "$DEVICE" 2>/dev/null || true
   # A dev server on this simulator would relaunch the app under us, so stop
@@ -70,7 +85,17 @@ fi
 bash scripts/push_dev_library.sh "$DEVICE" "$LIB"
 
 [[ -z "$LAUNCH" ]] && { echo "app left stopped; it merges the library at next launch"; exit 0; }
-if [[ -n "$SIM" ]]; then
+if [[ -n "$ANDROID" ]]; then
+  # No dev_run.sh on Android: leave the app stopped, it merges at next launch.
+  echo "app left stopped on $SERIAL; it merges the library at next launch:"
+  if [[ -n "$ATTACHED" ]]; then
+    echo "  a flutter run was attached (pid $(tr '\n' ' ' <<<"$ATTACHED")); the stop ended its session and a"
+    echo "  hot restart won't merge — quit it (echo q > /tmp/flutter_ctl_android) and start a new flutter run"
+  else
+    echo "  $ADB -s $SERIAL shell monkey -p $BUNDLE -c android.intent.category.LAUNCHER 1"
+    echo "  or a flutter run -d $SERIAL (CLAUDE.md, \"Android emulator\")"
+  fi
+elif [[ -n "$SIM" ]]; then
   bash scripts/dev_run.sh "$DEVICE"
 else
   xcrun devicectl device process launch --timeout 60 --device "$DEVICE" "$BUNDLE" >/dev/null

@@ -4,6 +4,7 @@
 #
 #   bash scripts/push_dev_library.sh dev-ipad                 # simulator
 #   bash scripts/push_dev_library.sh "Hazel iPad"             # physical device
+#   bash scripts/push_dev_library.sh dev-android              # Android (AVD or serial)
 #
 # This ONLY copies files. The app merges the staged library into its own
 # Documents and prefs on its next launch (lib/services/dev_library_io.dart), so
@@ -20,6 +21,7 @@ DEVICE="${1:?usage: push_dev_library.sh <device> [library_dir]}"
 cd "$(dirname "$0")/.."
 LIB="${2:-../violin_dev_library}"
 BUNDLE="name.howison.violinPracticeCompanion"
+source scripts/dev_library_android.sh
 
 [[ -f "$LIB/state.json" ]] || { echo "no state.json in $LIB — pull from a device first" >&2; exit 1; }
 
@@ -42,7 +44,12 @@ json.dump({'files': files}, open(os.path.join(root, 'manifest.json'), 'w'), inde
 PY
 echo "library: $(find "$STAGE" -type f | wc -l | tr -d ' ') files, $(du -sh "$STAGE" | cut -f1)"
 
-if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
+if android_resolve "$DEVICE"; then
+  # Android: replaced whole, like the simulator's rsync --delete
+  # (scripts/dev_library_android.sh).
+  android_check_installed
+  android_push_stage "$STAGE"
+elif xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   # Re-resolved every time: a reinstall relocates the container.
   DATA=$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)
   mkdir -p "$DATA/Documents/dev_library"

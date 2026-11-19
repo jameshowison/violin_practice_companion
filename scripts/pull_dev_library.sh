@@ -4,6 +4,7 @@
 #
 #   bash scripts/pull_dev_library.sh dev-iphone                  # simulator
 #   bash scripts/pull_dev_library.sh "Hazel iPad"                # physical device
+#   bash scripts/pull_dev_library.sh dev-android                 # Android (AVD or serial)
 #   bash scripts/pull_dev_library.sh dev-iphone ../lib --dry-run # print the plan only
 #
 # Three-way merge per item (a file, a media row, a title, a piece's synced
@@ -36,8 +37,20 @@ for arg in "${@:2}"; do
 done
 BUNDLE="name.howison.violinPracticeCompanion"
 FOLDERS=(scanned_pieces editable_fixtures section_overrides media teacher_recordings scan_sources abc_sources)
+source scripts/dev_library_android.sh
 
-if xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
+if android_resolve "$DEVICE"; then
+  # Android: one tar of the synced folders, the prefs XML and the staged
+  # state.json (scripts/dev_library_android.sh). The app should be stopped.
+  android_check_installed
+  TMP=$(mktemp -d)
+  trap 'rm -rf "$TMP"' EXIT
+  android_pull_docs "$TMP" "${FOLDERS[@]}"
+  DOCS="$TMP/app_flutter"
+  mkdir -p "$DOCS"
+  PLIST="$TMP/$ANDROID_PREFS"
+  STAGED_STATE="$DOCS/dev_library/state.json"
+elif xcrun simctl list devices | grep -q "^ *$DEVICE ("; then
   DATA=$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)
   DOCS="$DATA/Documents"
   PLIST="$DATA/Library/Preferences/$BUNDLE.plist"
@@ -97,6 +110,7 @@ fi
 mkdir -p "$LIB"
 python3 - "$DOCS" "$PLIST" "$LIB" "$DRY" "${FOLDERS[@]}" <<'PY'
 import json, os, plistlib, shutil, sys
+import xml.etree.ElementTree as ET
 
 docs, plist, lib, dry, *folders = sys.argv[1:]
 
@@ -166,7 +180,17 @@ def state_values(st):
     return v
 
 # ── Device ──
-prefs = plistlib.load(open(plist, "rb")) if os.path.exists(plist) else {}
+def load_prefs(path):
+    if not os.path.exists(path):
+        return {}
+    if path.endswith(".xml"):
+        # Android's FlutterSharedPreferences.xml. Every pref read here is a
+        # <string>; other types (and lists, stored as prefixed strings) are
+        # never looked at, so only strings are loaded.
+        return {e.get("name"): e.text or "" for e in ET.parse(path).getroot()
+                if e.tag == "string"}
+    return plistlib.load(open(path, "rb"))
+prefs = load_prefs(plist)
 dev_values = {}
 idx = os.path.join(docs, "scanned_pieces/index.json")
 if os.path.exists(idx):

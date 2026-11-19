@@ -518,6 +518,8 @@ dependency, and a release build contains none of it:
 ```bash
 bash scripts/sync_dev_library.sh dev-iphone      # simulator
 bash scripts/sync_dev_library.sh "Hazel iPad"    # physical device
+bash scripts/sync_dev_library.sh dev-android     # Android: AVD name or adb serial; leaves the
+                                                 # app stopped (it merges at the next launch)
 bash scripts/device_install.sh "Hazel iPad"   # install, then sync (always; --no-sync skips)
 bash scripts/dev_run.sh dev-ipad              # sync, then start the dev server (same)
 ```
