@@ -346,6 +346,13 @@ const int verovioSpacingSystemDefault = 4;
 /// system that the un-set option gave, so a 1-lane engrave is unchanged.
 const int verovioPageMarginTopDefault = 50;
 
+/// `pageMarginLeft`/`pageMarginRight` for a score engrave, in MEI units
+/// (px = units × scale / 100). Verovio's default is 50 — 12–18pt a side on a
+/// phone, 7–9% of an iPhone SE's width. From 19 Oct to 18 Nov 2026 engraves
+/// leaked the title-bar preview's 0 and nobody missed the margin; this keeps a
+/// sliver so a final barline on the right edge isn't half clipped.
+const int verovioSideMargin = 10;
+
 /// The largest `pageMarginTop` Verovio actually honours. Measured: 500 works,
 /// 510 and every value above it silently reverts to the layout you get at the
 /// default — no warning, no error, just the margin quietly gone. Worth a clamp,

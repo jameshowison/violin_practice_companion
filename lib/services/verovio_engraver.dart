@@ -13,7 +13,8 @@ import 'staff_zoom.dart'
         staffScaleProbe,
         systemLinesOf,
         verovioPageHeightMax,
-        verovioPageMarginTopDefault;
+        verovioPageMarginTopDefault,
+        verovioSideMargin;
 
 /// Native staff engraving via the Verovio toolkit (FFI worker isolate).
 ///
@@ -273,7 +274,8 @@ class VerovioEngraver {
   /// 4: grace notes take no noteIndex.
   /// 5: volta brackets are recorded ([EngravedScore.endings]) and their ink cut.
   /// 6: each measure's staff top line ([EngravedScore.staffLines]).
-  static const _diskFormat = 6;
+  /// 7: side margins of [verovioSideMargin], down from Verovio's 50.
+  static const _diskFormat = 7;
 
   /// [_keyFor], made stable across launches (`String.hashCode` is not
   /// guaranteed to be) and safe as a file name.
@@ -368,8 +370,9 @@ class VerovioEngraver {
       // clef/key/time): no side margins, and a measure only as wide as what's
       // in it. Measured headlessly, with the barline the preview also drops,
       // this takes the preview from 415 to 187 units wide.
-      'pageMarginLeft': tight ? 0 : 50,
-      'pageMarginRight': tight ? 0 : 50,
+      // Otherwise [verovioSideMargin], not Verovio's default of 50.
+      'pageMarginLeft': tight ? 0 : verovioSideMargin,
+      'pageMarginRight': tight ? 0 : verovioSideMargin,
       'measureMinWidth': tight ? 1 : 15,
     };
     await svc.setOptionsJson(jsonEncode(options));
