@@ -1210,7 +1210,11 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
       builder: (context, route, _) => ValueListenableBuilder<Map<String, int>>(
         valueListenable: AudioOutput.calibratedDelaysMs,
         builder: (context, delays, _) {
-          final reportedMs = ((route?.latencySeconds ?? 0) * 1000).round();
+          // Uncalibrated, a recording adds no delay (AudioOutput
+          // .heardDelaySeconds); only the synth takes iOS's estimate.
+          final reportedMs = source == AudioSyncSource.recording
+              ? 0
+              : ((route?.latencySeconds ?? 0) * 1000).round();
           final measuredMs = AudioOutput.calibratedDelayMs(source);
           final text = Theme.of(context).textTheme;
           return SafeArea(
@@ -1243,7 +1247,9 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                   Text(
                     measuredMs != null
                         ? 'Sound delay: $measuredMs ms (measured)'
-                        : 'Sound delay: $reportedMs ms (iOS estimate)',
+                        : source == AudioSyncSource.recording
+                            ? 'Sound delay: allowed for by the player'
+                            : 'Sound delay: $reportedMs ms (iOS estimate)',
                     key: const ValueKey('audio_sync_label'),
                     style: text.bodyMedium,
                   ),

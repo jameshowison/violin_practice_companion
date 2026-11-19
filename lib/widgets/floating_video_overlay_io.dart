@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/media_playback_service.dart';
+import '../services/media_transport.dart';
 import '../services/playback_service_base.dart';
 import 'video_window_mode.dart';
 
@@ -27,15 +28,21 @@ import 'video_window_mode.dart';
 ///
 /// Placed as a direct child of a `Stack` that covers the whole screen —
 /// app bar included (see piece_detail_screen.dart) — since the docked window
-/// sits in the bar. Kept in sync with [service]'s *real* audio clock via
-/// periodic corrective seeks — not the score-highlight clock, which is
-/// DTW-mapped and runs at a different local rate than the actual recording.
-/// Held still on the starting frame through a count-in, unless the count is
-/// heard over the recording itself (its intro, from the top).
+/// sits in the bar.
 ///
 /// Shown for any medium that has one: an imported mp4/mov or a recorded
 /// teacher demo, where the same file supplies both and the AV offset is zero
 /// (an older demo may still be a silent video beside a separate WAV).
+///
+/// Where the platform can (iOS), the picture is the recording's own player's
+/// — [MediaPlaybackService.videoPicture], one AVPlayer for sound and picture —
+/// and there is nothing to keep in sync. Otherwise (Android, or an older
+/// two-file demo) a second, muted player shows it here, kept to [service]'s
+/// *real* audio clock by periodic corrective seeks — not the score-highlight
+/// clock, which is DTW-mapped and runs at a different local rate than the
+/// actual recording — and held still on the starting frame through a
+/// count-in, unless the count is heard over the recording itself (its intro,
+/// from the top).
 class FloatingVideoOverlay extends ConsumerStatefulWidget {
   final MediaPlaybackService service;
 
@@ -93,6 +100,7 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   void initState() {
     super.initState();
     widget.service.videoPathNotifier.addListener(_maybeLoad);
+    widget.service.videoPicture.addListener(_onPicture);
     _maybeLoad();
     _syncTimer =
         Timer.periodic(const Duration(milliseconds: 250), (_) => _resync());
@@ -107,6 +115,8 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
       widget.service.countInNotifier.addListener(_onCountIn);
       oldWidget.service.videoPathNotifier.removeListener(_maybeLoad);
       widget.service.videoPathNotifier.addListener(_maybeLoad);
+      oldWidget.service.videoPicture.removeListener(_onPicture);
+      widget.service.videoPicture.addListener(_onPicture);
     }
     _maybeLoad();
     if (oldWidget.startMeasure != widget.startMeasure ||
@@ -116,7 +126,26 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
     }
   }
 
+  void _onPicture() {
+    if (!mounted) return;
+    setState(() {});
+    _maybeLoad();
+    _showStart();
+  }
+
+  /// The recording's own player shows the picture; no second player here.
+  VideoPicture? get _picture => widget.service.videoPicture.value;
+
   void _maybeLoad() {
+    if (_picture != null) {
+      // Drop a second player left from a previous medium.
+      final old = _controller.value;
+      _controller.value = null;
+      _loadedPath = null;
+      _loadError = null;
+      unawaited(old?.dispose());
+      return;
+    }
     final path = widget.service.videoPath;
     if (path == null || path == _loadedPath) return;
     _loadedPath = path;
@@ -124,7 +153,15 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   }
 
   Future<void> _load(String path) async {
-    final controller = VideoPlayerController.file(File(path));
+    // Android: a muted ExoPlayer still requests audio focus, which took it
+    // from the recording's own player (just_audio) the moment Play was
+    // pressed — the sound stopped and the score never moved (emulator,
+    // 2026-11-18). mixWithOthers leaves focus alone. Not on iOS, where the
+    // same option rewrites the app's audio session (see app_audio_session),
+    // and where a video normally plays through the recording's own player.
+    final controller = VideoPlayerController.file(File(path),
+        videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: defaultTargetPlatform == TargetPlatform.android));
     try {
       await controller.initialize();
     } catch (error) {
@@ -165,7 +202,10 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   /// Seeks the video to where Play would start, and leaves it paused there.
   void _showStart() {
     final controller = _controller.value;
-    if (controller == null || !controller.value.isInitialized) return;
+    final native = _picture != null;
+    if (!native && (controller == null || !controller.value.isInitialized)) {
+      return;
+    }
     final service = widget.service;
     final scoreSec = service.startOffsetFor(
         fromMeasure: widget.startMeasure,
@@ -174,8 +214,13 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
     if (scoreSec == null) return;
     final target = service.audioPositionForScoreSeconds(scoreSec) +
         Duration(milliseconds: service.avOffsetMs);
-    if (controller.value.isPlaying) controller.pause();
-    controller.seekTo(target.isNegative ? Duration.zero : target);
+    final at = target.isNegative ? Duration.zero : target;
+    if (native) {
+      service.showPictureAt(at);
+      return;
+    }
+    if (controller!.value.isPlaying) controller.pause();
+    controller.seekTo(at);
   }
 
   void _onCountIn() {
@@ -186,6 +231,7 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   }
 
   void _resync() {
+    if (_picture != null) return; // one player: already in step
     final controller = _controller.value;
     if (controller == null || !controller.value.isInitialized) return;
     final service = widget.service;
@@ -217,6 +263,7 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   void dispose() {
     widget.service.countInNotifier.removeListener(_onCountIn);
     widget.service.videoPathNotifier.removeListener(_maybeLoad);
+    widget.service.videoPicture.removeListener(_onPicture);
     _syncTimer?.cancel();
     _controlsTimer?.cancel();
     _controller.value?.dispose();
@@ -242,11 +289,14 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   void _openFullScreen() {
     Navigator.of(context).push(MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (_) => _FullScreenVideo(controller: _controller),
+      builder: (_) => _FullScreenVideo(
+          controller: _controller, picture: widget.service.videoPicture),
     ));
   }
 
   double get _aspect {
+    final picture = _picture;
+    if (picture != null) return picture.aspectRatio;
     final controller = _controller.value;
     return controller != null && controller.value.isInitialized
         ? controller.value.aspectRatio
@@ -410,11 +460,22 @@ class _FloatingVideoOverlayState extends ConsumerState<FloatingVideoOverlay> {
   /// Black box with the video fitted into it, an error, or a spinner.
   Widget _videoSurface(BuildContext context, BoxFit fit) {
     final controller = _controller.value;
+    final picture = _picture;
     return Stack(
       fit: StackFit.expand,
       children: [
         const ColoredBox(color: Colors.black),
-        if (controller != null && controller.value.isInitialized)
+        if (picture != null)
+          FittedBox(
+            fit: fit,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: 160 * picture.aspectRatio,
+              height: 160,
+              child: _NativePicture(picture),
+            ),
+          )
+        else if (controller != null && controller.value.isInitialized)
           FittedBox(
             fit: fit,
             clipBehavior: Clip.hardEdge,
@@ -505,9 +566,10 @@ class _RoundButton extends StatelessWidget {
 /// The same video, filling the screen. The overlay underneath keeps it in
 /// sync with playback, so this only has to show it.
 class _FullScreenVideo extends StatelessWidget {
-  const _FullScreenVideo({required this.controller});
+  const _FullScreenVideo({required this.controller, required this.picture});
 
   final ValueListenable<VideoPlayerController?> controller;
+  final ValueListenable<VideoPicture?> picture;
 
   @override
   Widget build(BuildContext context) {
@@ -516,13 +578,21 @@ class _FullScreenVideo extends StatelessWidget {
       body: Stack(
         children: [
           Center(
-            child: ValueListenableBuilder<VideoPlayerController?>(
-              valueListenable: controller,
-              builder: (context, c, _) => c == null || !c.value.isInitialized
-                  ? const CircularProgressIndicator(color: Colors.white70)
-                  : AspectRatio(
-                      aspectRatio: c.value.aspectRatio,
-                      child: VideoPlayer(c),
+            child: ValueListenableBuilder<VideoPicture?>(
+              valueListenable: picture,
+              builder: (context, p, _) => p != null
+                  ? AspectRatio(
+                      aspectRatio: p.aspectRatio, child: _NativePicture(p))
+                  : ValueListenableBuilder<VideoPlayerController?>(
+                      valueListenable: controller,
+                      builder: (context, c, _) => c == null ||
+                              !c.value.isInitialized
+                          ? const CircularProgressIndicator(
+                              color: Colors.white70)
+                          : AspectRatio(
+                              aspectRatio: c.value.aspectRatio,
+                              child: VideoPlayer(c),
+                            ),
                     ),
             ),
           ),
@@ -544,4 +614,17 @@ class _FullScreenVideo extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The recording player's own frames, turned upright.
+class _NativePicture extends StatelessWidget {
+  const _NativePicture(this.picture);
+
+  final VideoPicture picture;
+
+  @override
+  Widget build(BuildContext context) => RotatedBox(
+        quarterTurns: (picture.rotation ~/ 90) % 4,
+        child: Texture(textureId: picture.textureId),
+      );
 }

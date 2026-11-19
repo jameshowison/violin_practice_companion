@@ -100,11 +100,12 @@ void main() {
       expect(AudioOutput.calibratedDelayMs(AudioSyncSource.recording), 530);
     });
 
-    test('replaces the iOS estimate, for that speaker and player only',
+    test('replaces the default, for that speaker and player only',
         () async {
       AudioOutput.debugSetRoute(bt('jbl'));
-      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording),
-          closeTo(0.16, 1e-9));
+      // Uncalibrated, a recording adds nothing — AVPlayer's position already
+      // allows for the route — while the synth takes iOS's estimate.
+      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording), 0);
       await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording, 70);
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording),
           closeTo(0.07, 1e-9));

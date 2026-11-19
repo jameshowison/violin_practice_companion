@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import 'audio_output.dart';
 import 'playback_service_base.dart';
+import 'media_transport.dart';
 import 'sync_calibration.dart';
 import 'sync_calibration_clip.dart';
 
@@ -117,11 +118,18 @@ class SyncCalibrator {
     return _measure(source, play);
   }
 
-  /// The recording path: the clip through a just_audio player, each click's
-  /// moment read off the player's own position.
+  /// The recording path: the clip through the player recordings play
+  /// through, each click's moment read off that player's own position.
+  ///
+  /// On iOS that is the native player ([NativeTransport]), whose position
+  /// and wall-clock stamp are read together natively, so what this measures
+  /// is the route's delay beyond what AVPlayer already allows for — the same
+  /// clock the highlight and the video picture follow. just_audio elsewhere.
   static Future<List<double>> _recordingClicks() async {
     final path = await writeCalibrationClip(CalibrationClip.wavBytes());
     if (path == null) throw const _Failed('not available on this platform');
+    final native = await NativeTransport.open(path, picture: false);
+    if (native != null) return _nativeRecordingClicks(native);
     final player = AudioPlayer();
     final samples = <(double, double)>[];
     final sampler = Timer.periodic(const Duration(milliseconds: 10), (_) {
@@ -156,6 +164,50 @@ class SyncCalibrator {
     return [for (final c in CalibrationClip.clickTimes) zero + c];
   }
 
+  static Future<List<double>> _nativeRecordingClicks(
+      NativeTransport player) async {
+    final samples = <(double, double)>[];
+    var sampling = true;
+    Future<void> sample() async {
+      while (sampling) {
+        final c = await player.clock();
+        if (c != null && c.rate > 0 && c.positionSec > 0.05) {
+          samples.add((c.wallSec, c.positionSec));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    try {
+      _mark('clip native load');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      _mark('clip play');
+      final sampler = sample();
+      final done = player.changes.firstWhere((_) => player.completed);
+      await player.play();
+      try {
+        await done.timeout(Duration(
+            milliseconds:
+                (CalibrationClip.durationSeconds * 1000).round() + 6000));
+      } on TimeoutException {
+        debugPrint('[sync_cal] native clip timed out: '
+            'position=${player.position} samples=${samples.length}');
+        throw const _Failed('the clip never finished playing');
+      } finally {
+        sampling = false;
+        await sampler;
+      }
+    } finally {
+      _mark('clip done; disposing player');
+      await player.dispose();
+      _mark('clip player disposed');
+    }
+    final zero = playerZeroWallSeconds(samples);
+    if (zero == null) throw const _Failed("couldn't follow the clip's playback");
+    _mark('clip zero from ${samples.length} native clock reads');
+    return [for (final c in CalibrationClip.clickTimes) zero + c];
+  }
+
   /// The score path: the same pattern struck through the synth, each click's
   /// moment the wall-clock second it was struck — as the score's own notes are.
   static Future<List<double>> _scoreClicks(PlaybackServiceBase score) async {
@@ -186,10 +238,14 @@ class SyncCalibrator {
       AudioSyncSource source, _PlayClicks play) async {
     // The speaker being calibrated, taken before the mic re-routes anything.
     final speaker = await AudioOutput.fetchRoute() ?? AudioOutput.route.value;
-    _mark('${source.name}: wake-up');
-    await _wakeSpeaker();
-    _mark('${source.name}: mic start');
     final played = CalibrationClip.clickTimes.length;
+    _mark('${source.name}: wake-up');
+    if (!await _wakeSpeaker()) {
+      const reason = "the speaker isn't responding yet — try again";
+      _mark('${source.name} RESULT failed: $reason');
+      return CalibrationResult.failed(reason, clicksPlayed: played);
+    }
+    _mark('${source.name}: mic start');
     var started = false;
     Map<Object?, Object?>? capture;
     List<double> expected;
@@ -275,24 +331,54 @@ class SyncCalibrator {
   /// speaker (a Sonos Roam) didn't play the clip at all — "never finished" —
   /// but calibrated fine straight after something had played to it. This is
   /// that something.
-  static Future<void> _wakeSpeaker() async {
+  ///
+  /// The silence must actually finish playing. On 2026-11-18 (Hazel iPad, an
+  /// AirPlay speaker, straight after a video) it never did — the 8s timeout
+  /// passed, the clicks went out anyway, the clip stalled ~2s at its start and
+  /// half of them were never heard. The same timeout preceded every failed
+  /// AirPlay run in the trace. A stuck player is thrown away and the silence
+  /// played again on a fresh one, a few times; false if none ever finished.
+  static Future<bool> _wakeSpeaker() async {
     final path = await writeCalibrationClip(
         CalibrationClip.silenceWavBytes(1.5),
         name: 'sync_calibration_wake.wav');
-    if (path == null) return;
-    final player = AudioPlayer();
-    try {
-      await player.setFilePath(path);
-      _mark('wake play');
-      unawaited(player.play());
-      await player.processingStateStream
-          .firstWhere((s) => s == ProcessingState.completed)
-          .timeout(const Duration(seconds: 8));
-      _mark('wake done');
-    } catch (e) {
-      debugPrint('[sync_cal] wake-up: $e');
-    } finally {
-      await player.dispose();
+    if (path == null) return true; // nothing to wake with; measure anyway
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      // The same player the clip will go through, where there is one.
+      final native = await NativeTransport.open(path, picture: false);
+      if (native != null) {
+        _mark('wake play (try $attempt, native)');
+        try {
+          final done = native.changes.firstWhere((_) => native.completed);
+          await native.play();
+          await done.timeout(const Duration(seconds: 5));
+          _mark('wake done');
+          return true;
+        } catch (e) {
+          _mark('wake timeout (try $attempt)');
+          debugPrint('[sync_cal] wake-up try $attempt: $e');
+        } finally {
+          await native.dispose();
+        }
+        continue;
+      }
+      final player = AudioPlayer();
+      try {
+        await player.setFilePath(path);
+        _mark('wake play (try $attempt)');
+        unawaited(player.play());
+        await player.processingStateStream
+            .firstWhere((s) => s == ProcessingState.completed)
+            .timeout(const Duration(seconds: 5));
+        _mark('wake done');
+        return true;
+      } catch (e) {
+        _mark('wake timeout (try $attempt)');
+        debugPrint('[sync_cal] wake-up try $attempt: $e');
+      } finally {
+        await player.dispose();
+      }
     }
+    return false;
   }
 }

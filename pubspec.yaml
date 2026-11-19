@@ -85,12 +85,12 @@ dependencies:
   wav: ^1.5.0
   fftea: ^1.5.0+1
 
-  # Teacher-demo recording: `camera` captures video (video-only — no mp3/mp4
-  # audio decoder exists anywhere in this app, see audio_chroma_features.dart),
-  # `record` captures mic audio straight to WAV so it can feed the same DTW
-  # alignment pipeline as the bundled Play Along tracks, `video_player` plays
-  # the recorded video back in the floating window (see
-  # lib/services/teacher_recording_capture_io.dart).
+  # Teacher-demo recording: `camera` captures one video with its sound (see
+  # lib/services/teacher_recording_capture_io.dart). `record` is the tuner's
+  # mic. A video medium plays on iOS through the app's own
+  # VideoTransportPlugin (one AVPlayer for sound and picture, see
+  # lib/services/media_transport.dart); `video_player` shows the picture where
+  # that isn't available (Android, older two-file demos).
   camera: ^0.12.1
   record: ^7.1.1
   video_player: ^2.14.0

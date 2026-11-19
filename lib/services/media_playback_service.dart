@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
 
 import '../models/parsed_piece.dart';
 import '../models/piece_media.dart';
@@ -10,6 +9,7 @@ import 'audio_decoder.dart';
 import 'audio_score_auto_aligner.dart';
 import 'media_alignment_store.dart';
 import 'media_paths.dart';
+import 'media_transport.dart';
 import 'midi_generator.dart';
 import 'playback_service_base.dart';
 
@@ -97,7 +97,9 @@ class MediaLoadResult {
 class MediaPlaybackService extends PlaybackServiceBase {
   final MediaAlignmentStore _store;
   final AudioDecoderBase _decoder;
-  final AudioPlayer _player = AudioPlayer();
+  /// Sound only, or — for a video that carries its own sound — sound and
+  /// picture in one player (see [MediaTransport]). Swapped in [load].
+  MediaTransport _player = JustAudioTransport();
 
   // What [load] last gave the player, so [restartAudio] can give it again.
   String? _sourceAsset;
@@ -117,15 +119,53 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// AVPlayerItem and only resets its `forwardPlaybackEndTime` (`load:` in
   /// its AudioPlayer.m). Dropping the clip (no end) loads a fresh item.
   /// Android's ExoPlayer path is unchecked.
-  AudioSource _source() {
-    final UriAudioSource file = _sourceAsset != null
-        ? AudioSource.asset(_sourceAsset!)
-        : AudioSource.file(_sourceFile!);
+  Future<void> _setSource({Duration? initialPosition}) {
     final end = _clipEndAudioSec;
-    return end == null
-        ? file
-        : ClippingAudioSource(
-            child: file, end: Duration(microseconds: (end * 1e6).round()));
+    return _player.setSource(
+        asset: _sourceAsset,
+        file: _sourceFile,
+        end: end == null ? null : Duration(microseconds: (end * 1e6).round()),
+        initialPosition: initialPosition);
+  }
+
+  /// The loaded video's picture when the medium's own player shows it (see
+  /// [MediaTransport]). Null for sound only — and for a video the overlay
+  /// must play itself: on Android, or a video that isn't the sound's own file
+  /// (the old two-file demos, merged into one file in the dev library on
+  /// 2026-11-18).
+  final ValueNotifier<VideoPicture?> videoPicture = ValueNotifier(null);
+
+  /// The native player for any recording that is a file, where the platform
+  /// has one — a video's picture with it when the video is that same file;
+  /// just_audio otherwise.
+  Future<void> _useTransportFor(PieceMedia media, String? audioFile) async {
+    final audio = media.audio!, video = media.video;
+    final oneFile = video != null &&
+        video.storage == audio.storage &&
+        video.path == audio.path;
+    NativeTransport? next;
+    try {
+      next = audioFile == null
+          ? null
+          : await NativeTransport.open(audioFile, picture: oneFile);
+    } catch (e) {
+      // Not fatal: the sound-only player and the overlay's own video remain.
+      debugPrint('MediaPlaybackService: video transport failed — $e');
+    }
+    if (next == null && _player is JustAudioTransport) return;
+    final old = _player;
+    _player = next ?? JustAudioTransport();
+    videoPicture.value = _player.picture.value;
+    await old.dispose();
+  }
+
+  /// While stopped, shows the picture at [audioPosition] — where Play would
+  /// start — by moving the player there. Nothing for a sound-only player.
+  void showPictureAt(Duration audioPosition) {
+    if (_player is! NativeTransport || playbackState == PlaybackState.playing) {
+      return;
+    }
+    unawaited(_player.seek(audioPosition));
   }
 
   /// After the mic calibration has switched the audio session and back, the
@@ -135,12 +175,20 @@ class MediaPlaybackService extends PlaybackServiceBase {
   @override
   Future<void> restartAudio() async {
     try {
+      if (_player is NativeTransport && _media != null) {
+        // A fresh AVPlayer on the current route, as a new source is below.
+        final at = _player.position;
+        // Always a new player for a video.
+        await _useTransportFor(_media!, _sourceFile);
+        await _player.seek(at);
+        await _watchForCompletion();
+      }
       if (_sourceAsset != null || _sourceFile != null) {
-        await _player.setAudioSource(_source());
+        await _setSource();
       }
       await _player.setSpeed(playbackSpeed.value);
       debugPrint('[sync_cal] recording player reloaded: '
-          '${_player.processingState} ${_player.duration}');
+          'completed=${_player.completed} ${_player.duration}');
     } catch (e) {
       debugPrint('MediaPlaybackService: restartAudio failed — $e');
     }
@@ -149,7 +197,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
   List<ScoreAudioAnchor> _anchors = const [];
   PieceMedia? _media;
   int _avOffsetMs = 0;
-  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<void>? _playerStateSub;
 
   /// Where the count-in's lead-in comes from when the recording can't supply
   /// it — set by the transport from the app-wide preference before [play].
@@ -194,9 +242,10 @@ class MediaPlaybackService extends PlaybackServiceBase {
             (() => AudioOutput.heardDelaySeconds(AudioSyncSource.recording));
 
   /// Real seconds between the player reaching a position and that moment
-  /// being heard — ~10ms on the built-in speaker, a note's worth over
-  /// Bluetooth. Read live, so a route change or the sync slider applies
-  /// mid-play. AVPlayer's position is where it has got to, not what is heard.
+  /// being heard, beyond what the player already allows for: AVPlayer's
+  /// position is meant to be what is heard, so this is 0 until a calibration
+  /// measures otherwise (see [AudioOutput.heardDelaySeconds]). Read live, so a
+  /// route change or the sync slider applies mid-play.
   final double Function() _heardDelay;
 
   PieceMedia? get media => _media;
@@ -341,6 +390,10 @@ class MediaPlaybackService extends PlaybackServiceBase {
 
     _media = media;
     _avOffsetMs = media.avOffsetMs;
+    // The player first, so the overlay knows whether to show its picture by
+    // the time it hears of the video.
+    await _useTransportFor(
+        media, audio.isAsset ? null : await absolutePathOf(audio));
     videoPathNotifier.value =
         media.video == null ? null : await absolutePathOf(media.video!);
 
@@ -366,7 +419,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
       }
       // A new file starts unclipped; the first Play sets its end.
       _clipEndAudioSec = null;
-      await _player.setAudioSource(_source());
+      await _setSource();
     } catch (e) {
       debugPrint('MediaPlaybackService: player rejected ${media.id} — $e');
       return MediaLoadResult(
@@ -498,8 +551,8 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// this the transport would sit on "playing" after the audio finished.
   Future<void> _watchForCompletion() async {
     await _playerStateSub?.cancel();
-    _playerStateSub = _player.playerStateStream.listen((s) {
-      if (s.processingState != ProcessingState.completed ||
+    _playerStateSub = _player.changes.listen((_) {
+      if (!_player.completed ||
           playbackState != PlaybackState.playing) {
         return;
       }
@@ -887,7 +940,7 @@ class MediaPlaybackService extends PlaybackServiceBase {
     _clipEndAudioSec = end;
     Future<void> reclip() async {
       try {
-        await _player.setAudioSource(_source(), initialPosition: target);
+        await _setSource(initialPosition: target);
         // just_audio 0.10.6 keeps the speed across a new source (its Dart
         // layer re-sends it to a new platform player; iOS reapplies its
         // stored rate on load and play; ExoPlayer's parameters persist), so
@@ -924,7 +977,8 @@ class MediaPlaybackService extends PlaybackServiceBase {
     _endTimer?.cancel();
     super.dispose();
     unawaited(_playerStateSub?.cancel());
-    _player.dispose();
+    unawaited(_player.dispose());
+    videoPicture.dispose();
     isAligning.dispose();
     alignmentLooksUncertain.dispose();
     playbackSpeed.dispose();

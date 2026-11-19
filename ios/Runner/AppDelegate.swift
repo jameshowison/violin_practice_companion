@@ -32,5 +32,7 @@ import UIKit
       with: engineBridge.pluginRegistry.registrar(forPlugin: "IncomingSharePlugin")!)
     BundledAssetPlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "BundledAssetPlugin")!)
+    VideoTransportPlugin.register(
+      with: engineBridge.pluginRegistry.registrar(forPlugin: "VideoTransportPlugin")!)
   }
 }
