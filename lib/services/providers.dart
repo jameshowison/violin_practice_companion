@@ -50,6 +50,7 @@ import 'audio_output.dart';
 import 'media_playback_service.dart';
 import 'rendered_score_cache.dart';
 import 'rendered_score_playback_service.dart';
+import 'silent_playback_service.dart';
 import 'piece_media_store.dart';
 import 'playback_service.dart';
 import 'playback_service_base.dart';
@@ -1389,23 +1390,40 @@ final activePlaybackServiceProvider =
       const [PieceMedia.synthesized];
   final selected =
       MediaCatalog.resolve(media, ref.watch(selectedMediaIdProvider(piece.id)));
-  // "Silent" is the synthesized score with its sound off: the rendered score
-  // played at volume 0 (so its clock is the sounding score's, and switching
-  // Silent off mid-play just unmutes), or the live synth muted when the
-  // rendered score is switched off. Muting touches no notifier, so it is safe
-  // here; and the live synth's is undone on every re-resolve and on leaving
-  // the piece, so nothing else it plays is left silent.
-  final rendered =
-      selected.isSynthesized && ref.watch(renderedScoreEnabledProvider);
-  synth.muted = selected.isSilent && !rendered;
-  ref.onDispose(() => synth.muted = false);
-  if (rendered) {
-    return ref.watch(renderedScoreServiceProvider)
-      ..muted = selected.isSilent;
+  // "Silent" is the score's clock alone (SilentPlaybackService): the cursor
+  // at the tempo, no audio, no speaker held.
+  if (selected.isSilent) return ref.watch(silentPlaybackServiceProvider);
+  if (selected.isSynthesized && ref.watch(renderedScoreEnabledProvider)) {
+    return ref.watch(renderedScoreServiceProvider);
   }
   return selected.isSynthesized
       ? synth
       : ref.watch(mediaPlaybackServiceProvider);
+});
+
+/// The Silent track's player, for the selected piece at the tray's tempo.
+/// autoDispose: one per visit, like the other players.
+final silentPlaybackServiceProvider =
+    Provider.autoDispose<SilentPlaybackService>((ref) {
+  final service = SilentPlaybackService(ref.watch(midiGeneratorProvider));
+  _followHighlightSettings(ref, service);
+  void load() {
+    final piece = ref.read(parsedPieceProvider).valueOrNull;
+    if (piece != null) unawaited(service.loadPiece(piece));
+  }
+
+  void tempo() {
+    final bpm = ref.read(tempoBpmProvider);
+    if (service.currentBpm != bpm) service.setTempo(bpm);
+  }
+
+  ref.listen(parsedPieceProvider, (_, _) => load());
+  ref.listen(tempoBpmProvider, (_, _) => tempo());
+  // The tempo first, so the piece is generated at it once rather than twice.
+  service.setTempo(ref.read(tempoBpmProvider));
+  load();
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 /// Whether the synthesized score plays as a rendered file

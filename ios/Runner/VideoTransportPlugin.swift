@@ -111,9 +111,6 @@ public class VideoTransportPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     case "setRate":
       transport.setRate(Float(args["rate"] as? Double ?? 1))
       result(nil)
-    case "setVolume":
-      transport.setVolume(Float(args["volume"] as? Double ?? 1))
-      result(nil)
     case "seek":
       transport.seek(ms: args["ms"] as? Int ?? 0) { result(nil) }
     case "setEnd":
@@ -164,6 +161,7 @@ private class VideoTransport: NSObject, FlutterTexture {
   /// and stopped it (the first Play after a stop did nothing, the second
   /// worked; dev-iphone-se, 2026-11-18).
   private var pendingSeeks = 0
+  private var stalledSince: CFTimeInterval?
   private var playAfterSeek = false
 
   init(id: Int, url: URL, picture: Bool, textures: FlutterTextureRegistry,
@@ -240,7 +238,11 @@ private class VideoTransport: NSObject, FlutterTexture {
       self.report()
     }
     heartbeat = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-      guard let self = self, self.player.timeControlStatus == .playing else { return }
+      guard let self = self, self.player.timeControlStatus == .playing else {
+        self?.stalledSince = nil
+        return
+      }
+      self.unwedge()
       self.report()
     }
   }
@@ -320,6 +322,35 @@ private class VideoTransport: NSObject, FlutterTexture {
     plugin?.emit(event)
   }
 
+  /// Seen on AirPlay after overlapping seeks, plays and pauses (a loop that
+  /// restarted twice, Jamz + Kitchen, 2026-11-19): timeControlStatus said
+  /// playing while the item's clock stood still, for good — through the next
+  /// Play from the same spot too; only a seek somewhere else freed it. So a
+  /// clock that hasn't moved for 1.5 s of "playing" is sought 50 ms back —
+  /// not to where it is, which was the seek that didn't free it — and
+  /// started again. (A healthy start runs within ~50 ms, AirPlay included.)
+  private func unwedge() {
+    guard playing, pendingSeeks == 0, !completed,
+      let timebase = item?.timebase, CMTimebaseGetRate(timebase) == 0
+    else {
+      stalledSince = nil
+      return
+    }
+    let now = CACurrentMediaTime()
+    guard let since = stalledSince else {
+      stalledSince = now
+      return
+    }
+    guard now - since > 1.5 else { return }
+    stalledSince = nil
+    let at = player.currentTime()
+    guard at.isNumeric else { return }
+    trace("stalled while playing; re-seeking")
+    let ms = max(0, Int((at.seconds * 1000).rounded()) - 50)
+    playAfterSeek = true
+    seek(ms: ms) {}
+  }
+
   func play(rate: Float) {
     wantedRate = rate
     playing = true
@@ -345,12 +376,6 @@ private class VideoTransport: NSObject, FlutterTexture {
     wantedRate = rate
     if playing && pendingSeeks == 0 { player.rate = rate }
     report()
-  }
-
-  /// The silent score: the clock runs on, nothing is heard.
-  func setVolume(_ volume: Float) {
-    trace("volume \(volume)")
-    player.volume = volume
   }
 
   func seek(ms: Int, _ done: @escaping () -> Void) {

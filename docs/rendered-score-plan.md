@@ -81,8 +81,11 @@ count, nothing heard). That needs no render and has nothing to sync, so it
 stays a clock-only player (`PlaybackServiceBase` with no audio). No volume
 control is added to `MediaTransport`.
 
-*Revised 2026-11-19:* Silent migrates too (phase 5), so that the live synth
-can go entirely and Silent's cursor runs on the same clock as the sound.
+*Revised 2026-11-19:* Silent migrates off the live synth (phase 5) — to
+its own clock-only player, as above, not a muted rendered file. A muted
+AVPlayer played aloud on Kitchen (its volume is ignored on AirPlay), and
+holding the speaker for nothing helps no one: Silent needs only the cursor
+at the tempo.
 
 ### Tempo: three renders, nearest plus stretch
 
@@ -176,14 +179,8 @@ both platforms (open question 1).
    score calibration, keep a small manual sync nudge as a safety valve, and
    keep the calibration tool as a diagnostic only. Android: the emulator
    check above.
-5. **Silent migrates to the rendered path.** Silent today is the live synth
-   muted, so it still carries the synth's clock and its speaker-following.
-   Play the rendered file muted instead, through the same transport, so the
-   cursor, count-in and clip end behave exactly as they do with sound. This
-   needs a volume (or mute) on `MediaTransport` (AVPlayer `volume`/`isMuted`,
-   just_audio `setVolume`), which the Mute decision above ruled out; or a
-   clock-only `MediaTransport` with no file. Prefer the muted file: one code
-   path, and switching Silent off mid-play is just unmuting.
+5. **Silent off the live synth:** `SilentPlaybackService`, the base class's
+   clock with no audio, so it holds no speaker. Done (below).
 6. **Remove the live synth** once nothing plays through it: its
    speaker-following (rebuild on route change, deferral, engine-reset
    checks). The calibration tool's score check is the last thing that plays
@@ -241,15 +238,33 @@ start with no count seeks to the first bar
 (`MediaPlaybackService.playsIntroWithoutCount`, false for the rendered
 score). A recording's own intro still plays from 0.
 
-**Phase 5 (Silent), built:** `MediaTransport.setVolume` (AVPlayer `volume`
-natively, just_audio's on Android); `MediaPlaybackService.onMuteChanged`
-sets it, and a new transport inherits it. Silent resolves to the rendered
-service with `muted` set, so switching Silent ↔ Simulated mid-play keeps
-the one player and only changes its volume (trace on `dev-iphone-se`:
-`volume 1.0` at 7.3 s, no seek). With the rendered score switched off,
-Silent is still the live synth muted. Android's mute not yet heard.
-To check on a device: a muted AVPlayer still sends a (silent) stream to an
-AirPlay speaker, so Silent now holds the speaker as the sounding score does.
+**Phase 5 (Silent), built:** Silent is `SilentPlaybackService`, the base
+class's clock with no audio, whichever way the rendered-score switch is
+set; the live synth is no longer muted for it. Tried first and dropped:
+the rendered file at volume 0 (`MediaTransport.setVolume`), which played
+aloud on Kitchen because AVPlayer's volume is ignored on AirPlay. Leaving
+Silent mid-play for another track stops, as any track change does.
+
+**Loop on AirPlay (open question 4), fixed, to re-test on Kitchen:** one
+clip end restarted the loop twice in 16 ms. A native event sent before the
+seek back to the loop start arrived after it, still saying "completed at
+the end", and the completion watcher took it for a second end. The
+overlapping seeks, plays and pauses then wedged AVPlayer: timeControlStatus
+playing, the item's clock at rate 0, through the next Play from the same
+spot too, until a seek elsewhere. `NativeTransport` now ignores events while
+a seek is in flight; and the native player re-seeks 50 ms back if its clock
+stands still for 1.5 s of "playing" (traced as "stalled while playing").
+
+**Open question 3 (mid-piece count-in):** the silent wait, then the player
+running within 10–25 ms of the call, on Kitchen and on the ZVOX. Heard
+timing not yet measured.
+
+**Calibration (Jamz, 2026-11-19):** recording path 8 ms on Kitchen, 92 ms on
+the ZVOX (which reports 83 ms output latency: AVPlayer doesn't allow for
+Bluetooth's); live synth 2040 ms and 213 ms. The rendered score is on the
+recording path, so the score calibration no longer applies to it.
+Release render timing on Jamz: 275 s of audio rendered in 0.56 s, encoded
+in 0.53 s; one-minute pieces ~0.1 s each.
 
 **Device timing:** each render appends its timing line to
 `Documents/rendered_score_log.txt`; play-throughs trace as

@@ -39,10 +39,6 @@ abstract class MediaTransport {
   Future<void> seek(Duration position);
   Future<void> setSpeed(double speed);
 
-  /// 0 for silence, 1 for full: the clock runs on either way, which is what
-  /// the silent score is (a rendered score played muted).
-  Future<void> setVolume(double volume);
-
   /// Where the player has got to — not what is heard (see
   /// `MediaPlaybackService.heardAudioPosition`).
   Duration get position;
@@ -112,8 +108,6 @@ class JustAudioTransport implements MediaTransport {
   @override
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);
   @override
-  Future<void> setVolume(double volume) => _player.setVolume(volume);
-  @override
   Duration get position => _player.position;
   @override
   Duration? get duration => _player.duration;
@@ -156,6 +150,12 @@ class NativeTransport implements MediaTransport {
   bool _completed = false;
   double _speed = 1;
   bool _disposed = false;
+  // Seeks sent and not yet answered. An event the player sent before a seek
+  // landed can arrive after it was asked for, still saying "completed, at
+  // the end": taken as news, a loop's seek back to its start read as a
+  // second end, and the loop restarted twice in 16 ms, which wedged AVPlayer
+  // on AirPlay (Jamz + Kitchen, 2026-11-19). So events wait for the seek.
+  int _seeksInFlight = 0;
 
   NativeTransport._(this._id, this._duration, VideoPicture? picture)
       : _picture = ValueNotifier(picture) {
@@ -213,6 +213,7 @@ class NativeTransport implements MediaTransport {
   }
 
   void _onEvent(Map<Object?, Object?> e) {
+    if (_seeksInFlight > 0) return;
     _snapUs = e['positionUs'] as int? ?? _snapUs;
     _snapRate = (e['rate'] as num? ?? 0).toDouble();
     _snapWallUs = e['wallUs'] as int? ?? _nowUs;
@@ -267,7 +268,12 @@ class NativeTransport implements MediaTransport {
     // the player was until the native seek reports back.
     _completed = false;
     _setSnap(position.inMicroseconds, 0);
-    await _call('seek', {'ms': position.inMilliseconds});
+    _seeksInFlight++;
+    try {
+      await _call('seek', {'ms': position.inMilliseconds});
+    } finally {
+      _seeksInFlight--;
+    }
   }
 
   @override
@@ -275,10 +281,6 @@ class NativeTransport implements MediaTransport {
     _speed = speed;
     await _call('setRate', {'rate': speed});
   }
-
-  @override
-  Future<void> setVolume(double volume) =>
-      _call('setVolume', {'volume': volume});
 
   @override
   Duration get position {
