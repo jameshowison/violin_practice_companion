@@ -595,6 +595,27 @@ silent" hunt; both looked like calibration bugs and were not:
    notification). `PlaybackService` rebuilds the synth when the speaker changes and
    before calibration's claves (`playback_service_io.dart`, "Following the speaker").
 
+Three more, from making the rendered score (2026-11-19, Jamz + Kitchen). Each
+looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
+
+3. **A generated audio file must be structured like a recording.** The rendered
+   score's AAC, written by `AVAudioFile` (an .m4a with the encoder priming as
+   iTunes `udta`/iTunSMPB metadata and no edit list), stalled AVPlayer on AirPlay
+   at every loop restart: "playing", clock stopped, for ~12 s. A recording looped
+   cleanly at the same rate. Write with `AVAssetWriter`, fileType **.mp4** (with
+   .m4a it writes the iTunes form too), which puts the priming in an edit list
+   (`edts`/`elst` mediaTime=2112). Check any new generated file with `afinfo` and
+   its boxes against a recording's before blaming the player.
+4. **AVPlayer's `volume` is ignored on AirPlay.** A "muted" player plays aloud
+   there. Silent is therefore a clock-only player (`SilentPlaybackService`), not a
+   muted one.
+5. **A native player event can arrive after a seek was asked for**, still saying
+   "completed at the end"; taken as news it restarted a loop twice in 16 ms.
+   `NativeTransport` drops events while a seek is in flight.
+
 For anything audio-routing on a device, calibrate once and read the trace
 (`bash scripts/pull_sync_trace.sh "Hazel iPad"`): every volume, category, route and
-engine-configuration change, with the step it happened in. It is what found both.
+engine-configuration change, with the step it happened in. It is what found all
+five. To tell a player bug from a file bug, run the same test on a recording: the
+rendered score's loop stall was first blamed on the playback rate until a
+recording at 87% looped cleanly.

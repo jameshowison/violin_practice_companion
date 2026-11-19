@@ -255,6 +255,18 @@ spot too, until a seek elsewhere. `NativeTransport` now ignores events while
 a seek is in flight; and the native player re-seeks 50 ms back if its clock
 stands still for 1.5 s of "playing" (traced as "stalled while playing").
 
+That wasn't the whole of it: with the double restart gone, every loop
+restart of the rendered score still stalled on Kitchen (the watchdog's
+re-seeks didn't free it; it came back by itself after ~12 s), while the
+teacher demo looped cleanly — at 1.0 and at 0.874 alike, so not the rate.
+The difference was the file: AVAudioFile's .m4a carries the AAC priming as
+iTunes gapless metadata (`udta`/iTunSMPB) with no edit list; a recording's
+.mp4 has an edit list (`elst` mediaTime=2112). iOS now encodes with
+AVAssetWriter to .mp4 (with `.m4a` as its file type, AVAssetWriter writes
+the iTunes form too), which gives the edit list; a decode still puts the
+first click on its rendered sample. Renderer version 2, so old files are
+replaced. To re-test on Kitchen.
+
 **Open question 3 (mid-piece count-in):** the silent wait, then the player
 running within 10–25 ms of the call, on Kitchen and on the ZVOX. Heard
 timing not yet measured.

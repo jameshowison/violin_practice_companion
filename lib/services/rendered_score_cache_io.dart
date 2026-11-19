@@ -36,6 +36,15 @@ class RenderedScoreFile {
 /// directory; the sidecar is written last, so its presence means the audio is
 /// whole.
 ///
+/// The container matters, not just the codec. It must be an .mp4 whose AAC
+/// priming is in an edit list (`edts`/`elst`), as a recording's is — on iOS,
+/// AVAssetWriter with fileType .mp4. NOT AVAudioFile, and NOT fileType .m4a:
+/// both write the priming as iTunes gapless metadata (`udta`/iTunSMPB) and no
+/// edit list, and on AirPlay AVPlayer then stalls at every loop restart
+/// ("playing", clock stopped, ~12 s) while a recording loops cleanly
+/// (Jamz + Kitchen, 2026-11-19). Simulators can't show it: they have no
+/// AirPlay. See `encodeAac` in ios/Runner/AudioDecoderPlugin.swift.
+///
 /// The key covers everything the sound depends on, and nothing it doesn't: the
 /// note schedule (so a fingering or lyric edit re-renders nothing), the
 /// tempo, the opening meter and pickup (the woodblock bars), and the
@@ -47,7 +56,10 @@ class RenderedScoreCache {
   final int maxFiles;
 
   /// Bump when the renderer's output changes for the same inputs.
-  static const rendererVersion = 1;
+  // 2: an .mp4 by AVAssetWriter on iOS (an edit list, not iTunes gapless
+  // metadata), so the old .m4a files, which stalled AirPlay loops, are
+  // replaced.
+  static const rendererVersion = 2;
 
   /// Bars of woodblock before the score.
   static const introBars = 3;
@@ -110,15 +122,15 @@ class RenderedScoreCache {
       await wav.writeAsBytes(rendered.wav, flush: true);
       var audio = wav;
       sw.reset();
-      final m4a = File('${dir.path}/$key.m4a');
+      final mp4 = File('${dir.path}/$key.mp4');
       try {
         await AudioDecoder.channel.invokeMethod<void>('encodeAac', {
           'input': wav.path,
-          'output': m4a.path,
+          'output': mp4.path,
           'bitRate': 64000,
         });
         await wav.delete();
-        audio = m4a;
+        audio = mp4;
       } on MissingPluginException {
         // No encoder on this platform yet: the WAV plays as well, only larger.
       } on PlatformException catch (e) {
@@ -202,7 +214,7 @@ class RenderedScoreCache {
           (a, b) => a.statSync().modified.compareTo(b.statSync().modified));
       for (final f in sidecars.take(sidecars.length - maxFiles)) {
         final stem = f.path.substring(0, f.path.length - '.json'.length);
-        for (final ext in const ['.json', '.m4a', '.wav']) {
+        for (final ext in const ['.json', '.mp4', '.m4a', '.wav']) {
           final g = File('$stem$ext');
           if (g.existsSync()) g.deleteSync();
         }

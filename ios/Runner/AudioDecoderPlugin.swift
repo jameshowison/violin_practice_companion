@@ -387,32 +387,63 @@ extension AudioDecoderPlugin {
     }
   }
 
+  /// Written by AVAssetWriter as an .mp4, as the app's recordings are, not
+  /// by AVAudioFile:
+  /// AVAudioFile's .m4a carries the encoder's priming as iTunes gapless
+  /// metadata (`udta`/iTunSMPB) with no edit list, and AVPlayer on AirPlay
+  /// stalled on it — every loop restart of the rendered score sat "playing"
+  /// with its clock stopped, while a recording at the same rate looped
+  /// cleanly (Jamz + Kitchen, 2026-11-19). AVAssetWriter puts the priming in
+  /// a standard edit list (`edts`/`elst`), as a recording has.
   fileprivate static func encodeAac(input: String, output: String, bitRate: Int) throws {
-    let source = try AVAudioFile(forReading: URL(fileURLWithPath: input))
-    let format = source.processingFormat
     let outURL = URL(fileURLWithPath: output)
     try? FileManager.default.removeItem(at: outURL)
-    // Scoped so the writer is released, which is what finalises the file.
-    do {
-      let sink = try AVAudioFile(
-        forWriting: outURL,
-        settings: [
-          AVFormatIDKey: kAudioFormatMPEG4AAC,
-          AVSampleRateKey: format.sampleRate,
-          AVNumberOfChannelsKey: format.channelCount,
-          AVEncoderBitRateKey: bitRate,
-        ],
-        commonFormat: format.commonFormat,
-        interleaved: format.isInterleaved)
-      let frames: AVAudioFrameCount = 16384
-      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
-        throw NSError(domain: "encodeAac", code: 1)
+    let asset = AVURLAsset(url: URL(fileURLWithPath: input))
+    guard let track = asset.tracks(withMediaType: .audio).first,
+      let desc = track.formatDescriptions.first,
+      let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(
+        desc as! CMAudioFormatDescription)?.pointee
+    else {
+      throw NSError(domain: "encodeAac", code: 1, userInfo: [
+        NSLocalizedDescriptionKey: "no audio track in \(input)"])
+    }
+    let reader = try AVAssetReader(asset: asset)
+    let pcm = AVAssetReaderTrackOutput(
+      track: track, outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM])
+    reader.add(pcm)
+    // .mp4, not .m4a: with .m4a, AVAssetWriter too writes the iTunes metadata
+    // and no edit list.
+    let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+    let aac = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+      AVFormatIDKey: kAudioFormatMPEG4AAC,
+      AVSampleRateKey: asbd.mSampleRate,
+      AVNumberOfChannelsKey: asbd.mChannelsPerFrame,
+      AVEncoderBitRateKey: bitRate,
+    ])
+    aac.expectsMediaDataInRealTime = false
+    writer.add(aac)
+    guard reader.startReading(), writer.startWriting() else {
+      throw reader.error ?? writer.error ?? NSError(domain: "encodeAac", code: 2)
+    }
+    writer.startSession(atSourceTime: .zero)
+
+    let fed = DispatchSemaphore(value: 0)
+    var finished = false
+    aac.requestMediaDataWhenReady(on: DispatchQueue(label: "encodeAac")) {
+      while !finished && aac.isReadyForMoreMediaData {
+        if let buffer = pcm.copyNextSampleBuffer(), aac.append(buffer) { continue }
+        finished = true
+        aac.markAsFinished()
+        fed.signal()
       }
-      while source.framePosition < source.length {
-        try source.read(into: buffer, frameCount: frames)
-        if buffer.frameLength == 0 { break }
-        try sink.write(from: buffer)
-      }
+    }
+    fed.wait()
+    let written = DispatchSemaphore(value: 0)
+    writer.finishWriting { written.signal() }
+    written.wait()
+    if reader.status == .failed { throw reader.error ?? NSError(domain: "encodeAac", code: 3) }
+    if writer.status != .completed {
+      throw writer.error ?? NSError(domain: "encodeAac", code: 4)
     }
   }
 }
