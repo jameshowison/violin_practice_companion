@@ -358,8 +358,31 @@ needs no second app.
     thumb"). That matches how a new note is introduced in class ("thumb and
     1"), and a parent can read it aloud.
   - Small diagrams over the notes are drawn only on big changes.
-  - Mockup: [Woodwind fingering lane](https://claude.ai/artifact/CsAVDqn3rDNvxmDdnbS6qr)
-    (private until shared).
+  - Mockup: [`docs/design/woodwind-fingering-lane.html`](../design/woodwind-fingering-lane.html),
+    a single self-contained page. Open it in a browser to tap notes, press
+    Play, and switch the instrument, layout and labels.
+
+  <p align="center">
+    <img src="../images/family/woodwind-lane-recorder-sidebar.png" width="640"
+         alt="Recorder mockup, phone in landscape: Mary Had a Little Lamb with
+              note names over the notes and small hole diagrams on big changes.
+              The side bar shows high D in full: put down left 2, lift thumb
+              and left 1.">
+  </p>
+
+  *Recorder, phone in landscape: the side bar shows the current note in full,
+  with what changes from the last note.*
+
+  <p align="center">
+    <img src="../images/family/woodwind-lane-clarinet-tray.png" width="320"
+         alt="Clarinet mockup, phone in portrait: an exercise crossing the
+              break, with red break markers and register colours under the
+              notes. The tray shows written B (sounds A): put down all six
+              holes, register key, thumb, left pinky; lift the A key.">
+  </p>
+
+  *Clarinet, phone in portrait: the tray takes the full fingering, and red
+  markers show each crossing of the break.*
 - **Group:** register (the clarinet's chalumeau, throat and clarion; the
   octave key on sax, oboe and flute). The colour lane shows "you changed
   register here", which is where beginners fail.

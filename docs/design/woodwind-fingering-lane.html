@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Woodwind Fingering Lane</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Noto+Music&display=swap">
+<style>
+/* Layout: a narrow column of controls and notes around one phone-sized frame, which is the real subject. */
+:root {
+  --bg: #eef1f3;
+  --panel: #ffffff;
+  --ink: #1d2730;
+  --muted: #5d6b77;
+  --line: #c9d1d8;
+  --accent: #0f6f74;
+  --accent-soft: rgba(15, 111, 116, 0.14);
+  --hole-open: #ffffff;
+  --phone-bg: #fbfcfd;
+  --phone-bar: #e7ecef;
+  --g1: #138a8f;   /* left hand only / low register */
+  --g2: #c98a12;   /* both hands / throat */
+  --g3: #b0367f;   /* thumb off / over the break */
+  --brk: #d0462f;
+  --font-ui: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-head: "Bricolage Grotesque", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-music: "Noto Music", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181d; --panel: #1a2228; --ink: #e3e9ee; --muted: #9aa8b3; --line: #33414b;
+    --accent: #4fc1c6; --accent-soft: rgba(79, 193, 198, 0.18); --hole-open: #1a2228;
+    --phone-bg: #161d22; --phone-bar: #222c33;
+    --g1: #3fb7bc; --g2: #e0a83a; --g3: #d965a8; --brk: #ef7058;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181d; --panel: #1a2228; --ink: #e3e9ee; --muted: #9aa8b3; --line: #33414b;
+  --accent: #4fc1c6; --accent-soft: rgba(79, 193, 198, 0.18); --hole-open: #1a2228;
+  --phone-bg: #161d22; --phone-bar: #222c33;
+  --g1: #3fb7bc; --g2: #e0a83a; --g3: #d965a8; --brk: #ef7058;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.5; }
+.page {
+  max-width: 980px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+  display: grid; gap: 22px;
+}
+h1 { font-family: var(--font-head); font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 19px; margin: 0 0 8px; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); margin-top: 6px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+.ctl { display: grid; gap: 5px; min-width: 0; }
+.ctl-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; }
+.seg { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button {
+  font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--ink);
+  padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--line);
+}
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--panel); font-weight: 700; }
+.seg button:focus-visible, .phone:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+
+.stage { display: flex; justify-content: center; }
+.phone-wrap { width: 100%; position: relative; }
+.phone {
+  position: absolute; top: 0; left: 0; transform-origin: 0 0;
+  background: var(--phone-bg); border: 10px solid #20272d; border-radius: 30px;
+  overflow: hidden; display: flex; flex-direction: column; font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+.appbar {
+  height: 40px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  background: var(--phone-bar); border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600;
+}
+.appbar .ttl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appbar .meta { font-size: 11px; color: var(--muted); font-weight: 400; }
+.playbtn {
+  font: inherit; font-size: 13px; font-weight: 700; border: 0; border-radius: 15px; padding: 4px 12px;
+  background: var(--accent); color: var(--panel); cursor: pointer;
+}
+.pbody { flex: 1; min-height: 0; display: flex; }
+.pbody.side { flex-direction: row; }
+.pbody.tray { flex-direction: column; }
+.staffarea { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
+.fpanel { flex: none; background: var(--panel); display: flex; gap: 8px; }
+.side .fpanel { width: 132px; border-left: 1px solid var(--line); flex-direction: column; align-items: center; padding: 8px 6px; }
+.tray .fpanel { height: 156px; border-top: 1px solid var(--line); flex-direction: row; align-items: center; padding: 8px 12px; gap: 12px; }
+.fp-text { display: grid; gap: 3px; min-width: 0; text-align: center; }
+.tray .fp-text { text-align: left; flex: 1; }
+.fp-note { font-size: 26px; font-weight: 700; line-height: 1.05; }
+.fp-note small { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); }
+.fp-label { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fp-change { font-size: 11.5px; line-height: 1.35; color: var(--ink); }
+.fp-change b { color: var(--accent); }
+.fp-change .lift { color: var(--muted); }
+.fp-next { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.side .fp-next { margin-top: auto; }
+
+svg text { font-family: system-ui, -apple-system, sans-serif; }
+.st-line { stroke: var(--ink); stroke-width: 1; opacity: 0.75; }
+.st-bar { stroke: var(--ink); stroke-width: 1; opacity: 0.75; }
+.st-head { fill: var(--ink); }
+.st-hollow { fill: var(--phone-bg); stroke: var(--ink); stroke-width: 1.4; }
+.st-stem { stroke: var(--ink); stroke-width: 1.2; }
+.st-clef { fill: var(--ink); font-family: var(--font-music); }
+.st-time { fill: var(--ink); font-weight: 800; font-size: 13px; }
+.lane-label { fill: var(--ink); font-size: 10.5px; font-weight: 700; text-anchor: middle; }
+.cur-bg { fill: var(--accent-soft); }
+.note-hit { cursor: pointer; }
+.brk-line { stroke: var(--brk); stroke-width: 1.6; fill: none; }
+.brk-text { fill: var(--brk); font-size: 9px; font-weight: 700; text-anchor: middle; }
+.h-closed { fill: var(--ink); }
+.h-open { fill: var(--hole-open); stroke: var(--ink); stroke-width: 0.09; }
+.h-body { fill: none; stroke: var(--line); stroke-width: 0.06; }
+.mini .h-open { stroke-width: 0.2; }
+.mini .h-body { stroke-width: 0.12; }
+.h-add { fill: none; stroke: var(--accent); stroke-width: 0.16; }
+.h-lift { fill: none; stroke: var(--muted); stroke-width: 0.11; stroke-dasharray: 0.22 0.16; }
+.h-num { fill: var(--muted); font-size: 0.42px; }
+
+.notes { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.card ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+.verdict { font-weight: 700; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="page">
+  <header>
+    <h1>Woodwind fingering lane</h1>
+    <p class="lede">Mockup for early learners: the note name over every note (the word the teacher uses in the lesson), a small hole diagram where the fingering changes a lot, colour for the beginner's hurdle, and the full diagram kept on screen in a side bar or a tray. Tap any note, or press Play. Fingerings are standard, drawn schematically; the tunes are traditional.</p>
+  </header>
+
+  <section class="controls" aria-label="Mockup settings">
+    <div class="ctl"><span class="ctl-label">Instrument</span><div class="seg" id="c-inst"></div></div>
+    <div class="ctl"><span class="ctl-label">Piece</span><div class="seg" id="c-piece"></div></div>
+    <div class="ctl"><span class="ctl-label">Screen (iPhone SE)</span><div class="seg" id="c-orient"></div></div>
+    <div class="ctl"><span class="ctl-label">Full fingering</span><div class="seg" id="c-panel"></div></div>
+    <div class="ctl"><span class="ctl-label">Label over notes</span><div class="seg" id="c-label"></div></div>
+    <div class="ctl"><span class="ctl-label">Small diagrams over notes</span><div class="seg" id="c-mini"></div></div>
+    <div class="ctl" id="ctl-system"><span class="ctl-label">Recorder fingering</span><div class="seg" id="c-system"></div></div>
+  </section>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="stage"><div class="phone-wrap" id="wrap"><div class="phone" id="phone" tabindex="0" aria-label="Phone screen mockup; left and right arrow keys move between notes"></div></div></div>
+
+  <section class="notes">
+    <div class="card">
+      <h2>The side bar</h2>
+      <p class="verdict">Use it in landscape and on iPad. In portrait, use the tray.</p>
+      <ul>
+        <li><b>Phone in landscape:</b> a 132pt side bar leaves 535pt of staff, about four bars a line. A tray would leave only 179pt of height, about one line of music.</li>
+        <li><b>Phone in portrait:</b> the side bar leaves 243pt, two bars a line, and the labels crowd. Height is what portrait has spare, so the tray goes there.</li>
+        <li><b>With the full diagram always on screen,</b> the lane over the staff can stay light: labels, plus a small diagram only on big changes.</li>
+        <li><b>The lane shows note names.</b> Teachers say “play B” and teach the fingering once, from a chart. Number shorthand appears in charts and guides, not over the music, so here it is an option.</li>
+        <li><b>“Put down / Lift”</b> is the part a parent can read aloud. It turns the chart into the next instruction.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>What to check in the real app</h2>
+      <ul>
+        <li>The phone already has a bottom tray (playback, chords). The side bar has to share the screen with it.</li>
+        <li>The same panel could show a violin note as a finger on a string. It is one component for the whole family, with a different drawing per instrument.</li>
+        <li>The clarinet's labels and diagrams are in <b>written</b> pitch, as in the child's book. The panel also gives the sounding note.</li>
+        <li>Baroque and German recorders differ on F. Switch the fingering system and play “Right hand down” to see it.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---------- data ----------
+  const REC_BASE = {
+    C4: ['T','1','2','3','4','5','6','7'], D4: ['T','1','2','3','4','5','6'], E4: ['T','1','2','3','4','5'],
+    G4: ['T','1','2','3'], A4: ['T','1','2'], B4: ['T','1'], C5: ['T','2'], D5: ['2'],
+  };
+  const REC = {
+    baroque: { ...REC_BASE, F4: ['T','1','2','3','4','6','7'] },
+    german:  { ...REC_BASE, F4: ['T','1','2','3','4'] },
+  };
+  const CLA = {
+    G4: { k: [], label: 'open' }, A4: { k: ['A'], label: 'A' },
+    F4: { k: ['T'], label: 'T' }, E4: { k: ['T','1'], label: 'T1' },
+    D4: { k: ['T','1','2'], label: 'T12' }, C4: { k: ['T','1','2','3'], label: 'T123' },
+    B4: { k: ['R','T','1','2','3','4','5','6','LE'], label: 'R all+L' },
+    C5: { k: ['R','T','1','2','3','4','5','6','RF'], label: 'R all+R' },
+    D5: { k: ['R','T','1','2','3','4','5','6'], label: 'R all' },
+  };
+  const CONCERT = { C4:'B♭', D4:'C', E4:'D', F4:'E♭', G4:'F', A4:'G', B4:'A', C5:'B♭', D5:'C' };
+  const KEY_NAMES = {
+    recorder: { T:'thumb', 1:'left 1', 2:'left 2', 3:'left 3', 4:'right 1', 5:'right 2', 6:'right 3', 7:'right 4' },
+    clarinet: { R:'register key', T:'thumb', A:'A key', 1:'left 1', 2:'left 2', 3:'left 3', 4:'right 1', 5:'right 2', 6:'right 3', LE:'left pinky', RF:'right pinky' },
+  };
+  const GROUPS = {
+    recorder: [ ['left','Left hand only','--g1'], ['both','Both hands','--g2'], ['thumb','Thumb off','--g3'] ],
+    clarinet: [ ['low','Low register','--g1'], ['throat','Throat (G, A)','--g2'], ['clarion','Over the break: register key','--g3'] ],
+  };
+  const q = (p, d=1) => [p, d];
+  const PIECES = {
+    recorder: [
+      { name: 'Hot Cross Buns', bars: [
+        [q('B4'),q('A4'),q('G4',2)], [q('B4'),q('A4'),q('G4',2)],
+        [q('G4',.5),q('G4',.5),q('G4',.5),q('G4',.5),q('A4',.5),q('A4',.5),q('A4',.5),q('A4',.5)],
+        [q('B4'),q('A4'),q('G4',2)] ] },
+      { name: 'Mary Had a Little Lamb', bars: [
+        [q('B4'),q('A4'),q('G4'),q('A4')], [q('B4'),q('B4'),q('B4',2)], [q('A4'),q('A4'),q('A4',2)],
+        [q('B4'),q('D5'),q('D5',2)], [q('B4'),q('A4'),q('G4'),q('A4')], [q('B4'),q('B4'),q('B4'),q('B4')],
+        [q('A4'),q('A4'),q('B4'),q('A4')], [q('G4',4)] ] },
+      { name: 'Right hand down', bars: [
+        [q('G4'),q('F4'),q('E4'),q('D4')], [q('C4',2),q('D4',2)], [q('E4'),q('F4'),q('G4',2)], [q('G4',4)] ] },
+    ],
+    clarinet: [
+      { name: 'Hot Cross Buns', bars: [
+        [q('E4'),q('D4'),q('C4',2)], [q('E4'),q('D4'),q('C4',2)],
+        [q('C4',.5),q('C4',.5),q('C4',.5),q('C4',.5),q('D4',.5),q('D4',.5),q('D4',.5),q('D4',.5)],
+        [q('E4'),q('D4'),q('C4',2)] ] },
+      { name: 'Over the break', bars: [
+        [q('G4'),q('A4'),q('G4'),q('A4')], [q('B4',2),q('A4',2)], [q('G4'),q('A4'),q('B4'),q('C5')], [q('D5',4)] ] },
+    ],
+  };
+
+  // ---------- state ----------
+  const S = { inst: 'recorder', piece: 0, orient: 'landscape', panel: 'side', panelTouched: false, mini: 'big', label: 'name', system: 'baroque', cur: 0, playing: false };
+  let timer = null;
+
+  // ---------- fingering helpers ----------
+  function keysOf(p) { return S.inst === 'recorder' ? REC[S.system][p] : CLA[p].k; }
+  function labelOf(p) {
+    if (S.inst === 'clarinet') return CLA[p].label;
+    const k = REC[S.system][p];
+    const lh = ['1','2','3'].filter(x => k.includes(x)).join('');
+    const rh = ['4','5','6','7'].filter(x => k.includes(x)).join('');
+    return (k.includes('T') ? 'T' : '') + lh + (rh ? ' ' + rh : '');
+  }
+  function laneLabel(p) { return S.label === 'name' ? p[0] : labelOf(p); }
+  function groupOf(p) {
+    const k = keysOf(p);
+    if (S.inst === 'recorder') {
+      if (!k.includes('T')) return 'thumb';
+      return ['4','5','6','7'].some(x => k.includes(x)) ? 'both' : 'left';
+    }
+    if (k.includes('R')) return 'clarion';
+    return (p === 'G4' || p === 'A4') ? 'throat' : 'low';
+  }
+  function colorOf(g) { return 'var(' + GROUPS[S.inst].find(x => x[0] === g)[2] + ')'; }
+  function describe(list) {
+    const holes = S.inst === 'clarinet' ? ['1','2','3','4','5','6'] : ['1','2','3','4','5','6','7'];
+    const names = KEY_NAMES[S.inst];
+    if (holes.every(h => list.includes(h))) {
+      const rest = list.filter(k => !holes.includes(k)).map(k => names[k]);
+      return [S.inst === 'clarinet' ? 'all six holes' : 'all seven holes', ...rest].join(', ');
+    }
+    return list.map(k => names[k]).join(', ');
+  }
+  function diff(a, b) { // a = previous keys, b = current
+    if (!a) return { add: b.slice(), lift: [] };
+    return { add: b.filter(x => !a.includes(x)), lift: a.filter(x => !b.includes(x)) };
+  }
+
+  // ---------- hole diagram ----------
+  const LAYOUT = {
+    recorder: { vb: [-1.9, 0.3, 3.3, 8.3], body: [-0.62, 0.45, 1.24, 7.55],
+      keys: { T: ['c', -1.2, 1.0], 1: ['c',0,1], 2: ['c',0,2], 3: ['c',0,3], 4: ['c',0,4.5], 5: ['c',0,5.5], 6: ['c',0,6.5], 7: ['c',0,7.5] } },
+    clarinet: { vb: [-1.9, -0.2, 3.5, 7.8], body: [-0.62, 0.45, 1.24, 6.6],
+      keys: { A: ['p',0,0.12], R: ['r',-1.2,0.45], T: ['c',-1.2,1.15], 1: ['c',0,1], 2: ['c',0,2], 3: ['c',0,3], LE: ['r',-1.05,3.75],
+              4: ['c',0,4.5], 5: ['c',0,5.5], 6: ['c',0,6.5], RF: ['r',0.95,7.05] } },
+  };
+  function diagram(inst, keys, px, opts = {}) {
+    const L = LAYOUT[inst], [vx, vy, vw, vh] = L.vb;
+    const h = px, w = px * vw / vh;
+    let s = `<svg width="${w.toFixed(1)}" height="${h}" viewBox="${vx} ${vy} ${vw} ${vh}" role="img" aria-label="${opts.aria || 'fingering diagram'}">`;
+    const [bx, by, bw, bh] = L.body;
+    s += `<rect class="h-body" x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="0.62"/>`;
+    for (const [id, [shape, x, y]] of Object.entries(L.keys)) {
+      const on = keys.includes(id), cls = on ? 'h-closed' : 'h-open';
+      let mark = '';
+      if (opts.changes) {
+        if (opts.changes.add.includes(id)) mark = 'h-add';
+        else if (opts.changes.lift.includes(id)) mark = 'h-lift';
+      }
+      if (shape === 'c') {
+        s += `<circle class="${cls}" cx="${x}" cy="${y}" r="0.37"/>`;
+        if (mark) s += `<circle class="${mark}" cx="${x}" cy="${y}" r="0.56"/>`;
+      } else {
+        const [rw, rh] = shape === 'p' ? [0.7, 0.3] : [0.5, 0.28];
+        s += `<rect class="${cls}" x="${x - rw/2}" y="${y - rh/2}" width="${rw}" height="${rh}" rx="0.12"/>`;
+        if (mark) s += `<rect class="${mark}" x="${x - rw/2 - 0.17}" y="${y - rh/2 - 0.17}" width="${rw + 0.34}" height="${rh + 0.34}" rx="0.2"/>`;
+      }
+      if (opts.numbers && shape === 'c') s += `<text class="h-num" x="${x + 0.62}" y="${y + 0.15}">${id}</text>`;
+    }
+    return s + '</svg>';
+  }
+
+  // ---------- staff layout ----------
+  const GAP = 9;
+  const STEP = { C4:-2, D4:-1, E4:0, F4:1, G4:2, A4:3, B4:4, C5:5, D5:6 };
+  const W_DUR = { 0.5: 24, 1: 32, 2: 44, 4: 60 };
+  function flatNotes() {
+    const out = [];
+    PIECES[S.inst][S.piece].bars.forEach((bar, bi) => bar.forEach(([p, d]) => out.push({ p, d, bar: bi })));
+    return out;
+  }
+  function showMini(notes, i, firstInSystem) {
+    if (S.mini === 'off') return false;
+    if (S.mini === 'every') return true;
+    const prev = i > 0 ? keysOf(notes[i-1].p) : null, cur = keysOf(notes[i].p);
+    if (firstInSystem || !prev) return true;
+    const dd = diff(prev, cur), n = dd.add.length + dd.lift.length;
+    if (S.mini === 'change') return n > 0;
+    return n >= 2 || groupOf(notes[i-1].p) !== groupOf(notes[i].p); // big changes only
+  }
+
+  function renderStaff(width) {
+    const notes = flatNotes(), bars = PIECES[S.inst][S.piece].bars;
+    const LEFT = 8, CLEF = 40, RIGHT = 8;
+    // bar widths
+    const bw = bars.map(b => b.reduce((s, [, d]) => s + W_DUR[d], 0) + 12);
+    // wrap bars into systems
+    const systems = []; let curSys = [], used = LEFT + CLEF + RIGHT;
+    bw.forEach((w, i) => {
+      if (curSys.length && used + w > width) { systems.push(curSys); curSys = []; used = LEFT + CLEF + RIGHT; }
+      curSys.push(i); used += w;
+    });
+    if (curSys.length) systems.push(curSys);
+
+    let y = 6, svg = '', idx = 0;
+    const MINI_H = 48;
+    const noteIndexStart = []; let acc = 0; bars.forEach(b => { noteIndexStart.push(acc); acc += b.length; });
+
+    systems.forEach((sys, si) => {
+      // does any note in this system show a mini diagram?
+      const sysNotes = [];
+      sys.forEach(bi => bars[bi].forEach((_, k) => sysNotes.push(noteIndexStart[bi] + k)));
+      const minis = sysNotes.map((ni, k) => showMini(notes, ni, k === 0));
+      const hasMini = minis.some(Boolean);
+      const labelY = y + (hasMini ? MINI_H + 4 : 0) + 11;
+      const top = labelY + 16, bottom = top + 4 * GAP;
+      const natural = sys.reduce((s, bi) => s + bw[bi], 0);
+      const fill = (width - LEFT - CLEF - RIGHT) / natural;
+      const stretch = (si === systems.length - 1 && fill > 1.35) ? 1 : Math.max(1, fill);
+      const x0 = LEFT, x1 = width - RIGHT;
+      for (let l = 0; l < 5; l++) svg += `<line class="st-line" x1="${x0}" x2="${x1}" y1="${top + l*GAP}" y2="${top + l*GAP}"/>`;
+      svg += `<text class="st-clef" x="${x0 + 2}" y="${bottom - GAP}" font-size="${GAP * 4.1}">𝄞</text>`;
+      if (si === 0) svg += `<text class="st-time" x="${x0 + 30}" y="${top + GAP*1.85}">4</text><text class="st-time" x="${x0 + 30}" y="${top + GAP*3.85}">4</text>`;
+      let x = x0 + CLEF + (si === 0 ? 8 : 0);
+      let k = 0;
+      sys.forEach(bi => {
+        bars[bi].forEach(([p, d], j) => {
+          const ni = noteIndexStart[bi] + j;
+          const w = W_DUR[d] * stretch;
+          const cx = x + Math.min(w / 2, 14) + 4;
+          const ny = bottom - STEP[p] * GAP / 2;
+          const g = groupOf(p);
+          const isCur = ni === S.cur;
+          svg += `<g class="note-hit" data-i="${ni}">`;
+          svg += `<rect class="${isCur ? 'cur-bg' : ''}" fill="${isCur ? '' : 'transparent'}" x="${cx - 13}" y="${y}" width="26" height="${bottom + 26 - y}" rx="5"/>`;
+          // mini diagram
+          if (minis[k]) svg += `<g class="mini" transform="translate(${cx - MINI_H * LAYOUT[S.inst].vb[2] / LAYOUT[S.inst].vb[3] / 2},${y})">${diagram(S.inst, keysOf(p), MINI_H, { aria: 'small diagram' })}</g>`;
+          // label
+          svg += `<text class="lane-label" x="${cx}" y="${labelY}">${laneLabel(p)}</text>`;
+          // ledger
+          if (STEP[p] <= -2) svg += `<line class="st-line" x1="${cx - 9}" x2="${cx + 9}" y1="${bottom + GAP}" y2="${bottom + GAP}"/>`;
+          // head
+          const hollow = d >= 2;
+          svg += `<ellipse class="${hollow ? 'st-hollow' : 'st-head'}" cx="${cx}" cy="${ny}" rx="5.4" ry="3.9" transform="rotate(-20 ${cx} ${ny})"/>`;
+          if (d < 4) {
+            const up = STEP[p] < 4;
+            const sx = up ? cx + 4.9 : cx - 4.9, sy2 = up ? ny - 30 : ny + 30;
+            svg += `<line class="st-stem" x1="${sx}" x2="${sx}" y1="${ny}" y2="${sy2}"/>`;
+            if (d === 0.5) svg += up
+              ? `<path class="st-stem" fill="none" d="M${sx} ${sy2} q 7 6 6 14"/>`
+              : `<path class="st-stem" fill="none" d="M${sx} ${sy2} q 7 -6 6 -14"/>`;
+          }
+          // group underline
+          svg += `<rect x="${cx - 9}" y="${bottom + 19}" width="18" height="3.5" rx="1.5" fill="${colorOf(g)}"/>`;
+          svg += `</g>`;
+          // the clarinet break
+          if (S.inst === 'clarinet' && ni > 0) {
+            const pg = groupOf(notes[ni - 1].p);
+            if ((pg === 'clarion') !== (g === 'clarion') && (pg === 'throat' || g === 'throat')) {
+              const bx = x - 2;
+              svg += `<path class="brk-line" d="M${bx} ${top - 6} l 3 3 l -3 3 l 3 3 l -3 3 l 3 3 l -3 3 l 3 3 l -3 3 l 3 3 l -3 3 l 3 3"/>`;
+              svg += `<text class="brk-text" x="${bx}" y="${bottom + 34}">break</text>`;
+            }
+          }
+          x += w; k++;
+        });
+        x += 12 * stretch;
+        svg += `<line class="st-bar" x1="${x - 6 * stretch}" x2="${x - 6 * stretch}" y1="${top}" y2="${bottom}"/>`;
+      });
+      y = bottom + 42;
+    });
+    return `<svg width="${width}" height="${y}" viewBox="0 0 ${width} ${y}">${svg}</svg>`;
+  }
+
+  // ---------- panel ----------
+  function renderPanel(mode) {
+    const notes = flatNotes(), n = notes[S.cur], prev = S.cur > 0 ? notes[S.cur - 1] : null, next = notes[S.cur + 1];
+    const keys = keysOf(n.p), ch = diff(prev ? keysOf(prev.p) : null, keys);
+    const names = KEY_NAMES[S.inst];
+    const name = n.p[0];
+    const sub = S.inst === 'clarinet' ? `written · sounds ${CONCERT[n.p]}` : (n.p === 'D5' || n.p === 'C5' ? 'high' : '&nbsp;');
+    let change;
+    if (!prev) change = `<b>Start with</b> ${keys.length ? describe(keys) : 'nothing down'}`;
+    else if (!ch.add.length && !ch.lift.length) change = `<b>Same fingers</b> as the last note`;
+    else change = (ch.add.length ? `<b>Put down</b> ${describe(ch.add)}` : '')
+      + (ch.add.length && ch.lift.length ? '<br>' : '')
+      + (ch.lift.length ? `<span class="lift"><b style="color:inherit">Lift</b> ${describe(ch.lift)}</span>` : '');
+    const big = diagram(S.inst, keys, mode === 'side' ? 150 : 128, { changes: prev ? ch : null, numbers: true, aria: `full fingering for ${name}` });
+    const nextHtml = next ? `<div class="fp-next">Next: <b style="color:var(--ink)">${next.p[0]}</b>${diagram(S.inst, keysOf(next.p), 36, { aria: 'next note' })}</div>` : `<div class="fp-next">Last note</div>`;
+    const text = `<div class="fp-text"><div class="fp-note">${name}<small>${sub}</small></div>
+      <div class="fp-label" style="border-bottom:3px solid ${colorOf(groupOf(n.p))};padding-bottom:2px">${labelOf(n.p)}</div>
+      <div class="fp-change">${change}</div>${mode === 'tray' ? nextHtml : ''}</div>`;
+    return mode === 'side'
+      ? `<div class="fp-text"><div class="fp-note">${name}<small>${sub}</small></div><div class="fp-label" style="border-bottom:3px solid ${colorOf(groupOf(n.p))};padding-bottom:2px">${labelOf(n.p)}</div></div>${big}<div class="fp-change" style="text-align:center">${change}</div>${nextHtml}`
+      : `${big}${text}`;
+  }
+
+  // ---------- phone ----------
+  const phone = document.getElementById('phone'), wrap = document.getElementById('wrap');
+  function dims() { return S.orient === 'landscape' ? [667, 375] : [375, 667]; }
+  function renderPhone() {
+    const [W, H] = dims(), mode = S.panel;
+    const staffW = mode === 'side' ? W - 132 : W;
+    phone.style.width = (W + 20) + 'px'; phone.style.height = (H + 20) + 'px';
+    const piece = PIECES[S.inst][S.piece];
+    phone.innerHTML = `
+      <div class="appbar"><span class="ttl">${piece.name}</span>
+        <span class="meta">${S.inst === 'clarinet' ? 'B♭ clarinet' : 'Recorder · ' + S.system}</span>
+        <button class="playbtn" id="play" type="button">${S.playing ? 'Stop' : 'Play'}</button></div>
+      <div class="pbody ${mode}">
+        <div class="staffarea" id="staff">${renderStaff(staffW - 4)}</div>
+        <div class="fpanel" aria-live="polite">${renderPanel(mode)}</div>
+      </div>`;
+    phone.querySelector('#play').onclick = togglePlay;
+    phone.querySelectorAll('.note-hit').forEach(g => g.addEventListener('click', () => { stop(); S.cur = +g.dataset.i; renderPhone(); }));
+    fit();
+    const cur = phone.querySelector(`.note-hit[data-i="${S.cur}"] rect`), area = phone.querySelector('#staff');
+    if (cur && area) {
+      const r = cur.getBBox(), viewH = area.clientHeight;
+      if (r.y < area.scrollTop || r.y + r.height > area.scrollTop + viewH) area.scrollTop = Math.max(0, r.y - 8);
+    }
+  }
+  function fit() {
+    const [W, H] = dims(), fw = W + 20, fh = H + 20;
+    const avail = Math.min(wrap.parentElement.clientWidth, fw);
+    const sc = avail / fw;
+    wrap.style.width = avail + 'px'; wrap.style.height = (fh * sc) + 'px';
+    phone.style.transform = `scale(${sc})`;
+  }
+
+  // ---------- playback ----------
+  function stop() { S.playing = false; clearTimeout(timer); timer = null; }
+  function tick() {
+    const notes = flatNotes();
+    timer = setTimeout(() => {
+      if (S.cur >= notes.length - 1) { stop(); renderPhone(); return; }
+      S.cur++; renderPhone(); tick();
+    }, notes[S.cur].d * 650);
+  }
+  function togglePlay() {
+    if (S.playing) { stop(); renderPhone(); return; }
+    if (S.cur >= flatNotes().length - 1) S.cur = 0;
+    S.playing = true; renderPhone(); tick();
+  }
+  phone.addEventListener('keydown', e => {
+    const n = flatNotes().length;
+    if (e.key === 'ArrowRight') { stop(); S.cur = Math.min(n - 1, S.cur + 1); renderPhone(); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { stop(); S.cur = Math.max(0, S.cur - 1); renderPhone(); e.preventDefault(); }
+  });
+
+  // ---------- controls ----------
+  function seg(id, options, get, set) {
+    const el = document.getElementById(id);
+    el.innerHTML = options.map(([v, label]) => `<button type="button" id="${id}-${v}" aria-pressed="${get() === v}" data-v="${v}">${label}</button>`).join('');
+    el.querySelectorAll('button').forEach(b => b.onclick = () => { stop(); set(b.dataset.v); renderAll(); });
+  }
+  function renderAll() {
+    seg('c-inst', [['recorder','Recorder'],['clarinet','Clarinet (B♭)']], () => S.inst, v => { S.inst = v; S.piece = 0; S.cur = 0; });
+    seg('c-piece', PIECES[S.inst].map((p, i) => [String(i), p.name]), () => String(S.piece), v => { S.piece = +v; S.cur = 0; });
+    seg('c-orient', [['landscape','Landscape'],['portrait','Portrait']], () => S.orient, v => { S.orient = v; if (!S.panelTouched) S.panel = v === 'landscape' ? 'side' : 'tray'; });
+    seg('c-panel', [['side','Side bar'],['tray','Tray below']], () => S.panel, v => { S.panel = v; S.panelTouched = true; });
+    seg('c-label', [['name','Note name'],['short','Hole shorthand']], () => S.label, v => { S.label = v; });
+    seg('c-mini', [['big','Big changes'],['change','Every change'],['every','Every note'],['off','Off']], () => S.mini, v => { S.mini = v; });
+    seg('c-system', [['baroque','Baroque'],['german','German']], () => S.system, v => { S.system = v; });
+    document.getElementById('ctl-system').hidden = S.inst !== 'recorder';
+    document.getElementById('legend').innerHTML = GROUPS[S.inst].map(([, l, c]) => `<span><i style="background:var(${c})"></i>${l}</span>`).join('')
+      + (S.inst === 'clarinet' ? `<span><i style="background:var(--brk);height:10px;width:3px"></i>Crossing the break</span>` : '')
+      + `<span><svg width="14" height="14" viewBox="-0.7 -0.7 1.4 1.4"><circle class="h-add" r="0.55"/></svg>Put down</span>`
+      + `<span><svg width="14" height="14" viewBox="-0.7 -0.7 1.4 1.4"><circle class="h-lift" r="0.55"/></svg>Lift</span>`;
+    renderPhone();
+  }
+  window.addEventListener('resize', fit);
+  renderAll();
+})();
+</script>
+
+</html>
