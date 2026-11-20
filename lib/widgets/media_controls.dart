@@ -11,6 +11,7 @@ import '../services/audio_output.dart';
 import '../services/audio_score_auto_aligner.dart' show alignmentReviewMessage;
 import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
+import '../services/media_transport.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/rendered_score_playback_service.dart';
@@ -54,6 +55,37 @@ class MediaControls extends ConsumerStatefulWidget {
 }
 
 class _MediaControlsState extends ConsumerState<MediaControls> {
+  @override
+  void initState() {
+    super.initState();
+    MediaTransport.speakerFailures.addListener(_speakerFailed);
+  }
+
+  @override
+  void dispose() {
+    MediaTransport.speakerFailures.removeListener(_speakerFailed);
+    super.dispose();
+  }
+
+  /// A Play the player gave up on: the speaker wouldn't take the sound (a
+  /// stale AirPlay connection). Picking the speaker again is the cure, and
+  /// only the user can do it, so the picker is one tap away.
+  void _speakerFailed() {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: const Text(
+          "The speaker didn't respond. Choose it again to reconnect, then Play."),
+      duration: const Duration(seconds: 8),
+      // With an action, a SnackBar stays until dismissed unless told not to.
+      persist: false,
+      action: AudioOutput.canPick
+          ? SnackBarAction(
+              label: 'Choose speaker', onPressed: AudioOutput.showPicker)
+          : null,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     // Kept alive from the moment the tray shows, so the saved count-in and

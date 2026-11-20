@@ -25,6 +25,13 @@ abstract class MediaTransport {
   static final ValueNotifier<bool> anyPlaying = ValueNotifier(false);
   static final Set<Object> _playing = {};
 
+  /// Counts the Plays a player gave up on because the speaker wouldn't take
+  /// the sound — a stale AirPlay connection, after ~2 h idle (Jamz + Kitchen,
+  /// 2026-11-20). The tray listens and offers the speaker picker: picking the
+  /// speaker again is the one cure seen to work, and the app can't do it
+  /// itself (VideoTransportPlugin.swift, `itemFailed`).
+  static final ValueNotifier<int> speakerFailures = ValueNotifier(0);
+
   static void _setPlaying(Object player, bool playing) {
     playing ? _playing.add(player) : _playing.remove(player);
     anyPlaying.value = _playing.isNotEmpty;
@@ -58,6 +65,10 @@ abstract class MediaTransport {
 
   /// Stopped at the end (the file's, or the [setSource] end).
   bool get completed;
+
+  /// Gave up on this Play: the sound couldn't be got to the speaker, even
+  /// after retrying (see [speakerFailures]). Cleared by the next [play].
+  bool get failed;
 
   /// Fires whenever [playing] or [completed] may have changed.
   Stream<void> get changes;
@@ -126,6 +137,8 @@ class JustAudioTransport implements MediaTransport {
   @override
   bool get completed => _player.processingState == ProcessingState.completed;
   @override
+  bool get failed => false;
+  @override
   Stream<void> get changes => _player.playerStateStream;
   @override
   ValueListenable<VideoPicture?> get picture => _noPicture;
@@ -158,6 +171,7 @@ class NativeTransport implements MediaTransport {
   int? _endMs;
   bool _playing = false;
   bool _completed = false;
+  bool _failed = false;
   double _speed = 1;
   bool _disposed = false;
   // Seeks sent and not yet answered. An event the player sent before a seek
@@ -232,6 +246,12 @@ class NativeTransport implements MediaTransport {
       _completed = completed;
       _changes.add(null);
     }
+    final failed = e['failed'] == true;
+    if (failed != _failed) {
+      _failed = failed;
+      if (failed) MediaTransport.speakerFailures.value++;
+      _changes.add(null);
+    }
   }
 
   void _setSnap(int us, double rate) {
@@ -259,6 +279,7 @@ class NativeTransport implements MediaTransport {
     _playing = true;
     MediaTransport._setPlaying(this, true);
     _completed = false;
+    _failed = false;
     _changes.add(null);
     await _call('play', {'rate': _speed});
   }
@@ -318,6 +339,8 @@ class NativeTransport implements MediaTransport {
   bool get playing => _playing;
   @override
   bool get completed => _completed;
+  @override
+  bool get failed => _failed;
   @override
   Stream<void> get changes => _changes.stream;
   @override

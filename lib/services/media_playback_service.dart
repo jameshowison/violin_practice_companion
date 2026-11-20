@@ -594,6 +594,13 @@ class MediaPlaybackService extends PlaybackServiceBase {
   Future<void> _watchForCompletion() async {
     await _playerStateSub?.cancel();
     _playerStateSub = _player.changes.listen((_) {
+      // The player gave up: the speaker wouldn't take the sound. Stop, so the
+      // tray shows Play again; it offers the speaker picker
+      // (MediaTransport.speakerFailures).
+      if (_player.failed && playbackState == PlaybackState.playing) {
+        stop();
+        return;
+      }
       if (!_player.completed ||
           playbackState != PlaybackState.playing) {
         return;

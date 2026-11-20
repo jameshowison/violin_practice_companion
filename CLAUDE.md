@@ -595,7 +595,7 @@ silent" hunt; both looked like calibration bugs and were not:
    notification). `PlaybackService` rebuilds the synth when the speaker changes and
    before calibration's claves (`playback_service_io.dart`, "Following the speaker").
 
-Three more, from making the rendered score (2026-11-19, Jamz + Kitchen). Each
+Four more, from making the rendered score (2026-11-19/20, Jamz + Kitchen). Each
 looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
 
 3. **On AirPlay, don't seek an item that has played to its end and play at
@@ -616,10 +616,19 @@ looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
 5. **A native player event can arrive after a seek was asked for**, still saying
    "completed at the end"; taken as news it restarted a loop twice in 16 ms.
    `NativeTransport` drops events while a seek is in flight.
+6. **A stale AirPlay speaker fails every Play until the speaker is re-picked.**
+   After ~2 h idle (Jamz + Kitchen, 2026-11-20) each Play failed ~50 ms in
+   (`failedToPlayToEndTime`, "The operation could not be completed"), for a
+   recording and the rendered score alike; switching to the phone and back
+   cured it. Apple gives an app no way to reconnect a route, so `itemFailed`
+   in `VideoTransportPlugin.swift` tries a fresh item, then a new AVPlayer,
+   then gives up and the tray offers the speaker picker
+   (`MediaTransport.speakerFailures`). Which step wins was unknown when this
+   was written: read the trace's "item failed" lines the next time it happens.
 
 For anything audio-routing on a device, calibrate once and read the trace
 (`bash scripts/pull_sync_trace.sh "Hazel iPad"`): every volume, category, route and
 engine-configuration change, with the step it happened in. It is what found all
-five. To tell a player bug from a file bug, run the same test on a recording,
+six. To tell a player bug from a file bug, run the same test on a recording,
 and for long enough: the loop stall was blamed on the rate, then on the file,
 until a recording stalled too on its second pass.

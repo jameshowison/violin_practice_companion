@@ -139,7 +139,8 @@ private class VideoTransport: NSObject, FlutterTexture {
   private let textures: FlutterTextureRegistry
   private weak var plugin: VideoTransportPlugin?
 
-  private let player = AVPlayer()
+  /// Replaced only by [rebuildPlayer], when an item fails twice in one Play.
+  private var player = AVPlayer()
   private var item: AVPlayerItem?
   private var output: AVPlayerItemVideoOutput?
   private var textureId: Int64 = -1
@@ -166,6 +167,12 @@ private class VideoTransport: NSObject, FlutterTexture {
   private var pendingSeeks = 0
   private var stalledSince: CFTimeInterval?
   private var playAfterSeek = false
+  /// How far [itemFailed] has got in this Play: 0 none, 1 retried on a fresh
+  /// item, 2 rebuilt the player. A third failure gives up ([failed]).
+  private var failStep = 0
+  /// Gave up on this Play: reported to Dart, which stops and offers the
+  /// speaker picker. Cleared by the next Play.
+  private var failed = false
 
   init(id: Int, url: URL, picture: Bool, textures: FlutterTextureRegistry,
        plugin: VideoTransportPlugin) {
@@ -209,16 +216,9 @@ private class VideoTransport: NSObject, FlutterTexture {
     // Slowed down, keep the pitch — as just_audio does (UriAudioSource.m).
     item.audioTimePitchAlgorithm = .timeDomain
     self.item = item
-    player.allowsExternalPlayback = false
-    player.actionAtItemEnd = .pause
     if picture { attachPicture(to: item) }
+    setUpPlayer()
     player.replaceCurrentItem(with: item)
-
-    observations.append(player.observe(\.timeControlStatus) { [weak self] p, _ in
-      let status = ["paused", "waiting", "playing"][min(p.timeControlStatus.rawValue, 2)]
-      self?.trace("timeControl \(status) why=\(p.reasonForWaitingToPlay?.rawValue ?? "-")")
-      self?.report()
-    })
     observeItem(item)
     heartbeat = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
       guard let self = self, self.player.timeControlStatus == .playing else {
@@ -228,6 +228,34 @@ private class VideoTransport: NSObject, FlutterTexture {
       self.unwedge()
       self.report()
     }
+  }
+
+  /// The player's settings and its own observer; again for a rebuilt one.
+  private func setUpPlayer() {
+    player.allowsExternalPlayback = false
+    player.actionAtItemEnd = .pause
+    observations.forEach { $0.invalidate() }
+    observations = [player.observe(\.timeControlStatus) { [weak self] p, _ in
+      guard let self = self, p === self.player else { return }
+      let status = ["paused", "waiting", "playing"][min(p.timeControlStatus.rawValue, 2)]
+      self.trace("timeControl \(status) why=\(p.reasonForWaitingToPlay?.rawValue ?? "-")")
+      self.report()
+    }]
+  }
+
+  /// A new AVPlayer in place of this one, then a fresh item at [ms]: the
+  /// nearest the app can come to the user switching the speaker away and
+  /// back, which is what revived a stale AirPlay connection by hand. Apple
+  /// gives an app no way to reconnect a route itself.
+  private func rebuildPlayer(ms: Int) {
+    trace("rebuilding the player")
+    let old = player
+    old.pause()
+    old.replaceCurrentItem(with: nil)
+    player = AVPlayer()
+    setUpPlayer()
+    playAfterSeek = true
+    seekFresh(ms: ms) {}
   }
 
   /// The item's own observers: status, stalls and errors for the trace, and
@@ -243,8 +271,12 @@ private class VideoTransport: NSObject, FlutterTexture {
       self?.trace("item status=\(i.status.rawValue) error=\(i.error?.localizedDescription ?? "-")")
     }
     let nc = NotificationCenter.default
+    tokens.append(nc.addObserver(
+      forName: AVPlayerItem.failedToPlayToEndTimeNotification, object: item, queue: .main
+    ) { [weak self] n in
+      self?.itemFailed(n.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? NSError)
+    })
     for name in [AVPlayerItem.playbackStalledNotification,
-                 AVPlayerItem.failedToPlayToEndTimeNotification,
                  AVPlayerItem.newErrorLogEntryNotification] {
       tokens.append(nc.addObserver(forName: name, object: item, queue: .main) {
         [weak self, weak item] n in
@@ -384,6 +416,7 @@ private class VideoTransport: NSObject, FlutterTexture {
     }
     event["id"] = id
     event["completed"] = completed
+    event["failed"] = failed
     plugin?.emit(event)
   }
 
@@ -416,10 +449,58 @@ private class VideoTransport: NSObject, FlutterTexture {
     seekFresh(ms: ms) {}
   }
 
+  /// The item gave up mid-play ("failed to play to end time"). Seen on Jamz +
+  /// Kitchen (2026-11-20) on the first Plays after ~2 h idle, for a recording
+  /// and the rendered score alike: the item failed ~50 ms after starting, with
+  /// "The operation could not be completed", and every Play after it failed the
+  /// same way until the speaker was switched to the phone and back — most
+  /// likely a stale AirPlay connection. So the error is traced in full
+  /// (domain, code, underlying error), and then, from where it stopped:
+  /// 1. a fresh item ([seekFresh]);
+  /// 2. a new AVPlayer ([rebuildPlayer]);
+  /// 3. give up: [failed] goes to Dart, which stops and offers the speaker
+  ///    picker, since re-picking the speaker is the one cure that worked.
+  /// Which step (if any) wins over a stale speaker is for the trace of the
+  /// next occurrence to tell; none had been seen to when this was written.
+  private func itemFailed(_ error: NSError?) {
+    var what = "-"
+    if let e = error {
+      what = "\(e.domain) \(e.code) \(e.localizedDescription)"
+      if let u = e.userInfo[NSUnderlyingErrorKey] as? NSError {
+        what += " <- \(u.domain) \(u.code) \(u.localizedDescription)"
+      }
+    }
+    if let ev = item?.errorLog()?.events.last {
+      what += " log: \(ev.errorDomain) \(ev.errorStatusCode) \(ev.errorComment ?? "-")"
+    }
+    trace("item failed: \(what)")
+    guard playing else { return }
+    let at = player.currentTime()
+    let ms = at.isNumeric ? max(0, Int((at.seconds * 1000).rounded())) : 0
+    failStep += 1
+    switch failStep {
+    case 1:
+      trace("retrying on a fresh item")
+      playAfterSeek = true
+      seekFresh(ms: ms) {}
+    case 2:
+      rebuildPlayer(ms: ms)
+    default:
+      trace("giving up: the speaker isn't answering")
+      playing = false
+      playAfterSeek = false
+      failed = true
+      player.pause()
+      report()
+    }
+  }
+
   func play(rate: Float) {
     wantedRate = rate
     playing = true
     completed = false
+    failStep = 0
+    failed = false
     trace("play rate=\(rate) pendingSeeks=\(pendingSeeks)")
     if pendingSeeks > 0 {
       playAfterSeek = true
