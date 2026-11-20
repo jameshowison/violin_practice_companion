@@ -127,6 +127,59 @@ neutral `MeasureMarker` (`libraries.md`) solves both together.
 teacher-recording capture path (`teacher_recording_capture*`). Mock the UI in
 an artifact before building, as was done for measure selection.
 
+### Guidance that fades
+
+Every aid the Explain stage adds (note names, fingering labels, diagrams,
+group colours, Jianpu) is scaffolding. The goal is a student who reads the
+staff. Teachers already worry about this: written-in note names are widely seen
+as a crutch, because a student who reads only the labels has not learned to
+read music. A few targeted marks, for an alternate fingering or a repeated
+mistake, are fine. So the family treats guidance as something that **fades
+over time**, not a fixed display mode.
+
+**Two mechanisms, one principle:**
+
+1. **Fading over weeks (per piece, per kind of aid).**
+   - The labels move through three stages: on every note, then only on new or
+     changed notes, then off.
+   - A stage is chosen by the helper or suggested by the app. A suggestion
+     could come from how often the piece has been practised
+     (`PieceActivity`), or from the Annotate log ("got it ✓" stamps on those
+     bars).
+   - The ladder is per aid. A violinist might drop note names long before
+     string colours.
+   - This mirrors the classroom move from note names printed in the
+     noteheads to reading without them.
+2. **Fading within a moment: guidance on demand.**
+   - The staff is shown clean, with no fingering lane.
+   - **A tap anywhere on the score brings the fingerings up for a moment.**
+     That means the lane, plus the current note in the side bar or tray.
+   - They **fade out while the student plays**: after a few seconds, or once
+     the cursor has moved on. The help is there exactly when the student is
+     stuck, and gone while they read.
+   - A tap on a single note keeps that note's full diagram up longer than a
+     tap on the background.
+   - The fade is a soft animation, not a cut, and respects reduced motion.
+
+**What the design has to get right:**
+
+- **Taps already mean something on the score.** A tap selects a bar
+  (`measure_drag_select`), so "show fingerings" needs its own gesture or
+  zone. One option is a tap in the lane area, or anywhere during playback,
+  when selecting bars is not what the user is doing.
+- **Keep the layout still.** The lane must not resize the staff when it
+  appears and disappears. Its space stays reserved, or the lane draws over
+  the staff margin. (The no-layout-swap rule: a refined layout is never
+  swapped in after display.)
+- **"While playing" is known from the app's own playback.** It is not yet
+  known when the student plays alone. A later version could use the tuner's
+  pitch tracker to notice that the student is playing and fade on that.
+  Until then, use time since the tap.
+- **Store the stage with the piece.** Let the helper see it and reset it; a
+  new section of a piece may need the aids back.
+
+This applies to every instrument; only what fades differs.
+
 ### The one new abstraction: `InstrumentProfile`
 
 The coupling map found that almost all instrument knowledge goes through a
@@ -289,10 +342,24 @@ needs no second app.
   - The context rule that picks open string vs 4th finger
     (`fingering_mapper.dart`) becomes the place for alternate-fingering rules,
     for example the clarinet's long and short B/C.
-  - The label may be a chart number or a short code; the main output is the
-    diagram.
+  - **The lane label is the note name** (B, A, G), not a hole code. That is
+    how woodwind teachers talk: "play B". The fingering is taught once, from a
+    chart, and attached to the name. Number shorthand (`T12`, sax `123|1––`)
+    belongs to charts and written guides, not to the music, so it is an
+    option for adults. Violin is the opposite case: `A1` really is what
+    teachers say.
+  - The main output is the diagram.
 - **Diagram:** a keys-and-holes widget per instrument, the woodwind equivalent
   of `ChordDiagram`. This is the most visible new UI.
+  - **The full diagram lives in a side bar** (phone landscape, iPad) **or a
+    tray** (phone portrait). It shows the current note: the tapped note, or
+    the cursor's note during playback.
+  - It says what changes from the last note ("Put down left 2 · Lift
+    thumb"). That matches how a new note is introduced in class ("thumb and
+    1"), and a parent can read it aloud.
+  - Small diagrams over the notes are drawn only on big changes.
+  - Mockup: [Woodwind fingering lane](https://claude.ai/artifact/CsAVDqn3rDNvxmDdnbS6qr)
+    (private until shared).
 - **Group:** register (the clarinet's chalumeau, throat and clarion; the
   octave key on sax, oboe and flute). The colour lane shows "you changed
   register here", which is where beginners fail.
@@ -398,3 +465,6 @@ natural setting in any app rather than its own app.
    written pitch, or the reverse? The proposal is concert, because alignment,
    playback and the tuner all work in concert; only display and annotation
    want written.
+6. **Fading guidance:** which gesture brings the fingerings up, given that a
+   tap already selects a bar? And should the app suggest the next fade
+   stage, or only the helper decide?
