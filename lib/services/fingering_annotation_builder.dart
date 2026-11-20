@@ -33,6 +33,35 @@ typedef NoteNameLabel = ({
   bool held, // a tie continuation: same pitch still sounding, so no new name
 });
 
+/// The note that speaks for the stack opening at [notes]`[j]`, or null when
+/// [j] is a chord member (the 2nd+ note on a stem), which has no label of its
+/// own.
+///
+/// The rule for a double stop is the TOP note, always: the chip, the string
+/// track and the note-name row all follow it. The file's order can't be the
+/// rule, because MusicXML may list a stack's notes either way up, and a rule
+/// that followed it would jump between the two lines from chord to chord.
+/// Ties on pitch keep the earlier note.
+NoteEvent? stackVoiceAt(List<NoteEvent> notes, int j) {
+  final k = stackVoiceIndex(notes, j);
+  return k == null ? null : notes[k];
+}
+
+/// The index of [stackVoiceAt]'s note — the top note's own index, which is
+/// where its notehead is engraved (every member keeps its index).
+int? stackVoiceIndex(List<NoteEvent> notes, int j) {
+  if (notes[j].isChord && j > 0) return null;
+  var top = j;
+  for (var k = j + 1; k < notes.length && notes[k].isChord; k++) {
+    final n = notes[k];
+    if (!n.isRest &&
+        (notes[top].isRest || n.midiNumber > notes[top].midiNumber)) {
+      top = k;
+    }
+  }
+  return top;
+}
+
 /// "Bb4" → "B♭", "F#5" → "F♯", "C4" → "C". Spelled from the score's own
 /// step + alter (via [NoteEvent.pitch]), never from MIDI, so B♭ stays B♭.
 String noteNameOf(String pitch) {
@@ -89,9 +118,13 @@ List<NoteNameLabel> noteNameLabels(
   for (final m in parsed.measures) {
     if (measureMap.firstIndexOf(m.number) < 0) continue;
     for (var j = 0; j < m.notes.length; j++) {
-      final note = m.notes[j];
-      if (note.isRest || note.isChord) continue;
-      final at = measureMap.locate(m.number, j);
+      // A double stop is named by its top note, at that note's own index, so
+      // the notehead tint keyed on it colours the right head.
+      final k = stackVoiceIndex(m.notes, j);
+      if (k == null) continue;
+      final note = m.notes[k];
+      if (note.isRest) continue;
+      final at = measureMap.locate(m.number, k);
       if (at == null) continue;
       final hasFingering =
           note.fingerString != null && note.fingerNumber != null;
@@ -182,7 +215,13 @@ List<FingeringAnnotation> fingeringAnnotations(
     var isMeasureStart = true;
 
     for (var j = 0; j < m.notes.length; j++) {
-      final note = m.notes[j];
+      // A double stop gets one chip, at the primary's index (every note of the
+      // stack shares its x), and it speaks for the stack's TOP note
+      // ([stackVoiceAt]). The other members are skipped outright, rolling
+      // context included: a lower note is not the next note of the melody,
+      // and counting it flipped the string letter on every chord.
+      final note = stackVoiceAt(m.notes, j);
+      if (note == null) continue;
 
       if (note.isRest) {
         afterRest = true;
@@ -192,12 +231,9 @@ List<FingeringAnnotation> fingeringAnnotations(
       final hasFingering =
           note.fingerString != null && note.fingerNumber != null;
 
-      // A chord member sounds at the primary note's onset, so its chip would
-      // land on the same x. Skip it — but it still consumed a note index in
-      // both the parsed model and the engraved anchors, so the indices stay
-      // aligned either way. A tie continuation keeps its chip: it repeats the
-      // finger already down, which reads as "hold it" next to its notehead.
-      final drawable = hasFingering && !note.isChord && engraved;
+      // A tie continuation keeps its chip: it repeats the finger already down,
+      // which reads as "hold it" next to its notehead.
+      final drawable = hasFingering && engraved;
 
       // What this note's chip would say and sit on. Resolved for every fingered
       // note, drawn or not, so `prevString` (the `onChange` letter) tracks the
@@ -272,8 +308,9 @@ List<StringRunRegion> stringRunRegions(
   String? prev;
   for (final m in parsed.measures) {
     for (var j = 0; j < m.notes.length; j++) {
-      final note = m.notes[j];
-      if (note.isRest) continue;
+      // One string per double stop, the top note's, like the chip above it.
+      final note = stackVoiceAt(m.notes, j);
+      if (note == null || note.isRest) continue;
       if (note.fingerString == null || note.fingerNumber == null) continue;
       final s = shownNumber(note, numberMode, fretStyle).string;
       if (s == null || s == prev) continue;

@@ -122,6 +122,39 @@ void main() {
       expect([for (final a in out) (a.noteIndex, a.label)], [(0, '1'), (2, '0')]);
     });
 
+    test('a double stop is labelled by its top note, in either file order', () {
+      // B4 over G♯4 and A4 over F♯4: one listed top-first, one bottom-first.
+      final measures = [
+        Measure(number: 1, notes: [
+          _n('A', '1', midi: 71),
+          _n('D', '3H', chord: true, midi: 68),
+          _n('D', '2', midi: 66),
+          _n('A', '0', chord: true, midi: 69),
+        ]),
+      ];
+      final out = _build(measures);
+      expect([for (final a in out) (a.noteIndex, a.string, a.label)],
+          [(0, 'A', '1'), (2, 'A', '0')]);
+    });
+
+    test('a lower chord note is not melody: the onChange letter ignores it',
+        () {
+      // Bar 54 of the Christmas fantasy, in thirds: the top line stays on A
+      // for three chords, then crosses to D — while every lower note is on D.
+      final measures = [
+        Measure(number: 1, notes: [
+          _n('A', '2', midi: 73), _n('A', '0', chord: true, midi: 69),
+          _n('A', '1', midi: 71), _n('D', '3H', chord: true, midi: 68),
+          _n('A', '0', midi: 69), _n('D', '2', chord: true, midi: 66),
+          _n('D', '3H', midi: 68), _n('D', '1', chord: true, midi: 64),
+          _n('D', '2', midi: 66), _n('D', '0', chord: true, midi: 62),
+        ]),
+      ];
+      final out = _build(measures,
+          colourByString: false, stringLabelStyle: StringLabelStyle.onChange);
+      expect([for (final a in out) a.label], ['A2', '1', '0', 'D3H', '2']);
+    });
+
     test('notes with no fingering data produce nothing', () {
       final measures = [
         Measure(number: 1, notes: [_n(null, null), _n('A', '1')]),
@@ -311,6 +344,19 @@ void main() {
       expect(r[1].endNote, -1); // to the end of the piece
     });
 
+    test('a double stop follows its top note, not the lower string', () {
+      final measures = [
+        Measure(number: 1, notes: [
+          _n('A', '1', midi: 71), _n('D', '3H', chord: true, midi: 68),
+          _n('A', '0', midi: 69), _n('D', '2', chord: true, midi: 66),
+          _n('D', '3H', midi: 68), _n('D', '1', chord: true, midi: 64),
+        ]),
+      ];
+      final r = runs(measures);
+      expect([for (final x in r) (x.string, x.startNote, x.endNote)],
+          [('A', 0, 4), ('D', 4, -1)]);
+    });
+
     test('a rest does not break a run — the bow lifts, the hand stays', () {
       final measures = [
         Measure(number: 1, notes: [
@@ -438,7 +484,7 @@ void main() {
       expect(noteNameOf('C4'), 'C');
     });
 
-    test('every sounding note is named, rests and chord members skipped', () {
+    test('every sounding note is named; a double stop by its top note', () {
       final out = names([
         Measure(number: 1, notes: [
           p('A4', 69, 'A', '0'),
@@ -448,9 +494,10 @@ void main() {
           p('C#5', 73, 'A', '2', tieStop: true),
         ]),
       ]);
-      expect([for (final n in out) n.name], ['A', 'C♯', 'C♯']);
+      // The C♯+E stack is named E, at the E's own index (its notehead).
+      expect([for (final n in out) n.name], ['A', 'E', 'C♯']);
       // Indices count the rest and the chord member, like the engraved anchors.
-      expect([for (final n in out) n.noteIndex], [0, 2, 4]);
+      expect([for (final n in out) n.noteIndex], [0, 3, 4]);
       expect([for (final n in out) n.held], [false, false, true]);
     });
 
