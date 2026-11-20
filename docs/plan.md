@@ -311,3 +311,13 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   - portrait and `dev-ipad`
   - Lightly Row, Old Joe Clark and happy_farmer, for repeats and a section
     that starts on a pickup
+- **Stale AirPlay speaker recovery** (233347b, untested; deferred 2026-11-20
+  when Jamz ran out of battery). After ~2 h idle, every Play on Kitchen failed
+  ~50 ms in until the speaker was re-picked. The app now retries on a fresh
+  item, then a new AVPlayer, then stops and offers the speaker picker
+  (`itemFailed` in `ios/Runner/VideoTransportPlugin.swift`; CLAUDE.md "Audio
+  on iOS", item 6). To test: play to Kitchen from Jamz, leave it idle for a
+  few hours, press Play once, note what's heard and whether the "speaker
+  didn't respond" message appears, then `bash scripts/pull_sync_trace.sh Jamz`
+  and read the "item failed" / "retrying on a fresh item" / "rebuilding the
+  player" / "giving up" lines to see which step, if any, brought it back.
