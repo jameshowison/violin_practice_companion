@@ -113,6 +113,8 @@ public class VideoTransportPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       result(nil)
     case "seek":
       transport.seek(ms: args["ms"] as? Int ?? 0) { result(nil) }
+    case "seekFresh":
+      transport.seekFresh(ms: args["ms"] as? Int ?? 0) { result(nil) }
     case "setEnd":
       transport.setEnd(ms: args["ms"] as? Int)
       result(nil)
@@ -146,6 +148,7 @@ private class VideoTransport: NSObject, FlutterTexture {
   private var observations: [NSKeyValueObservation] = []
   private var endObserver: NSObjectProtocol?
   private var tokens: [NSObjectProtocol] = []
+  private var itemStatus: NSKeyValueObservation?
   private var lastTraced = 0.0
   private var heartbeat: Timer?
 
@@ -216,9 +219,29 @@ private class VideoTransport: NSObject, FlutterTexture {
       self?.trace("timeControl \(status) why=\(p.reasonForWaitingToPlay?.rawValue ?? "-")")
       self?.report()
     })
-    observations.append(item.observe(\.status) { [weak self] i, _ in
+    observeItem(item)
+    heartbeat = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+      guard let self = self, self.player.timeControlStatus == .playing else {
+        self?.stalledSince = nil
+        return
+      }
+      self.unwedge()
+      self.report()
+    }
+  }
+
+  /// The item's own observers: status, stalls and errors for the trace, and
+  /// its end. Per item, so a fresh item ([seekFresh]) gets its own.
+  private func observeItem(_ item: AVPlayerItem) {
+    itemStatus?.invalidate()
+    tokens.forEach { NotificationCenter.default.removeObserver($0) }
+    tokens = []
+    if let endObserver = endObserver {
+      NotificationCenter.default.removeObserver(endObserver)
+    }
+    itemStatus = item.observe(\.status) { [weak self] i, _ in
       self?.trace("item status=\(i.status.rawValue) error=\(i.error?.localizedDescription ?? "-")")
-    })
+    }
     let nc = NotificationCenter.default
     for name in [AVPlayerItem.playbackStalledNotification,
                  AVPlayerItem.failedToPlayToEndTimeNotification,
@@ -237,13 +260,55 @@ private class VideoTransport: NSObject, FlutterTexture {
       self.completed = true
       self.report()
     }
-    heartbeat = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-      guard let self = self, self.player.timeControlStatus == .playing else {
-        self?.stalledSince = nil
-        return
+  }
+
+  /// Seeks a FRESH copy of the item to [ms], in place of the one playing,
+  /// and plays it if Play is in force. For every start after the item has
+  /// played to its end — a loop going round, Play again after a stop at the
+  /// selection's end. On AirPlay, seeking the ended item and playing at once
+  /// left AVPlayer "playing" with its clock stopped for ~10 s, on every
+  /// third pass or so, for a recording and the rendered score alike (Jamz +
+  /// Kitchen, 2026-11-19); a start after a settled pause never did. The
+  /// player, and with it the AirPlay stream, stays; only the item is new.
+  /// A short gap at a loop's seam is the price.
+  func seekFresh(ms: Int, _ done: @escaping () -> Void) {
+    guard let old = item else { return done() }
+    trace("fresh item at \(ms)ms")
+    let fresh = AVPlayerItem(asset: old.asset)
+    fresh.audioTimePitchAlgorithm = .timeDomain
+    fresh.forwardPlaybackEndTime = old.forwardPlaybackEndTime
+    if let output = output {
+      old.remove(output)
+      fresh.add(output)
+    }
+    completed = false
+    pendingSeeks += 1
+    item = fresh
+    observeItem(fresh)
+    player.replaceCurrentItem(with: fresh)
+    // An item can't take a seek until it is ready to play.
+    var ready: NSKeyValueObservation?
+    var fired = false
+    ready = fresh.observe(\.status, options: [.initial, .new]) { [weak self] i, _ in
+      guard i.status != .unknown, !fired else { return }
+      fired = true
+      ready?.invalidate()
+      ready = nil
+      DispatchQueue.main.async {
+        guard let self = self else { return done() }
+        let target = CMTime(value: CMTimeValue(ms), timescale: 1000)
+        self.player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+          DispatchQueue.main.async {
+            self.pendingSeeks -= 1
+            if self.pendingSeeks == 0 && self.playAfterSeek {
+              self.playAfterSeek = false
+              if self.playing { self.player.playImmediately(atRate: self.wantedRate) }
+            }
+            self.report()
+            done()
+          }
+        }
       }
-      self.unwedge()
-      self.report()
     }
   }
 
@@ -348,7 +413,7 @@ private class VideoTransport: NSObject, FlutterTexture {
     trace("stalled while playing; re-seeking")
     let ms = max(0, Int((at.seconds * 1000).rounded()) - 50)
     playAfterSeek = true
-    seek(ms: ms) {}
+    seekFresh(ms: ms) {}
   }
 
   func play(rate: Float) {
@@ -411,6 +476,7 @@ private class VideoTransport: NSObject, FlutterTexture {
     displayLink = nil
     observations.forEach { $0.invalidate() }
     observations = []
+    itemStatus?.invalidate()
     if let endObserver = endObserver {
       NotificationCenter.default.removeObserver(endObserver)
     }

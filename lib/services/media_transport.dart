@@ -37,6 +37,14 @@ abstract class MediaTransport {
   Future<void> play();
   Future<void> pause();
   Future<void> seek(Duration position);
+
+  /// [seek], for a start after the player has played to its end (a loop
+  /// going round, Play again after a stop at the selection's end): on iOS a
+  /// FRESH copy of the item is sought, because seeking the ended one and
+  /// playing at once stalled AVPlayer on AirPlay for ~10 s, every few passes,
+  /// recordings and rendered score alike (VideoTransportPlugin.swift,
+  /// `seekFresh`). A plain seek elsewhere.
+  Future<void> seekFresh(Duration position);
   Future<void> setSpeed(double speed);
 
   /// Where the player has got to — not what is heard (see
@@ -105,6 +113,8 @@ class JustAudioTransport implements MediaTransport {
   }
   @override
   Future<void> seek(Duration position) => _player.seek(position);
+  @override
+  Future<void> seekFresh(Duration position) => _player.seek(position);
   @override
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);
   @override
@@ -268,9 +278,20 @@ class NativeTransport implements MediaTransport {
     // the player was until the native seek reports back.
     _completed = false;
     _setSnap(position.inMicroseconds, 0);
+    await _seekBy('seek', position);
+  }
+
+  @override
+  Future<void> seekFresh(Duration position) async {
+    _completed = false;
+    _setSnap(position.inMicroseconds, 0);
+    await _seekBy('seekFresh', position);
+  }
+
+  Future<void> _seekBy(String method, Duration position) async {
     _seeksInFlight++;
     try {
-      await _call('seek', {'ms': position.inMilliseconds});
+      await _call(method, {'ms': position.inMilliseconds});
     } finally {
       _seeksInFlight--;
     }

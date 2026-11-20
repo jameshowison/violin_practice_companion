@@ -265,7 +265,19 @@ iTunes gapless metadata (`udta`/iTunSMPB) with no edit list; a recording's
 AVAssetWriter to .mp4 (with `.m4a` as its file type, AVAssetWriter writes
 the iTunes form too), which gives the edit list; a decode still puts the
 first click on its rendered sample. Renderer version 2, so old files are
-replaced. To re-test on Kitchen.
+replaced.
+
+**But the file wasn't it either.** With the .mp4, the loop went round twice
+on Kitchen and stalled on the third; then the teacher video stalled too, on
+its second pass. The earlier "recording loops cleanly" was too few passes.
+So it's AirPlay and the ended item: a loop restart seeks the item that has
+just played to its clip end and plays at once. A start after a settled
+pause never stalled. Fix: for a start from an ended item, the native player
+swaps in a fresh AVPlayerItem of the same asset, seeks it once it's ready,
+and plays (`seekFresh`; the watchdog uses it too). A short gap at the seam
+is accepted (the user: "it doesn't have to be a super rapid loop"). The
+.mp4 stays: generated audio built like a recording. To re-test on Kitchen,
+several passes, recording and rendered score.
 
 **Open question 3 (mid-piece count-in):** the silent wait, then the player
 running within 10–25 ms of the call, on Kitchen and on the ZVOX. Heard

@@ -36,14 +36,13 @@ class RenderedScoreFile {
 /// directory; the sidecar is written last, so its presence means the audio is
 /// whole.
 ///
-/// The container matters, not just the codec. It must be an .mp4 whose AAC
-/// priming is in an edit list (`edts`/`elst`), as a recording's is — on iOS,
-/// AVAssetWriter with fileType .mp4. NOT AVAudioFile, and NOT fileType .m4a:
-/// both write the priming as iTunes gapless metadata (`udta`/iTunSMPB) and no
-/// edit list, and on AirPlay AVPlayer then stalls at every loop restart
-/// ("playing", clock stopped, ~12 s) while a recording loops cleanly
-/// (Jamz + Kitchen, 2026-11-19). Simulators can't show it: they have no
-/// AirPlay. See `encodeAac` in ios/Runner/AudioDecoderPlugin.swift.
+/// The file is built like a recording's: an .mp4 whose AAC priming is in an
+/// edit list (`edts`/`elst`) — on iOS, AVAssetWriter with fileType .mp4, since
+/// AVAudioFile and fileType .m4a both write it as iTunes gapless metadata
+/// (`udta`/iTunSMPB) instead. That was first blamed for loops stalling on
+/// AirPlay; it wasn't the cause (a recording stalled too — see
+/// MediaTransport.seekFresh), but a generated file that matches a recording
+/// leaves one less difference to suspect.
 ///
 /// The key covers everything the sound depends on, and nothing it doesn't: the
 /// note schedule (so a fingering or lyric edit re-renders nothing), the

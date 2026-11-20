@@ -388,13 +388,13 @@ extension AudioDecoderPlugin {
   }
 
   /// Written by AVAssetWriter as an .mp4, as the app's recordings are, not
-  /// by AVAudioFile:
-  /// AVAudioFile's .m4a carries the encoder's priming as iTunes gapless
-  /// metadata (`udta`/iTunSMPB) with no edit list, and AVPlayer on AirPlay
-  /// stalled on it — every loop restart of the rendered score sat "playing"
-  /// with its clock stopped, while a recording at the same rate looped
-  /// cleanly (Jamz + Kitchen, 2026-11-19). AVAssetWriter puts the priming in
-  /// a standard edit list (`edts`/`elst`), as a recording has.
+  /// by AVAudioFile: AVAudioFile's .m4a carries the encoder's priming as
+  /// iTunes gapless metadata (`udta`/iTunSMPB) with no edit list, where
+  /// AVAssetWriter's .mp4 has a standard edit list (`edts`/`elst`). It was
+  /// first suspected of the AirPlay loop stall, which turned out to be the
+  /// seek of an ended item (VideoTransportPlugin.swift, `seekFresh`) and hit
+  /// recordings too; kept so a generated file is structured like a recorded
+  /// one.
   fileprivate static func encodeAac(input: String, output: String, bitRate: Int) throws {
     let outURL = URL(fileURLWithPath: output)
     try? FileManager.default.removeItem(at: outURL)

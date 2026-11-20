@@ -1002,7 +1002,13 @@ class MediaPlaybackService extends PlaybackServiceBase {
     final end = endScore == null ? null : _audioSecForScoreSec(endScore);
     if (end == _clipEndAudioSec ||
         (_sourceAsset == null && _sourceFile == null)) {
-      return (done: _player.seek(target), reclipped: false);
+      // Stopped at the end (a loop going round, Play after a stop at the
+      // selection's end): a fresh item, not a seek of the ended one — which
+      // stalled AVPlayer on AirPlay (MediaTransport.seekFresh).
+      return (
+        done: _player.completed ? _player.seekFresh(target) : _player.seek(target),
+        reclipped: false,
+      );
     }
     _clipEndAudioSec = end;
     Future<void> reclip() async {

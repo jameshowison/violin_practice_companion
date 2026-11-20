@@ -598,14 +598,18 @@ silent" hunt; both looked like calibration bugs and were not:
 Three more, from making the rendered score (2026-11-19, Jamz + Kitchen). Each
 looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
 
-3. **A generated audio file must be structured like a recording.** The rendered
-   score's AAC, written by `AVAudioFile` (an .m4a with the encoder priming as
-   iTunes `udta`/iTunSMPB metadata and no edit list), stalled AVPlayer on AirPlay
-   at every loop restart: "playing", clock stopped, for ~12 s. A recording looped
-   cleanly at the same rate. Write with `AVAssetWriter`, fileType **.mp4** (with
-   .m4a it writes the iTunes form too), which puts the priming in an edit list
-   (`edts`/`elst` mediaTime=2112). Check any new generated file with `afinfo` and
-   its boxes against a recording's before blaming the player.
+3. **On AirPlay, don't seek an item that has played to its end and play at
+   once.** A loop going round (or Play after a stop at the selection's end) did
+   exactly that, and every few passes AVPlayer sat "playing" with its clock
+   stopped for ~10 s, for a recording and the rendered score alike. Seeks
+   nearby didn't free it. A start after a settled pause never stalled. The fix
+   swaps in a fresh `AVPlayerItem` of the same asset for such starts
+   (`seekFresh` in `VideoTransportPlugin.swift`, `MediaTransport.seekFresh`);
+   the AVPlayer and its AirPlay stream stay. A short gap at the loop seam is
+   accepted. Wrong turns on the way: the playback rate, then the file format
+   (`AVAudioFile`'s iTunes-metadata .m4a; generated audio is now an
+   `AVAssetWriter` .mp4 like a recording's anyway). A stall needs several
+   passes to show, so a recording "looping fine" three times proved nothing.
 4. **AVPlayer's `volume` is ignored on AirPlay.** A "muted" player plays aloud
    there. Silent is therefore a clock-only player (`SilentPlaybackService`), not a
    muted one.
@@ -616,6 +620,6 @@ looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
 For anything audio-routing on a device, calibrate once and read the trace
 (`bash scripts/pull_sync_trace.sh "Hazel iPad"`): every volume, category, route and
 engine-configuration change, with the step it happened in. It is what found all
-five. To tell a player bug from a file bug, run the same test on a recording: the
-rendered score's loop stall was first blamed on the playback rate until a
-recording at 87% looped cleanly.
+five. To tell a player bug from a file bug, run the same test on a recording,
+and for long enough: the loop stall was blamed on the rate, then on the file,
+until a recording stalled too on its second pass.
