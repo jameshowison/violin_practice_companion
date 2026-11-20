@@ -93,8 +93,8 @@ class MediaLoadResult {
 /// The synthesized score plays here too, rendered to a file with its
 /// alignment written at render time (`RenderedScorePlaybackService`, via
 /// [loadAligned]; docs/rendered-score-plan.md), so it shares the recordings'
-/// player, clock, clip end and count-in. The live synth (`PlaybackService`)
-/// remains for the Silent option and behind a switch for comparison.
+/// player, clock, clip end and count-in. (It replaced a live synth, removed
+/// 2026-11-20; Silent is a clock-only player, `SilentPlaybackService`.)
 class MediaPlaybackService extends PlaybackServiceBase {
   final MediaAlignmentStore _store;
   final AudioDecoderBase _decoder;

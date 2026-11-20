@@ -2,8 +2,8 @@ Android libraries
 
 These libraries ship in the Android build only: Java and Kotlin libraries
 from Maven that the app and its Flutter plugins depend on, at the versions
-the build resolves. Native libraries that come with FluidSynth, Verovio and
-ONNX Runtime have their own entries on this page.
+the build resolves. Native libraries that come with Verovio and ONNX Runtime
+have their own entries on this page.
 
 UNDER THE APACHE LICENSE, VERSION 2.0
 

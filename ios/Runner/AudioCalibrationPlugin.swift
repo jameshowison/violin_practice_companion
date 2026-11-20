@@ -65,13 +65,6 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
   private let traceLock = NSLock()
   private var volumeObservation: NSKeyValueObservation?
 
-  /// How many times an AVAudioEngine other than the mic's has been
-  /// reconfigured since launch. Those are the synth's (flutter_midi_pro, 16
-  /// of them): iOS stops an engine on a configuration change and that plugin
-  /// never restarts them, so a count that has moved since the soundfont was
-  /// loaded means the score is silent until it is reloaded.
-  private var foreignEngineResets = 0
-
   private func observeSession() {
     let s = AVAudioSession.sharedInstance()
     volumeObservation = s.observe(\.outputVolume, options: [.old, .new]) {
@@ -92,12 +85,7 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
       forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil
     ) { [weak self] n in
       let mine = (n.object as AnyObject?) === self?.engine
-      if !mine {
-        self?.traceLock.lock()
-        self?.foreignEngineResets += 1
-        self?.traceLock.unlock()
-      }
-      self?.record("engineConfig", mine ? "calibration mic engine" : "another engine (synth?)")
+      self?.record("engineConfig", mine ? "calibration mic engine" : "another engine")
     }
     nc.addObserver(
       forName: AVAudioSession.interruptionNotification, object: nil, queue: nil
@@ -196,11 +184,6 @@ public class AudioCalibrationPlugin: NSObject, FlutterPlugin {
       }
     case "stop":
       result(stop())
-    case "engineResets":
-      traceLock.lock()
-      let n = foreignEngineResets
-      traceLock.unlock()
-      result(n)
     case "traceStart":
       traceLock.lock()
       trace = []

@@ -100,7 +100,12 @@ work based on an unmerged branch must `git checkout -b <name> <sha>` first and c
 `git log --oneline -1` before touching anything. And a worktree has no
 `pubspec_overrides.yaml` (it's gitignored), so it builds `homr_flutter` from the
 pinned git tag, not from `../homr_flutter`; nor does it have the models, so run
-`bash scripts/fetch_omr_models.sh` there before anything that scans.
+`bash scripts/fetch_omr_models.sh` there before anything that scans. It also
+lacks two more gitignored files: `lib/build_info.dart` (run
+`bash scripts/gen_build_info.sh`, or nothing compiles) and the soundfont
+`assets/engine/soundfonts/generaluser_gs.sf2` (copy it from the main checkout,
+or opening a piece throws "Unable to load asset" and the rendered-score tests
+fail).
 
 ## Parallel Claude sessions
 
@@ -579,23 +584,26 @@ uv run scripts/push_listing.py --apply     # write what changed
   "scan". Guideline 2.3.8 reserves "for kids"/"for children" for the Kids category,
   so keep them out of the metadata. No method or brand names in keywords.
 
-### Audio on iOS: one session, and a synth that doesn't follow the speaker
+### Audio on iOS: one session, and players that don't follow the speaker
 
 Two traps behind the 2026-11-10 "calibration volume drops to zero / woodblocks
 silent" hunt; both looked like calibration bugs and were not:
 
 1. **Something must configure `audio_session` before anything plays.** Otherwise
    just_audio's first `play()` applies audio_session's fallback (`.playback`),
-   overriding the play-and-record session AppDelegate sets. That switch stops the
-   synth's engines and resets AirPlay volume. `lib/services/app_audio_session.dart`,
+   overriding the play-and-record session AppDelegate sets. That switch stops
+   AVAudioEngines (it silenced the old live synth) and resets AirPlay volume. `lib/services/app_audio_session.dart`,
    called first in `main()`, prevents it. Its options must match
    `AudioCalibrationPlugin.applyAppSession` exactly, or it is itself a switch.
-2. **flutter_midi_pro never restarts its 16 AVAudioEngines**, and they do not
-   follow an output switch (built on the iPad speaker → silent on AirPlay, with no
-   notification). `PlaybackService` rebuilds the synth when the speaker changes and
-   before it plays (`playback_service_io.dart`, "Following the speaker").
-   Calibration no longer plays through it (2026-11-20): it measures the
-   recording player only, which the rendered score shares.
+2. **A live synth on AVAudioEngines doesn't follow an output switch.** The
+   score used to play through flutter_midi_pro, whose 16 engines were never
+   restarted and stayed on the speaker they were built on (silent on AirPlay,
+   with no notification). It needed rebuilding on every speaker change and
+   its own delay calibration. It was removed on 2026-11-20
+   (docs/rendered-score-plan.md, phase 6): the score is now rendered to a
+   file and played by the recording player, and calibration measures that
+   player only. Don't bring back real-time synthesis for playback without
+   solving this first.
 
 Four more, from making the rendered score (2026-11-19/20, Jamz + Kitchen). Each
 looked like a timing or loop bug, and none shows on a simulator (no AirPlay):

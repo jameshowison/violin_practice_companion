@@ -20,7 +20,6 @@ dependencies:
   path_provider: ^2.1.5
   # Per-piece view preferences (staff zoom), and the app's other small settings.
   shared_preferences: ^2.3.3
-  flutter_midi_pro: ^3.1.6
   marionette_flutter: ^0.5.0
   url_launcher: ^6.3.0
   # The piece screen goes minutes at a time without a touch — the score is being

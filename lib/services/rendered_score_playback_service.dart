@@ -15,8 +15,8 @@ import 'rendered_score_cache.dart';
 ///
 /// A tempo is the nearest render played at a rate: within a render's band a
 /// change is just a rate change, mid-play; into another band it loads that
-/// render and starts again at the bar being played, as the live synth's
-/// [setTempo] does.
+/// render and starts again at the bar being played, as [setTempo] does for
+/// any player.
 class RenderedScorePlaybackService extends MediaPlaybackService {
   RenderedScorePlaybackService(
     super.generator, {

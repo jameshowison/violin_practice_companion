@@ -100,18 +100,14 @@ void main() {
       expect(AudioOutput.calibratedDelayMs(AudioSyncSource.recording), 530);
     });
 
-    test('replaces the default, for that speaker and player only',
-        () async {
+    test('replaces the default, for that speaker only', () async {
       AudioOutput.debugSetRoute(bt('jbl'));
-      // Uncalibrated, a recording adds nothing — AVPlayer's position already
-      // allows for the route — while the synth takes iOS's estimate.
+      // Uncalibrated, nothing is added — AVPlayer's position already allows
+      // for the route, whatever iOS estimates.
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording), 0);
       await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording, 70);
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording),
           closeTo(0.07, 1e-9));
-      // Not shared: the synth's delay differs from AVPlayer's.
-      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.score),
-          closeTo(0.16, 1e-9));
 
       AudioOutput.debugSetRoute(bt('car'));
       expect(AudioOutput.calibratedDelayMs(AudioSyncSource.recording), isNull);
@@ -131,19 +127,16 @@ void main() {
       expect(AudioOutput.calibratedDelayMs(AudioSyncSource.recording), isNull);
     });
 
-    test('a recording may be measured negative; the score never goes below 0',
-        () async {
+    test('may be measured negative (AVPlayer over-compensating)', () async {
       AudioOutput.debugSetRoute(bt('jbl'));
       await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording, -40);
-      await AudioOutput.setCalibratedDelayMs(AudioSyncSource.score, -40);
       expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording),
           closeTo(-0.04, 1e-9));
-      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.score), 0);
     });
 
     test('no route: nothing stored, no delay', () async {
-      await AudioOutput.setCalibratedDelayMs(AudioSyncSource.score, 200);
-      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.score), 0);
+      await AudioOutput.setCalibratedDelayMs(AudioSyncSource.recording, 200);
+      expect(AudioOutput.heardDelaySeconds(AudioSyncSource.recording), 0);
     });
   });
 }

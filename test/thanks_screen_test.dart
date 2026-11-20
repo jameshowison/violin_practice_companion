@@ -83,7 +83,7 @@ void main() {
     }
     expect(names, containsAll(['Stringlings', 'homr', 'OpenSheetMusicDisplay',
         'abcjs', 'GeneralUser GS', 'Nunito', 'Verovio',
-        'FluidSynth and its Android libraries', 'ONNX Runtime',
+        'ONNX Runtime',
         'iOS libraries (CocoaPods)', 'Android libraries']));
     // The GPL travels with the app's own entry, not just a link to it.
     expect(own, contains('GNU GENERAL PUBLIC LICENSE'));

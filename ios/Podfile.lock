@@ -44,8 +44,6 @@ PODS:
     - Flutter
   - flutter_js (0.1.0):
     - Flutter
-  - flutter_midi_pro (0.0.1):
-    - Flutter
   - flutter_onnxruntime (0.0.1):
     - Flutter
     - onnxruntime-objc (= 1.24.2)
@@ -100,7 +98,6 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_doc_scanner (from `.symlinks/plugins/flutter_doc_scanner/ios`)
   - flutter_js (from `.symlinks/plugins/flutter_js/ios`)
-  - flutter_midi_pro (from `.symlinks/plugins/flutter_midi_pro/ios`)
   - flutter_onnxruntime (from `.symlinks/plugins/flutter_onnxruntime/ios`)
   - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
@@ -142,8 +139,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_doc_scanner/ios"
   flutter_js:
     :path: ".symlinks/plugins/flutter_js/ios"
-  flutter_midi_pro:
-    :path: ".symlinks/plugins/flutter_midi_pro/ios"
   flutter_onnxruntime:
     :path: ".symlinks/plugins/flutter_onnxruntime/ios"
   image_cropper:
@@ -185,7 +180,6 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_doc_scanner: d930bcd7db6f69805d882330fc9b6f74a9db5c9e
   flutter_js: 867813c1830e1d9b2c5d547cdb6f61801e2f2145
-  flutter_midi_pro: 91fdb12ab765d84d5d391bc0176a09f5f8808804
   flutter_onnxruntime: 577a012771672fd168079e29be7909a9d0f9c302
   image_cropper: fca51f94982730acae168c4b5d691e0f11aeb259
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326

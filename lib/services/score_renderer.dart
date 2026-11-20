@@ -39,7 +39,7 @@ class ScoreRender {
 /// MeltySynth port: no platform code, so it runs the same on iOS and Android,
 /// in an isolate.
 ///
-/// Sounds as the live synth does: the violin [program] on channel 0 at
+/// Sounds as the live synth it replaced did: the violin [program] on channel 0 at
 /// [velocity], dry (no reverb or chorus). The count is the GM drum kit's
 /// woodblocks on channel 9: the high block (76) on each bar's first beat, the
 /// low one (77) on the rest.

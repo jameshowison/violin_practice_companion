@@ -41,8 +41,8 @@ typedef _PlayClicks = Future<List<double>> Function();
 /// timed by when they were struck. It went with the rendered score (docs/
 /// rendered-score-plan.md, phase 4): the synth's engines don't follow a
 /// switch to AirPlay, so on the speaker that most needed it, it was heard
-/// 0 of 10 times (Hazel iPad + the Roam, 2026-11-20). The live synth, while it
-/// lasts, takes iOS's latency estimate, or a value stored before then.
+/// 0 of 10 times (Hazel iPad + the Roam, 2026-11-20). The live synth itself
+/// went in phase 6, the same day.
 class SyncCalibrator {
   static const _channel =
       MethodChannel('violin_practice_companion/audio_calibration');

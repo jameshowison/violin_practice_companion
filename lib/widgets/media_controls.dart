@@ -813,7 +813,8 @@ class PlayModePill extends ConsumerWidget {
   }
 }
 
-/// The score played by the app's own soundfont engine: a tempo you set, a loop
+/// The score, rendered by the app's own soundfont engine to a file at the
+/// tempo you set ([RenderedScorePlaybackService]), or Silent's clock: a loop
 /// you can leave on, and a count-off.
 class _SynthesizedTransport extends ConsumerStatefulWidget {
   const _SynthesizedTransport();
@@ -826,8 +827,7 @@ class _SynthesizedTransport extends ConsumerStatefulWidget {
 class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
   @override
   Widget build(BuildContext context) {
-    // The live synth, or the score rendered to a file and played as a
-    // recording (RenderedScorePlaybackService) — whichever is active.
+    // The rendered score, or Silent (SilentPlaybackService).
     final service = ref.watch(activePlaybackServiceProvider);
     final playState = ref.watch(activePlaybackStateProvider).valueOrNull ??
         PlaybackState.stopped;
@@ -892,11 +892,8 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
         ),
         // The rendered score plays through the recording player, so it shows
         // (and calibrates) the recording delay.
-        _OutputPickerButton(
-            source: rendered != null
-                ? AudioSyncSource.recording
-                : AudioSyncSource.score,
-            compact: true),
+        const _OutputPickerButton(
+            source: AudioSyncSource.recording, compact: true),
       ],
     );
   }
@@ -1250,10 +1247,7 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
       _calibrating = true;
       _message = null;
     });
-    ref.read(mediaPlaybackServiceProvider).stop();
-    ref.read(playbackServiceProvider).stop();
-    final playback = ref.read(playbackServiceProvider);
-    final media = ref.read(mediaPlaybackServiceProvider);
+    final player = ref.read(activePlaybackServiceProvider)..stop();
     final r = await SyncCalibrator.calibrate();
     if (mounted) {
       setState(() {
@@ -1264,13 +1258,11 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
             : 'Calibration failed: ${r.failure}.';
       });
     }
-    // Only if the calibration had to re-apply the app's audio session do the
-    // players need rebuilding on it — after the result is on screen, as
-    // reloading the soundfont is heavy enough to hold the sheet up.
+    // Only if the calibration had to re-apply the app's audio session does
+    // the player need rebuilding on it — after the result is on screen.
     if (!SyncCalibrator.lastRunChangedSession) return;
     await WidgetsBinding.instance.endOfFrame;
-    unawaited(playback.restartAudio());
-    unawaited(media.restartAudio());
+    unawaited(player.restartAudio());
   }
 
   @override
@@ -1281,11 +1273,6 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
       builder: (context, route, _) => ValueListenableBuilder<Map<String, int>>(
         valueListenable: AudioOutput.calibratedDelaysMs,
         builder: (context, delays, _) {
-          // Uncalibrated, a recording adds no delay (AudioOutput
-          // .heardDelaySeconds); only the synth takes iOS's estimate.
-          final reportedMs = source == AudioSyncSource.recording
-              ? 0
-              : ((route?.latencySeconds ?? 0) * 1000).round();
           final measuredMs = AudioOutput.calibratedDelayMs(source);
           final text = Theme.of(context).textTheme;
           return SafeArea(
@@ -1316,11 +1303,12 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                   ),
                   const SizedBox(height: 8),
                   Text(
+                    // Uncalibrated, nothing is added: the player's position
+                    // already allows for the route
+                    // (AudioOutput.heardDelaySeconds).
                     measuredMs != null
                         ? 'Sound delay: $measuredMs ms (measured)'
-                        : source == AudioSyncSource.recording
-                            ? 'Sound delay: allowed for by the player'
-                            : 'Sound delay: $reportedMs ms (iOS estimate)',
+                        : 'Sound delay: allowed for by the player',
                     key: const ValueKey('audio_sync_label'),
                     style: text.bodyMedium,
                   ),
@@ -1344,12 +1332,8 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                         const Spacer(),
                         if (measuredMs != null && !_calibrating)
                           TextButton(
-                            onPressed: () {
-                              AudioOutput.setCalibratedDelayMs(
-                                  AudioSyncSource.recording, null);
-                              AudioOutput.setCalibratedDelayMs(
-                                  AudioSyncSource.score, null);
-                            },
+                            onPressed: () => AudioOutput.setCalibratedDelayMs(
+                                AudioSyncSource.recording, null),
                             child: const Text('Forget'),
                           ),
                       ],

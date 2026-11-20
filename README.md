@@ -422,7 +422,7 @@ a re-trust (see above).
    *external* testers — it refuses the `internal-testing-only` play-along tracks).
 3. Smoke-test on the phone: `scripts/device_install.sh --release-smoke` (without
    it, Jamz and Hazel iPad get the tuner's recording compiled in), then play a piece (the
-   synth), calibrate once (the claves), a scan.
+   rendered score), calibrate once (the clicks), a scan.
 4. `flutter build ipa --release`, then upload with the API key from 1Password
    (Touch ID prompts; the key goes in as an argument, never to disk — altool
    can't read `--p8-file-path` from a pipe):

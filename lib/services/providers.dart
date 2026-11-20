@@ -52,7 +52,6 @@ import 'rendered_score_cache.dart';
 import 'rendered_score_playback_service.dart';
 import 'silent_playback_service.dart';
 import 'piece_media_store.dart';
-import 'playback_service.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'system_break_injector.dart';
@@ -639,8 +638,8 @@ final selectedMediaIdProvider =
 /// to whoever's watching it — the screen watches it unconditionally, so it
 /// lives exactly as long as the screen does, and is torn down on the way out
 /// rather than accumulating one `AudioPlayer` per piece ever opened).
-/// Deliberately not app-wide like [playbackServiceProvider]: this is a
-/// per-visit tool, not a persistent session-wide service.
+/// Deliberately not app-wide: this is a per-visit tool, not a persistent
+/// session-wide service.
 final mediaPlaybackServiceProvider =
     Provider.autoDispose<MediaPlaybackService>((ref) {
   AudioOutput.ensureStarted();
@@ -1375,13 +1374,6 @@ final measureDragActiveProvider = StateProvider<bool>((_) => false);
 
 final midiGeneratorProvider = Provider<MidiGenerator>((_) => MidiGenerator());
 
-final playbackServiceProvider = Provider<PlaybackService>((ref) {
-  final service = PlaybackService(ref.watch(midiGeneratorProvider));
-  _followHighlightSettings(ref, service);
-  ref.onDispose(service.dispose);
-  return service;
-});
-
 /// Settings every playback service takes, whichever one is playing. Applied
 /// here rather than pushed in by the screen, so a service is right from the
 /// moment it exists — the recording service is autoDispose and would otherwise
@@ -1430,21 +1422,21 @@ void _follow<T>(Ref ref, ProviderListenable<T> provider, void Function(T) apply)
   });
 }
 
-final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
-  return ref.watch(playbackServiceProvider).state;
-});
-
 /// Whatever is playing the selected piece: the recording picked in the tray,
-/// or the synthesized score. Every view's highlight and anything that reacts
-/// to "Play was pressed" should follow this, not [playbackServiceProvider],
-/// which during a recording is not the thing making the sound.
+/// the synthesized score (rendered to a file, [RenderedScorePlaybackService]),
+/// or Silent's clock. Every view's highlight and anything that reacts to
+/// "Play was pressed" should follow this.
 ///
-/// autoDispose because it may hold [mediaPlaybackServiceProvider], which is.
+/// There was a live synth (flutter_midi_pro) until 2026-11-20; the rendered
+/// score replaced it (docs/rendered-score-plan.md, phase 6). It struck notes
+/// in real time, so it needed its own speaker-delay calibration and had to be
+/// rebuilt on every speaker change, and on AirPlay it often went silent.
+///
+/// autoDispose because the players it holds are.
 final activePlaybackServiceProvider =
     Provider.autoDispose<PlaybackServiceBase>((ref) {
   final piece = ref.watch(selectedPieceProvider);
-  final synth = ref.watch(playbackServiceProvider);
-  if (piece == null) return synth;
+  if (piece == null) return ref.watch(silentPlaybackServiceProvider);
   // While the list is still loading the synthesized score stands in — it is
   // what the list starts with anyway, so nothing flickers.
   final media = ref.watch(pieceMediaProvider(piece.id)).valueOrNull ??
@@ -1454,11 +1446,8 @@ final activePlaybackServiceProvider =
   // "Silent" is the score's clock alone (SilentPlaybackService): the cursor
   // at the tempo, no audio, no speaker held.
   if (selected.isSilent) return ref.watch(silentPlaybackServiceProvider);
-  if (selected.isSynthesized && ref.watch(renderedScoreEnabledProvider)) {
-    return ref.watch(renderedScoreServiceProvider);
-  }
   return selected.isSynthesized
-      ? synth
+      ? ref.watch(renderedScoreServiceProvider)
       : ref.watch(mediaPlaybackServiceProvider);
 });
 
@@ -1486,12 +1475,6 @@ final silentPlaybackServiceProvider =
   ref.onDispose(service.dispose);
   return service;
 });
-
-/// Whether the synthesized score plays as a rendered file
-/// ([RenderedScorePlaybackService]) rather than through the live synth.
-/// A switch for comparing the two while the rendered score is new
-/// (docs/rendered-score-plan.md, phase 2); not remembered across launches.
-final renderedScoreEnabledProvider = StateProvider<bool>((_) => true);
 
 /// The synthesized score as a rendered recording, for the selected piece at
 /// the tempo the tray asks for. autoDispose like the recording service: one

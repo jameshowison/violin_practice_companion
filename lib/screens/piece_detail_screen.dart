@@ -193,16 +193,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       });
     });
     final parsedPiece = ref.watch(parsedPieceProvider).valueOrNull;
-    final service = ref.watch(playbackServiceProvider);
-
-    // Load piece into PlaybackService whenever parsedPiece changes
-    ref.listen(parsedPieceProvider, (_, next) {
-      next.whenData((parsed) {
-        if (parsed != null) {
-          ref.read(playbackServiceProvider).loadPiece(parsed);
-        }
-      });
-    });
 
     if (piece == null) {
       return const Scaffold(body: Center(child: Text('No piece selected')));
@@ -236,27 +226,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       KeepAwake.busy = next.valueOrNull == PlaybackState.playing;
     });
 
-    // The one service every view reads its highlight from.
-    //
-    // This used to be `playbackServiceProvider` unconditionally, with the
-    // audio-driven notifier patched over the top of the staff view alone via a
-    // `highlightNotifierOverride`. The jianpu view, the fingering view and the
-    // section minimap were left reading the metronome service, which during
-    // Play Along is not the thing making the sound — so they sat still, or
-    // followed a clock nobody could hear. Passing the active service down
-    // instead means every view follows whatever is actually playing, and the
-    // override is gone. The same choice as `mediaService ?? service`, from the
-    // provider that anything else needing "what is playing" also reads.
+    // The one service every view reads its highlight from: whatever is
+    // actually playing, so every view (staff, jianpu, fingering, minimap)
+    // follows the same clock. The players take the piece and the tempo from
+    // their own providers.
     final PlaybackServiceBase activeService =
         ref.watch(activePlaybackServiceProvider);
-
-    // The synthesized tempo, from the tray's preset picker at this piece's
-    // performance tempo. Checked against the service so an unchanged rebuild
-    // doesn't regenerate (setTempo does).
-    final bpm = ref.watch(tempoBpmProvider);
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (service.currentBpm != bpm) service.setTempo(bpm);
-    });
 
     // Phone in any orientation: short side < 600pt. iPad min is 768pt. Taken
     // from MediaQuery rather than the body's LayoutBuilder so the app bar — which
@@ -466,22 +441,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   const Divider(),
                   if (selectedMedia.isSynthesized) ...[
                     const TempoSettingsPanel(),
-                    const Divider(),
-                    // For comparing the two while the rendered score is new
-                    // (docs/rendered-score-plan.md, phase 2).
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: const Text('Rendered score'),
-                      subtitle: const Text(
-                          'Off: the live synth, as before'),
-                      value: ref.watch(renderedScoreEnabledProvider),
-                      onChanged: (v) {
-                        ref.read(activePlaybackServiceProvider).stop();
-                        ref.read(renderedScoreEnabledProvider.notifier).state =
-                            v;
-                      },
-                    ),
                     const Divider(),
                   ],
                   // Every note, or each bar's first. Shown for synthesized

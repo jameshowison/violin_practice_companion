@@ -321,5 +321,18 @@ so Play got the default. The tray now watches it (and the lead-in mode).
 - **Not done:** a manual sync nudge as a safety valve (none was needed:
   every speaker so far calibrates to ~10 ms).
 
-**Not done:** listening comparison with the live synth; phase 6.
+**Listening comparison (2026-11-20):** the rendered score judged good by ear
+against the live synth.
+
+**Phase 6 (2026-11-20): the live synth is gone.** `PlaybackService`
+(`playback_service.dart` / `_io.dart`), `playbackServiceProvider`, the
+"Rendered score" switch, `flutter_midi_pro` (and FluidSynth's licence entry,
+which only its Android build needed), the `score` sync source and the
+native engine-reset counter. The synthesized score is always the rendered
+one; with no piece selected, the active player is Silent's clock. The
+soundfont stays: the renderer uses it. Stored `audioSyncDelay.score.*`
+values are left in prefs and ignored.
+
+**Not done:** merging `rendered-score` into `main`; the first Android encode
+(6.4 s) is slow.
 

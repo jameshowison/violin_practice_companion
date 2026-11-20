@@ -6,13 +6,11 @@ import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/models/piece_media.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/musicxml_parser.dart';
-import 'package:violin_practice_companion/services/playback_service.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 import 'package:violin_practice_companion/services/silent_playback_service.dart';
 
 /// "Silent" is the score's clock alone: a player that makes no audio, so no
-/// speaker is held. Picking it leaves the synth alone, whichever way the
-/// rendered score is switched.
+/// speaker is held.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const piece =
@@ -32,31 +30,24 @@ void main() {
     silent.stop();
   });
 
-  for (final rendered in [false, true]) {
-    test('Silent is the clock-only player (rendered score $rendered)',
-        () async {
-      final synth = PlaybackService(MidiGenerator.forTest());
-      final silent = SilentPlaybackService(MidiGenerator.forTest());
-      final c = ProviderContainer(overrides: [
-        playbackServiceProvider.overrideWithValue(synth),
-        silentPlaybackServiceProvider.overrideWith((_) => silent),
-        pieceMediaProvider.overrideWith((ref, id) async =>
-            const [PieceMedia.synthesized, PieceMedia.silent]),
-        renderedScoreEnabledProvider.overrideWith((_) => rendered),
-        if (rendered)
-          renderedScoreServiceProvider.overrideWith(
-              (_) => throw StateError('not under test')),
-      ]);
-      addTearDown(c.dispose);
-      c.read(selectedPieceProvider.notifier).state = piece;
-      await c.read(pieceMediaProvider('p').future);
-      final sub = c.listen(activePlaybackServiceProvider, (_, _) {},
-          onError: (_, _) {});
+  test('Silent is the clock-only player; the score is the rendered one',
+      () async {
+    final silent = SilentPlaybackService(MidiGenerator.forTest());
+    final c = ProviderContainer(overrides: [
+      silentPlaybackServiceProvider.overrideWith((_) => silent),
+      pieceMediaProvider.overrideWith((ref, id) async =>
+          const [PieceMedia.synthesized, PieceMedia.silent]),
+      renderedScoreServiceProvider
+          .overrideWith((_) => throw StateError('not under test')),
+    ]);
+    addTearDown(c.dispose);
+    c.read(selectedPieceProvider.notifier).state = piece;
+    await c.read(pieceMediaProvider('p').future);
+    final sub = c.listen(activePlaybackServiceProvider, (_, _) {},
+        onError: (_, _) {});
 
-      c.read(selectedMediaIdProvider('p').notifier).state = 'silent';
-      expect(c.read(activePlaybackServiceProvider), same(silent));
-      expect(synth.muted, isFalse);
-      sub.close();
-    });
-  }
+    c.read(selectedMediaIdProvider('p').notifier).state = 'silent';
+    expect(c.read(activePlaybackServiceProvider), same(silent));
+    sub.close();
+  });
 }

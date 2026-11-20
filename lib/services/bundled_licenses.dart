@@ -22,11 +22,6 @@ const bundledLicenseAssets = <(List<String>, String)>[
   (['Nunito'], 'assets/engine/fonts/OFL.txt'),
   // The score engraver, its embedded libraries and its music fonts.
   (['Verovio'], 'assets/engine/licenses/verovio.txt'),
-  // flutter_midi_pro's Android synth: FluidSynth, GLib and the codecs.
-  (
-    ['FluidSynth and its Android libraries'],
-    'assets/engine/licenses/fluidsynth.txt'
-  ),
   (['ONNX Runtime'], 'assets/engine/licenses/onnxruntime.txt'),
   // The text models that read a scanned page's title.
   (['PaddleOCR', 'RapidOCR'], 'assets/engine/licenses/paddleocr.txt'),

@@ -6,9 +6,9 @@ import UIKit
 ///
 /// On iOS every asset is already a plain file inside the app bundle
 /// (`App.framework/flutter_assets/<key>`), so a plugin that wants a path can
-/// read it in place. Without this, flutter_onnxruntime and flutter_midi_pro
-/// each copy what they load into Library/Caches: 142 MB of OMR models stored
-/// twice, and a soundfont whose stale copy was never replaced.
+/// read it in place. Without this, flutter_onnxruntime copies what it loads
+/// into Library/Caches: 142 MB of OMR models stored twice. (So did the live
+/// synth, flutter_midi_pro, with the soundfont, until it was removed.)
 class BundledAssetPlugin: NSObject, FlutterPlugin {
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(

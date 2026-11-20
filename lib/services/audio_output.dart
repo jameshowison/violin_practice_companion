@@ -4,10 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Which player a sync offset belongs to. They are tuned separately: the
-/// synthesized score strikes notes itself, a recording goes through AVPlayer,
-/// and the two needn't be off by the same amount on one speaker.
-enum AudioSyncSource { score, recording }
+/// Which player a sync offset belongs to, and part of its stored key. Only the
+/// recording player is left: the rendered score plays through it too. There
+/// was a `score` one for the live synth until that was removed (2026-11-20);
+/// values stored for it (`audioSyncDelay.score.*`) are ignored.
+enum AudioSyncSource { recording }
 
 /// Where audio is currently going, as the OS reports it.
 @immutable
@@ -175,11 +176,6 @@ class AudioOutput {
 
   /// The measured delay for [source] on the current output, in ms, or null
   /// if this speaker hasn't been calibrated.
-  ///
-  /// Never shared between the players: AVPlayer's position already allows
-  /// for part of the delay and the synth's strikes don't, so the score's is
-  /// markedly larger on the same speaker (borrowing the recording's put the
-  /// cursor well ahead of the notes on a Sonos Roam).
   static int? calibratedDelayMs(AudioSyncSource source) {
     final r = route.value;
     if (r == null) return null;
@@ -209,25 +205,17 @@ class AudioOutput {
   }
 
   /// Seconds from [source] reaching a moment to it being heard: the measured
-  /// delay for this speaker, else the default — iOS's estimate for the
-  /// score, nothing for a recording. A recording's may be negative (AVPlayer
-  /// over-compensating); the score's strikes notes ahead, which can't be done
-  /// backwards.
+  /// delay for this speaker, else nothing. It may be negative (AVPlayer
+  /// over-compensating).
   ///
-  /// Nothing for a recording because AVPlayer's position already allows for
-  /// the route's reported delay (an Apple media engineer: the player "already
+  /// Nothing by default because AVPlayer's position already allows for the
+  /// route's reported delay (an Apple media engineer: the player "already
   /// take[s] care of latency"). Subtracting iOS's estimate again counted it
-  /// twice — ~2s on AirPlay — and calibrating only papered over that. The
-  /// synth's clock is the moment a note is struck, which nothing allows for.
+  /// twice — ~2s on AirPlay — and calibrating only papered over that.
   static double heardDelaySeconds(AudioSyncSource source) {
     final ms = calibratedDelayMs(source);
-    final s = ms != null
-        ? ms / 1000
-        : source == AudioSyncSource.recording
-            ? 0.0
-            : latencySeconds;
-    final min = source == AudioSyncSource.recording ? -0.5 : 0.0;
-    return s.clamp(min, AudioOutputRoute.maxLatencySeconds);
+    final s = ms != null ? ms / 1000 : 0.0;
+    return s.clamp(-0.5, AudioOutputRoute.maxLatencySeconds);
   }
 
   // ---- Per-speaker start-up delay -----------------------------------------

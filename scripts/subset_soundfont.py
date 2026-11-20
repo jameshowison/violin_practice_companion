@@ -3,9 +3,10 @@
 
 The app plays the violin (bank 0, program 40, from
 assets/engine/lookup_tables/midi_patch.json) and three notes of the GM drum kit
-(bank 128, program 0): the claves (75) for the calibration click, through
-flutter_midi_pro (playback_service_io.dart), and the high and low woodblocks
-(76, 77) for the rendered score's count-in (score_renderer.dart). GeneralUser GS is ~31 MB for all 260-odd presets; this keeps
+(bank 128, program 0): the high and low woodblocks (76, 77) for the rendered
+score's count-in (score_renderer.dart). The bundled bank also still holds the
+claves (75), once the live synth's calibration click; the synth went on
+2026-11-20, and the claves can go at the next re-subset. GeneralUser GS is ~31 MB for all 260-odd presets; this keeps
 those two, the instrument zones they reach, and only the samples those zones
 play, so the bundled bank is a small fraction of that. GeneralUser GS's licence
 allows modifying it (assets/engine/licenses/generaluser_gs.txt).
