@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -959,11 +960,13 @@ class MediaPlaybackService extends PlaybackServiceBase {
       final seek = _seekClipped(audioSec);
       if (!seek.reclipped) {
         unawaited(_player.play());
+        _measureStart(audioSec, generation);
       } else {
         unawaited(seek.done.then((_) {
           if (generation == _playGeneration &&
               playbackState == PlaybackState.playing) {
             unawaited(_player.play());
+            _measureStart(audioSec, generation);
           }
         }));
       }
@@ -982,17 +985,48 @@ class MediaPlaybackService extends PlaybackServiceBase {
         return;
       }
       unawaited(_player.play());
+      _measureStart(lead.seekAudioSec, generation);
     }
 
     if (lead.waitRealSec > 0) {
+      // Play goes in early by the speaker's start-up delay, so the sound
+      // starts when the count ends rather than that long after: the count
+      // runs on the phone's clock until [_leadInEndsAt], the player's clock
+      // only once it has started (AudioOutput.startDelaySeconds).
+      final early = AudioOutput.startDelaySeconds;
+      final at = math.max(0.0, lead.waitRealSec - early);
       _leadInTimer = Timer(
-          Duration(microseconds: (lead.waitRealSec * 1e6).round()), () async {
+          Duration(microseconds: (at * 1e6).round()), () async {
         await seek;
         start();
       });
     } else {
       unawaited(seek.then((_) => start()));
     }
+  }
+
+  /// Measures how long the player took, after Play, to start its clock from
+  /// [fromAudioSec], and records it for this speaker
+  /// ([AudioOutput.recordStartDelay]). Polled, since the clock's start is
+  /// only seen as a position that has moved; the start is then worked back
+  /// from how far it has moved.
+  void _measureStart(double fromAudioSec, int generation) {
+    final calledAt = _wallNow();
+    var polls = 0;
+    Timer.periodic(const Duration(milliseconds: 100), (t) {
+      if (generation != _playGeneration ||
+          playbackState != PlaybackState.playing ||
+          ++polls > 40) {
+        t.cancel();
+        return;
+      }
+      final moved = _player.position.inMicroseconds / 1e6 - fromAudioSec;
+      if (moved < 0.02) return;
+      t.cancel();
+      final speed = playbackSpeed.value;
+      final startedAt = _wallNow() - moved / (speed > 0 ? speed : 1);
+      AudioOutput.recordStartDelay(startedAt - calledAt);
+    });
   }
 
   /// Seeks to [audioSec], first moving the player's end to this play-through's

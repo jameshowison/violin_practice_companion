@@ -2167,7 +2167,10 @@ class _NotationView extends ConsumerWidget {
   // here rather than with a GestureDetector's onDoubleTap, which would hold
   // back EVERY single tap by kDoubleTapTimeout while it waited for a second.
   // So the first tap still acts at once; the second replaces its result.
-  void _selectMeasure(WidgetRef ref, int measure) {
+  //
+  // [note], where the view knows it (the staff), is the note tapped: in a
+  // bar a section break splits, the tap selects just the half it is in.
+  void _selectMeasure(WidgetRef ref, int measure, {int? note}) {
     final selection = ref.read(measureSelectionProvider.notifier);
     final now = DateTime.now();
     final prev = _lastTap;
@@ -2184,14 +2187,21 @@ class _NotationView extends ConsumerWidget {
     }
     final current = selection.state;
     _lastTap = (measure: measure, at: now, before: current);
-    selection.state = MeasureSelection.afterTap(current, measure);
+    selection.state = MeasureSelection.afterTap(current, measure,
+        chunk: note == null
+            ? null
+            : MeasureSelection.chunkAt(_sections(ref), measure, note));
   }
+
+  List<Section> _sections(WidgetRef ref) =>
+      ref.read(selectedPieceProvider)?.sections ?? const [];
 
   // Hold and drag: the bars from the held one to the one under the finger.
   void _selectRange(WidgetRef ref, int anchor, int current) {
     _lastTap = null; // a drag is never half of a double-tap
     ref.read(measureSelectionProvider.notifier).state =
-        MeasureSelection.spanning(anchor, current);
+        MeasureSelection.spanning(anchor, current)
+            .cutAtSections(_sections(ref));
   }
 
   void _setDragging(WidgetRef ref, bool on) =>
@@ -2220,9 +2230,10 @@ class _NotationView extends ConsumerWidget {
     if (current == null || numbers.isEmpty) return;
     final first = numbers.reduce(math.min), last = numbers.reduce(math.max);
     _lastTap = null;
-    selection.state = atStart
-        ? current.nudgeStart(delta, first: first, last: last)
-        : current.nudgeEnd(delta, first: first, last: last);
+    selection.state = (atStart
+            ? current.nudgeStart(delta, first: first, last: last)
+            : current.nudgeEnd(delta, first: first, last: last))
+        .cutAtSections(_sections(ref));
   }
 
   @override
@@ -2303,7 +2314,7 @@ class _NotationView extends ConsumerWidget {
         musicXml: xml,
         highlightNotifier: service.currentHighlightNotifier,
         selection: selection,
-        onMeasureTapped: (m) => _selectMeasure(ref, m),
+        onMeasureTapped: (m, note) => _selectMeasure(ref, m, note: note),
         onMeasureRange: onRange,
         onMeasureDragging: onDragging,
         onNudgeSelection: onNudge,
@@ -2421,7 +2432,8 @@ class _NotationView extends ConsumerWidget {
                   musicXml: tab.musicXml,
                   highlightNotifier: service.currentHighlightNotifier,
                   selection: selection,
-                  onMeasureTapped: (m) => _selectMeasure(ref, m),
+                  onMeasureTapped: (m, note) =>
+                      _selectMeasure(ref, m, note: note),
                   onMeasureRange: onRange,
                   onMeasureDragging: onDragging,
                   onNudgeSelection: onNudge,

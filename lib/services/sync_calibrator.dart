@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_output.dart';
-import 'playback_service_base.dart';
 import 'media_transport.dart';
 import 'sync_calibration.dart';
 import 'sync_calibration_clip.dart';
@@ -21,24 +20,29 @@ class _Failed implements Exception {
 /// click on its way — the moment its cursor treats as "now".
 typedef _PlayClicks = Future<List<double>> Function();
 
-/// Measures, per player, how long after it sends a sound that sound is heard
-/// on whatever speaker is connected, with the mic listening
-/// (`ios/Runner/AudioCalibrationPlugin.swift`). Two players, two delays:
+/// Measures how long after the recording player reaches a sound that sound
+/// is heard on whatever speaker is connected, with the mic listening
+/// (`ios/Runner/AudioCalibrationPlugin.swift`): [CalibrationClip] through the
+/// player recordings play through (on iOS the native one, [NativeTransport]),
+/// timed by its own clock. That is exactly what `MediaPlaybackService`
+/// subtracts from — for recordings and the rendered score alike, which plays
+/// through the same player.
 ///
-/// - **Recordings** — [CalibrationClip] through the player recordings play
-///   through (on iOS the native one, [NativeTransport]), timed by its own
-///   clock. That is exactly what `MediaPlaybackService` subtracts from.
-///   Through the native player it measures ~10ms on the iPad speaker and
-///   on a Sonos over AirPlay (2026-11-18): AVPlayer's position already is
-///   what is heard. The 531–584ms once measured here on AirPlay was
-///   just_audio's Dart-side position, which on iOS extrapolates from the
-///   last event it was sent; its `play` updates the native position
-///   without sending one, so the Dart clock ran ahead of the player.
-/// - **The synthesized score** — claves struck through the synth
-///   (`PlaybackServiceBase.strikeCalibrationClick`), timed by when they were
-///   struck. The synth has no such allowance, so its delay is markedly larger
-///   on the same speaker: borrowing the recording's put the cursor well
-///   ahead of the notes.
+/// Through the native player it measures ~10ms on the iPad speaker and on
+/// AirPlay (a Sonos Roam, Kitchen; 2026-11-18/20): AVPlayer's position
+/// already is what is heard. The 531–584ms once measured here on AirPlay was
+/// just_audio's Dart-side position, which on iOS extrapolates from the last
+/// event it was sent; its `play` updates the native position without sending
+/// one, so the Dart clock ran ahead of the player. A calibration stored from
+/// then still holds the cursor ~0.6 s behind the sound until redone (the
+/// Roam on Hazel iPad, until 2026-11-20).
+///
+/// There was a second half, for the live synth: claves struck through it and
+/// timed by when they were struck. It went with the rendered score (docs/
+/// rendered-score-plan.md, phase 4): the synth's engines don't follow a
+/// switch to AirPlay, so on the speaker that most needed it, it was heard
+/// 0 of 10 times (Hazel iPad + the Roam, 2026-11-20). The live synth, while it
+/// lasts, takes iOS's latency estimate, or a value stored before then.
 class SyncCalibrator {
   static const _channel =
       MethodChannel('violin_practice_companion/audio_calibration');
@@ -87,21 +91,15 @@ class SyncCalibrator {
     }
   }
 
-  /// Calibrates both players on the current speaker, one after the other
-  /// (about 20 seconds), storing each result that succeeds. Anything playing
-  /// must be stopped first.
-  static Future<({CalibrationResult recording, CalibrationResult score})>
-      calibrateAll(PlaybackServiceBase score) async {
+  /// Calibrates the recording player on the current speaker (about 10
+  /// seconds), storing the result if it succeeds. Anything playing must be
+  /// stopped first.
+  static Future<CalibrationResult> calibrate() async {
     lastRunChangedSession = false;
     await _traceStart();
     try {
       _mark('recording phase');
-      final recording = await _withRetry(
-          AudioSyncSource.recording, _recordingClicks);
-      _mark('score phase');
-      final synth = await _withRetry(
-          AudioSyncSource.score, () => _scoreClicks(score));
-      return (recording: recording, score: synth);
+      return await _withRetry(AudioSyncSource.recording, _recordingClicks);
     } finally {
       await _traceStop();
     }
@@ -210,30 +208,6 @@ class SyncCalibrator {
     if (zero == null) throw const _Failed("couldn't follow the clip's playback");
     _mark('clip zero from ${samples.length} native clock reads');
     return [for (final c in CalibrationClip.clickTimes) zero + c];
-  }
-
-  /// The score path: the same pattern struck through the synth, each click's
-  /// moment the wall-clock second it was struck — as the score's own notes are.
-  static Future<List<double>> _scoreClicks(PlaybackServiceBase score) async {
-    _mark('synth prepare');
-    if (!await score.prepareCalibrationClick()) {
-      throw const _Failed("the score's sound isn't ready");
-    }
-    const times = CalibrationClip.clickTimes;
-    _mark('synth clicks begin');
-    final t0 = _wallNow() + 0.5 - times.first;
-    final struck = <double>[];
-    for (final c in times) {
-      final wait = t0 + c - _wallNow();
-      if (wait > 0) {
-        await Future<void>.delayed(
-            Duration(microseconds: (wait * 1e6).round()));
-      }
-      struck.add(_wallNow());
-      score.strikeCalibrationClick();
-    }
-    _mark('synth clicks end');
-    return struck;
   }
 
   /// One measurement of [source]: mic on, [play] the clicks, listen out the

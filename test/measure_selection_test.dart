@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 
 void main() {
@@ -82,6 +83,72 @@ void main() {
       const section = MeasureSelection(4, 6,
           startNote: 2, endNote: 3, startPerf: 9, endPerf: 11, skipped: {5});
       expect(section.nudgeEnd(1, first: 1, last: 10), const MeasureSelection(4, 7));
+    });
+  });
+
+  group('MeasureSelection.cutAtSections', () {
+    // B from bar 6's second note; C's pickup is bar 14's second note.
+    const sections = [
+      Section(label: 'A', startMeasure: 1),
+      Section(label: 'B', startMeasure: 6, startNote: 1),
+      Section(label: 'C', startMeasure: 14, startNote: 1),
+    ];
+
+    test('bars ending where the next section starts stop before its pickup',
+        () {
+      expect(const MeasureSelection(10, 14).cutAtSections(sections),
+          const MeasureSelection(10, 14, endNote: 1));
+    });
+
+    test('bars starting where a section starts begin on its pickup', () {
+      expect(const MeasureSelection(6, 14).cutAtSections(sections),
+          const MeasureSelection(6, 14, startNote: 1, endNote: 1));
+    });
+
+    test('no break in the edge bars, a single bar, or a section: unchanged',
+        () {
+      for (final sel in const [
+        MeasureSelection(2, 5),
+        MeasureSelection(14, 14),
+        MeasureSelection(6, 14, startNote: 1, endNote: 1, startPerf: 5),
+      ]) {
+        expect(sel.cutAtSections(sections), sel);
+      }
+    });
+  });
+
+  group('MeasureSelection.chunkAt', () {
+    const sections = [
+      Section(label: 'A', startMeasure: 1),
+      Section(label: 'B', startMeasure: 14, startNote: 2),
+    ];
+
+    test('a bar a section break splits is two chunks', () {
+      expect(MeasureSelection.chunkAt(sections, 14, 0),
+          (startNote: 0, endNote: 2));
+      expect(MeasureSelection.chunkAt(sections, 14, 1),
+          (startNote: 0, endNote: 2));
+      expect(MeasureSelection.chunkAt(sections, 14, 2),
+          (startNote: 2, endNote: -1));
+    });
+
+    test('a bar without one is whole', () {
+      expect(MeasureSelection.chunkAt(sections, 13, 1),
+          (startNote: 0, endNote: -1));
+      expect(MeasureSelection.chunkAt(sections, 1, 0),
+          (startNote: 0, endNote: -1));
+    });
+
+    test('a tap in a chunk selects it, and tapping it again clears it', () {
+      const chunk = (startNote: 2, endNote: -1);
+      final sel = MeasureSelection.afterTap(null, 14, chunk: chunk);
+      expect(sel, const MeasureSelection(14, 14, startNote: 2));
+      expect(MeasureSelection.afterTap(sel, 14, chunk: chunk), isNull);
+      // The other half replaces it.
+      expect(
+          MeasureSelection.afterTap(sel, 14,
+              chunk: (startNote: 0, endNote: 2)),
+          const MeasureSelection(14, 14, endNote: 2));
     });
   });
 }

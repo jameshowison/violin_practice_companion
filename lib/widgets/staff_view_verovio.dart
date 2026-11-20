@@ -33,7 +33,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   final String musicXml;
   final ValueNotifier<HighlightEvent?> highlightNotifier;
   final MeasureSelection? selection;
-  final ValueChanged<int>? onMeasureTapped;
+  /// A tap on a bar: its model measure number, and the model note nearest
+  /// the tap (null if none is), so a bar a section break splits can be
+  /// selected a half at a time.
+  final void Function(int measure, int? note)? onMeasureTapped;
 
   /// Hold-and-drag range selection (see [MeasureDragSelect]): the held bar
   /// and the bar under the finger, as model measure numbers.
@@ -1195,6 +1198,30 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     return widget.measureMap.numberAt(i);
   }
 
+  /// The model note of the bar at [local] nearest it across the page, or
+  /// null. For a tap on a bar a section break splits (see
+  /// `MeasureSelection.chunkAt`).
+  int? _noteAt(Offset local) {
+    final score = _score;
+    if (score == null) return null;
+    final p = local / _scale;
+    final i = measureIndexAtPoint(score, p);
+    if (i == null || i < 0 || i >= widget.measureMap.length) return null;
+    NoteAnchor? best;
+    var bestDist = double.infinity;
+    for (final n in score.notes) {
+      if (n.measureIndex != i) continue;
+      final d = (n.rect.center.dx - p.dx).abs();
+      if (d < bestDist) {
+        bestDist = d;
+        best = n;
+      }
+    }
+    return best == null
+        ? null
+        : best.noteIndex + widget.measureMap.slices[i].noteOffset;
+  }
+
   int? _measureAtGlobal(Offset global) {
     final box = _pageKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
@@ -1204,7 +1231,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   void _onTapUp(Offset local) {
     _lastBarTap = DateTime.now();
     final m = _measureAt(local);
-    if (m != null) widget.onMeasureTapped?.call(m);
+    if (m != null) widget.onMeasureTapped?.call(m, _noteAt(local));
   }
 
   /// Shows the end handles, and fades them [selectionHandleLinger] after
@@ -1283,7 +1310,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                 DateTime.now().difference(last) < kDoubleTapTimeout) {
               _lastBarTap = null;
               final m = _measureAtGlobal(global);
-              if (m != null) widget.onMeasureTapped?.call(m);
+              if (m != null) widget.onMeasureTapped?.call(m, null);
               return;
             }
             nudge(atStart, atStart ? -1 : 1);

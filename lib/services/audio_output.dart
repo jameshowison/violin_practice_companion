@@ -230,6 +230,64 @@ class AudioOutput {
     return s.clamp(min, AudioOutputRoute.maxLatencySeconds);
   }
 
+  // ---- Per-speaker start-up delay -----------------------------------------
+  //
+  // How long a recording player takes, after Play, to start its clock — which
+  // on iOS is the time HEARD (see [heardDelaySeconds]). ~0.15 s on the phone,
+  // ~0.6 s on an AirPlay speaker (Kitchen, 2026-11-19). A silent count-in ends
+  // on the phone's clock, so it calls Play this much early, or the count's
+  // last beat lands that long before the first note. Not something iOS
+  // reports, so it is measured on every start (MediaPlaybackService) and
+  // kept per speaker.
+
+  static const _startPrefix = 'audioStartDelay.';
+  static final Map<String, int> _startDelaysMs = {};
+  static bool _startLoaded = false;
+
+  /// The last measured start-up delay on the current output, in seconds;
+  /// 0 for a speaker not yet measured.
+  static double get startDelaySeconds {
+    if (!_startLoaded) unawaited(_loadStartDelays());
+    final r = route.value;
+    if (r == null) return 0;
+    return (_startDelaysMs[r.speakerKey] ?? 0) / 1000;
+  }
+
+  /// Records a start-up delay of [seconds] measured on the current output.
+  /// Smoothed with the last one, so one slow start (a speaker waking) doesn't
+  /// throw the next count off by as much.
+  static void recordStartDelay(double seconds) {
+    final r = route.value;
+    if (r == null || seconds < 0 || seconds > AudioOutputRoute.maxLatencySeconds) {
+      return;
+    }
+    final key = r.speakerKey;
+    final ms = (seconds * 1000).round();
+    final last = _startDelaysMs[key];
+    final next = last == null ? ms : ((last + ms) / 2).round();
+    _startDelaysMs[key] = next;
+    unawaited(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('$_startPrefix$key', next);
+      } catch (_) {}
+    }());
+  }
+
+  static Future<void> _loadStartDelays() async {
+    _startLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final k in prefs.getKeys()) {
+        if (k.startsWith(_startPrefix) && prefs.get(k) is int) {
+          // Anything measured while loading wins.
+          _startDelaysMs.putIfAbsent(
+              k.substring(_startPrefix.length), () => prefs.getInt(k)!);
+        }
+      }
+    } catch (_) {}
+  }
+
   @visibleForTesting
   static void debugSetRoute(AudioOutputRoute? r) => route.value = r;
 }

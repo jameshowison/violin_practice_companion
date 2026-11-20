@@ -593,7 +593,9 @@ silent" hunt; both looked like calibration bugs and were not:
 2. **flutter_midi_pro never restarts its 16 AVAudioEngines**, and they do not
    follow an output switch (built on the iPad speaker → silent on AirPlay, with no
    notification). `PlaybackService` rebuilds the synth when the speaker changes and
-   before calibration's claves (`playback_service_io.dart`, "Following the speaker").
+   before it plays (`playback_service_io.dart`, "Following the speaker").
+   Calibration no longer plays through it (2026-11-20): it measures the
+   recording player only, which the rendered score shares.
 
 Four more, from making the rendered score (2026-11-19/20, Jamz + Kitchen). Each
 looked like a timing or loop bug, and none shows on a simulator (no AirPlay):

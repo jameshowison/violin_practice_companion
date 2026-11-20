@@ -1244,6 +1244,56 @@ class MeasureSelection {
           // A bar one pass skips and another plays is in the span.
           skipped: first.skipped.intersection(last.skipped));
 
+  /// The part of bar [measure] that note [note] is in, where [sections]
+  /// start mid-bar there: a bar split by a section break is two (or more)
+  /// short chunks, selected and played apart. The whole bar without a break.
+  static ({int startNote, int endNote}) chunkAt(
+      List<Section> sections, int measure, int note) {
+    var start = 0, end = -1;
+    for (final s in sections) {
+      if (s.startMeasure != measure || s.startNote <= 0) continue;
+      if (s.startNote <= note && s.startNote > start) start = s.startNote;
+      if (s.startNote > note && (end < 0 || s.startNote < end)) {
+        end = s.startNote;
+      }
+    }
+    return (startNote: start, endNote: end);
+  }
+
+  /// What Play plays of this selection: whole bars, except that a section
+  /// starting mid-bar in the first or last bar cuts it there. Bars 6–14 of a
+  /// piece whose next section's pickup is in bar 14 stop before the pickup,
+  /// and start on bar 6's own section's pickup rather than on the last notes
+  /// of the section before. Only a whole-bar range of two or more bars is
+  /// cut: a selected section already has its edges, and a tapped bar is
+  /// already the chunk the tap was in ([afterTap], [chunkAt]) — or, from a
+  /// view that can't tell where in the bar it was tapped, the whole bar.
+  MeasureSelection cutAtSections(List<Section> sections) {
+    if (startNote != 0 || endNote != -1 || startMeasure == endMeasure) {
+      return this;
+    }
+    int? first(int measure) {
+      int? best;
+      for (final s in sections) {
+        if (s.startMeasure == measure &&
+            s.startNote > 0 &&
+            (best == null || s.startNote < best)) {
+          best = s.startNote;
+        }
+      }
+      return best;
+    }
+
+    final start = first(startMeasure), end = first(endMeasure);
+    if (start == null && end == null) return this;
+    return MeasureSelection(startMeasure, endMeasure,
+        startNote: start ?? 0,
+        endNote: end ?? -1,
+        startPerf: startPerf,
+        endPerf: endPerf,
+        skipped: skipped);
+  }
+
   bool contains(int measure) =>
       measure >= startMeasure &&
       measure <= endMeasure &&
@@ -1260,8 +1310,13 @@ class MeasureSelection {
   /// the selection's end handles ([nudgeStart], [nudgeEnd]), never from a
   /// second tap: "tap to extend" made the same tap mean three things, and
   /// testers kept getting the one they didn't want.
-  static MeasureSelection? afterTap(MeasureSelection? current, int tapped) {
-    final single = MeasureSelection(tapped, tapped);
+  ///
+  /// [chunk] narrows the bar to the part of it a section break leaves the
+  /// tap in ([chunkAt]); null, or a bar with no break, is the whole bar.
+  static MeasureSelection? afterTap(MeasureSelection? current, int tapped,
+      {({int startNote, int endNote})? chunk}) {
+    final single = MeasureSelection(tapped, tapped,
+        startNote: chunk?.startNote ?? 0, endNote: chunk?.endNote ?? -1);
     return current == single ? null : single;
   }
 
@@ -1304,6 +1359,12 @@ class MeasureSelection {
 }
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
+
+/// [measureSelectionProvider] as Play takes it: cut at the section breaks
+/// inside its first and last bars ([MeasureSelection.cutAtSections]).
+final playedSelectionProvider = Provider<MeasureSelection?>((ref) => ref
+    .watch(measureSelectionProvider)
+    ?.cutAtSections(ref.watch(selectedPieceProvider)?.sections ?? const []));
 
 /// A hold-and-drag range selection is in progress on the notation. The tray,
 /// which rises on any new selection, waits for the finger to lift rather
@@ -1709,7 +1770,7 @@ final tempoBpmProvider =
 /// that to the first FULL bar, silently dropping the anacrusis — which is both
 /// the wrong note to start on and the reason the count-in needs shortening.
 final playbackStartMeasureProvider = Provider<int>((ref) {
-  final selection = ref.watch(measureSelectionProvider);
+  final selection = ref.watch(playedSelectionProvider);
   if (selection != null) return selection.startMeasure;
   final measures = ref.watch(parsedPieceProvider).valueOrNull?.measures;
   return (measures == null || measures.isEmpty) ? 1 : measures.first.number;
@@ -1718,7 +1779,7 @@ final playbackStartMeasureProvider = Provider<int>((ref) {
 /// The note within [playbackStartMeasureProvider] Play starts on: 0 but for a
 /// selected section that begins mid-bar, on its lead-in.
 final playbackStartNoteProvider = Provider<int>(
-    (ref) => ref.watch(measureSelectionProvider)?.startNote ?? 0);
+    (ref) => ref.watch(playedSelectionProvider)?.startNote ?? 0);
 
 /// The count-off Play will actually give: the preference resolved against this
 /// score's meter and shortened by a pickup at the start measure. Null = no count.

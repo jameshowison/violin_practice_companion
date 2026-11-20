@@ -240,14 +240,6 @@ abstract class PlaybackServiceBase {
   /// calibration switches it to play-and-record and back). Nothing by default.
   Future<void> restartAudio() async {}
 
-  /// Gets ready to [strikeCalibrationClick]; false if this player can't
-  /// (no synth on this platform, or it isn't loaded).
-  Future<bool> prepareCalibrationClick() async => false;
-
-  /// Sounds one short, sharp click through this player's own sound path, at
-  /// once — for the speaker sync calibration (SyncCalibrator). Ignores mute.
-  void strikeCalibrationClick() {}
-
   void setTempo(int bpm) {
     final resume = _state == PlaybackState.playing ? resumePoint() : null;
     _stopInternal(silent: true);
@@ -613,11 +605,17 @@ abstract class PlaybackServiceBase {
     // — e.g. a real recording's own unmatched intro, still playing but with
     // no note of the score to show yet — and stays there until hlPt reaches
     // events[0]'s onset, exactly like every later step.
+    //
+    // Never onto a note at or past the end: the highlight runs ahead of the
+    // sound, so near the end it reached the first note after the selection,
+    // which lit up briefly as Play stopped without being heard.
+    final end = _endSeconds(d);
     final events = _activeHighlightEvents;
     if (events.isNotEmpty) {
       final hlPt = highlightAdvanceSeconds() ?? pt;
       while (_hlPointer + 1 < events.length &&
-             events[_hlPointer + 1].onsetSeconds <= hlPt) {
+             events[_hlPointer + 1].onsetSeconds <= hlPt &&
+             events[_hlPointer + 1].onsetSeconds < end - 1e-6) {
         _hlPointer++;
       }
       if (_hlPointer >= 0) {
@@ -636,7 +634,6 @@ abstract class PlaybackServiceBase {
     // (its lookahead) before the new pass is heard, so the seam stays tight
     // instead of gaining a gap the length of the output latency. The cost is
     // the highlight leaving the last note that much early.
-    final end = _endSeconds(d);
     if (loopEnabled ? pt + strikeAheadSeconds >= end : pt >= end) {
       endReached();
       return;

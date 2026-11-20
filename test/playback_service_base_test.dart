@@ -269,6 +269,19 @@ void main() {
       expect(service.playbackState, PlaybackState.stopped);
     });
 
+    testWidgets('the highlight, running ahead, never lands past the end',
+        (tester) async {
+      service.highlightDownbeatOnly = false;
+      service.play(fromMeasure: 1, toMeasure: 2);
+      // 30 ms short of the end: the lead (60 ms) reaches bar 3's first note.
+      service.fakeSeconds = 5.97;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.playbackState, PlaybackState.playing);
+      final ev = service.currentHighlightNotifier.value!;
+      expect((ev.measureNumber, ev.noteIndex), (2, 2));
+      service.stop();
+    });
+
     testWidgets('a loop goes back to fromNote', (tester) async {
       service.loopEnabled = true;
       service.play(fromMeasure: 1, fromNote: 2, toMeasure: 2, toNote: 1);

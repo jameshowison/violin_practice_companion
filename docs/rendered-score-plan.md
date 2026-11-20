@@ -298,6 +298,28 @@ in 0.53 s; one-minute pieces ~0.1 s each.
 count-in off: the saved count was read back only once Play first asked,
 so Play got the default. The tray now watches it (and the lead-in mode).
 
-**Not done:** listening comparison with the live synth; device timing; phase
-4 (calibration retirement, open questions 3–4); phase 6.
+**Phase 4 (2026-11-20):**
+- **Calibration measures the recording player only.** The synth half went,
+  with its claves (`prepareCalibrationClick` / `strikeCalibrationClick`). On
+  Hazel iPad + the Roam it was heard 0 of 10 times, since the synth's engines
+  don't follow a switch to AirPlay. The rendered score shares the recording
+  player and its calibration, and its tray's speaker sheet now shows that
+  delay. Through the native player the recording delay is ~10 ms (the iPad
+  speaker, Kitchen, the Roam: 14, 8, 9 ms).
+- **Stale calibrations.** A recording calibration stored before the native
+  player (the Roam's 577 ms, from 2026-11-10) held the cursor ~0.6 s behind
+  the sound until redone. Not migrated: redo it per speaker.
+- **Open question 3, answered.** After Play, AVPlayer's clock (= heard)
+  starts ~0.6 s later on AirPlay (Kitchen, the Roam) and ~0.15 s on the
+  phone. A silent count-in ended on the phone's clock, so the first note
+  came that long after the count. Every start now measures this delay
+  (`AudioOutput.recordStartDelay`, per speaker, smoothed and kept), and a
+  silent count-in calls Play that much early. The first count on a new
+  speaker is still late.
+- **Open question 4, answered.** A loop seam on the fresh item restarts in
+  40–100 ms, plus the ~0.6 s start on AirPlay. Accepted.
+- **Not done:** a manual sync nudge as a safety valve (none was needed:
+  every speaker so far calibrates to ~10 ms).
+
+**Not done:** listening comparison with the live synth; phase 6.
 

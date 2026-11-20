@@ -15,7 +15,6 @@ import '../services/media_transport.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
 import '../services/rendered_score_playback_service.dart';
-import '../services/sync_calibration.dart' show CalibrationResult;
 import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import '../services/video_shrinker.dart';
@@ -689,7 +688,7 @@ class _PickerAction {
 /// already playing moves playback there without stopping to count again.
 void playSelection(WidgetRef ref, PlaybackServiceBase service,
     {bool countIn = true}) {
-  final selection = ref.read(measureSelectionProvider);
+  final selection = ref.read(playedSelectionProvider);
   final end = _playEnd(ref);
   service.play(
     fromMeasure: ref.read(playbackStartMeasureProvider),
@@ -705,7 +704,7 @@ void playSelection(WidgetRef ref, PlaybackServiceBase service,
 /// Where Play stops: the selection's end, or — in [PlayMode.through], or
 /// with nothing selected — the end of the piece (a null measure).
 ({int? toMeasure, int toNote, int toIndex}) _playEnd(WidgetRef ref) {
-  final selection = ref.read(measureSelectionProvider);
+  final selection = ref.read(playedSelectionProvider);
   if (selection == null || ref.read(playModeProvider) == PlayMode.through) {
     return (toMeasure: null, toNote: -1, toIndex: -1);
   }
@@ -891,8 +890,13 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
             child: TempoPresetPicker(),
           ),
         ),
-        const _OutputPickerButton(
-            source: AudioSyncSource.score, compact: true),
+        // The rendered score plays through the recording player, so it shows
+        // (and calibrates) the recording delay.
+        _OutputPickerButton(
+            source: rendered != null
+                ? AudioSyncSource.recording
+                : AudioSyncSource.score,
+            compact: true),
       ],
     );
   }
@@ -1250,16 +1254,14 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
     ref.read(playbackServiceProvider).stop();
     final playback = ref.read(playbackServiceProvider);
     final media = ref.read(mediaPlaybackServiceProvider);
-    final r = await SyncCalibrator.calibrateAll(playback);
-    String line(String what, CalibrationResult x) => x.ok
-        ? '$what: ${(x.delaySeconds! * 1000).round()} ms '
-            '(${x.clicksHeard}/${x.clicksPlayed} clicks)'
-        : '$what failed: ${x.failure}';
+    final r = await SyncCalibrator.calibrate();
     if (mounted) {
       setState(() {
         _calibrating = false;
-        _message = '${line('Recordings', r.recording)}.\n'
-            '${line('Score', r.score)}.';
+        _message = r.ok
+            ? 'Sound delay: ${(r.delaySeconds! * 1000).round()} ms '
+                '(${r.clicksHeard}/${r.clicksPlayed} clicks).'
+            : 'Calibration failed: ${r.failure}.';
       });
     }
     // Only if the calibration had to re-apply the app's audio session do the
@@ -1323,8 +1325,9 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                     style: text.bodyMedium,
                   ),
                   const SizedBox(height: 8),
-                  // One tap calibrates both players on this speaker; each
-                  // gets its own delay (AudioOutput.calibratedDelayMs).
+                  // One tap calibrates the recording player on this speaker
+                  // (AudioOutput.calibratedDelayMs) — which the rendered
+                  // score plays through too.
                   Row(
                       children: [
                         FilledButton.tonalIcon(
@@ -1354,7 +1357,7 @@ class _AudioOutputSheetState extends ConsumerState<_AudioOutputSheet> {
                   const SizedBox(height: 4),
                   Text(
                     _calibrating
-                        ? 'Playing clicks — keep the room quiet for about 20 seconds.'
+                        ? 'Playing clicks — keep the room quiet for about 10 seconds.'
                         : _message ??
                             'Calibrate plays a few clicks and listens '
                                 'with the mic. Once per speaker.',

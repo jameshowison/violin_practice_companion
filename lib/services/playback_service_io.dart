@@ -156,7 +156,6 @@ class PlaybackService extends PlaybackServiceBase {
       await _midi.selectInstrument(
           sfId: _sfId!, channel: _channel, bank: 0, program: _program);
       _midiReady = true;
-      _resetsAtLoad = await _engineResets();
       _builtFor = _routeKey(await AudioOutput.fetchRoute());
     } catch (e) {
       // Playback stays disabled, but say so: a wrong soundfontAsset path once
@@ -165,79 +164,14 @@ class PlaybackService extends PlaybackServiceBase {
     }
   }
 
-  // The calibration click: claves from the General MIDI drum kit (bank 128),
-  // on a channel the score never uses — a sharp attack through the very
-  // synth path the notes take, where the violin's own attack is too soft to
-  // time.
-  static const _clickChannel = 9;
-  static const _clickKey = 75;
-  bool _clickReady = false;
-
-  // The synth's engines stop on an audio-session reconfiguration and
-  // flutter_midi_pro never restarts them (AudioCalibrationPlugin,
-  // `engineResets`). The count at load tells whether that has happened since.
   static const _nativeAudio =
       MethodChannel('violin_practice_companion/audio_calibration');
-  int? _resetsAtLoad;
-
-  static Future<int?> _engineResets() async {
-    try {
-      return await _nativeAudio.invokeMethod<int>('engineResets');
-    } catch (_) {
-      return null; // no such plugin on this platform: nothing to check
-    }
-  }
-
-  @override
-  Future<bool> prepareCalibrationClick() async {
-    // On a different speaker from the one it was built on, the synth is
-    // silent (see "Following the speaker"); rebuild before striking.
-    await _followSpeaker();
-    // A silent synth would strike every clave unheard and fail as "heard too
-    // few clicks". Check first, and reload it if its engines were stopped.
-    final now = await _engineResets();
-    final atLoad = _resetsAtLoad;
-    if (_midiReady && now != null && atLoad != null && now > atLoad) {
-      final msg = 'synth engines reconfigured ${now - atLoad}x since load; '
-          'reloading the soundfont';
-      debugPrint('[sync_cal] $msg');
-      _nativeAudio.invokeMethod<void>('mark', msg).catchError((_) {});
-      await restartAudio();
-      if (!_midiReady) return false;
-    }
-    final id = _sfId;
-    if (!_midiReady || id == null) return false;
-    if (!_clickReady) {
-      try {
-        await _midi.selectInstrument(
-            sfId: id, channel: _clickChannel, bank: 128, program: 0);
-        _clickReady = true;
-      } catch (e) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  @override
-  void strikeCalibrationClick() {
-    final id = _sfId;
-    if (!_clickReady || id == null) return;
-    _midi.playNote(
-        sfId: id, channel: _clickChannel, key: _clickKey, velocity: 127);
-    Future<void>.delayed(const Duration(milliseconds: 80), () {
-      if (_sfId == id) {
-        _midi.stopNote(sfId: id, channel: _clickChannel, key: _clickKey);
-      }
-    });
-  }
 
   /// flutter_midi_pro's engines don't restart themselves after an audio
   /// session change, so the synth would go silent: load it afresh.
   @override
   Future<void> restartAudio() async {
     _midiReady = false;
-    _clickReady = false;
     final id = _sfId;
     _sfId = null;
     if (id != null) {
