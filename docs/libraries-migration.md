@@ -44,31 +44,38 @@ Rules that follow from it:
   revisited, and an `analysis_options.yaml` that includes
   `package:lints/recommended.yaml`.
 
-## The four commits of an extraction
+## The three commits of an extraction
 
 1. **Safety net.** Before anything moves, pin today's behaviour in a snapshot
    test. For musicxml_tools, that is every bundled piece parsed, plus its
    fingerings and the output of each repair or injector. For score_sync, it is
-   the synthetic alignment anchors. Each of the next three commits must leave
-   the snapshot identical.
+   the synthetic alignment anchors. Each of the next commits must leave the
+   snapshot identical. The two that exist: `test/migration_snapshot_test.dart`
+   (every bundled score and OMR fixture through every MusicXML stage) and
+   `test/alignment_snapshot_test.dart` (four bundled scores, synthesized and
+   aligned, to full double precision).
 2. **Seam, in the app.** Cut whatever stops the files from being a library,
    without moving them:
    - a Flutter import
    - a `rootBundle` read (the data becomes a parameter, and the app does the
      loading)
    - an app field on a library type
-3. **Move.** `git mv` the files into `packages/<lib>/lib/src/` and leave a
-   one-line re-export shim at each old path, so this commit is a pure rename
-   (`git log --follow` must show it as one). The tests that move switch from
-   `flutter_test` to `package:test`.
+3. **Move and rewrite, in one commit.** `git mv` the files into
+   `packages/<lib>/lib/src/`, and point the app's imports at the library's
+   barrel file. Don't leave re-export shims at the old paths: a file that
+   still exists at its old path stops git from recording the move as a
+   rename. Check `git diff --cached -M --name-status`: every moved file should
+   be an `R`. The rewrite is a script that resolves each import (relative or
+   `package:`) and swaps those that land on a moved file. The tests that move
+   switch from `flutter_test` to `package:test`.
    - Tests that need app files or bundled assets stay in the app as
      integration tests.
    - Tests that need the restricted checkout must skip without it, as they do
      in the app today.
-4. **Import rewrite.** Point the app's imports at the library's barrel file
-   and delete the shims. This is a mechanical substitution. Never use
-   `dart format`: this repo isn't formatted, and a formatter turns a
-   three-line change into hundreds (CLAUDE.md smell #5).
+   - Never use `dart format`: this repo isn't formatted, and a formatter
+     turns a three-line change into hundreds (CLAUDE.md smell #5).
+   - zsh doesn't split an unquoted `$FILES`, so a loop or `sed` over a list
+     of files sees a single argument. Run such scripts under `bash -c`.
 
 ## Branches and merging
 
@@ -100,10 +107,53 @@ Rules that follow from it:
 | Step | What | State |
 |---|---|---|
 | 0 | Workspace root, `scripts/test_all.sh`, unused codegen dependencies removed | done |
-| 1a | `musicxml_tools`: snapshot, `NoteAnnotation` seam, move | next |
-| 1b | `score_sync`: `ScoreTimeline` + `AlignmentProfile` seams, move, then an isolate | |
+| 1a | `musicxml_tools`: snapshot, `NoteAnnotation` seam, move | done |
+| 1b | `score_sync`: snapshot, `ScoreTiming` seam, move, alignment off the UI isolate | done |
 | 2 | `InstrumentProfile`, viola, Annotate | |
 | 3 | `pitch_tuner` (chromatic, transposition, drone mode), `<transpose>` | |
 | 4 | `score_view` | |
 | 5 | `audio_decoder`, `practice_core`, `apps/` | |
 | 6 | parts, staves, voices | |
+
+## How steps 1a and 1b came out
+
+Each was a snapshot commit, a seam commit and a move commit; 1b added
+background alignment after the move. Where they differ from
+`family/libraries.md`:
+
+- **`NoteEvent.annotation`, not a side map.** The note carries one opaque
+  `Object?` that the library never reads. The app's `NoteAnnotation`
+  (`lib/models/note_annotation.dart`) holds the fingering and the Jianpu.
+  Its `NoteAnnotations` extension gives back the old getters
+  (`note.fingerString`), so of 45 reads, none changed; only the writers did
+  (`withFingering`, `withJianpu`). A side map would have touched every
+  reader and every `copyWith`.
+- **Jianpu is split.** The digit math (`JianpuDigits`, with the key table
+  passed in) is in musicxml_tools. The pass that loads the table and
+  annotates the piece (`JianpuConverter`) stays in the app, because it writes
+  the app's annotation. `palette_xml_generator` stays in the app too: its
+  L/H colouring is violin logic.
+- **`pickupUnitsOf` went to musicxml_tools** (`pickup.dart`), because it
+  reads a `Measure`. The rest of the count-in math is pure, so it is in
+  score_sync.
+- **The aligner is generic: `ScoreAligner<S>`.** It is given a
+  `ScoreTiming<S>`, a function from a score and a tempo to a `TimedScore`.
+  It is not given a 60-bpm timeline to scale, because `MidiGenerator`'s
+  seconds at another tempo need not match a scaled timeline bit for bit, and
+  the snapshot would drift. The app's `MidiData` and `ScheduledNote` simply
+  implement `TimedScore` and `TimedNote`.
+  - The app's `AudioScoreAutoAligner` (`lib/services/piece_aligner.dart`) is
+    `ScoreAligner<ParsedPiece>` timed by `MidiGenerator`. It keeps
+    `alignPcm`, `alignmentReviewMessage` and `alignInBackground` (`compute`).
+  - Its call sites didn't change. The static passes are named on
+    `ScoreAligner`, because Dart doesn't inherit statics.
+- **`AlignmentProfile` is deferred to step 2.** The chroma band and
+  `onsetWeight` were already constructor parameters of the extractor and the
+  DTW; `ringSeconds` was the one the aligner hid, and it is now a parameter.
+  The profile that bundles all three belongs with `InstrumentProfile`.
+- **The anchor JSON codecs stayed in the app** (`media_alignment_store`,
+  `rendered_score_cache_io`), unchanged: they are persistence, and moving
+  them buys nothing yet.
+- **`MidiGenerator` kept its `rootBundle` read.** It stays in the app, so
+  nothing in a library depends on it.
+- **The app lost its direct `fftea` dependency**; score_sync has it.

@@ -1,6 +1,9 @@
-import 'package:musicxml_tools/musicxml_tools.dart';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:score_sync/score_sync.dart';
+
 import 'audio_decoder_base.dart' show PcmAudio;
 import 'midi_generator.dart';
 
@@ -10,12 +13,24 @@ import 'midi_generator.dart';
 /// The aligner's static passes ([ScoreAligner.heldBarlines] and the rest) are
 /// on [ScoreAligner]; Dart doesn't inherit statics.
 class AudioScoreAutoAligner extends ScoreAligner<ParsedPiece> {
+  final MidiGenerator _generator;
+
+  /// Whether this aligner can be rebuilt in another isolate as it is: only
+  /// the generator travels, so a custom extractor or DTW (a test's) can't.
+  final bool _defaultParts;
+
   AudioScoreAutoAligner({
     MidiGenerator? midiGenerator,
     AudioChromaExtractor? extractor,
     DtwAligner? dtw,
-  }) : super(
-          timing: _timingOf(midiGenerator ?? MidiGenerator()),
+  }) : this._with(
+            midiGenerator ?? MidiGenerator(), extractor, dtw,
+            extractor == null && dtw == null);
+
+  AudioScoreAutoAligner._with(this._generator, AudioChromaExtractor? extractor,
+      DtwAligner? dtw, this._defaultParts)
+      : super(
+          timing: _timingOf(_generator),
           extractor: extractor,
           dtw: dtw,
         );
@@ -37,6 +52,48 @@ class AudioScoreAutoAligner extends ScoreAligner<ParsedPiece> {
         contentStartSeconds: contentStartSeconds,
         contentEndSeconds: contentEndSeconds,
       );
+
+  /// [align] (WAV bytes) or [alignPcm] off the UI isolate, so a long
+  /// recording doesn't freeze the screen while it aligns: the DTW is seconds
+  /// of CPU on a phone. Give exactly one of [wavBytes] and [pcm]. The result
+  /// is the same as on this isolate; the piece and the audio are copied over.
+  Future<AutoAlignmentResult> alignInBackground(
+    ParsedPiece piece, {
+    Uint8List? wavBytes,
+    PcmAudio? pcm,
+    double? contentStartSeconds,
+    double? contentEndSeconds,
+  }) {
+    assert((wavBytes == null) != (pcm == null), 'Give wavBytes or pcm');
+    assert(_defaultParts, 'Only the generator is rebuilt in the isolate');
+    return compute(_alignJob, (
+      generator: _generator,
+      piece: piece,
+      wavBytes: wavBytes,
+      pcm: pcm,
+      start: contentStartSeconds,
+      end: contentEndSeconds,
+    ));
+  }
+
+  // Static, so the isolate's closure carries only the job, not this object.
+  static AutoAlignmentResult _alignJob(
+      ({
+        MidiGenerator generator,
+        ParsedPiece piece,
+        Uint8List? wavBytes,
+        PcmAudio? pcm,
+        double? start,
+        double? end,
+      }) job) {
+    final aligner = AudioScoreAutoAligner(midiGenerator: job.generator);
+    final wav = job.wavBytes;
+    return wav != null
+        ? aligner.align(job.piece, wav,
+            contentStartSeconds: job.start, contentEndSeconds: job.end)
+        : aligner.alignPcm(job.piece, job.pcm!,
+            contentStartSeconds: job.start, contentEndSeconds: job.end);
+  }
 }
 
 /// Suggested message for the UI to show when [AutoAlignmentResult.hasCompressedAnchors]

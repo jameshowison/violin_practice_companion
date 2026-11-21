@@ -527,9 +527,9 @@ class MediaPlaybackService extends PlaybackServiceBase {
     final aligner = AudioScoreAutoAligner(midiGenerator: generator);
     try {
       if (analysis.isWav) {
-        return aligner.align(
+        return await aligner.alignInBackground(
           piece,
-          await readMediaBytes(analysis),
+          wavBytes: await readMediaBytes(analysis),
           contentStartSeconds: media.contentStartSeconds,
           contentEndSeconds: media.contentEndSeconds,
         );
@@ -540,9 +540,9 @@ class MediaPlaybackService extends PlaybackServiceBase {
           : await _decoder.decodeBytes(await readMediaBytes(analysis),
               extension: analysis.extension);
       if (pcm == null || pcm.samples.isEmpty) return null;
-      return aligner.alignPcm(
+      return await aligner.alignInBackground(
         piece,
-        pcm,
+        pcm: pcm,
         contentStartSeconds: media.contentStartSeconds,
         contentEndSeconds: media.contentEndSeconds,
       );

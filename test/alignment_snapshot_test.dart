@@ -59,6 +59,18 @@ String _result(AutoAlignmentResult r) => [
     ].join('\n');
 
 void main() {
+  test('alignInBackground gives exactly what aligning here gives', () async {
+    final generator = MidiGenerator.forTest();
+    final aligner = AudioScoreAutoAligner(midiGenerator: generator);
+    final piece = MusicXmlParser()
+        .parse(File(scorePath('lightly_row')).readAsStringSync());
+    final audio = _synth(generator.generate(piece, 60));
+    final here = aligner.alignPcm(piece, audio, contentStartSeconds: _leadIn);
+    final there = await aligner.alignInBackground(piece,
+        pcm: audio, contentStartSeconds: _leadIn);
+    expect(_result(there), _result(here));
+  });
+
   test('bundled scores align exactly as the snapshot says', () {
     final generator = MidiGenerator.forTest();
     final aligner = AudioScoreAutoAligner(midiGenerator: generator);

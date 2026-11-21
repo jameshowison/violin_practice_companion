@@ -103,7 +103,7 @@ class _RecordTeacherDemoScreenState
       }
       final aligner =
           AudioScoreAutoAligner(midiGenerator: ref.read(midiGeneratorProvider));
-      final aligned = aligner.alignPcm(parsed, pcm);
+      final aligned = await aligner.alignInBackground(parsed, pcm: pcm);
       if (!mounted) return;
 
       if (aligned.hasCompressedAnchors) {
