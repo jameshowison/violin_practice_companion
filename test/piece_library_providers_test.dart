@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:violin_practice_companion/services/instrument_layer_store.dart';
 import 'package:violin_practice_companion/services/scan_source_store_io.dart';
 import 'package:violin_practice_companion/services/abc_source_store_io.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,6 +43,8 @@ void main() {
           PieceRepository(storage: PieceStorage(root: root))),
       scanSourceStoreProvider.overrideWithValue(ScanSourceStore(root: root)),
       abcSourceStoreProvider.overrideWithValue(AbcSourceStore(root: root)),
+      instrumentLayerStoreProvider
+          .overrideWithValue(InstrumentLayerStore(root: root)),
     ]);
     addTearDown(container.dispose);
     return container;

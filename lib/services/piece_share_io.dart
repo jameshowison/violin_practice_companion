@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/piece.dart';
 import '../models/piece_media.dart';
 import '../models/section.dart';
+import 'instrument_layer_store.dart';
 import 'piece_media_store.dart';
 import 'piece_repository.dart';
 import 'piece_share_bundle.dart';
@@ -121,6 +122,14 @@ class PieceShareIo {
               'sections': [for (final s in sections) s.toJson()],
             })));
       }
+      final layers = InstrumentLayerStore(root: docs);
+      for (final id in await layers.instrumentsOf(pieceId)) {
+        encoder.addArchiveFile(ArchiveFile.string(
+            '$kShareLayersDir/$id.json',
+            jsonEncode({
+              'stringChoices': await layers.stringChoices(pieceId, id),
+            })));
+      }
       final kept = {
         for (final m in media)
           for (final r in [m.audio, m.analysis, m.video])
@@ -188,8 +197,23 @@ class PieceShareIo {
           ];
         } catch (_) {}
       }
+      final layers = <String, Map<String, int>>{};
+      final layersDir = Directory('${dir.path}/$kShareLayersDir');
+      if (await layersDir.exists()) {
+        await for (final f in layersDir.list()) {
+          final name = f.uri.pathSegments.last;
+          if (f is! File || !name.endsWith('.json')) continue;
+          try {
+            final j = jsonDecode(await f.readAsString()) as Map;
+            layers[name.substring(0, name.length - '.json'.length)] = {
+              for (final e in (j['stringChoices'] as Map).entries)
+                '${e.key}': (e.value as num).toInt(),
+            };
+          } catch (_) {}
+        }
+      }
       return OpenedShare._(
-          manifest, await scoreFile.readAsString(), sections, dir);
+          manifest, await scoreFile.readAsString(), sections, layers, dir);
     } on FormatException {
       await _deleteQuietly(dir);
       rethrow;
@@ -259,6 +283,16 @@ class PieceShareIo {
       if (share.sections.isNotEmpty) {
         await repo.saveSections(pieceId, share.sections);
       }
+    }
+    // The sender's instrument layers: taken whole with a new or replaced
+    // score, and only where this device has made no choice of its own when
+    // the score was already the same.
+    final layers = InstrumentLayerStore(root: docs);
+    for (final MapEntry(key: id, value: incoming) in share.layers.entries) {
+      final mine = action == ShareScoreAction.keep
+          ? await layers.stringChoices(pieceId, id)
+          : const <String, int>{};
+      await layers.setStringChoices(pieceId, id, {...incoming, ...mine});
     }
 
     final store = PieceMediaStore();
@@ -347,11 +381,15 @@ class PieceShareIo {
 
 /// A share file unpacked to a temp folder.
 class OpenedShare {
-  OpenedShare._(this.manifest, this.musicXml, this.sections, this._dir);
+  OpenedShare._(
+      this.manifest, this.musicXml, this.sections, this.layers, this._dir);
 
   final PieceShareManifest manifest;
   final String musicXml;
   final List<Section> sections;
+
+  /// String choices per instrument layer, as the sender had them.
+  final Map<String, Map<String, int>> layers;
   final Directory _dir;
 
   Future<void> dispose() => PieceShareIo._deleteQuietly(_dir);

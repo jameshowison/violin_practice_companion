@@ -9,6 +9,8 @@
 /// score.musicxml         the piece as the sender plays it (always sent,
 ///                        even for a bundled piece — see [bundled])
 /// sections.json          {"sections": [...]}, when the piece has any
+/// instrument_layers/<instrumentId>.json  {"stringChoices": {...}}, each
+///                        instrument layer the piece has (`InstrumentLayerStore`)
 /// media/<mediaId>/<file> each shared recording's files
 /// ```
 ///
@@ -33,6 +35,7 @@ const int kShareBundleFormat = 1;
 const String kShareManifestName = 'bundle.json';
 const String kShareScoreName = 'score.musicxml';
 const String kShareSectionsName = 'sections.json';
+const String kShareLayersDir = 'instrument_layers';
 
 /// The `display.<name>.<pieceId>` settings that travel with a piece — the same
 /// two the dev library carries (`devLibrarySyncedDisplay`): how its numbers

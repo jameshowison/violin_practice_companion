@@ -6,6 +6,8 @@ import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/section.dart';
 import 'chord_editor.dart';
 import 'fingering_mapper.dart';
+import 'instrument_layer_store.dart';
+import 'string_choice_migration.dart';
 import 'tuplet_editor.dart';
 import 'providers.dart';
 
@@ -245,7 +247,12 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     final keyChange = isFirst ? parsed.keyAt(0) : measure.keyChange;
     // Repair the chord invariant up front — OMR output can carry a stray
     // leading <chord/> or a member whose duration drifted from its primary.
-    final notes = ChordEditor.normalize(measure.notes);
+    // The bar's string choices live in the instrument layer, not the score;
+    // the editor holds them on its notes, as a 0 or 4 `scoreFinger`, while
+    // the bar is open (see [save]).
+    final notes = StringChoiceMigration.withChoices(
+        ChordEditor.normalize(measure.notes),
+        _choicesOf(measure.number));
     final sections = List<Section>.of(piece.sections);
     state = MeasureEditSession(
       pieceId: piece.id,
@@ -290,6 +297,19 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     if (!redraft) return;
     _draftTimer?.cancel();
     _draftTimer = Timer(draftDelay, _publishDraft);
+  }
+
+  /// Measure [measureNumber]'s string choices in the instrument layer, by
+  /// note index.
+  Map<int, int> _choicesOf(int measureNumber) {
+    final all = _ref.read(stringChoicesProvider).valueOrNull ?? const {};
+    return {
+      for (final e in all.entries)
+        if (InstrumentLayerStore.measureOf(e.key) == measureNumber)
+          if (int.tryParse(e.key.substring(e.key.indexOf(':') + 1))
+              case final i?)
+            i: e.value,
+    };
   }
 
   /// [notes], edited on the instrument's view, as they belong in the source.
@@ -695,8 +715,13 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
             : MeasureXmlEditor.setKeyChange(xml, s.measureNumber, f);
       }
       if (s.notesChanged || s.repeatsChanged) {
+        // The score gets the notes without their string choices; the choices
+        // go to the instrument layer below.
         xml = MeasureXmlEditor.replaceMeasureNotes(
-            xml, s.measureNumber, _toSource(s.notes), parsed.divisions);
+            xml,
+            s.measureNumber,
+            _toSource(StringChoiceMigration.withoutChoices(s.notes)),
+            parsed.divisions);
         xml = MeasureXmlEditor.setMeasureRepeats(xml, s.measureNumber,
             start: s.repeatStart, end: s.repeatEnd);
       }
@@ -713,6 +738,20 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       }
       // Materializes a writable copy on a bundled fixture's first edit, so the
       // returned piece is always file-backed.
+      // The layer first: if the score write fails after it, the bar keeps
+      // its old notes and a harmless choice, rather than losing the choice.
+      if (s.notesChanged) {
+        final layers = _ref.read(instrumentLayerStoreProvider);
+        final layer = _ref.read(instrumentProfileProvider).layerId;
+        await layers.setStringChoices(
+            piece.id,
+            layer,
+            InstrumentLayerStore.withMeasure(
+                await layers.stringChoices(piece.id, layer),
+                s.measureNumber,
+                StringChoiceMigration.ofNotes(s.notes)));
+        _ref.invalidate(stringChoicesProvider);
+      }
       final updated = await repo.writeEditedMusicXml(piece, xml);
       await repo.saveSections(piece.id, s.sectionStarts);
       _draftTimer?.cancel();

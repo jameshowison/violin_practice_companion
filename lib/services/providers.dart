@@ -3,6 +3,7 @@ import 'dart:async' show scheduleMicrotask, unawaited;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
 import '../models/instrument_profile.dart';
+import 'instrument_layer_store.dart';
 import 'instrument_view.dart';
 import 'package:score_sync/score_sync.dart';
 import '../models/tempo_presets.dart';
@@ -58,7 +59,7 @@ import 'launch_timing.dart';
 // ── Singletons ────────────────────────────────────────────────────────────────
 
 final pieceRepositoryProvider = Provider<PieceRepository>(
-  (_) => PieceRepository(),
+  (ref) => PieceRepository(layers: ref.watch(instrumentLayerStoreProvider)),
 );
 
 final musicXmlParserProvider = Provider<MusicXmlParser>(
@@ -262,6 +263,7 @@ class LibraryActions {
     await _ref.read(mediaActionsProvider).deleteAllFor(pieceId);
     await _ref.read(scanSourceStoreProvider).delete(pieceId);
     await _ref.read(abcSourceStoreProvider).delete(pieceId);
+    await _ref.read(instrumentLayerStoreProvider).delete(pieceId);
     await _ref.read(libraryProvider.notifier).forgetPiece(pieceId);
     _ref.read(pieceActivityProvider.notifier).forget(pieceId);
     if (_ref.read(selectedPieceProvider)?.id == pieceId) {
@@ -369,6 +371,20 @@ final pieceViewXmlProvider = FutureProvider<String?>((ref) async {
   return view.apply(xml);
 });
 
+final instrumentLayerStoreProvider =
+    Provider<InstrumentLayerStore>((_) => InstrumentLayerStore());
+
+/// The selected piece's string choices in its instrument's layer
+/// (`InstrumentLayerStore`). Read by [parsedPieceProvider] only after the
+/// score has loaded, which is when choices still in an older score are moved
+/// out into the layer (`PieceRepository.loadMusicXml`).
+final stringChoicesProvider = FutureProvider<Map<String, int>>((ref) async {
+  final piece = ref.watch(selectedPieceProvider);
+  if (piece == null) return const {};
+  final layer = ref.watch(instrumentProfileProvider).layerId;
+  return ref.watch(instrumentLayerStoreProvider).stringChoices(piece.id, layer);
+});
+
 // ── Parsed piece (loads + parses + converts on piece selection) ───────────────
 
 /// The selected piece as its instrument reads it ([pieceViewXmlProvider]),
@@ -386,10 +402,19 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
 
   final xml = await ref.watch(pieceViewXmlProvider.future);
   if (xml == null) return null;
+  var choices = await ref.watch(stringChoicesProvider.future);
+  // A bar open in the measure editor carries its choices on its own notes
+  // (the draft), and those are the ones to show while it is edited.
+  final draft = ref.watch(measureDraftProvider);
+  if (draft != null && draft.notes != null && draft.pieceId == piece.id) {
+    choices = InstrumentLayerStore.withMeasure(
+        choices, draft.measureNumber, const {});
+  }
   final parsed = parser.parse(xml);
   final withJianpu = jianpu.convert(parsed);
   final withFingering = fingering.map(withJianpu,
-      preference: ref.watch(violinStringPreferenceProvider));
+      preference: ref.watch(violinStringPreferenceProvider),
+      choices: choices);
   return withFingering;
 });
 

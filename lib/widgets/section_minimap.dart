@@ -455,6 +455,11 @@ class MeasureActions extends ConsumerWidget {
       final sections =
           sectionsAfterMeasureDelete(piece.sections, measureNumber);
       await repo.saveSections(piece.id, sections);
+      // So do the instrument layers' choices, which are keyed by bar.
+      await ref
+          .read(instrumentLayerStoreProvider)
+          .afterMeasureDelete(piece.id, measureNumber);
+      ref.invalidate(stringChoicesProvider);
       ref.read(selectedPieceProvider.notifier).state =
           updated.copyWith(sections: sections);
       // The selected bar no longer exists (and the numbers around it moved).

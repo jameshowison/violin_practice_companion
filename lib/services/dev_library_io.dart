@@ -21,6 +21,7 @@ const List<String> devLibrarySyncedFolders = [
   'scan_sources',
   'abc_sources',
   'source_originals',
+  'instrument_layers',
 ];
 
 /// The per-piece display settings a dev library carries

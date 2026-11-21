@@ -24,9 +24,11 @@ class FingeringMapper {
   /// Fingers each note from the first-position table. On the notes with a
   /// choice ([hasFourthFingerChoice]), the first of these that applies wins:
   ///
-  /// 1. The note's own `<fingering>` of 0 or 4 ([NoteEvent.scoreFinger]) —
-  ///    printed in the score, or set in the measure editor, which writes it
-  ///    back the same way. Any other number there is ignored.
+  /// 1. The violin layer's choice for the note ([choices], keyed
+  ///    `<measure>:<index>`; see `InstrumentLayerStore`), else the note's own
+  ///    `<fingering>` of 0 or 4 ([NoteEvent.scoreFinger]): a score shared
+  ///    before choices left the score, or the measure editor's unsaved bar.
+  ///    Any other number there is ignored.
   /// 2. Under [ViolinStringPreference.auto], the 4th finger when the note is
   ///    a neighbour note on the string below ([_fourthByContext]).
   /// 3. A tied continuation without its own follows the note it holds.
@@ -34,7 +36,8 @@ class FingeringMapper {
   ///
   /// [preference] is the piece's setting (`violinStringPreferenceProvider`).
   ParsedPiece map(ParsedPiece piece,
-      {ViolinStringPreference preference = ViolinStringPreference.auto}) {
+      {ViolinStringPreference preference = ViolinStringPreference.auto,
+      Map<String, int> choices = const {}}) {
     assert(_fingeringTable != null, 'Call init() before map()');
     final notes = _fingeringTable!['notes'] as Map<String, dynamic>;
     final byContext = preference == ViolinStringPreference.auto
@@ -49,8 +52,9 @@ class FingeringMapper {
     final newMeasures = [
       for (final measure in piece.measures)
         measure.copyWithNotes([
-          for (final note in measure.notes)
+          for (var i = 0; i < measure.notes.length; i++)
             () {
+              final note = measure.notes[i];
               if (note.isRest) return note;
               final entry =
                   notes[note.midiNumber.toString()] as Map<String, dynamic>?;
@@ -61,7 +65,9 @@ class FingeringMapper {
               final alt = entry['alt'] as Map<String, dynamic>?;
 
               if (alt != null) {
-                final wantFourth = switch (note.scoreFinger) {
+                final pinned =
+                    choices['${measure.number}:$i'] ?? note.scoreFinger;
+                final wantFourth = switch (pinned) {
                   4 => true,
                   0 => false,
                   _ when note.tieStop &&

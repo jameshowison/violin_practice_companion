@@ -10,6 +10,7 @@ import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/piece_media_store.dart';
 import 'package:violin_practice_companion/services/piece_repository.dart';
 import 'package:violin_practice_companion/services/piece_share_bundle.dart';
+import 'package:violin_practice_companion/services/instrument_layer_store.dart';
 import 'package:violin_practice_companion/services/piece_share_io.dart';
 import 'package:violin_practice_companion/services/piece_storage_io.dart';
 
@@ -238,6 +239,8 @@ void main() {
       await prefs.setString('display.numbers.tune_1', 'fingers');
       await writeFile(sender, 'media/tune_1/demo_1/audio.wav', 1000);
       await writeFile(sender, 'media/tune_1/demo_1/video.mp4', 5000);
+      await InstrumentLayerStore(root: sender)
+          .setStringChoices('tune_1', 'violin', {'3:1': 4});
       final io = PieceShareIo(docs: sender, temp: temp);
       final choices = [
         ShareMediaChoice(demo('tune_1', 'demo_1'), includeVideo: includeVideo)
@@ -315,6 +318,22 @@ void main() {
       expect(prefs.getString('mediaAlignment.media:tune_1:demo_1'),
           '{"anchors":[]}');
       expect(prefs.getString('display.numbers.tune_1'), 'fingers');
+      expect(
+          await InstrumentLayerStore(root: receiver)
+              .stringChoices('tune_1', 'violin'),
+          {'3:1': 4});
+    });
+
+    test('sharing the same piece again keeps the receiver\'s own choices',
+        () async {
+      final path = await exportFromSender();
+      await importOnReceiver(path);
+      final layers = InstrumentLayerStore(root: receiver);
+      await layers.setStringChoices('tune_1', 'violin', {'3:1': 0, '5:2': 4});
+      final pieces = await PieceStorage(root: receiver).loadScannedPieces();
+      await importOnReceiver(path, pieces: pieces);
+      expect(await layers.stringChoices('tune_1', 'violin'),
+          {'3:1': 0, '5:2': 4});
     });
 
     test('sharing the same piece again adds nothing', () async {

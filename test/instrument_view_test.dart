@@ -13,6 +13,7 @@ import 'support/bundled_scores.dart';
 const _viola = InstrumentProfile(
   id: 'viola',
   displayName: 'Viola',
+  layerId: 'viola',
   clef: altoClef,
   lowestMidi: 48,
   highestMidi: 76,

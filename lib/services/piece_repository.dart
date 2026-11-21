@@ -1,23 +1,29 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import '../models/instrument_profile.dart';
 import '../models/piece.dart';
 import '../models/piece_catalog.dart';
 import '../models/section.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'launch_timing.dart';
+import 'instrument_layer_store.dart';
 import 'piece_storage.dart';
+import 'string_choice_migration.dart';
 import 'section_detector.dart';
 
 class PieceRepository {
   /// [storage] is injectable so the persistence layer can be exercised in tests
   /// against a temp directory (see `test/piece_storage_io_test.dart`); production
   /// takes the platform default via the `piece_storage.dart` conditional import.
-  PieceRepository({PieceStorage? storage, AssetBundle? bundle})
+  PieceRepository(
+      {PieceStorage? storage, AssetBundle? bundle, InstrumentLayerStore? layers})
       : _storage = storage ?? PieceStorage(),
-        _bundle = bundle ?? rootBundle;
+        _bundle = bundle ?? rootBundle,
+        _layers = layers ?? InstrumentLayerStore();
 
   final PieceStorage _storage;
   final AssetBundle _bundle;
+  final InstrumentLayerStore _layers;
 
   // What ships, and where it comes from, is assets/library/catalog.json — see
   // [PieceCatalog]. Two of its pieces are there for what they exercise, not
@@ -164,7 +170,18 @@ class PieceRepository {
     }
     final filePath = piece.musicXmlFilePath!;
     final raw = await _storage.readScannedMusicXml(filePath);
-    final repaired = repair(raw);
+    var repaired = repair(raw);
+    // Open-string / 4th-finger choices leave the score for the violin layer
+    // (docs/family/layers.md). The layer is written first, so an interruption
+    // leaves the choice in both places, never in neither; a choice already in
+    // the layer is newer and stays.
+    final moved = StringChoiceMigration.extract(repaired);
+    if (moved.choices.isNotEmpty) {
+      final layer = await _layers.stringChoices(piece.id, InstrumentProfile.violin.layerId);
+      await _layers.setStringChoices(
+          piece.id, InstrumentProfile.violin.layerId, {...moved.choices, ...layer});
+      repaired = repair(moved.xml);
+    }
     if (repaired != raw) {
       await updateScannedPiece(filePath, repaired);
     }

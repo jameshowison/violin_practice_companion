@@ -173,7 +173,15 @@ cleared`); those remain source data.
    - The editor reads and writes through the inverse, which is the identity
      for now.
    - The migration snapshot must not move.
-2. **Instrument overrides out of the score.**
+2. **Instrument overrides out of the score.** *Done 2026-11-21:*
+   `InstrumentLayerStore` (`instrument_layers/<pieceId>.<instrument>.json`,
+   choices keyed `<measure>:<index>`), `StringChoiceMigration` (run on open
+   in `PieceRepository.loadMusicXml`, layer written before the score), the
+   editor holding a bar's choices on its notes and saving them to the layer,
+   bar deletes renumbering the keys, shares and the dev library carrying the
+   folder. Decided: every 0/4 on D4, A4 and E5 moves, the app's and a scan's
+   alike. On `dev-iphone-se` Happy Farmer's 19 choices moved and its 112
+   notes finger exactly as before.
    - On first launch, the `<fingering>` 0/4 that the app itself wrote (on
      D4, A4 and E5) move into the violin overrides.
    - The score keeps any fingering it came with. To tell them apart, the
