@@ -175,10 +175,11 @@ reinstalls the app (wiping its own dirs), so push corpora to `/data/local/tmp/�
 `chmod -R a+rX` it, and pass that path (see `integration_test/title_recognition_test.dart`).
 
 **What's native on Android** (`android/app/src/main/kotlin/…`, registered by hand
-in `MainActivity.kt`): `AudioDecoderPlugin` (MediaCodec), `ContentResolverPlugin`
+in `MainActivity.kt`): `MediaToolsPlugin` (video shrink, AAC encode), `ContentResolverPlugin`
 (content:// scans), `IncomingSharePlugin` (a
 `.stringlings` file opened in the app), `BundledAssetPlugin` (a bundled asset as a
-real file path, copied out of the APK). **Still iOS-only**, and the Dart
+real file path, copied out of the APK). The decoder (MediaCodec) is the
+`packages/audio_decoder` plugin, registered by Flutter's generated registrant. **Still iOS-only**, and the Dart
 side degrades on `MissingPluginException`: `AudioRoutePlugin` and
 `AudioCalibrationPlugin` — both need a physical Android phone to build against.
 Scan titles are read in Dart on both platforms (homr_flutter's `TextReader`,
