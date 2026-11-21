@@ -11,6 +11,7 @@ import 'package:violin_practice_companion/debug/screenshot_mode.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
 import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart';
 import 'package:violin_practice_companion/services/drone_player.dart';
+import 'package:violin_practice_companion/models/app_edition.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
@@ -208,6 +209,7 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(sp),
           tunerInputFactoryProvider.overrideWithValue(() => fake),
           dronePlayerFactoryProvider.overrideWithValue(() => drone),
+          if (mandolin) appEditionProvider.overrideWithValue(AppEdition.mandolin),
         ],
         child: const MaterialApp(home: TunerScreen()),
       ));

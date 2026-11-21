@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pitch_tuner/pitch_tuner.dart';
 
 import '../build_info.dart';
+import '../models/app_edition.dart';
 import '../models/violin_string_palette.dart';
 import '../services/drone_player.dart';
 import '../services/instrument_setting.dart';
@@ -726,7 +727,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                       _Mic.denied => _Message(
                           key: const ValueKey('tuner_mic_denied'),
                           text: 'The tuner needs the microphone to hear your strings. '
-                              'Allow it for Stringlings in Settings, then come back.',
+                              'Allow it for ${ref.read(appEditionProvider).appName} in Settings, then come back.',
                           action: 'Try again',
                           onAction: _start,
                           secondary: 'Back to playing',

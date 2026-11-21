@@ -115,17 +115,34 @@ Future<void> showPlayerSwitcher(BuildContext context,
   );
 }
 
-/// [player]'s instrument, read under their own key.
+/// [player]'s instrument, read under their own key, as this edition reads it.
 String _instrumentName(WidgetRef ref, Player player, List<Player> players) {
   final prefs = ref.read(sharedPreferencesProvider);
   final stored =
       prefs?.getString(playerKey(instrumentSetKeyBase, player, players));
-  return switch (stored) {
-    'viola' => 'Viola',
-    'mandolin' || 'violinAndMandolin' => 'Mandolin',
-    _ => 'Violin',
+  return switch (instrumentFromStored(stored, ref.read(instrumentsOfferedProvider))) {
+    InstrumentSet.violin => 'Violin',
+    InstrumentSet.viola => 'Viola',
+    InstrumentSet.mandolin => 'Mandolin',
   };
 }
+
+/// The instrument choices (Settings, a new player): the edition's
+/// [instrumentsOfferedProvider], each with what it turns on. With only one on
+/// offer (the mandolin app) there is nothing to choose, and callers hide it.
+List<Widget> instrumentChoiceTiles(List<InstrumentSet> offered, {String keyPrefix = ''}) => [
+      for (final set in offered)
+        RadioListTile<InstrumentSet>(
+          key: keyPrefix.isEmpty ? null : ValueKey('$keyPrefix${set.name}'),
+          value: set,
+          dense: true,
+          title: Text(switch (set) {
+            InstrumentSet.violin => 'Violin',
+            InstrumentSet.viola => 'Viola: alto clef, C G D A',
+            InstrumentSet.mandolin => 'Mandolin: frets, tab, chords',
+          }),
+        ),
+    ];
 
 /// Public for Settings' list.
 String instrumentNameOf(WidgetRef ref, Player player, List<Player> players) =>
@@ -152,7 +169,7 @@ class _AddPlayerSheet extends ConsumerStatefulWidget {
 class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
   final _name = TextEditingController();
   late int _colour;
-  var _instrument = InstrumentSet.violin;
+  late var _instrument = ref.read(instrumentsOfferedProvider).first;
 
   @override
   void initState() {
@@ -197,6 +214,7 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final taken = _taken();
+    final offered = ref.watch(instrumentsOfferedProvider);
     final preview = Player(
         id: '_',
         name: _name.text.isEmpty ? '?' : _name.text,
@@ -254,26 +272,19 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
                 ),
               ),
           ]),
-          const SizedBox(height: 16),
-          Text('Instrument', style: theme.textTheme.labelLarge),
-          RadioGroup<InstrumentSet>(
-            groupValue: _instrument,
-            onChanged: (v) {
-              if (v != null) setState(() => _instrument = v);
-            },
-            child: const Column(children: [
-              RadioListTile<InstrumentSet>(
-                  value: InstrumentSet.violin, dense: true, title: Text('Violin')),
-              RadioListTile<InstrumentSet>(
-                  value: InstrumentSet.viola,
-                  dense: true,
-                  title: Text('Viola: alto clef, C G D A')),
-              RadioListTile<InstrumentSet>(
-                  value: InstrumentSet.mandolin,
-                  dense: true,
-                  title: Text('Mandolin: frets, tab, chords')),
-            ]),
-          ),
+          if (offered.length > 1) ...[
+            const SizedBox(height: 16),
+            Text('Instrument', style: theme.textTheme.labelLarge),
+            RadioGroup<InstrumentSet>(
+              groupValue: _instrument,
+              onChanged: (v) {
+                if (v != null) setState(() => _instrument = v);
+              },
+              child: Column(
+                  key: const ValueKey('add_player_instrument'),
+                  children: instrumentChoiceTiles(offered)),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(children: [
             Expanded(

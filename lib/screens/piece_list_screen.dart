@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
+import '../models/app_edition.dart';
 import '../models/piece.dart';
 import '../models/piece_filter.dart';
 import '../models/piece_library.dart';
@@ -237,11 +238,11 @@ class _HomeButton extends ConsumerWidget {
 }
 
 /// The icon and the app's name, top left of the tablet piece list.
-class _AppBadge extends StatelessWidget {
+class _AppBadge extends ConsumerWidget {
   const _AppBadge();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 12),
@@ -251,7 +252,7 @@ class _AppBadge extends StatelessWidget {
           const SizedBox(width: 10),
           Flexible(
             child: Text(
-              'Stringlings',
+              ref.watch(appEditionProvider).appName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium

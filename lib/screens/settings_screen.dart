@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/app_edition.dart';
 import '../services/instrument_setting.dart';
 import '../services/players.dart';
 import '../widgets/player_badge.dart';
@@ -27,6 +28,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final set = ref.watch(instrumentSetProvider);
+    final offered = ref.watch(instrumentsOfferedProvider);
     final players = ref.watch(playersProvider);
     final current = ref.watch(currentPlayerProvider);
     final skin = ref.watch(appSkinProvider);
@@ -36,7 +38,9 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          const _PrivacyNote(key: ValueKey('privacy_note')),
+          _PrivacyNote(
+              key: const ValueKey('privacy_note'),
+              appName: ref.watch(appEditionProvider).appName),
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -113,41 +117,27 @@ class SettingsScreen extends ConsumerWidget {
                 : null,
             onTap: () => showAddPlayerSheet(context),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text(
-                current == null ? 'Instrument' : "${current.name}'s instrument",
-                style: theme.textTheme.titleSmall),
-          ),
-          RadioGroup<InstrumentSet>(
-            groupValue: set,
-            onChanged: (v) {
-              if (v != null) ref.read(instrumentSetProvider.notifier).state = v;
-            },
-            child: const Column(
-              key: ValueKey('instrument_setting'),
-              children: [
-                RadioListTile<InstrumentSet>(
-                  key: ValueKey('instrument_setting_violin'),
-                  value: InstrumentSet.violin,
-                  dense: true,
-                  title: Text('Violin'),
-                ),
-                RadioListTile<InstrumentSet>(
-                  key: ValueKey('instrument_setting_viola'),
-                  value: InstrumentSet.viola,
-                  dense: true,
-                  title: Text('Viola: alto clef, C G D A'),
-                ),
-                RadioListTile<InstrumentSet>(
-                  key: ValueKey('instrument_setting_mandolin'),
-                  value: InstrumentSet.mandolin,
-                  dense: true,
-                  title: Text('Mandolin: frets, tab, chords'),
-                ),
-              ],
+          // The edition's choices (instrumentsOfferedProvider): none to make
+          // in the mandolin app, which is the mandolin alone.
+          if (offered.length > 1) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Text(
+                  current == null ? 'Instrument' : "${current.name}'s instrument",
+                  style: theme.textTheme.titleSmall),
             ),
-          ),
+            RadioGroup<InstrumentSet>(
+              groupValue: set,
+              onChanged: (v) {
+                if (v != null) ref.read(instrumentSetProvider.notifier).state = v;
+              },
+              child: Column(
+                key: const ValueKey('instrument_setting'),
+                children: instrumentChoiceTiles(offered,
+                    keyPrefix: 'instrument_setting_'),
+              ),
+            ),
+          ],
           if (set == InstrumentSet.viola)
             Padding(
               padding: const EdgeInsets.fromLTRB(32, 4, 16, 0),
@@ -211,7 +201,10 @@ class SettingsScreen extends ConsumerWidget {
 /// What the app collects (nothing), with links to the full policy and to
 /// support.
 class _PrivacyNote extends StatefulWidget {
-  const _PrivacyNote({super.key});
+  const _PrivacyNote({super.key, required this.appName});
+
+  /// What the app calls itself ([AppEdition.appName]).
+  final String appName;
 
   @override
   State<_PrivacyNote> createState() => _PrivacyNoteState();
@@ -274,8 +267,8 @@ class _PrivacyNoteState extends State<_PrivacyNote> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Text.rich(
         TextSpan(children: [
-          const TextSpan(
-              text: 'Stringlings collects no data, has no accounts or '
+          TextSpan(
+              text: '${widget.appName} collects no data, has no accounts or '
                   'sign-ups, and its features work entirely on your device. '
                   'See the '),
           link('privacy policy', privacyPolicyUrl),
@@ -283,8 +276,8 @@ class _PrivacyNoteState extends State<_PrivacyNote> {
           link('support@stringlings.app', 'mailto:support@stringlings.app'),
           const TextSpan(text: ' or the '),
           link("project's issue tracker", issueTrackerUrl),
-          const TextSpan(
-              text: '. Stringlings is a one-person, spare-time project, so '
+          TextSpan(
+              text: '. ${widget.appName} is a one-person, spare-time project, so '
                   "please be patient with replies — there's violin and "
                   'mandolin practice to fit in too ;)'),
         ]),

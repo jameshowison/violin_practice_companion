@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:violin_practice_companion/models/app_edition.dart';
 import 'package:violin_practice_companion/models/display_mode.dart';
 import 'package:violin_practice_companion/models/instrument_profile.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
@@ -18,11 +19,15 @@ Piece _piece(String id) =>
 void main() {
   late SharedPreferences prefs;
 
-  Future<ProviderContainer> containerWith(Map<String, Object> saved) async {
+  Future<ProviderContainer> containerWith(Map<String, Object> saved,
+      {AppEdition edition = AppEdition.stringlings}) async {
     SharedPreferences.setMockInitialValues(saved);
     prefs = await SharedPreferences.getInstance();
     final c = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appEditionProvider.overrideWithValue(edition),
+      ],
     );
     addTearDown(c.dispose);
     return c;
@@ -96,7 +101,8 @@ void main() {
 
   group('separate instruments', () {
     test('the mandolin shows frets, tab and chords on every piece', () async {
-      final c = await containerWith({'app.instruments': 'mandolin'});
+      final c = await containerWith({'app.instruments': 'mandolin'},
+          edition: AppEdition.mandolin);
       c.read(selectedPieceProvider.notifier).state = _piece('b');
       expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
       final f = c.read(instrumentFeaturesProvider);
@@ -129,7 +135,8 @@ void main() {
 
     test('the old combined setting becomes the mandolin, and is rewritten',
         () async {
-      final c = await containerWith({'app.instruments': 'violinAndMandolin'});
+      final c = await containerWith({'app.instruments': 'violinAndMandolin'},
+          edition: AppEdition.mandolin);
       expect(c.read(instrumentSetProvider), InstrumentSet.mandolin);
       expect(prefs.getString('app.instruments'), 'mandolin');
       c.read(selectedPieceProvider.notifier).state = _piece('a');

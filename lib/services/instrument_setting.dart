@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/app_edition.dart';
 import '../models/instrument_profile.dart' show Transcription;
 import 'piece_display_prefs.dart' show sharedPreferencesProvider;
 import 'players.dart' show playerKeyProvider;
@@ -52,6 +53,31 @@ class InstrumentFeatures {
   };
 }
 
+/// The instruments [edition] offers, the first its default: the one place
+/// that answers it, for Settings, a new player and the stored setting.
+///
+/// Stringlings has no mandolin: a stored mandolin reads as the violin (the
+/// value itself is left alone; a shipped split would need a migration story,
+/// docs/family/mandolin-app.md). The mandolin app has only the mandolin.
+List<InstrumentSet> instrumentsOffered(AppEdition edition) => switch (edition) {
+      AppEdition.stringlings => const [InstrumentSet.violin, InstrumentSet.viola],
+      AppEdition.mandolin => const [InstrumentSet.mandolin],
+    };
+
+/// [instrumentsOffered] for this build's edition.
+final instrumentsOfferedProvider = Provider<List<InstrumentSet>>(
+    (ref) => instrumentsOffered(ref.watch(appEditionProvider)));
+
+/// A stored `app.instruments` value as an instrument [offered]: the legacy
+/// combined setting is the mandolin, and anything missing, unreadable or not
+/// offered is the edition's default.
+InstrumentSet instrumentFromStored(String? stored, List<InstrumentSet> offered) {
+  final set = stored == legacyViolinAndMandolin
+      ? InstrumentSet.mandolin
+      : InstrumentSet.values.where((s) => s.name == stored).firstOrNull;
+  return set != null && offered.contains(set) ? set : offered.first;
+}
+
 /// The preference key, `app.instruments`, holding the [InstrumentSet]'s name:
 /// the first player's as it is, another's under `playerKey` (the instrument
 /// is the player's).
@@ -64,32 +90,33 @@ const instrumentSetKey = instrumentSetKeyBase;
 /// [sharedPreferencesProvider], so the first frame is already right — a value
 /// that arrived late would draw the mandolin controls and then take them away.
 ///
-/// A missing or unreadable value reads as [InstrumentSet.violin]. A write is
-/// skipped when it would change nothing, as for the per-piece prefs. With no
-/// preferences (tests, the harness) it lives for the session only.
+/// A missing or unreadable value, or one this edition doesn't offer, reads as
+/// the edition's default ([instrumentFromStored]): the violin, or in the
+/// mandolin app the mandolin. A write is skipped when it would change nothing,
+/// as for the per-piece prefs. With no preferences (tests, the harness) it
+/// lives for the session only.
 final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
-  const fallback = InstrumentSet.violin;
+  final offered = ref.watch(instrumentsOfferedProvider);
+  final fallback = offered.first;
   final prefs = ref.watch(sharedPreferencesProvider);
   if (prefs == null) return fallback;
   final instrumentSetKey = ref.watch(playerKeyProvider)(instrumentSetKeyBase);
 
-  ref.listenSelf((_, next) {
+  ref.listenSelf((previous, next) {
+    // The first value came from storage (or stands in for one this edition
+    // doesn't offer, which is kept for a migration): nothing to write.
+    if (previous == null) return;
     final stored = prefs.getString(instrumentSetKey);
     if (stored == next.name || (stored == null && next == fallback)) return;
     prefs.setString(instrumentSetKey, next.name);
   });
 
   final stored = prefs.getString(instrumentSetKey);
-  if (stored == null) return fallback;
-  if (stored == legacyViolinAndMandolin) {
+  final set = instrumentFromStored(stored, offered);
+  if (stored == legacyViolinAndMandolin && set == InstrumentSet.mandolin) {
     prefs.setString(instrumentSetKey, InstrumentSet.mandolin.name);
-    return InstrumentSet.mandolin;
   }
-  try {
-    return InstrumentSet.values.byName(stored);
-  } catch (_) {
-    return fallback;
-  }
+  return set;
 });
 
 /// The preference key holding how violin music is shown to a viola: the
