@@ -18,6 +18,8 @@ const bool storageSupportsEditing = true;
 /// * `scanned_pieces/index.json` — a **title cache** (see below)
 /// * `editable_fixtures/<id>.musicxml` — writable copy of an edited bundled fixture
 /// * `section_overrides/<id>.sections.json` — edited section markers
+/// * `source_originals/<id>.musicxml` — the score as it first arrived, before
+///   the app's repairs or anyone's edits (see [readOriginal])
 ///
 /// ## Why the directory, not the index, is the source of truth
 ///
@@ -62,6 +64,10 @@ class PieceStorage {
   Future<Directory> _scannedPiecesDir() => _subdir('scanned_pieces');
   Future<Directory> _editableFixturesDir() => _subdir('editable_fixtures');
   Future<Directory> _sectionOverridesDir() => _subdir('section_overrides');
+  Future<Directory> _originalsDir() => _subdir(originalsFolder);
+
+  /// Where [readOriginal]'s files live; synced by the dev library.
+  static const originalsFolder = 'source_originals';
 
   // ── Scanned / imported pieces ───────────────────────────────────────────
 
@@ -117,6 +123,7 @@ class PieceStorage {
         createdAtMillis: DateTime.now().millisecondsSinceEpoch);
     final file = File('${dir.path}/$id$_ext');
     await file.writeAsString(musicXml);
+    await keepOriginal(id, musicXml);
 
     final piece = Piece(
       id: id,
@@ -138,6 +145,7 @@ class PieceStorage {
       String id, String title, String musicXml) async {
     final dir = await _scannedPiecesDir();
     await File('${dir.path}/$id$_ext').writeAsString(musicXml);
+    await keepOriginal(id, musicXml);
     final titles = await _readIndexTitles()..[id] = title;
     final file = await _indexFile();
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert({
@@ -173,9 +181,14 @@ class PieceStorage {
 
   /// Overwrites a piece's MusicXML in place (e.g. after a note-editing
   /// correction). The index is untouched — only the file contents differ.
+  ///
+  /// A scanned or imported piece stored before originals were kept gets one
+  /// here: what the file held before this, its first overwrite. A bundled
+  /// piece's edited copy doesn't need one; the asset is its original.
   Future<void> updateScannedPieceFile(String handle, String newMusicXml) async {
     final direct = File(handle);
     if (await direct.exists()) {
+      await _keepOriginalBefore(direct);
       await direct.writeAsString(newMusicXml);
       return;
     }
@@ -186,6 +199,7 @@ class PieceStorage {
     ]) {
       final candidate = File('${dir.path}/$name');
       if (await candidate.exists()) {
+        await _keepOriginalBefore(candidate);
         await candidate.writeAsString(newMusicXml);
         return;
       }
@@ -203,7 +217,36 @@ class PieceStorage {
   Future<void> deleteScannedPiece(String id) async {
     final file = File('${(await _scannedPiecesDir()).path}/$id$_ext');
     if (await file.exists()) await file.delete();
+    final original = File('${(await _originalsDir()).path}/$id$_ext');
+    if (await original.exists()) await original.delete();
     await loadScannedPieces(); // rewrites the title cache without the row
+  }
+
+  // ── Originals ───────────────────────────────────────────────────────────
+
+  /// Keeps [musicXml] as piece [id]'s original, unless it already has one.
+  ///
+  /// The stored score is the working source: the app repairs it on the way
+  /// in and on every open (`PieceRepository.repair`), and the measure editor
+  /// writes into it. The original is what arrived, byte for byte, so a later,
+  /// better repair or importer can start again from it, as the scan images
+  /// and ABC text already allow. Written once, never overwritten.
+  Future<void> keepOriginal(String id, String musicXml) async {
+    final file = File('${(await _originalsDir()).path}/$id$_ext');
+    if (!await file.exists()) await file.writeAsString(musicXml);
+  }
+
+  /// Piece [id]'s score as it first arrived, or null when none was kept (a
+  /// bundled piece, whose asset is its original).
+  Future<String?> readOriginal(String id) async {
+    final file = File('${(await _originalsDir()).path}/$id$_ext');
+    return await file.exists() ? file.readAsString() : null;
+  }
+
+  Future<void> _keepOriginalBefore(File scoreFile) async {
+    final scanned = (await _scannedPiecesDir()).path;
+    if (scoreFile.parent.path != scanned) return;
+    await keepOriginal(_idOf(scoreFile.path), await scoreFile.readAsString());
   }
 
   // ── Index (a rebuildable title cache) ───────────────────────────────────

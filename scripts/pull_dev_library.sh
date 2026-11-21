@@ -36,7 +36,7 @@ for arg in "${@:2}"; do
   esac
 done
 BUNDLE="name.howison.violinPracticeCompanion"
-FOLDERS=(scanned_pieces editable_fixtures section_overrides media teacher_recordings scan_sources abc_sources)
+FOLDERS=(scanned_pieces editable_fixtures section_overrides media teacher_recordings scan_sources abc_sources source_originals)
 source scripts/dev_library_android.sh
 
 if android_resolve "$DEVICE"; then

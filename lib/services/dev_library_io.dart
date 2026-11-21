@@ -20,6 +20,7 @@ const List<String> devLibrarySyncedFolders = [
   'teacher_recordings',
   'scan_sources',
   'abc_sources',
+  'source_originals',
 ];
 
 /// The per-piece display settings a dev library carries

@@ -310,4 +310,49 @@ void main() {
       expect(await storage.fixtureFilePathIfExists('shared_id_1'), isNotNull);
     });
   });
+
+  group('originals', () {
+    File originalOf(String id) =>
+        File('${root.path}/source_originals/$id.musicxml');
+
+    test('a new piece keeps what arrived, and an edit leaves it alone',
+        () async {
+      final piece = await storage.saveScannedPiece('Tune', scoreXml('Tune'));
+      expect(await storage.readOriginal(piece.id), scoreXml('Tune'));
+
+      await storage.updateScannedPieceFile(
+          piece.musicXmlFilePath!, scoreXml('Edited'));
+      expect(await storage.readScannedMusicXml(piece.musicXmlFilePath!),
+          scoreXml('Edited'));
+      expect(await storage.readOriginal(piece.id), scoreXml('Tune'));
+    });
+
+    test('a piece stored before originals gets one on its first overwrite',
+        () async {
+      await writePiece('old_1', 'Before');
+      expect(await storage.readOriginal('old_1'), isNull);
+      await storage.updateScannedPieceFile(
+          '${scannedDir().path}/old_1.musicxml', scoreXml('After'));
+      expect(await storage.readOriginal('old_1'), scoreXml('Before'));
+    });
+
+    test('a shared piece keeps the score it was shared with', () async {
+      await storage.saveScannedPieceAs('shared_1', 'Shared', scoreXml('One'));
+      await storage.saveScannedPieceAs('shared_1', 'Shared', scoreXml('Two'));
+      expect(await storage.readOriginal('shared_1'), scoreXml('One'));
+    });
+
+    test('an edited bundled piece has no original of its own', () async {
+      final path = await storage.writeFixtureFile('lightly_row', scoreXml('A'));
+      await storage.updateScannedPieceFile(path, scoreXml('B'));
+      expect(await storage.readOriginal('lightly_row'), isNull);
+    });
+
+    test('deleting a piece deletes its original', () async {
+      final piece = await storage.saveScannedPiece('Gone', scoreXml('Gone'));
+      expect(originalOf(piece.id).existsSync(), isTrue);
+      await storage.deleteScannedPiece(piece.id);
+      expect(originalOf(piece.id).existsSync(), isFalse);
+    });
+  });
 }

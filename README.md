@@ -534,7 +534,8 @@ Pushing the library repo to GitHub is a separate, manual step.
 
 What syncs: everything a user makes, with the same ids on every device — the
 `scanned_pieces/`, `editable_fixtures/`, `section_overrides/`, `media/` and
-`teacher_recordings/`, `scan_sources/` and `abc_sources/` folders of the app's Documents, plus the prefs-held titles,
+`teacher_recordings/`, `scan_sources/`, `abc_sources/` and `source_originals/` (each score as it first
+arrived, before repairs and edits) folders of the app's Documents, plus the prefs-held titles,
 media rows and library (collections, hidden pieces, renames) in `state.json`.
 Cached recording alignments travel too (`alignments` in `state.json`): each
 device otherwise keeps whatever alignment its build first computed, forever.
