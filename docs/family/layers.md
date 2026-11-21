@@ -206,8 +206,10 @@ player, and a family test of the switcher.
   scope switch in the editor that defaults to the music.
 - **A child's own practice recording** is theirs (player layer), shared with
   the family only if they choose; teacher recordings stay shared (source).
+- **"Copy to all players"** works on a child's recordings too: copying one
+  gives every child in the family that take.
 
 ## Open questions
 
-1. **What "copy to all players" copies:** notes only, or view settings
-   (zoom, colours, fingering detail) too?
+1. **Does "copy to all players" also copy notes and view settings** (zoom,
+   colours, fingering detail), or only recordings?
