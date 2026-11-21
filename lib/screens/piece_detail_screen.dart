@@ -328,7 +328,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
           // opens it (see [_KeySummary]), which gives the title the width.
           // Size and layout of the engraved staff. Print gave up its place
           // here to make room on a phone, and lives in the drawer.
-          const PlayerBadge(),
+          const PlayerBadge(compact: true),
           if (staffViewMenuAppliesTo(displayMode))
             StaffViewMenuButton(mode: displayMode),
           // No mode toggles here any more. "Play Along", "Teacher Demo" and

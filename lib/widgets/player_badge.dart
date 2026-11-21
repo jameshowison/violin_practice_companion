@@ -37,7 +37,12 @@ class PlayerAvatar extends StatelessWidget {
 /// Who is playing, in the title bar: shown only when there is more than one
 /// player (docs/family/layers.md). A tap opens the switcher.
 class PlayerBadge extends ConsumerWidget {
-  const PlayerBadge({super.key});
+  const PlayerBadge({super.key, this.compact = false});
+
+  /// Narrower, for a title bar already holding the piece's key, clef and
+  /// title: on a 375-pt phone the full-size button left the title four
+  /// letters.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,11 +50,15 @@ class PlayerBadge extends ConsumerWidget {
     final player = ref.watch(currentPlayerProvider)!;
     return IconButton(
       key: const ValueKey('player_badge'),
+      padding: compact ? EdgeInsets.zero : null,
+      constraints: compact
+          ? const BoxConstraints(minWidth: 34, minHeight: 44)
+          : null,
       tooltip: 'Playing: ${player.name}. Switch player',
       onPressed: () => showPlayerSwitcher(context,
           onManage: () => Navigator.of(context).push(MaterialPageRoute<void>(
               builder: (_) => const SettingsScreen()))),
-      icon: PlayerAvatar(player, size: 30),
+      icon: PlayerAvatar(player, size: compact ? 26 : 30),
     );
   }
 }
