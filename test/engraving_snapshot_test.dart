@@ -21,13 +21,8 @@ import 'dart:ui' show Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/section.dart';
-import 'package:violin_practice_companion/services/print_paginator.dart';
-import 'package:violin_practice_companion/services/section_engraving.dart';
-import 'package:violin_practice_companion/services/section_line_planner.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 import 'package:violin_practice_companion/services/system_break_injector.dart';
-import 'package:violin_practice_companion/services/system_breaks.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
 
 import 'support/bundled_scores.dart';
 

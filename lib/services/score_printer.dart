@@ -10,11 +10,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/section.dart';
 import '../widgets/staff_view_verovio.dart';
-import 'print_paginator.dart';
-import 'section_engraving.dart';
+import 'package:score_view/score_view.dart';
 import 'staff_overlays.dart';
-import 'staff_zoom.dart';
-import 'verovio_engraver.dart';
 
 /// How a printed page carries colour.
 enum PrintColour {

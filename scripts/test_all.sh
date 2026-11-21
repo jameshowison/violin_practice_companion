@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs every test in the workspace: the app's `flutter test` at the root, then
-# `dart test` in each library under packages/ that is a workspace member
-# (`resolution: workspace` in its pubspec). The root `flutter test` only runs
+# each library under packages/ that is a workspace member (`resolution:
+# workspace` in its pubspec): `flutter test` for one that depends on the
+# Flutter SDK, `dart test` for the rest. The root `flutter test` only runs
 # the root test/ directory, so a package's own tests run nowhere else.
 #
 #   bash scripts/test_all.sh                 # everything
@@ -24,8 +25,9 @@ for pubspec in packages/*/pubspec.yaml; do
   grep -q '^resolution: workspace' "$pubspec" || continue
   dir=$(dirname "$pubspec")
   [ -d "$dir/test" ] || continue
-  echo "▶ $dir: dart test"
-  (cd "$dir" && dart test) || failed+=("$dir")
+  if grep -qE '^ +sdk: flutter' "$pubspec"; then runner=(flutter test); else runner=(dart test); fi
+  echo "▶ $dir: ${runner[*]}"
+  (cd "$dir" && "${runner[@]}") || failed+=("$dir")
 done
 
 if [ ${#failed[@]} -gt 0 ]; then

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 
 import '../services/providers.dart';
-import '../services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 /// The piece's opening clef/key/time, engraved alone and shown next to the
 /// title — the counterpart to `_hidePreambleFor` (`services/providers.dart`),

@@ -4,7 +4,7 @@ import 'dart:ui' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 import 'package:violin_practice_companion/services/providers.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 import 'package:violin_practice_companion/widgets/staff_view_verovio.dart';
 
 /// The measure-number labels on a selection: which bars get one, where the

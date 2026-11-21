@@ -1,0 +1,26 @@
+name: score_view
+description: >-
+  Engraving MusicXML with Verovio for Flutter: an engraver that returns the
+  SVG with its measure, note and line geometry (the tap-to-measure hit map),
+  the static SVG passes, staff sizing and zoom math, section-aware line
+  breaking and print pagination. The staff widget is not here yet.
+version: 0.1.0
+publish_to: none  # not yet; see docs/family/libraries.md, "Decisions"
+
+environment:
+  sdk: ^3.6.0  # pub workspaces need 3.6
+
+resolution: workspace  # resolved with the app; see the root pubspec.yaml
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.5
+  # Its xml ^6.5.0 is overridden to xml 7 at the workspace root.
+  verovio_flutter: ^0.3.1
+  xml: ^7.0.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

@@ -12,7 +12,7 @@ import 'package:musicxml_tools/musicxml_tools.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';
-import '../services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 import 'alignment_rating.dart';
 import 'measure_edit_panel.dart';
 import 'section_loop.dart';

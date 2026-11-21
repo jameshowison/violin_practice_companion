@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/display_mode.dart';
 import '../services/providers.dart';
-import '../services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 
 /// Whether [mode] is one the size and layout menu speaks for: the engraved
 /// staff views. Jianpu and the fingering views lay out by their own rows.

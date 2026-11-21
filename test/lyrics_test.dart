@@ -10,7 +10,7 @@ import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
 import 'package:violin_practice_companion/services/providers.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 import 'support/restricted_fixtures.dart';
 
 /// Lyrics from ABC `w:` lines, end to end short of the engraver: the converter's

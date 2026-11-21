@@ -1,8 +1,7 @@
 import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
-import 'package:violin_practice_companion/widgets/section_minimap.dart';
+import 'package:score_view/score_view.dart';
 
 /// A synthetic engraving: [perLine] measures on each successive system,
 /// systems stacked 100 apart, measures 200 wide.
@@ -189,16 +188,6 @@ void main() {
         expect(steps[i + 1] / steps[i], greaterThanOrEqualTo(1.2),
             reason: 'steps ${steps[i]} → ${steps[i + 1]} are too close to read apart');
       }
-    });
-
-    test('the minimap strip width does NOT depend on the marker scale', () {
-      // The load-bearing invariant: the strip is a Row sibling of the notation,
-      // so a zoom-dependent width would close a positive feedback loop (wider
-      // strip → narrower notation → auto picks fewer measures per line → bigger
-      // markers → wider strip). Observed cascading 6 → 4 → 3 across three extra
-      // engraves before the width was pinned. A plain const is the guarantee.
-      expect(SectionMinimap.width, isA<double>());
-      expect(SectionMinimap.width, 44);
     });
   });
 

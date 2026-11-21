@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 // The on-disk engrave cache hands back EngravedScore.fromJson(toJson()) in
 // place of a real engrave, so the round trip must be lossless.

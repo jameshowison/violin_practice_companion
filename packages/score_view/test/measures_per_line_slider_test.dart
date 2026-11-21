@@ -2,7 +2,7 @@
 // drags to leak to parent handlers (e.g. the settings Drawer's swipe-to-close).
 // Mirrors staff_spacing_slider_test.dart, which caught exactly that in Jun 2026.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 
 void main() {
   group('measuresPerLine slider constants', () {

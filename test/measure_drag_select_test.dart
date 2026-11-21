@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 import 'package:violin_practice_companion/widgets/measure_drag_select.dart';
 import 'package:violin_practice_companion/widgets/staff_view_verovio.dart';
 

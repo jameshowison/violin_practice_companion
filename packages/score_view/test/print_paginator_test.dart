@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/print_paginator.dart';
+import 'package:score_view/score_view.dart';
 
 /// [n] systems [h] tall with [gap] between them, from y = 0.
 List<({double top, double bottom})> systems(int n,

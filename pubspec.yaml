@@ -15,6 +15,7 @@ workspace:
   - packages/musicxml_tools
   - packages/score_sync
   - packages/pitch_tuner
+  - packages/score_view
 
 dependencies:
   flutter:
@@ -88,6 +89,11 @@ dependencies:
   # from the app: see packages/score_sync/README.md.
   score_sync:
     path: packages/score_sync
+  # Engraving with Verovio: the engraver, its hit map, staff sizing and
+  # section layout. Flutter, extracted from the app: see
+  # packages/score_view/README.md.
+  score_view:
+    path: packages/score_view
 
   # Play-along audio: `just_audio` drives backing-track playback, `wav` reads
   # and writes WAV (pure Dart, zero native deps). The chroma analysis and its

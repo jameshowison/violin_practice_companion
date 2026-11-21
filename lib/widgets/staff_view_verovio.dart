@@ -15,10 +15,8 @@ import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart' show PlaybackState;
 import '../services/providers.dart';
-import '../services/section_engraving.dart';
-import '../services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 import '../services/system_break_injector.dart';
-import '../services/verovio_engraver.dart';
 import 'chord_swatch.dart';
 import 'measure_drag_select.dart';
 

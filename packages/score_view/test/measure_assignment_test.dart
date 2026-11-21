@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 void main() {
   // Happy Farmer's first system: the pickup's ink (its "Allegro giocoso" tempo

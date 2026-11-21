@@ -11,7 +11,7 @@ import '../services/print_debug_dump.dart';
 import '../services/providers.dart';
 import '../services/score_printer.dart';
 import '../services/staff_overlays.dart';
-import '../services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 
 /// Whether the selected piece can be printed in [mode]: the staff and
 /// annotation views. Tab, jianpu and the fingering view have no print layout

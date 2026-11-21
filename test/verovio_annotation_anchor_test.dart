@@ -8,8 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 // which cannot run headless.
 import 'package:verovio_flutter/src/hit_map/parser.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 import 'package:violin_practice_companion/widgets/chord_swatch.dart';
 import 'package:violin_practice_companion/widgets/staff_view_verovio.dart';
 import 'package:violin_practice_companion/models/violin_string_palette.dart';

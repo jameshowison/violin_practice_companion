@@ -8,7 +8,7 @@ import '../models/piece_library_view.dart';
 import '../models/piece_layout.dart';
 import '../services/piece_list_providers.dart';
 import '../services/providers.dart';
-import '../services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 import '../theme/skin_style.dart';
 import '../ui/adaptive/adaptive.dart';
 import '../ui/adaptive/swipe_actions.dart';

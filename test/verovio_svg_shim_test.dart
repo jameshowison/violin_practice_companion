@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 /// `VerovioEngraver.flattenForRenderer` is the jovial_svg shim. These cover the
 /// stylesheet un-scoping, which is what makes staff lines, stems and barlines

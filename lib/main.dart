@@ -8,12 +8,11 @@ import 'build_info.dart';
 import 'debug/realign_all.dart';
 import 'services/app_audio_session.dart';
 import 'services/bundled_licenses.dart';
-import 'services/engrave_disk_cache.dart';
+import 'package:score_view/score_view.dart';
 import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
 import 'services/storage_cleanup.dart';
-import 'services/verovio_engraver.dart';
 import 'services/video_shrinker.dart';
 
 Future<void> main() async {

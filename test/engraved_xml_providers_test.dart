@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/providers.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 
 /// What the three engrave pipelines put in front of Verovio.
 ///

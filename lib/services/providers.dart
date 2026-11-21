@@ -53,10 +53,9 @@ import 'rendered_score_playback_service.dart';
 import 'silent_playback_service.dart';
 import 'piece_media_store.dart';
 import 'playback_service_base.dart';
-import 'staff_zoom.dart';
-export 'staff_zoom.dart' show staffSpacingDefault, staffSpacingMax, staffSpacingMin;
+import 'package:score_view/score_view.dart';
+export 'package:score_view/score_view.dart' show staffSpacingDefault, staffSpacingMax, staffSpacingMin;
 import 'system_break_injector.dart';
-import 'system_breaks.dart';
 import 'launch_timing.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────

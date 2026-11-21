@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 /// Grace notes must not take a positional noteIndex: the parser skips them,
 /// so an anchor for one shifts every later note in its bar one place early.

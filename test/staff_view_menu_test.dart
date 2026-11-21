@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/display_mode.dart';
 import 'package:violin_practice_companion/services/providers.dart';
-import 'package:violin_practice_companion/services/section_engraving.dart';
-import 'package:violin_practice_companion/services/staff_zoom.dart';
+import 'package:score_view/score_view.dart';
 import 'package:violin_practice_companion/widgets/staff_view_menu.dart';
 
 /// Eight bars in one part, no breaks: enough for the section planner.

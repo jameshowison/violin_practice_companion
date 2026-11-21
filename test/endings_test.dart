@@ -10,7 +10,7 @@ import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/providers.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 Measure _m(
   int number, {

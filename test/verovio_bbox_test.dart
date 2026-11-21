@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/verovio_engraver.dart';
+import 'package:score_view/score_view.dart';
 
 /// Verovio's own `svgBoundingBoxes` output, which is where a system's real ink
 /// extent comes from. See [VerovioEngraver.systemInkBoxes] for why the hit map's
