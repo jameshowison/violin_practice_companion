@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
 import '../models/instrument_profile.dart';
 import 'instrument_layer_store.dart';
+import 'players.dart';
 import 'instrument_view.dart';
 import 'package:score_sync/score_sync.dart';
 import '../models/tempo_presets.dart';
@@ -1176,6 +1177,8 @@ final fretStyleProvider = pieceDisplayEnumPref<FretStyle>(
   'fretStyle',
   FretStyle.openStrings,
   FretStyle.values,
+  // The instrument's, not the player's: a property of the repertoire.
+  perPlayer: false,
 );
 
 /// On the violin: open string or 4th finger, where a note could be either.
@@ -1185,6 +1188,8 @@ final violinStringPreferenceProvider =
   'violinStrings',
   ViolinStringPreference.auto,
   ViolinStringPreference.values,
+  // The instrument layer's, like the open-or-4th choices it stands behind.
+  perPlayer: false,
 );
 
 /// The 2-staff MusicXML (melody + 4-line tab) plus the ordered fingering labels
@@ -1578,7 +1583,8 @@ final activePlaybackStateProvider =
 
 // ── Count-in ──────────────────────────────────────────────────────────────────
 
-final countInStoreProvider = Provider<CountInStore>((_) => CountInStore());
+final countInStoreProvider = Provider<CountInStore>(
+    (ref) => CountInStore(key: ref.watch(playerKeyProvider)));
 
 /// The MINIMUM number of beats counted off when Play is pressed; 0 = off.
 ///
@@ -1654,7 +1660,8 @@ class RecordingLeadInNotifier extends StateNotifier<RecordingLeadInMode> {
 }
 
 // ── Tempo ─────────────────────────────────────────────────────────────────────
-final tempoStoreProvider = Provider<TempoStore>((_) => TempoStore());
+final tempoStoreProvider = Provider<TempoStore>(
+    (ref) => TempoStore(key: ref.watch(playerKeyProvider)));
 
 /// The synthesized playback's tempo presets and which is selected. App-wide and
 /// restored once per launch, on the same terms as [countInProvider].

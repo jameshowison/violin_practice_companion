@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/instrument_profile.dart' show Transcription;
 import 'piece_display_prefs.dart' show sharedPreferencesProvider;
+import 'players.dart' show playerKeyProvider;
 
 /// Which instruments the app is set up for — the app-wide "Instruments" setting
 /// on the home screen's Settings page. Not per piece: it is a fact about who is
@@ -51,8 +52,13 @@ class InstrumentFeatures {
   };
 }
 
-/// The preference key, `app.instruments`, holding the [InstrumentSet]'s name.
-const instrumentSetKey = 'app.instruments';
+/// The preference key, `app.instruments`, holding the [InstrumentSet]'s name:
+/// the first player's as it is, another's under `playerKey` (the instrument
+/// is the player's).
+const instrumentSetKeyBase = 'app.instruments';
+
+/// Kept for callers that name the first player's key.
+const instrumentSetKey = instrumentSetKeyBase;
 
 /// The app-wide [InstrumentSet]. Read synchronously from
 /// [sharedPreferencesProvider], so the first frame is already right — a value
@@ -65,6 +71,7 @@ final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
   const fallback = InstrumentSet.violin;
   final prefs = ref.watch(sharedPreferencesProvider);
   if (prefs == null) return fallback;
+  final instrumentSetKey = ref.watch(playerKeyProvider)(instrumentSetKeyBase);
 
   ref.listenSelf((_, next) {
     final stored = prefs.getString(instrumentSetKey);
@@ -87,7 +94,7 @@ final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
 
 /// The preference key holding how violin music is shown to a viola: the
 /// [Transcription]'s name.
-const violaTranscriptionKey = 'app.violaTranscription';
+const violaTranscriptionKeyBase = 'app.violaTranscription';
 
 /// How a part written for another clef is transcribed for the viola
 /// (decided 2026-11-21: configurable). App-wide, like [instrumentSetProvider].
@@ -95,6 +102,8 @@ final violaTranscriptionProvider = StateProvider<Transcription>((ref) {
   const fallback = Transcription.none;
   final prefs = ref.watch(sharedPreferencesProvider);
   if (prefs == null) return fallback;
+  final violaTranscriptionKey =
+      ref.watch(playerKeyProvider)(violaTranscriptionKeyBase);
   ref.listenSelf((_, next) {
     if (prefs.getString(violaTranscriptionKey) != next.name) {
       prefs.setString(violaTranscriptionKey, next.name);

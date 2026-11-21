@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/piece_display_prefs.dart' show sharedPreferencesProvider;
+import '../services/players.dart' show playerKeyProvider;
 
 /// The app's look. Same screens and controls either way; a skin changes
 /// colours, type, shapes and how the piece list draws its rows.
@@ -14,7 +15,10 @@ enum AppSkin {
 }
 
 /// The preference key, `app.skin`, holding the [AppSkin]'s name.
-const appSkinKey = 'app.skin';
+const appSkinKeyBase = 'app.skin';
+
+/// The first player's key for the skin (another's is under `playerKey`).
+const appSkinKey = appSkinKeyBase;
 
 /// The app-wide [AppSkin], copied from `instrumentSetProvider`'s pattern:
 /// read synchronously from [sharedPreferencesProvider] so the first frame is
@@ -25,6 +29,8 @@ final appSkinProvider = StateProvider<AppSkin>((ref) {
   const fallback = AppSkin.classic;
   final prefs = ref.watch(sharedPreferencesProvider);
   if (prefs == null) return fallback;
+  // The look is the player's.
+  final appSkinKey = ref.watch(playerKeyProvider)(appSkinKeyBase);
 
   ref.listenSelf((_, next) {
     final stored = prefs.getString(appSkinKey);

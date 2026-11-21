@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'players.dart' show playerKeyProvider;
 import 'providers.dart' show selectedPieceProvider;
 
 /// The app's preferences, opened once in `main()` before the first frame so the
@@ -20,7 +21,9 @@ final sharedPreferencesProvider = Provider<SharedPreferences?>((_) => null);
 /// piece, which is a new object after every edit), so opening another piece
 /// rebuilds it from that piece's saved value or [fallback].
 ///
-/// Stored as `display.<name>.<pieceId>` strings. A write is skipped when it
+/// Stored as `display.<name>.<pieceId>` strings, per player ([perPlayer],
+/// through `playerKeyProvider`) unless the setting belongs to the instrument
+/// rather than the person (docs/family/layers.md). A write is skipped when it
 /// would change nothing — the stored value already matches, or there is none
 /// and the value is still [fallback] — so merely opening a piece never writes,
 /// and changing the default later still reaches pieces nobody customised.
@@ -29,12 +32,14 @@ StateProvider<T> pieceDisplayPref<T>(
   T fallback, {
   required String Function(T) encode,
   required T Function(String) decode,
+  bool perPlayer = true,
 }) {
   return StateProvider<T>((ref) {
     final prefs = ref.watch(sharedPreferencesProvider);
     final id = ref.watch(selectedPieceProvider.select((p) => p?.id));
     if (prefs == null || id == null) return fallback;
-    final key = 'display.$name.$id';
+    final base = 'display.$name.$id';
+    final key = perPlayer ? ref.watch(playerKeyProvider)(base) : base;
 
     ref.listenSelf((_, next) {
       final stored = prefs.getString(key);
@@ -58,10 +63,12 @@ StateProvider<T> pieceDisplayPref<T>(
 StateProvider<T> pieceDisplayEnumPref<T extends Enum>(
   String name,
   T fallback,
-  List<T> values,
-) => pieceDisplayPref<T>(
+  List<T> values, {
+  bool perPlayer = true,
+}) => pieceDisplayPref<T>(
   name,
   fallback,
   encode: (v) => v.name,
   decode: values.byName,
+  perPlayer: perPlayer,
 );

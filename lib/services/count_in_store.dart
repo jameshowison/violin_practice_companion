@@ -12,7 +12,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// means the user turned the count-in off, which is why absent and 0 have to
 /// stay tellable apart.
 class CountInStore {
-  static const _key = 'countInBeats';
+  /// [key] maps a preference key to the player's (`playerKeyProvider`).
+  CountInStore({String Function(String)? key}) : _k = key ?? _same;
+
+  static String _same(String k) => k;
+  final String Function(String) _k;
+
+  static const _beatsKey = 'countInBeats';
 
   SharedPreferences? _prefs;
 
@@ -23,7 +29,7 @@ class CountInStore {
   /// failure just means "no preference".
   Future<int?> load() async {
     try {
-      return (await _open()).getInt(_key);
+      return (await _open()).getInt(_k(_beatsKey));
     } catch (_) {
       return null;
     }
@@ -35,7 +41,7 @@ class CountInStore {
   /// when never set. Never throws.
   Future<String?> loadLeadIn() async {
     try {
-      return (await _open()).getString(_leadInKey);
+      return (await _open()).getString(_k(_leadInKey));
     } catch (_) {
       return null;
     }
@@ -44,7 +50,7 @@ class CountInStore {
   /// Persists the recording lead-in mode name. Best-effort, as [save].
   Future<void> saveLeadIn(String mode) async {
     try {
-      await (await _open()).setString(_leadInKey, mode);
+      await (await _open()).setString(_k(_leadInKey), mode);
     } catch (_) {
       // Ignore: the session-level provider still holds the value.
     }
@@ -56,9 +62,9 @@ class CountInStore {
     try {
       final prefs = await _open();
       if (beats == null) {
-        await prefs.remove(_key);
+        await prefs.remove(_k(_beatsKey));
       } else {
-        await prefs.setInt(_key, beats);
+        await prefs.setInt(_k(_beatsKey), beats);
       }
     } catch (_) {
       // Ignore: the session-level provider still holds the value.

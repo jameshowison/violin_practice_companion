@@ -8,6 +8,14 @@ import '../models/tempo_presets.dart';
 /// Never throws: a preferences failure just means the defaults (on load) or a
 /// value that lasts only for the session (on save).
 class TempoStore {
+  /// [key] maps a preference key to the player's (`playerKeyProvider`): the
+  /// presets and what was asked about recordings are the player's. A piece's
+  /// pinned performance tempo is the piece's, everyone's, and keeps its key.
+  TempoStore({String Function(String)? key}) : _key = key ?? _same;
+
+  static String _same(String k) => k;
+  final String Function(String) _key;
+
   static const _prefix = 'tempo.';
 
   SharedPreferences? _prefs;
@@ -19,8 +27,8 @@ class TempoStore {
     try {
       final p = await _open();
       const d = TempoSettings();
-      if (!p.containsKey('${_prefix}preset')) return null;
-      final presetName = p.getString('${_prefix}preset');
+      if (!p.containsKey(_key('${_prefix}preset'))) return null;
+      final presetName = p.getString(_key('${_prefix}preset'));
       final preset = TempoPreset.values
               .where((v) => v.name == presetName)
               .firstOrNull ??
@@ -30,12 +38,12 @@ class TempoStore {
       // old absolute value is simply not read rather than misread as a %.
       return TempoSettings(
         slowPercent:
-            clampPercent(p.getInt('${_prefix}slowPercent') ?? d.slowPercent),
+            clampPercent(p.getInt(_key('${_prefix}slowPercent')) ?? d.slowPercent),
         mediumPercent: clampPercent(
-            p.getInt('${_prefix}mediumPercent') ?? d.mediumPercent),
+            p.getInt(_key('${_prefix}mediumPercent')) ?? d.mediumPercent),
         performance:
-            clampBpm(p.getInt('${_prefix}performance') ?? d.performance),
-        custom: clampBpm(p.getInt('${_prefix}custom') ?? d.custom),
+            clampBpm(p.getInt(_key('${_prefix}performance')) ?? d.performance),
+        custom: clampBpm(p.getInt(_key('${_prefix}custom')) ?? d.custom),
         preset: preset,
       );
     } catch (_) {
@@ -46,11 +54,11 @@ class TempoStore {
   Future<void> save(TempoSettings s) async {
     try {
       final p = await _open();
-      await p.setString('${_prefix}preset', s.preset.name);
-      await p.setInt('${_prefix}slowPercent', s.slowPercent);
-      await p.setInt('${_prefix}mediumPercent', s.mediumPercent);
-      await p.setInt('${_prefix}performance', s.performance);
-      await p.setInt('${_prefix}custom', s.custom);
+      await p.setString(_key('${_prefix}preset'), s.preset.name);
+      await p.setInt(_key('${_prefix}slowPercent'), s.slowPercent);
+      await p.setInt(_key('${_prefix}mediumPercent'), s.mediumPercent);
+      await p.setInt(_key('${_prefix}performance'), s.performance);
+      await p.setInt(_key('${_prefix}custom'), s.custom);
     } catch (_) {
       // Ignore: the provider still holds the value for this session.
     }
@@ -81,7 +89,8 @@ class TempoStore {
     }
   }
 
-  String _askedKey(String pieceId) => '${_prefix}askedRecording.$pieceId';
+  String _askedKey(String pieceId) =>
+      _key('${_prefix}askedRecording.$pieceId');
 
   /// Whether the user has already been asked to follow [mediaId]'s tempo in
   /// place of [pieceId]'s hand-set one (see `offerRecordingTempo`). Asked once

@@ -22,6 +22,7 @@ import '../theme/skin_style.dart';
 import '../ui/stringlings/mandolin_headstock.dart';
 import '../ui/stringlings/stringling_climber.dart';
 import '../debug/screenshot_mode.dart';
+import '../services/players.dart' show playerKeyProvider;
 
 /// The reference A, `tuner.a4`: 440 or 442.
 const tunerA4Key = 'tuner.a4';
@@ -254,13 +255,13 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
       ..addListener(() =>
           _play.value = _springFrom * (1 - Curves.easeOutBack.transform(_spring.value)));
     final prefs = ref.read(sharedPreferencesProvider);
-    _a4 = (prefs?.getInt(tunerA4Key) ?? 440) == 442 ? 442 : 440;
+    _a4 = (prefs?.getInt(ref.read(playerKeyProvider)(tunerA4Key)) ?? 440) == 442 ? 442 : 440;
     final set = ref.read(instrumentSetProvider);
     _viola = set == InstrumentSet.viola;
     // The tuner tunes the instrument the app is set up for.
     _mandolin = set == InstrumentSet.mandolin;
-    _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
-    _leftHanded = prefs?.getBool(tunerLeftHandedKey) ?? false;
+    _auto = prefs?.getBool(ref.read(playerKeyProvider)(tunerAutoStringKey)) ?? false;
+    _leftHanded = prefs?.getBool(ref.read(playerKeyProvider)(tunerLeftHandedKey)) ?? false;
     _record = kTunerRecording && (prefs?.getBool(tunerRecordSessionsKey) ?? false);
     _model = TunerModel(_tuning());
     if (!_auto) _model.pinned = _model.tuning.strings[_rung].name;
@@ -440,7 +441,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     final prefs = ref.read(sharedPreferencesProvider);
     if (a4 != null) {
       _a4 = a4;
-      prefs?.setInt(tunerA4Key, a4.round());
+      prefs?.setInt(ref.read(playerKeyProvider)(tunerA4Key), a4.round());
     }
     final rangeBefore = _model.tuning.detectionRange;
     setState(() => _model.tuning = _tuning());
@@ -496,7 +497,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
 
   void _setAuto(bool on) {
     if (on == _auto) return;
-    ref.read(sharedPreferencesProvider)?.setBool(tunerAutoStringKey, on);
+    ref.read(sharedPreferencesProvider)?.setBool(ref.read(playerKeyProvider)(tunerAutoStringKey), on);
     setState(() {
       _auto = on;
       _model.pinned = on ? null : _model.tuning.strings[_rung].name;
@@ -569,7 +570,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                         ],
                         selected: {_leftHanded},
                         onSelectionChanged: (v) {
-                          ref.read(sharedPreferencesProvider)?.setBool(tunerLeftHandedKey, v.first);
+                          ref.read(sharedPreferencesProvider)?.setBool(ref.read(playerKeyProvider)(tunerLeftHandedKey), v.first);
                           setState(() => _leftHanded = v.first);
                           setSheet(() {});
                         },

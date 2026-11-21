@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'piece_display_prefs.dart' show sharedPreferencesProvider;
+import 'players.dart' show playerKeyProvider;
 
 /// When a piece was last opened on THIS device, and where the player left off.
 ///
@@ -56,12 +57,16 @@ const pieceActivityKey = 'pieceActivity';
 const pieceActivityLimit = 50;
 
 class PieceActivityNotifier extends StateNotifier<Map<String, PieceActivity>> {
-  PieceActivityNotifier(this._prefs) : super(_read(_prefs));
+  PieceActivityNotifier(this._prefs, {this.key = pieceActivityKey})
+      : super(_read(_prefs, key));
+
+  /// The player's key for [pieceActivityKey]: recents are the player's.
+  final String key;
 
   final SharedPreferences? _prefs;
 
-  static Map<String, PieceActivity> _read(SharedPreferences? prefs) {
-    final raw = prefs?.getString(pieceActivityKey);
+  static Map<String, PieceActivity> _read(SharedPreferences? prefs, String key) {
+    final raw = prefs?.getString(key);
     if (raw == null) return const {};
     try {
       final decoded = jsonDecode(raw);
@@ -83,7 +88,7 @@ class PieceActivityNotifier extends StateNotifier<Map<String, PieceActivity>> {
       next = Map.fromEntries(newest.take(pieceActivityLimit));
     }
     state = next;
-    _prefs?.setString(pieceActivityKey,
+    _prefs?.setString(key,
         jsonEncode({for (final e in next.entries) e.key: e.value.toJson()}));
   }
 
@@ -116,7 +121,8 @@ class PieceActivityNotifier extends StateNotifier<Map<String, PieceActivity>> {
 
 final pieceActivityProvider =
     StateNotifierProvider<PieceActivityNotifier, Map<String, PieceActivity>>(
-  (ref) => PieceActivityNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => PieceActivityNotifier(ref.watch(sharedPreferencesProvider),
+      key: ref.watch(playerKeyProvider)(pieceActivityKey)),
 );
 
 /// What Recents says the player was working on: the section's own label when
