@@ -7,6 +7,13 @@ version: 1.0.0+6
 environment:
   sdk: ^3.12.0
 
+# A pub workspace: the app at the root, and the libraries under packages/
+# that it is being split into (docs/libraries-migration.md). One resolution
+# and one pubspec.lock for all of them. packages/jovial_svg is vendored third
+# party, so it stays a plain path dependency, not a member.
+workspace:
+  - packages/string_tuner
+
 dependencies:
   flutter:
     sdk: flutter
@@ -15,7 +22,6 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
   xml: ^7.0.1
   path_provider: ^2.1.5
   # Per-piece view preferences (staff zoom), and the app's other small settings.
@@ -111,8 +117,6 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.4.15
-  riverpod_generator: ^2.6.5
 
 # verovio_flutter (0.3.3, the latest) still asks for xml ^6.5.0, while
 # printing 5.15 needs xml 7. It only uses xml's event API (XmlEventDecoder,

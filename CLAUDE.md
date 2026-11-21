@@ -190,6 +190,15 @@ ML Kit via Play Services, and it still tries to send usage logs to
 `flutter doctor`'s "Android license status unknown" is stale: the new Android CLI
 has no license step, and Gradle accepts what a build needs.
 
+## Libraries and the pub workspace
+
+The root `pubspec.yaml` is a pub workspace: the app plus its libraries under
+`packages/` (`resolution: workspace`), with one `pubspec.lock`. The code is
+being moved into libraries step by step, per `docs/libraries-migration.md`
+(technique, checklist, progress) and `docs/family/libraries.md` (what goes
+where). `flutter test` runs only the app's `test/`, so use
+`bash scripts/test_all.sh` to run the libraries' tests too.
+
 ## homr_flutter dependency
 
 The OMR package is a git dependency pinned to a release tag (`ref:` in

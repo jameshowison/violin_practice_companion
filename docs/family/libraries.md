@@ -18,9 +18,9 @@ libraries serve.
    - First as a **path dependency** under `packages/`, like
      `packages/string_tuner`: `publish_to: none`, its own `test/`, README,
      CHANGELOG and LICENSE.
-   - Only when a **second app** uses it does it get its own repo, pinned by
-     tag the way `homr_flutter` is, with the `pubspec_overrides.yaml.off`
-     toggle for editing both at once (CLAUDE.md, "homr_flutter dependency").
+   - It stays in this repo, a member of the pub workspace, even after a second
+     app uses it (Decisions, below). A repo of its own, pinned by tag the way
+     `homr_flutter` is, comes only if outside users appear.
 5. **Not too many.** Six public libraries and one internal core. Each one has
    to earn its place by being useful outside the family.
 
@@ -332,14 +332,29 @@ with:
 | abcjs | MIT | Yes | Bundled JS |
 | GeneralUser GS soundfont | its own licence (`assets/engine/licenses/generaluser_gs.txt`) | Bundled as data | Every new GM program needs a re-cut |
 
-## Open questions
+## Decisions (2026-11-20)
 
-1. **string_tuner's licence:** keep it BSD, or relicense to GPL when it is
-   renamed?
-2. **Repo layout:** one monorepo (proposed), or a repo per library from the
-   start?
-3. **Where the libraries live publicly:** your GitHub account, as homr_flutter
-   is, or an organization for the family?
-4. **pub.dev:** publish the pure-Dart libraries (1, 4, 6) to pub.dev, or keep
-   them as git dependencies? Publishing makes them findable; a git dependency
-   avoids the version-promise burden.
+The four open questions, settled:
+
+1. **Licences:** the family's libraries are **GPL-3.0**. `string_tuner`
+   stays **BSD-3-Clause** when it is renamed `pitch_tuner`, so the small DSP
+   core stays useful to anyone.
+2. **Repo layout:** **one monorepo**, as a Dart pub workspace. The app stays at
+   the root until a second app exists (step 5), then moves to `apps/`.
+3. **Public home:** the maintainer's own GitHub account, next to homr_flutter.
+   A transfer to an organization later keeps redirects.
+4. **pub.dev:** **not yet.** The libraries are path dependencies inside the
+   monorepo. Revisit for `musicxml_tools`, `score_sync` and `pitch_tuner` once
+   an API has held still through a second app.
+
+Also decided:
+
+- `pitch_tuner` is kept, even though winds and brass rarely tune before
+  practice: chromatic mode and written pitch serve their long-tone and
+  intonation work.
+- `pitch_tuner` gains a **drone mode**, which sounds the target pitch for
+  tuning by ear. The tone is generated as a loopable buffer and played as a
+  file, never a live synth (CLAUDE.md, "Audio on iOS").
+
+How each step is carried out, and the checklist for every extraction:
+[`../libraries-migration.md`](../libraries-migration.md).
