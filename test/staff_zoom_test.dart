@@ -1,8 +1,6 @@
 import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/providers.dart'
-    show staffSpacingDefault, staffSpacingMax, staffSpacingMin;
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/widgets/section_minimap.dart';
 

@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../build_info.dart';
-
 /// One file per engrave key, in the OS cache directory (which the OS may purge
 /// — every entry is reproducible, so losing one only costs an engrave).
 ///
@@ -15,6 +13,12 @@ import '../build_info.dart';
 /// even when the executable isn't relinked — by path and mtime (a reinstall
 /// changes both), plus the debug build stamp; it's wiped when any of them moves.
 const _maxEntries = 80; // a few hundred KB each
+
+/// The app's build stamp, part of the cache folder's stamp: entries written by
+/// another build are dropped. Set it before the first engrave (the app sets
+/// its `kBuildRef` at the top of `main`); a change after the folder is open
+/// is ignored until the next launch.
+String engraveCacheStamp = '';
 
 Future<Directory?>? _dir;
 
@@ -27,7 +31,7 @@ Future<Directory?> _open() => _dir ??= () async {
         String sig(File f) => f.existsSync()
             ? '${f.path}@${f.statSync().modified.millisecondsSinceEpoch}'
             : '-';
-        final stamp = '$kBuildRef|${sig(exe)}|${sig(dart)}';
+        final stamp = '$engraveCacheStamp|${sig(exe)}|${sig(dart)}';
         final stampFile = File('${dir.path}/.stamp');
         if (!dir.existsSync() ||
             !stampFile.existsSync() ||

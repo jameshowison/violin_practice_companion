@@ -54,7 +54,9 @@ import 'silent_playback_service.dart';
 import 'piece_media_store.dart';
 import 'playback_service_base.dart';
 import 'staff_zoom.dart';
+export 'staff_zoom.dart' show staffSpacingDefault, staffSpacingMax, staffSpacingMin;
 import 'system_break_injector.dart';
+import 'system_breaks.dart';
 import 'launch_timing.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
@@ -458,11 +460,8 @@ final notationBottomClearanceProvider = StateProvider<double>((_) => 0);
 final notePaletteExpandedProvider = StateProvider<bool>((_) => false);
 
 // ── Staff spacing (Verovio `spacingSystem` via verovioSpacingSystemFor) ───────
-// Exposed as constants so tests can assert min < max (a zero-range slider
-// cannot claim drag gestures and they leak to parent handlers like Drawer close).
-const staffSpacingMin = 0.1;
-const staffSpacingMax = 1.5;
-const staffSpacingDefault = 0.5;
+// The slider's range and default, staffSpacingMin/Max/Default, live beside
+// verovioSpacingSystemFor in staff_zoom.dart (re-exported above).
 
 /// The staff spacing the note-name row wants: turning names on raises the
 /// spacing to at least this, since the row is a third line of type between

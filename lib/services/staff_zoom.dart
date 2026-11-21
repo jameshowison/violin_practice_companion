@@ -311,6 +311,14 @@ double naturalWidthAtSpacing(
 /// It stays far below one whole measure, so it can never admit an extra one.
 const double staffFitSlack = 1.05;
 
+/// The staff-spacing slider's range and default (`staffSpacingProvider`), the
+/// input to [verovioSpacingSystemFor]. Constants so tests can assert min < max:
+/// a zero-range slider cannot claim drag gestures, and they leak to parent
+/// handlers like Drawer close.
+const staffSpacingMin = 0.1;
+const staffSpacingMax = 1.5;
+const staffSpacingDefault = 0.5;
+
 /// Verovio's `spacingSystem` (vertical gap between systems, in MEI units) for a
 /// given `staffSpacingProvider` value.
 ///

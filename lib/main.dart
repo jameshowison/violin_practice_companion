@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marionette_flutter/marionette_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
+import 'build_info.dart';
 import 'debug/realign_all.dart';
 import 'services/app_audio_session.dart';
 import 'services/bundled_licenses.dart';
+import 'services/engrave_disk_cache.dart';
 import 'services/launch_timing.dart';
 import 'services/piece_display_prefs.dart';
 import 'services/providers.dart';
@@ -21,6 +23,8 @@ Future<void> main() async {
   } else {
     WidgetsFlutterBinding.ensureInitialized();
   }
+  // Engraves cached on disk by another build are dropped.
+  engraveCacheStamp = kBuildRef;
   // Before any player exists, or just_audio's first play() switches the iOS
   // session to .playback — see configureAppAudioSession.
   await configureAppAudioSession();

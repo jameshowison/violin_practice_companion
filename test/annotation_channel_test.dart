@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/violin_string_palette.dart';
-// For the staffSpacing slider bounds — the stack has to hold across the whole
-// range the user can actually drag to, not just the values we picked.
-import 'package:violin_practice_companion/services/providers.dart';
+// staff_zoom also gives the staffSpacing slider bounds — the stack has to hold
+// across the whole range the user can actually drag to, not just the values we
+// picked.
 import 'package:violin_practice_companion/services/staff_zoom.dart';
 import 'package:violin_practice_companion/widgets/chord_swatch.dart';
 

@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'section_line_planner.dart';
 import 'staff_zoom.dart';
-import 'system_break_injector.dart';
+import 'system_breaks.dart';
 
 /// The section layout's decisions, short of engraving them: where each section
 /// breaks into lines, and the scale that makes the widest planned line fill
