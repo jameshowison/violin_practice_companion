@@ -1,6 +1,6 @@
 # Moving code into libraries: how each step is done
 
-Status: steps 0–3 and 4a done (2026-11-21). The plan itself, meaning which libraries,
+Status: steps 0–3, 4a and 5a done (2026-11-21). The plan itself, meaning which libraries,
 what goes in each and in what order, is [`family/libraries.md`](family/libraries.md).
 This page covers how a step is carried out, so that Stringlings keeps
 building, passing its tests and shipping at every commit.
@@ -113,7 +113,8 @@ Rules that follow from it:
 | 3 | `pitch_tuner` (rename, `TunerModel` moved in, chromatic, transposition, drone), `<transpose>`/`<clef>` read | done (library only; no app UI yet) |
 | 4a | `score_view` engraving layer: snapshot, seam, move | done |
 | 4b | `score_view` widget, without Riverpod | when a second app needs it |
-| 5 | `audio_decoder`, `practice_core`, `apps/` | |
+| 5a | `audio_decoder` as a plugin package | done (SBR fix unchecked on a phone) |
+| 5b | `practice_core`, `apps/` | family-only, on `next_gen` when a second app exists |
 | 6 | parts, staves, voices | |
 
 ## How steps 1a and 1b came out
@@ -225,3 +226,27 @@ commits: a snapshot, a seam, a move.
   Lightly Row wrote the cache with the new stamp, and a reopen after a hot
   restart was a disk hit. Android was not run; this is a pure move of Dart
   code.
+
+## How step 5a came out
+
+There were two commits, a seam and a move. The decoder is a single plugin
+package (`packages/audio_decoder`) for iOS and Android. It is not
+federated: nobody needs a third platform yet.
+
+- **The channel was split.** `audio_decoder` carries only `decodeToPcm`.
+  `shrinkVideo` and `encodeAac` moved to the app's own
+  `violin_practice_companion/media_tools` channel, served by
+  `MediaToolsPlugin` (Swift and Kotlin). That plugin is still registered by
+  hand.
+- **The plugin registers itself.** On Android it is now a real
+  `FlutterPlugin`, and the generated registrants pick it up on both
+  platforms. The decode code is unchanged, including the SBR output-format
+  fix.
+- **Checked on simulators:**
+  - On `dev-iphone`, fresh native decodes of mp3 and mp4 gave anchor spans
+    matching the cached ones at the end (the sample rate is right).
+  - On the `dev-android` emulator, a decode of our own rendered AAC matched
+    its exact anchors to about 20 ms.
+  - `encodeAac` works on both, over the new channel.
+- **Still to check on a phone:** an HE-AAC (SBR) file on a real Android
+  phone, to rule out a doubled anchor span.
