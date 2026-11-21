@@ -189,7 +189,10 @@ cleared`); those remain source data.
      a scanned or imported score's 0/4 on those notes counts as the app's.
    - The share bundle and the dev library carry overrides, and the sparse
      instrument parts once they exist.
-3. **Viola:**
+3. **Viola:** *Done 2026-11-21* (`InstrumentSet.viola`; the
+   transcription, none or a fifth down, is a setting under it; the soundfont
+   now carries GM 41, so re-cut the bank on every checkout, README "The
+   soundfont"). The list as planned:
    - the profile
    - the alto transcription and its inverse in the editor
    - the sparse instrument part and the editor's scope switch

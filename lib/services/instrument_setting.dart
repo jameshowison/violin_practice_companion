@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/instrument_profile.dart' show Transcription;
 import 'piece_display_prefs.dart' show sharedPreferencesProvider;
 
 /// Which instruments the app is set up for — the app-wide "Instruments" setting
@@ -13,8 +14,16 @@ enum InstrumentSet {
   /// family following a method should not meet any of them.
   violin,
 
-  /// Everything: the per-piece Violin / Mandolin picker, fret numbers, the tab
-  /// view and chords.
+  /// The viola: alto clef, its own fingering a string lower, the viola's
+  /// sound and tuning (docs/family/layers.md).
+  viola,
+
+  /// The mandolin: fret numbers on every piece, the tab view and chords.
+  mandolin,
+
+  /// The setting before the instruments were separate: violin with a
+  /// per-piece Violin / Mandolin picker, frets, tab and chords. Still read
+  /// and honoured where it is stored; Settings offers it only while chosen.
   violinAndMandolin,
 }
 
@@ -22,8 +31,9 @@ enum InstrumentSet {
 /// capabilities, never about the set itself, so a new set (or splitting one
 /// capability out into its own setting) touches only [InstrumentFeatures.of].
 class InstrumentFeatures {
-  /// Mandolin fret numbers: the per-piece Instrument picker and fret style.
-  /// Off forces violin fingering.
+  /// The per-piece Violin / Mandolin picker (only [InstrumentSet
+  /// .violinAndMandolin]). Which numbers a piece shows is
+  /// `noteNumberModeProvider`'s answer.
   final bool fretNumbers;
 
   /// The tab view (melody plus a GDAE tab staff).
@@ -40,8 +50,10 @@ class InstrumentFeatures {
   });
 
   factory InstrumentFeatures.of(InstrumentSet set) => switch (set) {
-    InstrumentSet.violin =>
+    InstrumentSet.violin || InstrumentSet.viola =>
       const InstrumentFeatures(fretNumbers: false, tabView: false, chords: false),
+    InstrumentSet.mandolin =>
+      const InstrumentFeatures(fretNumbers: false, tabView: true, chords: true),
     InstrumentSet.violinAndMandolin =>
       const InstrumentFeatures(fretNumbers: true, tabView: true, chords: true),
   };
@@ -75,6 +87,26 @@ final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
   } catch (_) {
     return fallback;
   }
+});
+
+/// The preference key holding how violin music is shown to a viola: the
+/// [Transcription]'s name.
+const violaTranscriptionKey = 'app.violaTranscription';
+
+/// How a part written for another clef is transcribed for the viola
+/// (decided 2026-11-21: configurable). App-wide, like [instrumentSetProvider].
+final violaTranscriptionProvider = StateProvider<Transcription>((ref) {
+  const fallback = Transcription.none;
+  final prefs = ref.watch(sharedPreferencesProvider);
+  if (prefs == null) return fallback;
+  ref.listenSelf((_, next) {
+    if (prefs.getString(violaTranscriptionKey) != next.name) {
+      prefs.setString(violaTranscriptionKey, next.name);
+    }
+  });
+  final stored = prefs.getString(violaTranscriptionKey);
+  return Transcription.values.where((t) => t.name == stored).firstOrNull ??
+      fallback;
 });
 
 /// The capabilities of the current [instrumentSetProvider].

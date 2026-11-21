@@ -67,6 +67,38 @@ void main() {
 
   });
 
+  test('the bank sounds the viola too (GM 41)', () {
+    // The synth falls back to another preset when one is missing, so ask
+    // the bank's preset headers (phdr: 38-byte records, preset and bank at
+    // 20 and 22) rather than listening for silence.
+    final bytes = ByteData.sublistView(sf);
+    var at = -1;
+    for (var i = 0; i + 4 < sf.length; i++) {
+      if (sf[i] == 0x70 && sf[i + 1] == 0x68 && sf[i + 2] == 0x64 &&
+          sf[i + 3] == 0x72) {
+        at = i;
+        break;
+      }
+    }
+    expect(at, greaterThan(0), reason: 'no phdr chunk');
+    final size = bytes.getUint32(at + 4, Endian.little);
+    final presets = {
+      for (var r = at + 8; r + 38 <= at + 8 + size; r += 38)
+        (bytes.getUint16(r + 22, Endian.little),
+            bytes.getUint16(r + 20, Endian.little)),
+    };
+    expect(presets, containsAll([(0, 40), (0, 41)]),
+        reason: 'cut the bank with --keep 0:41 (README, "The soundfont")');
+    const bpm = 100;
+    final data = MidiGenerator.forTest().generate(piece, bpm);
+    final r = ScoreRenderer(ByteData.sublistView(sf), program: 41)
+        .render(piece, data, bpm);
+    const win = 220;
+    final first = (r.prerollSeconds * r.sampleRate).round();
+    expect(rms(r.samples, first + 10 * win, win), greaterThan(0.02),
+        reason: 'a bank cut without program 41 plays a viola part silently');
+  });
+
   test('three tempo renders, timed', () {
     final total = Stopwatch()..start();
     for (final bpm in [67, 85, 107]) {

@@ -348,10 +348,15 @@ final pieceMusicXmlProvider = FutureProvider<String?>((ref) async {
 
 /// The instrument the piece is shown for. Violin, or mandolin when the piece
 /// is in fret numbers; both read treble, so both see every source as it is.
-final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
-    ref.watch(noteNumberModeProvider) == NoteNumberMode.mandolinFret
-        ? InstrumentProfile.mandolin
-        : InstrumentProfile.violin);
+final instrumentProfileProvider = Provider<InstrumentProfile>((ref) {
+  if (ref.watch(instrumentSetProvider) == InstrumentSet.viola) {
+    return InstrumentProfile.viola
+        .withTranscription(ref.watch(violaTranscriptionProvider));
+  }
+  return ref.watch(noteNumberModeProvider) == NoteNumberMode.mandolinFret
+      ? InstrumentProfile.mandolin
+      : InstrumentProfile.violin;
+});
 
 /// How the selected piece's source is shown for [instrumentProfileProvider].
 final instrumentViewProvider = FutureProvider<InstrumentView?>((ref) async {
@@ -1129,15 +1134,13 @@ final printStaffXmlProvider = FutureProvider.family<String?, bool>(
 );
 
 /// The piece's opening clef/key/time, engraved alone — the counterpart to
-/// [_hidePreambleFor] stripping it from the main render. Read off the piece's
-/// own untouched XML (not [staffXmlProvider]'s output, which has already had
-/// it marked non-printing) so the real glyphs are always available to show.
+/// [_hidePreambleFor] stripping it from the main render. Read off the
+/// instrument's view of the piece ([pieceViewXmlProvider], so a viola sees
+/// its alto clef and its key), not [staffXmlProvider]'s output, which has
+/// already had them marked non-printing.
 final preambleMusicXmlProvider = FutureProvider<String?>((ref) async {
-  final piece = ref.watch(selectedPieceProvider);
-  if (piece == null) return null;
-  final repo = ref.watch(pieceRepositoryProvider);
-  final xml = await repo.loadMusicXml(piece);
-  return buildPreambleXml(xml);
+  final xml = await ref.watch(pieceViewXmlProvider.future);
+  return xml == null ? null : buildPreambleXml(xml);
 });
 
 final staffFingeringXmlProvider = FutureProvider<String?>(
@@ -1162,14 +1165,18 @@ final noteNumberModePrefProvider = pieceDisplayEnumPref<NoteNumberMode>(
   NoteNumberMode.values,
 );
 
-/// The numbers in effect: [noteNumberModePrefProvider], but always the violin
-/// fingering when the instrument setting has no fret numbers — a piece saved in
-/// fret mode would otherwise open in frets with no picker to leave them. The
-/// saved choice is kept, so it comes back if the setting does.
+/// The numbers in effect, from the instrument setting: frets for the
+/// mandolin, fingering for the violin and the viola, and the piece's own
+/// choice ([noteNumberModePrefProvider]) only under the old combined
+/// violin-and-mandolin setting, which has the per-piece picker. The saved
+/// choice is kept, so it comes back if that setting does.
 final noteNumberModeProvider = Provider<NoteNumberMode>(
-  (ref) => ref.watch(instrumentFeaturesProvider).fretNumbers
-      ? ref.watch(noteNumberModePrefProvider)
-      : NoteNumberMode.violinFingering,
+  (ref) => switch (ref.watch(instrumentSetProvider)) {
+    InstrumentSet.mandolin => NoteNumberMode.mandolinFret,
+    InstrumentSet.violinAndMandolin => ref.watch(noteNumberModePrefProvider),
+    InstrumentSet.violin || InstrumentSet.viola =>
+      NoteNumberMode.violinFingering,
+  },
 );
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the
@@ -1234,7 +1241,9 @@ final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
   final palette = PaletteXmlGenerator.piece(parsed);
   if (palette == null) return null;
   return FingeringXmlInjector.injectPlaceholders(
-      PaletteXmlGenerator.generate(parsed), fingeringLabelsOf(palette));
+      PaletteXmlGenerator.generate(parsed,
+          clef: ref.watch(instrumentProfileProvider).clef),
+      fingeringLabelsOf(palette));
 });
 
 /// The note vocabulary as a piece of its own — see [PaletteXmlGenerator.piece].
@@ -1560,8 +1569,8 @@ final renderedScoreServiceProvider =
 
 /// App-wide, so concurrent renders of one key are shared and the cache's
 /// directory is opened once.
-final renderedScoreCacheProvider =
-    Provider<RenderedScoreCache>((_) => RenderedScoreCache());
+final renderedScoreCacheProvider = Provider<RenderedScoreCache>((ref) =>
+    RenderedScoreCache(instrument: ref.watch(instrumentProfileProvider).id));
 
 /// [PlaybackState] of [activePlaybackServiceProvider].
 final activePlaybackStateProvider =

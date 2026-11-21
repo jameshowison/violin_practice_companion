@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Cut a SoundFont 2 bank down to the presets the app actually plays.
 
-The app plays the violin (bank 0, program 40, from
-assets/engine/lookup_tables/midi_patch.json) and three notes of the GM drum kit
+The app plays the violin and the viola (bank 0, programs 40 and 41, from
+assets/engine/lookup_tables/midi_patch.json) and two notes of the GM drum kit
 (bank 128, program 0): the high and low woodblocks (76, 77) for the rendered
-score's count-in (score_renderer.dart). The bundled bank also still holds the
-claves (75), once the live synth's calibration click; the synth went on
-2026-11-20, and the claves can go at the next re-subset. GeneralUser GS is ~31 MB for all 260-odd presets; this keeps
-those two, the instrument zones they reach, and only the samples those zones
+score's count-in (score_renderer.dart). GeneralUser GS is ~31 MB for all
+260-odd presets; this keeps those, the instrument zones they reach, and only the samples those zones
 play, so the bundled bank is a small fraction of that. GeneralUser GS's licence
 allows modifying it (assets/engine/licenses/generaluser_gs.txt).
 
     python3 scripts/subset_soundfont.py ../GeneralUser-GS/GeneralUser-GS.sf2 \
-        assets/engine/soundfonts/generaluser_gs.sf2 --keep 0:40 --keep 128:0:75,76,77
+        assets/engine/soundfonts/generaluser_gs.sf2 \
+        --keep 0:40 --keep 0:41 --keep 128:0:76,77
 
 --keep BANK:PROGRAM keeps a whole preset; BANK:PROGRAM:KEY[,KEY...] keeps only
 the zones whose key range covers one of those keys (plus global zones). If you
@@ -217,6 +216,12 @@ def main():
     info = list(riff[b'INFO'].items())
     note = b'Subset for Stringlings by scripts/subset_soundfont.py: ' + \
         ', '.join(args.keep).encode() + b'\0'
+    # SF2 wants every INFO string an even length, its terminating zeros
+    # counted in the chunk size. RIFF's own pad byte (which [chunk] adds) is
+    # not enough: dart_melty_soundfont reads the size as written and loses
+    # its place after an odd one ("unknown ID ' LIS'").
+    if len(note) & 1:
+        note += b'\0'
     info = [(c, b) for c, b in info if c != b'ICMT'] + [(b'ICMT', note)]
     body = b'sfbk' + lst(b'INFO', info) + lst(b'sdta', [(b'smpl', bytes(new_smpl))]) + lst(b'pdta', [
         (b'phdr', phdr_out), (b'pbag', pb), (b'pmod', pm), (b'pgen', pg),

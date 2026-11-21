@@ -48,7 +48,11 @@ class RenderedScoreFile {
 /// tempo, the opening meter and pickup (the woodblock bars), and the
 /// soundfont, patch and renderer versions.
 class RenderedScoreCache {
-  RenderedScoreCache({this.maxFiles = 12});
+  RenderedScoreCache({this.maxFiles = 12, this.instrument = 'violin'});
+
+  /// The instrument profile whose sound plays the score: its General MIDI
+  /// program in `midi_patch.json`, else the violin's.
+  final String instrument;
 
   /// About four pieces' three renders, ~2 MB for a one-minute piece.
   final int maxFiles;
@@ -85,7 +89,7 @@ class RenderedScoreCache {
         final sf = await rootBundle.load(patch['soundfontAsset'] as String);
         return _Sound(
           soundFont: sf,
-          program: patch['violin'] as int,
+          program: (patch[instrument] ?? patch['violin']) as int,
           velocity: patch['noteVelocity'] as int? ?? 90,
         );
       }();

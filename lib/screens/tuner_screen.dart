@@ -83,6 +83,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   int _rung = 2; // the A string until something is heard or picked
   double _a4 = 440;
   bool _mandolin = false;
+
+  /// The viola's C G D A, when the instrument setting is the viola.
+  bool _viola = false;
   bool _leftHanded = false;
 
   /// Which string of the picked mandolin course is being tuned: 0 the lower
@@ -255,8 +258,13 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           _play.value = _springFrom * (1 - Curves.easeOutBack.transform(_spring.value)));
     final prefs = ref.read(sharedPreferencesProvider);
     _a4 = (prefs?.getInt(tunerA4Key) ?? 440) == 442 ? 442 : 440;
-    _mandolin = prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
-        ref.read(instrumentFeaturesProvider).fretNumbers;
+    final set = ref.read(instrumentSetProvider);
+    _viola = set == InstrumentSet.viola;
+    // The mandolin setting tunes a mandolin; the old combined setting lets
+    // the tuner's own Violin / Mandolin switch decide.
+    _mandolin = set == InstrumentSet.mandolin ||
+        (prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
+            ref.read(instrumentFeaturesProvider).fretNumbers);
     _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
     _leftHanded = prefs?.getBool(tunerLeftHandedKey) ?? false;
     _record = kTunerRecording && (prefs?.getBool(tunerRecordSessionsKey) ?? false);
@@ -296,7 +304,11 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 
   InstrumentTuning _tuning() =>
-      _mandolin ? InstrumentTuning.mandolin(a4: _a4) : InstrumentTuning.violin(a4: _a4);
+      _mandolin
+          ? InstrumentTuning.mandolin(a4: _a4)
+          : _viola
+              ? InstrumentTuning.viola(a4: _a4)
+              : InstrumentTuning.violin(a4: _a4);
 
   Future<void> _start() async {
     if (!_input.isSupported) {

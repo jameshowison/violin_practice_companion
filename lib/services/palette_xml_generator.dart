@@ -88,7 +88,10 @@ class PaletteXmlGenerator {
   }
 
   /// Engraves no fingering labels: the staff draws its own chips, from [piece].
-  static String generate(ParsedPiece parsed) {
+  /// [clef] is the instrument's (`InstrumentProfile.clef`): treble, or a
+  /// viola's alto.
+  static String generate(ParsedPiece parsed,
+      {({String sign, int line}) clef = (sign: 'G', line: 2)}) {
     final palette = piece(parsed);
     if (palette == null) return '';
     final keyPcs = _keyPitchClasses(parsed.keyFifths, parsed.keyMode);
@@ -108,7 +111,7 @@ class PaletteXmlGenerator {
             '<divisions>1</divisions>'
             '<key><fifths>${parsed.keyFifths}</fifths></key>'
             '<time><beats>4</beats><beat-type>4</beat-type></time>'
-            '<clef><sign>G</sign><line>2</line></clef>'
+            '<clef><sign>${clef.sign}</sign><line>${clef.line}</line></clef>'
             '</attributes>');
         // Room after the time signature for the key-signature letters and
         // the key name the native staff paints there. Verovio engraves no

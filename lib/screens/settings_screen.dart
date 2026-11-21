@@ -7,6 +7,7 @@ import '../services/instrument_setting.dart';
 import '../theme/app_skin.dart';
 import '../theme/skins.dart';
 import 'thanks_screen.dart';
+import '../models/instrument_profile.dart' show Transcription;
 
 /// The privacy policy, docs/privacy.md, on GitHub. The App Store listing links
 /// the stringlings.app copy instead, built from the same file (build_site.py).
@@ -78,24 +79,79 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) {
               if (v != null) ref.read(instrumentSetProvider.notifier).state = v;
             },
-            child: const Column(
-              key: ValueKey('instrument_setting'),
+            child: Column(
+              key: const ValueKey('instrument_setting'),
               children: [
-                RadioListTile<InstrumentSet>(
+                const RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_violin'),
                   value: InstrumentSet.violin,
                   dense: true,
                   title: Text('Violin'),
                 ),
-                RadioListTile<InstrumentSet>(
-                  key: ValueKey('instrument_setting_violin_mandolin'),
-                  value: InstrumentSet.violinAndMandolin,
+                const RadioListTile<InstrumentSet>(
+                  key: ValueKey('instrument_setting_viola'),
+                  value: InstrumentSet.viola,
                   dense: true,
-                  title: Text('Violin and mandolin: frets, tab, chords'),
+                  title: Text('Viola: alto clef, C G D A'),
                 ),
+                const RadioListTile<InstrumentSet>(
+                  key: ValueKey('instrument_setting_mandolin'),
+                  value: InstrumentSet.mandolin,
+                  dense: true,
+                  title: Text('Mandolin: frets, tab, chords'),
+                ),
+                // The old combined setting, offered only while it is the one
+                // chosen, so switching away from it is a one-way step.
+                if (set == InstrumentSet.violinAndMandolin)
+                  const RadioListTile<InstrumentSet>(
+                    key: ValueKey('instrument_setting_violin_mandolin'),
+                    value: InstrumentSet.violinAndMandolin,
+                    dense: true,
+                    title: Text('Violin and mandolin, chosen per piece'),
+                  ),
               ],
             ),
           ),
+          if (set == InstrumentSet.viola)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 4, 16, 0),
+              child: Text('Music written for violin',
+                  style: theme.textTheme.labelLarge),
+            ),
+          if (set == InstrumentSet.viola)
+            RadioGroup<Transcription>(
+              groupValue: ref.watch(violaTranscriptionProvider),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(violaTranscriptionProvider.notifier).state = v;
+                }
+              },
+              child: const Padding(
+                padding: EdgeInsets.only(left: 16),
+                child: Column(
+                  key: ValueKey('viola_transcription'),
+                  children: [
+                    RadioListTile<Transcription>(
+                      key: ValueKey('viola_transcription_none'),
+                      value: Transcription.none,
+                      dense: true,
+                      title: Text('Same key, in alto clef'),
+                      subtitle: Text('An octave lower when that suits the '
+                          'viola; recordings of the violin part still match'),
+                    ),
+                    RadioListTile<Transcription>(
+                      key: ValueKey('viola_transcription_fifth'),
+                      value: Transcription.fifthDown,
+                      dense: true,
+                      title: Text('A fifth lower'),
+                      subtitle: Text(
+                          'The violin\'s finger patterns, a string lower; '
+                          'a different key from violin recordings'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           const Divider(height: 1),
           ListTile(

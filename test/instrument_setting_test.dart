@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/display_mode.dart';
+import 'package:violin_practice_companion/models/instrument_profile.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
@@ -95,5 +96,46 @@ void main() {
   test('an unreadable value reads as the violin', () async {
     final c = await containerWith({instrumentSetKey: 'banjo'});
     expect(c.read(instrumentSetProvider), InstrumentSet.violin);
+  });
+
+  group('separate instruments', () {
+    test('the mandolin shows frets, tab and chords on every piece', () async {
+      final c = await containerWith({'app.instruments': 'mandolin'});
+      c.read(selectedPieceProvider.notifier).state = _piece('b');
+      expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
+      final f = c.read(instrumentFeaturesProvider);
+      expect((f.fretNumbers, f.tabView, f.chords), (false, true, true));
+      expect(c.read(instrumentProfileProvider).id, 'mandolin');
+    });
+
+    test('the viola fingers on its own strings, in the viola layer', () async {
+      final c = await containerWith({'app.instruments': 'viola'});
+      c.read(selectedPieceProvider.notifier).state = _piece('a');
+      expect(c.read(noteNumberModeProvider), NoteNumberMode.violinFingering);
+      final p = c.read(instrumentProfileProvider);
+      expect((p.id, p.layerId, p.strings.first), ('viola', 'viola', 'C'));
+      expect(p.transcription, Transcription.none);
+      final f = c.read(instrumentFeaturesProvider);
+      expect((f.fretNumbers, f.tabView, f.chords), (false, false, false));
+    });
+
+    test('the viola\'s transcription is a saved setting', () async {
+      final c = await containerWith({
+        'app.instruments': 'viola',
+        'app.violaTranscription': 'fifthDown',
+      });
+      expect(c.read(instrumentProfileProvider).transcription,
+          Transcription.fifthDown);
+      c.read(violaTranscriptionProvider.notifier).state = Transcription.none;
+      expect(prefs.getString('app.violaTranscription'), 'none');
+    });
+
+    test('the old combined setting keeps its per-piece choice', () async {
+      final c = await containerWith(
+          {...mandolinPiece, 'app.instruments': 'violinAndMandolin'});
+      c.read(selectedPieceProvider.notifier).state = _piece('a');
+      expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
+      expect(c.read(instrumentFeaturesProvider).fretNumbers, isTrue);
+    });
   });
 }
