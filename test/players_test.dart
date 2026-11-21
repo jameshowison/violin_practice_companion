@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +9,9 @@ import 'package:violin_practice_companion/services/piece_activity_store.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/players.dart';
 import 'package:violin_practice_companion/services/providers.dart';
+import 'package:violin_practice_companion/screens/settings_screen.dart';
 import 'package:violin_practice_companion/theme/app_skin.dart';
+import 'package:violin_practice_companion/widgets/player_badge.dart';
 
 Piece _piece(String id) =>
     Piece(id: id, title: id, musicXmlFilePath: '/x/$id.musicxml', sections: const []);
@@ -91,4 +94,55 @@ void main() {
     expect(const Player(id: 'x', name: 'ivy', colour: 0).initials, 'I');
     expect(const Player(id: 'x', name: '  ', colour: 0).initials, '?');
   });
+
+  testWidgets('adding a player in Settings names the first and switches',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final sp = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(sp)]);
+    addTearDown(container.dispose);
+    tester.view.physicalSize = const Size(375, 667) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+          home: Scaffold(
+              appBar: _BadgeBar(), body: SettingsScreen())),
+    ));
+    expect(find.byKey(const ValueKey('player_badge')), findsNothing);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('add_player')), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Add a second player'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('add_player')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('add_player_name')), 'Theo');
+    await tester.pump();
+    await tester.tap(find.text('Viola: alto clef, C G D A').last);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('add_player_confirm')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(playersProvider).map((p) => p.name),
+        ['Player 1', 'Theo']);
+    expect(container.read(currentPlayerProvider)!.name, 'Theo');
+    expect(container.read(instrumentSetProvider), InstrumentSet.viola);
+    expect(find.byKey(const ValueKey('player_badge')), findsOneWidget);
+    await tester.scrollUntilVisible(find.text("Theo's instrument"), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text("Theo's instrument"), findsOneWidget);
+  });
+}
+
+class _BadgeBar extends StatelessWidget implements PreferredSizeWidget {
+  const _BadgeBar();
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+  @override
+  Widget build(BuildContext context) =>
+      AppBar(actions: const [PlayerBadge()]);
 }

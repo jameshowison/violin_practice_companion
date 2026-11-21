@@ -26,6 +26,7 @@ import '../services/launch_timing.dart';
 import '../ui/stringlings/stringling_tuner_icon.dart';
 import '../ui/stringlings/stringlings_tile.dart';
 import '../debug/screenshot_mode.dart';
+import '../widgets/player_badge.dart';
 
 /// The everyday list — what the child opens the app to.
 ///
@@ -152,6 +153,8 @@ class PieceListScreen extends ConsumerWidget {
         ),
         centerTitle: true,
         actions: [
+          // Who is playing, when there is more than one player.
+          const PlayerBadge(),
           IconButton(
             key: const ValueKey('add_piece_button'),
             icon: const Icon(Icons.add),

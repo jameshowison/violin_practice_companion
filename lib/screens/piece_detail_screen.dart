@@ -55,6 +55,7 @@ import '../theme/skin_style.dart';
 import '../ui/stringlings/stringling_peekers.dart';
 import 'scan_photo_screen.dart';
 import '../debug/screenshot_mode.dart';
+import '../widgets/player_badge.dart';
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -327,6 +328,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
           // opens it (see [_KeySummary]), which gives the title the width.
           // Size and layout of the engraved staff. Print gave up its place
           // here to make room on a phone, and lives in the drawer.
+          const PlayerBadge(),
           if (staffViewMenuAppliesTo(displayMode))
             StaffViewMenuButton(mode: displayMode),
           // No mode toggles here any more. "Play Along", "Teacher Demo" and

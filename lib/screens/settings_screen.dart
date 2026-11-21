@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/instrument_setting.dart';
+import '../services/players.dart';
+import '../widgets/player_badge.dart';
 import '../theme/app_skin.dart';
 import '../theme/skins.dart';
 import 'thanks_screen.dart';
@@ -25,6 +27,8 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final set = ref.watch(instrumentSetProvider);
+    final players = ref.watch(playersProvider);
+    final current = ref.watch(currentPlayerProvider);
     final skin = ref.watch(appSkinProvider);
     final theme = Theme.of(context);
 
@@ -70,9 +74,42 @@ class SettingsScreen extends ConsumerWidget {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
+          // Players beside the instrument (docs/family/layers.md): with one
+          // player this is the instrument as before, plus a way to add one.
+          if (players.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text("Who's playing", style: theme.textTheme.titleSmall),
+            ),
+            for (final p in players)
+              ListTile(
+                key: ValueKey('settings_player_${p.id}'),
+                leading: PlayerAvatar(p),
+                title: Text(p.name),
+                subtitle: Text(instrumentNameOf(ref, p, players)),
+                trailing: p.id == current?.id
+                    ? Text('Playing',
+                        style: TextStyle(color: theme.colorScheme.primary))
+                    : null,
+                selected: p.id == current?.id,
+                onTap: () => ref.read(currentPlayerIdProvider.notifier).state =
+                    p.id == players.first.id ? null : p.id,
+              ),
+          ],
+          ListTile(
+            key: const ValueKey('add_player'),
+            leading: const Icon(Icons.person_add_alt),
+            title: Text(players.isEmpty ? 'Add a second player' : 'Add a player'),
+            subtitle: players.isEmpty
+                ? const Text('Each gets their own instrument, settings and notes')
+                : null,
+            onTap: () => showAddPlayerSheet(context),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text('Instruments', style: theme.textTheme.titleSmall),
+            child: Text(
+                current == null ? 'Instrument' : "${current.name}'s instrument",
+                style: theme.textTheme.titleSmall),
           ),
           RadioGroup<InstrumentSet>(
             groupValue: set,

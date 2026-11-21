@@ -32,7 +32,7 @@ void main() {
     final entry = find.byKey(const ValueKey('thanks_entry'));
     await tester.scrollUntilVisible(entry, 200);
     expect(tester.getTopLeft(entry).dy,
-        greaterThan(tester.getTopLeft(find.text('Instruments')).dy));
+        greaterThan(tester.getTopLeft(find.text('Instrument')).dy));
     await tester.ensureVisible(entry);
     await tester.pumpAndSettle();
 
