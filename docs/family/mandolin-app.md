@@ -42,8 +42,9 @@ Stringlings' bundle id.
 
 **Android** (`android/app/build.gradle.kts`): a flavor dimension `edition` with
 `stringlings` and `mandolin`. Mandolin adds `applicationIdSuffix = ".mandolin"`.
-Each sets the label through `resValue("string", "app_name", …)`, which the
-manifest reads as `@string/app_name`.
+Each sets the label as `manifestPlaceholders["appName"]`, which the manifest
+reads as `${appName}`. (`resValue` would need `buildFeatures.resValues`, which
+AGP now turns off by default; the build failed on it.)
 
 **iOS** (`ios/Runner.xcodeproj`):
 
@@ -131,6 +132,21 @@ The Info.plist usage strings, the document type, the Podfile settings
 (static linkage for onnxruntime) and the Gradle workarounds would also be
 duplicated. Until there is a reason to diverge natively, the flavor is the
 cheaper shape.
+
+## Verified (2026-11-21)
+
+- `dev-ipad`: Mandolings ran from `--flavor mandolin` with the stamp checked
+  through Marionette. The piece list badge said Mandolings, Settings had no
+  Instrument section, and the tuner was the mandolin's (paired courses, the
+  headstock). Then a plain `dev_run.sh` (no flavor) ran Stringlings: Settings
+  offered Violin and Viola, and no Mandolin. Both icons sat on the home screen
+  as "Stringlings" and "Mandolings", neither truncated on the iPad.
+- `flutter build ios --simulator --debug` with each flavor, and
+  `flutter build apk --debug` with `--flavor mandolin` and with no flavor:
+  `app-mandolin-debug.apk` (package `…mandolin`, label Mandolings) and
+  `app-stringlings-debug.apk` (today's package, label Stringlings). Not run on
+  the emulator, which another session was using.
+- Not tried: a physical device, a release or TestFlight build of Mandolings.
 
 ## Open questions
 

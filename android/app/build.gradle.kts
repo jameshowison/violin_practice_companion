@@ -32,12 +32,12 @@ android {
     productFlavors {
         create("stringlings") {
             dimension = "edition"
-            resValue("string", "app_name", "Stringlings")
+            manifestPlaceholders["appName"] = "Stringlings"
         }
         create("mandolin") {
             dimension = "edition"
             applicationIdSuffix = ".mandolin"
-            resValue("string", "app_name", "Mandolings")
+            manifestPlaceholders["appName"] = "Mandolings"
         }
     }
 

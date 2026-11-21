@@ -113,7 +113,9 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.person_add_alt),
             title: Text(players.isEmpty ? 'Add a second player' : 'Add a player'),
             subtitle: players.isEmpty
-                ? const Text('Each gets their own instrument, settings and notes')
+                ? Text(offered.length > 1
+                    ? 'Each gets their own instrument, settings and notes'
+                    : 'Each gets their own settings and notes')
                 : null,
             onTap: () => showAddPlayerSheet(context),
           ),
