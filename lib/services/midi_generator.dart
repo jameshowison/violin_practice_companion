@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/count_in.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
+import 'score_timing.dart';
 
-class ScheduledNote {
+class ScheduledNote implements TimedNote {
   final double onsetSeconds;
   final double offsetSeconds;
   final int midiNote;
@@ -53,7 +54,7 @@ class HighlightEvent {
   });
 }
 
-class MidiData {
+class MidiData implements TimedScore {
   final List<ScheduledNote> notes; // sorted by onset ascending
   final List<double> measureOnsetSeconds; // index i → onset of measures[i]
   // measureNumbers[i] is the Measure.number whose onset is measureOnsetSeconds[i],

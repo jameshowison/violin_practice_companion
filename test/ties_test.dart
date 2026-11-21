@@ -333,9 +333,9 @@ $notes</measure></part></score-partwise>''';
         const ScoreAudioAnchor(2000, 10.2),
         const ScoreAudioAnchor(4000, 14.0),
       ];
-      final held = AudioScoreAutoAligner.heldBarlines(midi, anchors);
+      final held = ScoreAligner.heldBarlines(midi, anchors);
       expect(held, [false, true, false]);
-      final placed = AudioScoreAutoAligner.interpolateHeld(anchors, held);
+      final placed = ScoreAligner.interpolateHeld(anchors, held);
       expect(placed[1].audioSec, closeTo(12.0, 1e-9));
       expect(placed[0].audioSec, 10.0);
       expect(placed[2].audioSec, 14.0);
@@ -353,9 +353,9 @@ $notes</measure></part></score-partwise>''';
         const ScoreAudioAnchor(4000, 4.1),
       ];
       final held =
-          AudioScoreAutoAligner.heldBarlines(gen.generate(piece, 60), anchors);
+          ScoreAligner.heldBarlines(gen.generate(piece, 60), anchors);
       expect(held, [false, false, true]);
-      expect(AudioScoreAutoAligner.interpolateHeld(anchors, held)[2].audioSec,
+      expect(ScoreAligner.interpolateHeld(anchors, held)[2].audioSec,
           4.1);
     });
   });

@@ -8,7 +8,7 @@ import '../models/piece_media.dart';
 import '../models/tempo_presets.dart' show offerRecordingTempo;
 import '../screens/record_teacher_demo_screen.dart';
 import '../services/audio_output.dart';
-import '../services/audio_score_auto_aligner.dart' show alignmentReviewMessage;
+import '../services/piece_aligner.dart' show alignmentReviewMessage;
 import '../services/media_import.dart';
 import '../services/media_playback_service.dart';
 import '../services/media_transport.dart';

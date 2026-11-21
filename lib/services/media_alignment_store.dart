@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio_score_auto_aligner.dart';
+import 'piece_aligner.dart';
 
 /// One medium's cached score-to-audio alignment.
 class MediaAlignment {

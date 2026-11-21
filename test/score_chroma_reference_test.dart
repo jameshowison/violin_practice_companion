@@ -34,7 +34,7 @@ void main() {
       [_note(60, NoteValue.whole)]
     ]);
     const hop = 0.5;
-    final ref = ScoreChromaReferenceBuilder(gen).build(p, 60, hop);
+    final ref = ScoreChromaReferenceBuilder().build(gen.generate(p, 60), hop);
 
     // 4 seconds / 0.5s hop -> frames covering [0, 4]s should be non-zero at
     // pitch class 0 and zero everywhere else.
@@ -56,7 +56,7 @@ void main() {
       [_note(60, NoteValue.half), _note(62, NoteValue.half)]
     ]);
     const hop = 0.25;
-    final ref = ScoreChromaReferenceBuilder(gen).build(p, 60, hop);
+    final ref = ScoreChromaReferenceBuilder().build(gen.generate(p, 60), hop);
 
     // First note spans [0, 2)s -> frame indices [0, 8); second spans [2, 4)s.
     final earlyFrame = ref.frames[2]; // t = 0.5s, inside the first note
@@ -81,7 +81,7 @@ void main() {
         Measure(number: 2, notes: [_note(62, NoteValue.whole)], repeatEnd: true),
       ],
     );
-    final ref = ScoreChromaReferenceBuilder(gen).build(p, 60, 0.5);
+    final ref = ScoreChromaReferenceBuilder().build(gen.generate(p, 60), 0.5);
     expect(ref.measureNumbers, [1, 2, 1, 2]);
     expect(ref.measureOnsetSeconds, [0.0, 4.0, 8.0, 12.0]);
   });
@@ -90,7 +90,7 @@ void main() {
     final p = piece([
       [_note(60, NoteValue.quarter), _note(64, NoteValue.quarter)]
     ]);
-    final ref = ScoreChromaReferenceBuilder(gen).build(p, 60, 0.25);
+    final ref = ScoreChromaReferenceBuilder().build(gen.generate(p, 60), 0.25);
     for (final frame in ref.frames) {
       var sumSq = 0.0;
       for (final v in frame) {

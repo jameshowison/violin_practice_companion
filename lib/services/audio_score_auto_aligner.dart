@@ -1,17 +1,15 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:musicxml_tools/musicxml_tools.dart';
 import 'audio_chroma_features.dart';
-import 'audio_decoder_base.dart' show PcmAudio;
 import 'dtw_align.dart';
-import 'midi_generator.dart';
 import 'score_chroma_reference.dart';
+import 'score_timing.dart';
 
 /// One (score-timeline-millisecond, real-audio-second) calibration point.
 /// [scoreMs] is in the timeline generated at [AutoAlignmentResult.generationBpm]
-/// — a caller must regenerate [MidiGenerator.generate] at that same BPM to
-/// get a highlight-event timeline these anchors are consistent with.
+/// — a caller must lay the score out again at that same BPM to get a
+/// highlight-event timeline these anchors are consistent with.
 class ScoreAudioAnchor {
   final double scoreMs;
   final double audioSec;
@@ -21,7 +19,7 @@ class ScoreAudioAnchor {
 
 class AutoAlignmentResult {
   /// One anchor per performed measure, plus those
-  /// [AudioScoreAutoAligner.restsAbsorbPauses] adds inside a paused run where
+  /// [ScoreAligner.restsAbsorbPauses] adds inside a paused run where
   /// the music starts and stops sounding; sorted by
   /// [ScoreAudioAnchor.audioSec].
   final List<ScoreAudioAnchor> anchors;
@@ -38,7 +36,7 @@ class AutoAlignmentResult {
 
   /// True if [anchors] shows the anchor-compression signature described in
   /// docs/audio-sync-dtw-anchor-compression.md — see
-  /// [AudioScoreAutoAligner.hasCompressedRun]. The confirmed case of this
+  /// [ScoreAligner.hasCompressedRun]. The confirmed case of this
   /// (Salt Creek) turned out to be a genuinely wrong score, not a DTW quirk —
   /// a missing first/second-ending distinction had produced extra, duplicate
   /// measures — so this is surfaced to the user to review rather than
@@ -53,41 +51,30 @@ class AutoAlignmentResult {
   });
 }
 
-/// Suggested message for the UI to show when [AutoAlignmentResult.hasCompressedAnchors]
-/// (or a cached alignment's stored equivalent) is true.
-///
-/// Deliberately names both causes and does not assert which. The wording used
-/// to blame the score outright, on the strength of the one confirmed case
-/// (Salt Creek's duplicate measures — see
-/// docs/audio-sync-dtw-anchor-compression.md). That is no longer safe: with
-/// that score corrected, the same recording still trips the flag while every
-/// one of its 32 anchors lands within 100ms of a real note onset, so the
-/// signal now has a known false-positive mode and shouldn't send anyone
-/// hunting for a score bug that isn't there.
-const String alignmentReviewMessage =
-    'Some measures may be highlighted slightly early or late. If the score '
-    "doesn't quite match what was played, check for an extra or missing "
-    'measure, or a first/second ending that isn\'t marked (mark it in the '
-    'measure editor), then tap Realign. Otherwise the '
-    'recording itself may be hard to follow — a quiet one, or one with a lot '
-    'of background hum, gives the aligner less to work with. Playback is '
-    'usable either way.';
-
 /// Aligns a piece's score to a real recording of it, fully on-device: builds
 /// a symbolic reference chroma curve directly from the score's own notes (no
 /// audio synthesis), extracts real chroma from the recording, runs DTW
 /// between them, and reads each measure's real-audio timestamp off the warp
 /// path. Only measure-level granularity is needed — not per-note alignment.
-class AudioScoreAutoAligner {
-  final MidiGenerator _midiGenerator;
+///
+/// [S] is the caller's score type; [ScoreTiming] lays one out in time at a
+/// tempo, which is all the aligner needs to know about it.
+class ScoreAligner<S> {
+  final ScoreTiming<S> _timing;
   final AudioChromaExtractor _extractor;
   final DtwAligner _dtw;
 
-  AudioScoreAutoAligner({
-    MidiGenerator? midiGenerator,
+  /// How long a note rings on into a following rest in the score's reference
+  /// (see [ScoreChromaReferenceBuilder.ringSeconds]): about a second for a
+  /// string, near zero for an instrument that stops dead.
+  final double ringSeconds;
+
+  ScoreAligner({
+    required ScoreTiming<S> timing,
     AudioChromaExtractor? extractor,
     DtwAligner? dtw,
-  })  : _midiGenerator = midiGenerator ?? MidiGenerator(),
+    this.ringSeconds = 1.0,
+  })  : _timing = timing,
         _extractor = extractor ?? const AudioChromaExtractor(),
         _dtw = dtw ?? const DtwAligner();
 
@@ -98,9 +85,9 @@ class AudioScoreAutoAligner {
   /// demos recorded before the capture became one video with sound) and
   /// because it is what the alignment regression tests drive. Everything else
   /// — the bundled tracks' `melody.mp3`, today's captures, imports — arrives
-  /// through [alignPcm] instead, already decoded.
+  /// through [alignSamples] instead, already decoded.
   AutoAlignmentResult align(
-    ParsedPiece piece,
+    S piece,
     Uint8List wavBytes, {
     double? contentStartSeconds,
     double? contentEndSeconds,
@@ -113,17 +100,19 @@ class AudioScoreAutoAligner {
       );
 
   /// Aligns against already-decoded mono PCM — an imported mp3/m4a/mp4 that
-  /// [AudioDecoder] has read. Identical from here on: the extractor's two
-  /// entry points converge on the same chroma sequence.
-  AutoAlignmentResult alignPcm(
-    ParsedPiece piece,
-    PcmAudio audio, {
+  /// a decoder has read — at [sampleRate] samples per second. Identical from
+  /// here on: the extractor's two entry points converge on the same chroma
+  /// sequence.
+  AutoAlignmentResult alignSamples(
+    S piece,
+    Float64List samples,
+    double sampleRate, {
     double? contentStartSeconds,
     double? contentEndSeconds,
   }) =>
       alignChroma(
         piece,
-        _extractor.extractFromSamples(audio.samples, audio.sampleRate),
+        _extractor.extractFromSamples(samples, sampleRate),
         contentStartSeconds: contentStartSeconds,
         contentEndSeconds: contentEndSeconds,
       );
@@ -154,7 +143,7 @@ class AudioScoreAutoAligner {
   /// makes the estimate too slow (143 against a true ~168 on Galopede, whose
   /// 54s hold 46s of music).
   AutoAlignmentResult alignChroma(
-    ParsedPiece piece,
+    S piece,
     ChromaSequence realChroma, {
     double? contentStartSeconds,
     double? contentEndSeconds,
@@ -169,12 +158,12 @@ class AudioScoreAutoAligner {
     // totalDurationSeconds generated at 60 BPM IS the piece's total
     // quarter-note-beat count — scale that to fit the real duration.
     final quarterBeatCount =
-        _midiGenerator.generate(piece, 60).totalDurationSeconds;
+        _timing(piece, 60).totalDurationSeconds;
     var estimatedBpm =
         (60 * quarterBeatCount / realDurationSeconds).round().clamp(20, 400);
 
-    var reference = ScoreChromaReferenceBuilder(_midiGenerator)
-        .build(piece, estimatedBpm, realChroma.hopSeconds);
+    var reference = ScoreChromaReferenceBuilder(ringSeconds: ringSeconds)
+        .build(_timing(piece, estimatedBpm), realChroma.hopSeconds);
 
     var dtwResult = _dtw.align(reference.frames, window.frames,
         openBegin: true,
@@ -194,8 +183,8 @@ class AudioScoreAutoAligner {
     if (foundBpm != null &&
         (foundBpm - estimatedBpm).abs() > 0.05 * estimatedBpm) {
       estimatedBpm = foundBpm;
-      reference = ScoreChromaReferenceBuilder(_midiGenerator)
-          .build(piece, estimatedBpm, realChroma.hopSeconds);
+      reference = ScoreChromaReferenceBuilder(ringSeconds: ringSeconds)
+          .build(_timing(piece, estimatedBpm), realChroma.hopSeconds);
       dtwResult = _dtw.align(reference.frames, window.frames,
           openBegin: true,
           openEnd: true,
@@ -222,7 +211,7 @@ class AudioScoreAutoAligner {
     }
 
     final held = heldBarlines(
-        _midiGenerator.generate(piece, estimatedBpm), anchors);
+        _timing(piece, estimatedBpm), anchors);
     final refined = refineAtNoteChanges(
       interpolateHeld(anchors, held),
       held,
@@ -240,7 +229,7 @@ class AudioScoreAutoAligner {
 
     return AutoAlignmentResult(
       restsAbsorbPauses(
-          placed, _midiGenerator.generate(piece, estimatedBpm)),
+          placed, _timing(piece, estimatedBpm)),
       estimatedBpm,
       dtwResult.averageCost,
       // Judged on the barline anchors: the pass above adds anchors inside
@@ -269,7 +258,7 @@ class AudioScoreAutoAligner {
   /// the run are moved onto the new curve. A run with no rest in it, a
   /// fermata or a real ritardando, is left alone.
   static List<ScoreAudioAnchor> restsAbsorbPauses(
-      List<ScoreAudioAnchor> anchors, MidiData midi) {
+      List<ScoreAudioAnchor> anchors, TimedScore midi) {
     if (anchors.length < 3) return anchors;
     double paceOf(int i) =>
         (anchors[i + 1].audioSec - anchors[i].audioSec) /
@@ -383,7 +372,7 @@ class AudioScoreAutoAligner {
   /// which is the difference from [hasCompressedRun]'s after-the-fact
   /// guessing, and why this one can safely act rather than only flag.
   static List<bool> heldBarlines(
-      MidiData midi, List<ScoreAudioAnchor> anchors) {
+      TimedScore midi, List<ScoreAudioAnchor> anchors) {
     const eps = 1e-6;
     return [
       for (final a in anchors)
@@ -716,7 +705,7 @@ class AudioScoreAutoAligner {
     return false;
   }
 
-  /// Shortest window [AudioScoreAutoAligner.alignChroma] will honour. Anything
+  /// Shortest window [ScoreAligner.alignChroma] will honour. Anything
   /// shorter cannot hold a performance, so it is far likelier to be a typo (or
   /// a figure measured against a different file) than an instruction, and the
   /// answer that loses least is to fall back to inference over the whole
@@ -758,7 +747,7 @@ class _ContentWindow {
 
   /// The whole sequence when neither bound is given, or when what was given
   /// doesn't describe a usable span of this particular recording — see
-  /// [AudioScoreAutoAligner.minContentWindowSeconds].
+  /// [ScoreAligner.minContentWindowSeconds].
   factory _ContentWindow.of(
       ChromaSequence chroma, double? startSeconds, double? endSeconds) {
     final whole = _ContentWindow(0, chroma.frames, chroma.onsets);
@@ -773,7 +762,7 @@ class _ContentWindow {
         : (endSeconds / chroma.hopSeconds).ceil().clamp(0, total);
 
     final minFrames =
-        AudioScoreAutoAligner.minContentWindowSeconds ~/ chroma.hopSeconds;
+        ScoreAligner.minContentWindowSeconds ~/ chroma.hopSeconds;
     if (last - first < minFrames) return whole;
 
     return _ContentWindow(first, chroma.frames.sublist(first, last),

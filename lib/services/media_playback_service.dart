@@ -9,6 +9,7 @@ import '../models/piece_media.dart';
 import 'audio_output.dart';
 import 'audio_decoder.dart';
 import 'audio_score_auto_aligner.dart';
+import 'piece_aligner.dart';
 import 'media_alignment_store.dart';
 import 'media_paths.dart';
 import 'media_transport.dart';

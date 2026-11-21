@@ -1,5 +1,5 @@
 // Regression test for [DtwAligner.maxReferenceStride] and
-// [AudioScoreAutoAligner.restsAbsorbPauses]: a teacher's practice
+// [ScoreAligner.restsAbsorbPauses]: a teacher's practice
 // video whose first twelve bars are all the same, a rest then an A.
 //
 // The recording talks for 12.5 s, then plays the twelve As about 1.5 s apart
@@ -12,7 +12,7 @@
 // The recording is not ours, so it lives in the private companion checkout
 // and this skips without it.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/piece_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 

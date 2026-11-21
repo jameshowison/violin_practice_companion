@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:violin_practice_companion/services/piece_aligner.dart';
 import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:wav/wav.dart';
@@ -328,7 +329,7 @@ void main() {
     test('detects a run of two compressed segments', () {
       final anchors = saltCreekLikeAnchors();
 
-      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isTrue);
+      expect(ScoreAligner.hasCompressedRun(anchors), isTrue);
     });
 
     test('leaves a normal, uncompressed anchor sequence undetected', () {
@@ -336,7 +337,7 @@ void main() {
         for (var i = 0; i < 10; i++) ScoreAudioAnchor(i * 1256.5, i * 1.2)
       ];
 
-      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
+      expect(ScoreAligner.hasCompressedRun(anchors), isFalse);
     });
 
     test('does not flag an isolated single compressed segment', () {
@@ -351,7 +352,7 @@ void main() {
         anchors.add(ScoreAudioAnchor(scoreMs, audioSec));
       }
 
-      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
+      expect(ScoreAligner.hasCompressedRun(anchors), isFalse);
     });
 
     test('returns false when there are too few anchors to evaluate', () {
@@ -361,7 +362,7 @@ void main() {
         ScoreAudioAnchor(2513.0, 2.0),
       ];
 
-      expect(AudioScoreAutoAligner.hasCompressedRun(anchors), isFalse);
+      expect(ScoreAligner.hasCompressedRun(anchors), isFalse);
     });
   });
 
@@ -375,19 +376,19 @@ void main() {
         () {
       // Bars of 2s score at 1.5s each, but DTW started bar 0 a bar early.
       final out =
-          AudioScoreAutoAligner.refineFirstAnchor(at([3.0, 6.0, 7.5, 9.0]));
+          ScoreAligner.refineFirstAnchor(at([3.0, 6.0, 7.5, 9.0]));
       expect(out[0].audioSec, closeTo(4.5, 1e-9));
       expect(out.skip(1).map((a) => a.audioSec), [6.0, 7.5, 9.0]);
     });
 
     test('leaves a first bar paced like the rest alone', () {
       final anchors = at([4.4, 6.0, 7.5, 9.0]); // 1.6s against 1.5s
-      expect(AudioScoreAutoAligner.refineFirstAnchor(anchors), anchors);
+      expect(ScoreAligner.refineFirstAnchor(anchors), anchors);
     });
 
     test('needs two bars after it to read a tempo from', () {
       final anchors = at([1.0, 6.0, 7.5]);
-      expect(AudioScoreAutoAligner.refineFirstAnchor(anchors), anchors);
+      expect(ScoreAligner.refineFirstAnchor(anchors), anchors);
     });
   });
 
@@ -436,7 +437,7 @@ void main() {
         for (var i = 0; i < 25; i++) g,
         for (var i = 0; i < 40; i++) b,
       ];
-      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 35, 60]),
+      final out = ScoreAligner.refineAtNoteChanges(anchorsAt([0, 35, 60]),
           held, referenceFrames, reference, target, 0, hop);
       expect(out[1].audioSec, closeTo(1.0, 1e-9));
       expect(out[0].audioSec, 0);
@@ -449,7 +450,7 @@ void main() {
         for (var i = 0; i < 40; i++) g,
         for (var i = 0; i < 40; i++) b,
       ];
-      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
+      final out = ScoreAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
           held, referenceFrames, reference, target, 0, hop);
       expect(out[1].audioSec, closeTo(1.0, 1e-9));
     });
@@ -464,7 +465,7 @@ void main() {
         for (var i = 0; i < 25; i++) g,
         for (var i = 0; i < 40; i++) b,
       ];
-      final out = AudioScoreAutoAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
+      final out = ScoreAligner.refineAtNoteChanges(anchorsAt([0, 20, 60]),
           held, referenceFrames, reference, target, 0, hop);
       expect(out[1].audioSec, closeTo(1.0, 1e-9));
     });
@@ -476,7 +477,7 @@ void main() {
         for (var i = 0; i < 25; i++) g,
         for (var i = 0; i < 40; i++) b,
       ];
-      final asHeld = AudioScoreAutoAligner.refineAtNoteChanges(
+      final asHeld = ScoreAligner.refineAtNoteChanges(
           anchorsAt([0, 35, 60]),
           const [false, true, false],
           referenceFrames,
@@ -491,7 +492,7 @@ void main() {
         for (var i = 0; i < 40; i++) g,
         for (var i = 0; i < 40; i++) b,
       ];
-      final repeated = AudioScoreAutoAligner.refineAtNoteChanges(
+      final repeated = ScoreAligner.refineAtNoteChanges(
           anchorsAt([0, 35, 60]), held, referenceFrames, sameNote, target, 0, hop);
       expect(repeated[1].audioSec, closeTo(1.75, 1e-9));
     });

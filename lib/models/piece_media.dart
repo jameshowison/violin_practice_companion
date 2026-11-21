@@ -291,7 +291,7 @@ class PieceMedia {
   /// start" must survive that — it is the input to the next run, not an output
   /// of the last.
   ///
-  /// Both are hints, not hard edges; see `AudioScoreAutoAligner.alignChroma`
+  /// Both are hints, not hard edges; see `ScoreAligner.alignChroma`
   /// for what the aligner does with them.
   final double? contentStartSeconds;
   final double? contentEndSeconds;

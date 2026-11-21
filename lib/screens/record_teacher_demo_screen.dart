@@ -7,6 +7,7 @@ import '../models/piece.dart';
 import '../models/piece_media.dart';
 import '../services/audio_decoder.dart';
 import '../services/audio_score_auto_aligner.dart';
+import '../services/piece_aligner.dart';
 import '../services/media_alignment_store.dart';
 import '../services/media_migration.dart';
 import '../services/piece_media_store.dart';
