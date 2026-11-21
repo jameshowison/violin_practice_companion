@@ -1,0 +1,4 @@
+// The Stringlings edition (violin and viola): the App Store app.
+// Included by Debug/Release.xcconfig (no flavor) and the -stringlings ones.
+PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion
+APP_DISPLAY_NAME = Stringlings

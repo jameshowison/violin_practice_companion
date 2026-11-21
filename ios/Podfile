@@ -8,6 +8,13 @@ project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
   'Release' => :release,
+  # The flavors (docs/family/mandolin-app.md).
+  'Debug-stringlings' => :debug,
+  'Profile-stringlings' => :release,
+  'Release-stringlings' => :release,
+  'Debug-mandolin' => :debug,
+  'Profile-mandolin' => :release,
+  'Release-mandolin' => :release,
 }
 
 def flutter_root

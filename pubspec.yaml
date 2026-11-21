@@ -148,6 +148,10 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
+  # Two apps from one codebase (docs/family/mandolin-app.md). Android's
+  # productFlavors need a flavor on every build, so a plain `flutter run` or
+  # `flutter build` means stringlings; `--flavor mandolin` builds the other.
+  default-flavor: stringlings
   generate: true
 
   # The Playful skin's typeface (SIL OFL 1.1, assets/engine/fonts/OFL.txt,

@@ -25,6 +25,22 @@ android {
         versionName = flutter.versionName
     }
 
+    // Two apps from one codebase (docs/family/mandolin-app.md): the Dart side
+    // reads the flavor through `appFlavor`. `default-flavor` in pubspec.yaml
+    // makes a plain `flutter run` build stringlings.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("stringlings") {
+            dimension = "edition"
+            resValue("string", "app_name", "Stringlings")
+        }
+        create("mandolin") {
+            dimension = "edition"
+            applicationIdSuffix = ".mandolin"
+            resValue("string", "app_name", "Mandolings")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

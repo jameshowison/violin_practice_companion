@@ -10,6 +10,12 @@
 # Only the flutter run and pipe holder attached to $FLUTTER_FIFO are killed. If
 # another run already holds the device, the script refuses unless --takeover.
 # (see README "Simulator names" for how the dev-* aliases are set up)
+#
+# Flavors (docs/family/mandolin-app.md): FLUTTER_FLAVOR=mandolin builds the
+# Mandolin app, which installs beside Stringlings under its own bundle id.
+# Unset, flutter uses pubspec's default-flavor (stringlings). The dev library
+# sync knows only Stringlings' bundle id, so it is skipped for mandolin.
+#   FLUTTER_FLAVOR=mandolin FLUTTER_FIFO=/tmp/flutter_ctl_mandolin bash scripts/dev_run.sh dev-ipad
 set -u
 
 # Before every launch the dev library is synced with this simulator (see
@@ -36,6 +42,14 @@ DEVICE="${ARGS[0]:-${DEVICE:-dev-iphone-se}}"
 # the dev library (its scanned pieces, and relabels synced back from there).
 [[ "$DEVICE" == shots-* ]] && SYNC=""
 FIFO="${FLUTTER_FIFO:-/tmp/flutter_ctl}"
+FLAVOR="${FLUTTER_FLAVOR:-}"
+if [[ -n "$FLAVOR" ]]; then
+  FLUTTER_ARGS+=("--flavor" "$FLAVOR")
+  if [[ "$FLAVOR" != stringlings && -n "$SYNC" ]]; then
+    echo "flavor $FLAVOR: skipping the dev library sync (it targets Stringlings' bundle id)"
+    SYNC=""
+  fi
+fi
 LOG="${FLUTTER_LOG:-flutter_run.log}"
 
 # A dev build without homr's models runs, but scanning fails at recognition.

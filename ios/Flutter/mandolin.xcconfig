@@ -1,0 +1,4 @@
+// The Mandolin edition (experiment, docs/family/mandolin-app.md): its own
+// bundle id, so it installs beside Stringlings.
+PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion.mandolin
+APP_DISPLAY_NAME = Mandolings
