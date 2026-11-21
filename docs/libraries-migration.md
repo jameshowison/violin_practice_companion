@@ -149,10 +149,17 @@ background alignment after the move. Where they differ from
     `alignPcm`, `alignmentReviewMessage` and `alignInBackground` (`compute`).
   - Its call sites didn't change. The static passes are named on
     `ScoreAligner`, because Dart doesn't inherit statics.
-- **`AlignmentProfile` is deferred to step 2.** The chroma band and
+- **`AlignmentProfile` was deferred, and is now done.** The chroma band and
   `onsetWeight` were already constructor parameters of the extractor and the
-  DTW; `ringSeconds` was the one the aligner hid, and it is now a parameter.
-  The profile that bundles all three belongs with `InstrumentProfile`.
+  DTW; `ringSeconds` was the one the aligner hid. Since then score_sync has
+  an `AlignmentProfile` (band, `ringSeconds`, `onsetWeight`) that
+  `ScoreAligner` takes as `profile` and threads to all three stages; its
+  default, `bowedStrings`, is the old values, and the alignment snapshot is
+  unchanged. The app's `InstrumentProfile.alignment` carries one: the violin
+  and the mandolin the defaults (no mandolin fixture to tune on), the viola a
+  120 Hz floor for its C string. The piece screen's `MediaPlaybackService`
+  follows the instrument setting's; a cached alignment is not invalidated
+  when the instrument changes.
 - **The anchor JSON codecs stayed in the app** (`media_alignment_store`,
   `rendered_score_cache_io`), unchanged: they are persistence, and moving
   them buys nothing yet.

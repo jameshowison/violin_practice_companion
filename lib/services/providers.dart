@@ -725,6 +725,12 @@ final mediaPlaybackServiceProvider =
   _followHighlightSettings(ref, service);
   _follow<double>(ref, highlightLeadMsProvider,
       (ms) => service.highlightLeadSeconds = ms / 1000);
+  // Followed rather than watched: an instrument change must not rebuild the
+  // service (and drop the player) just to align the next recording for it.
+  _follow<AlignmentProfile>(
+      ref,
+      instrumentProfileProvider.select((p) => p.alignment),
+      (profile) => service.alignmentProfile = profile);
   ref.onDispose(service.dispose);
   return service;
 });

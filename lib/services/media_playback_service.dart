@@ -258,6 +258,12 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// route change or the sync slider applies mid-play.
   final double Function() _heardDelay;
 
+  /// The aligner's parameters for the instrument the piece is viewed as
+  /// (`InstrumentProfile.alignment`), set by whoever owns this service:
+  /// `mediaPlaybackServiceProvider` follows the instrument setting. Read when
+  /// an alignment is computed, so a change applies to the next one only.
+  AlignmentProfile alignmentProfile = AlignmentProfile.bowedStrings;
+
   PieceMedia? get media => _media;
   List<ScoreAudioAnchor> get anchors => List.unmodifiable(_anchors);
 
@@ -486,6 +492,9 @@ class MediaPlaybackService extends PlaybackServiceBase {
   /// aligned at all.
   Future<MediaAlignment?> _alignmentFor(
       ParsedPiece piece, PieceMedia media) async {
+    // Whatever instrument it was aligned for: a cached alignment is not
+    // invalidated when [alignmentProfile] changes (see
+    // InstrumentProfile.alignment). Realign to apply a new one.
     final cached = await _store.load(media.alignmentKey);
     if (cached != null) return cached;
 
@@ -524,7 +533,8 @@ class MediaPlaybackService extends PlaybackServiceBase {
     // Non-null by [_alignmentFor]'s own guard, which is where the "this medium
     // can't be aligned at all" answer is produced.
     final analysis = media.analysis!;
-    final aligner = AudioScoreAutoAligner(midiGenerator: generator);
+    final aligner = AudioScoreAutoAligner(
+        midiGenerator: generator, profile: alignmentProfile);
     try {
       if (analysis.isWav) {
         return await aligner.alignInBackground(

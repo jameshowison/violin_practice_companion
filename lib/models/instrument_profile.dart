@@ -1,3 +1,5 @@
+import 'package:score_sync/score_sync.dart' show AlignmentProfile;
+
 /// A clef, as MusicXML writes it: `<sign>` and `<line>`.
 typedef Clef = ({String sign, int line});
 
@@ -49,6 +51,16 @@ class InstrumentProfile {
   final List<String> strings;
   final List<int> openMidi;
 
+  /// What the score aligner needs to know about the instrument: the chroma
+  /// band, how long a note rings into a rest, the onset weight
+  /// ([AlignmentProfile]). A recording is aligned with the profile of the
+  /// instrument the piece is viewed as when it is aligned.
+  ///
+  /// A cached alignment is not invalidated when the instrument changes: it
+  /// stays as it was computed until the medium is realigned (or
+  /// `MediaAlignmentStore.alignerVersion` is bumped).
+  final AlignmentProfile alignment;
+
   const InstrumentProfile({
     required this.id,
     required this.displayName,
@@ -59,6 +71,7 @@ class InstrumentProfile {
     required this.strings,
     required this.openMidi,
     this.transcription = Transcription.none,
+    this.alignment = AlignmentProfile.bowedStrings,
   });
 
   InstrumentProfile withTranscription(Transcription t) => InstrumentProfile(
@@ -71,6 +84,7 @@ class InstrumentProfile {
         strings: strings,
         openMidi: openMidi,
         transcription: t,
+        alignment: alignment,
       );
 
   /// Whether [midi] is both an open string and a 4th finger on the string
@@ -89,11 +103,18 @@ class InstrumentProfile {
     highestMidi: 83,
     strings: ['G', 'D', 'A', 'E'],
     openMidi: [55, 62, 69, 76],
+    alignment: AlignmentProfile.bowedStrings,
   );
 
   /// Tuned like the violin (G D A E), read in treble at sounding pitch. Its
   /// range here is the violin's first position, which is also what the fret
   /// numbers stay within.
+  ///
+  /// It aligns with the violin's [AlignmentProfile] for now. Its range is
+  /// the violin's, so the band fits; but a plucked course decays where a bow
+  /// sustains, which might want a shorter `ringSeconds` and a heavier onset
+  /// weight. There is no mandolin recording among the alignment fixtures to
+  /// measure that on, and tuning it without one would be guessing.
   static const mandolin = InstrumentProfile(
     id: 'mandolin',
     displayName: 'Mandolin',
@@ -107,6 +128,11 @@ class InstrumentProfile {
 
   /// A fifth below the violin (C G D A), read in alto clef. First position
   /// runs C3 to E5. Its fingering is the violin's, a string lower.
+  ///
+  /// Its open C (130.8 Hz) is below the violin's 180 Hz chroma floor, so the
+  /// band starts at 120 Hz: the C string's fundamental is heard, with a
+  /// margin for a flat string. Everything else in its alignment is the
+  /// violin's.
   static const viola = InstrumentProfile(
     id: 'viola',
     displayName: 'Viola',
@@ -116,5 +142,6 @@ class InstrumentProfile {
     highestMidi: 76,
     strings: ['C', 'G', 'D', 'A'],
     openMidi: [48, 55, 62, 69],
+    alignment: AlignmentProfile(minFrequencyHz: 120),
   );
 }

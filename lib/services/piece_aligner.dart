@@ -16,21 +16,26 @@ class AudioScoreAutoAligner extends ScoreAligner<ParsedPiece> {
   final MidiGenerator _generator;
 
   /// Whether this aligner can be rebuilt in another isolate as it is: only
-  /// the generator travels, so a custom extractor or DTW (a test's) can't.
+  /// the generator and the profile travel, so a custom extractor or DTW (a
+  /// test's) can't.
   final bool _defaultParts;
 
+  /// [profile] is the instrument's (`InstrumentProfile.alignment`); it
+  /// travels to the isolate with the generator.
   AudioScoreAutoAligner({
     MidiGenerator? midiGenerator,
+    AlignmentProfile profile = AlignmentProfile.bowedStrings,
     AudioChromaExtractor? extractor,
     DtwAligner? dtw,
   }) : this._with(
-            midiGenerator ?? MidiGenerator(), extractor, dtw,
+            midiGenerator ?? MidiGenerator(), profile, extractor, dtw,
             extractor == null && dtw == null);
 
-  AudioScoreAutoAligner._with(this._generator, AudioChromaExtractor? extractor,
-      DtwAligner? dtw, this._defaultParts)
+  AudioScoreAutoAligner._with(this._generator, AlignmentProfile profile,
+      AudioChromaExtractor? extractor, DtwAligner? dtw, this._defaultParts)
       : super(
           timing: _timingOf(_generator),
+          profile: profile,
           extractor: extractor,
           dtw: dtw,
         );
@@ -65,9 +70,11 @@ class AudioScoreAutoAligner extends ScoreAligner<ParsedPiece> {
     double? contentEndSeconds,
   }) {
     assert((wavBytes == null) != (pcm == null), 'Give wavBytes or pcm');
-    assert(_defaultParts, 'Only the generator is rebuilt in the isolate');
+    assert(_defaultParts,
+        'Only the generator and the profile are rebuilt in the isolate');
     return compute(_alignJob, (
       generator: _generator,
+      profile: profile,
       piece: piece,
       wavBytes: wavBytes,
       pcm: pcm,
@@ -80,13 +87,15 @@ class AudioScoreAutoAligner extends ScoreAligner<ParsedPiece> {
   static AutoAlignmentResult _alignJob(
       ({
         MidiGenerator generator,
+        AlignmentProfile profile,
         ParsedPiece piece,
         Uint8List? wavBytes,
         PcmAudio? pcm,
         double? start,
         double? end,
       }) job) {
-    final aligner = AudioScoreAutoAligner(midiGenerator: job.generator);
+    final aligner = AudioScoreAutoAligner(
+        midiGenerator: job.generator, profile: job.profile);
     final wav = job.wavBytes;
     return wav != null
         ? aligner.align(job.piece, wav,

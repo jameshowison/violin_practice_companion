@@ -40,7 +40,9 @@ void registerRealignAll(ProviderContainer container) {
 
 Future<void> _realignAll(ProviderContainer c, String? onlyPieceId) async {
   final service = MediaPlaybackService(c.read(midiGeneratorProvider),
-      store: c.read(mediaAlignmentStoreProvider));
+      store: c.read(mediaAlignmentStoreProvider))
+    // The instrument setting's, as the piece screen's service follows it.
+    ..alignmentProfile = c.read(instrumentProfileProvider).alignment;
   final repo = c.read(pieceRepositoryProvider);
   final parser = c.read(musicXmlParserProvider);
   final jianpu = c.read(jianpuConverterProvider);

@@ -102,8 +102,9 @@ class _RecordTeacherDemoScreenState
       if (pcm == null || pcm.samples.isEmpty) {
         throw StateError("Couldn't read the sound in that recording.");
       }
-      final aligner =
-          AudioScoreAutoAligner(midiGenerator: ref.read(midiGeneratorProvider));
+      final aligner = AudioScoreAutoAligner(
+          midiGenerator: ref.read(midiGeneratorProvider),
+          profile: ref.read(instrumentProfileProvider).alignment);
       final aligned = await aligner.alignInBackground(parsed, pcm: pcm);
       if (!mounted) return;
 
