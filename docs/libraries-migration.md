@@ -1,6 +1,6 @@
 # Moving code into libraries: how each step is done
 
-Status: steps 0–3 done (2026-11-21). The plan itself, meaning which libraries,
+Status: steps 0–3 and 4a done (2026-11-21). The plan itself, meaning which libraries,
 what goes in each and in what order, is [`family/libraries.md`](family/libraries.md).
 This page covers how a step is carried out, so that Stringlings keeps
 building, passing its tests and shipping at every commit.
@@ -111,7 +111,8 @@ Rules that follow from it:
 | 1b | `score_sync`: snapshot, `ScoreTiming` seam, move, alignment off the UI isolate | done |
 | 2 | Source / instrument / player layers, then viola and players ([`family/layers.md`](family/layers.md)); Annotate deferred | done (Annotate deferred) |
 | 3 | `pitch_tuner` (rename, `TunerModel` moved in, chromatic, transposition, drone), `<transpose>`/`<clef>` read | done (library only; no app UI yet) |
-| 4 | `score_view` | |
+| 4a | `score_view` engraving layer: snapshot, seam, move | done |
+| 4b | `score_view` widget, without Riverpod | when a second app needs it |
 | 5 | `audio_decoder`, `practice_core`, `apps/` | |
 | 6 | parts, staves, voices | |
 
@@ -189,3 +190,38 @@ features. A fifth commit read `<transpose>` and `<clef>` in musicxml_tools.
   which compares without the octave change.
 - **Deferred, for a decision:** whether Stringlings' tuner gets a chromatic
   mode or a drone button. Both are UI, so mock them first.
+
+## How step 4a came out
+
+The plan moves the score_view widget only when a second app needs it. The
+engraving layer could move first on its own, and it has. There were three
+commits: a snapshot, a seam, a move.
+
+- **Safety net:** `test/engraving_snapshot_test.dart`, 458 digests. A
+  native engrave can't run headlessly, so it pins everything static:
+  - every `VerovioEngraver` SVG pass over the five fixture SVGs
+  - the `EngravedScore` JSON round trip
+  - grids over staff_zoom, the section planner and the paginator
+  - for every bundled score: the system-break passes and the section
+    layout solver
+- **What moved:** `packages/score_view`, a Flutter member, holds
+  `verovio_engraver`, `staff_zoom`, `section_line_planner`,
+  `section_engraving`, `print_paginator`, the engrave disk cache, and the
+  break mechanics split out as `system_breaks.dart`.
+- **The seams:**
+  - The cache's build stamp is `engraveCacheStamp`, which `main.dart` sets
+    from `kBuildRef`.
+  - The `staffSpacing*` constants live in staff_zoom; `providers.dart`
+    re-exports them.
+- **What stayed in the app:**
+  - `system_break_injector.dart`, which needs `Section`, `BarSplit` and
+    `MovedRepeat`.
+  - `verovio_bbox_test` and `verovio_svg_shim_test`. Their SVG fixtures are
+    allowed only under `test/fixtures/` (`repo_content_policy_test`), and
+    the guard was not widened. To move them, decide on that guard first.
+- **`scripts/test_all.sh`** runs `flutter test` for a member that depends
+  on the Flutter SDK.
+- **Checked on `dev-iphone`.** The stamp in the AppBar matched. Opening
+  Lightly Row wrote the cache with the new stamp, and a reopen after a hot
+  restart was a disk hit. Android was not run; this is a pure move of Dart
+  code.
