@@ -2,9 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
-import '../models/parsed_piece.dart';
 import '../models/piece_layout.dart';
 import 'notation_layout_engine.dart';
 import 'notation_run_scroll.dart';

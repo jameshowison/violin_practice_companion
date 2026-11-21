@@ -16,13 +16,11 @@ import 'dart:io';
 
 import 'support/restricted_fixtures.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 void main() {
   final wav = restrictedFile('fixtures/audio/gundagai/melody.wav');

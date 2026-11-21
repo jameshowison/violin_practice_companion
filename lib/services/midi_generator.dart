@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/count_in.dart';
-import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 class ScheduledNote {
   final double onsetSeconds;

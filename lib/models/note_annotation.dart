@@ -1,5 +1,4 @@
-import 'note_event.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// The app's [NoteEvent.annotation]: what a note's fingering is on the
 /// instrument, and what it is in Jianpu. [NoteEvent] itself is purely

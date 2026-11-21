@@ -1,6 +1,4 @@
-import 'duration_step.dart';
-import 'note_event.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// The count-off before playback starts, so there is time to get the instrument
 /// up and the bow on the string before the first note sounds.

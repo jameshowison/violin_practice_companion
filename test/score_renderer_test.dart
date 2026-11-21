@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/score_renderer.dart';
 
 /// Set SCORE_RENDER_OUT=<dir> to write the renders as WAVs for listening.

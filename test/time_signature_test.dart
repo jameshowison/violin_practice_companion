@@ -1,10 +1,7 @@
 
 import 'support/bundled_scores.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
-import 'package:violin_practice_companion/services/abc_exporter.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// A score with [time] as its `<time>` block (omit for none) and two bars of
 /// four quarter notes — the shape of a tune whose bars are right and whose

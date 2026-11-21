@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/duration_step.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:test/test.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 void main() {
   test('ordered list is shortest → longest, 11 entries', () {

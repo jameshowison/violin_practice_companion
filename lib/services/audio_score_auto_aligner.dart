@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'audio_chroma_features.dart';
 import 'audio_decoder_base.dart' show PcmAudio;
 import 'dtw_align.dart';

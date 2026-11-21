@@ -1,5 +1,4 @@
-import 'note_event.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'section.dart';
 
 /// Where a model measure is cut in two for engraving, before its [note]-th

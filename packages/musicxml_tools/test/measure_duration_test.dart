@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:test/test.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 NoteEvent _note(NoteValue v, {bool dotted = false, bool isChord = false}) =>
     NoteEvent(

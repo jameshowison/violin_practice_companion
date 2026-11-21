@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/chord_palette.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 
 NoteEvent _n({String? chord}) => NoteEvent(

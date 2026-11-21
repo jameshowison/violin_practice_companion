@@ -1,10 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/key_signature.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/measure_edit_session.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 
 // A tune in G (one sharp), as a scan that misread D major would write it:

@@ -1,11 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/chord_analysis.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// Old Joe Clark is `K: Amix` — A mixolydian, which carries D major's two
 /// sharps but resolves to A. The converter used to collapse every modal key to

@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'engraved_measure_map.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'section.dart';
 
 /// One low-saturation color per section, the shared visual identity across the

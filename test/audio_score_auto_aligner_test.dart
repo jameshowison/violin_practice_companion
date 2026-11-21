@@ -2,8 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/dtw_align.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/rendered_score_cache.dart';
 
 void main() {

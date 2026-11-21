@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/count_in.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'midi_generator.dart';
 
 enum PlaybackState { playing, paused, stopped }

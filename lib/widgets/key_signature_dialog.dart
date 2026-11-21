@@ -2,10 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../models/key_signature.dart';
-import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
-import '../services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Asks for the key signature the bar at document index [measureIndex]
 /// starts, given that it currently starts [current] (null: none, it carries

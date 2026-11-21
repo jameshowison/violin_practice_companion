@@ -1,5 +1,5 @@
 import 'package:xml/xml.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'section.dart';
 import 'section_run.dart';
 

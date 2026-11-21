@@ -1,9 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_consistency.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/piece_repository.dart';
 import 'package:xml/xml.dart';
 

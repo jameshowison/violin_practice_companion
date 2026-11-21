@@ -12,6 +12,7 @@ environment:
 # and one pubspec.lock for all of them. packages/jovial_svg is vendored third
 # party, so it stays a plain path dependency, not a member.
 workspace:
+  - packages/musicxml_tools
   - packages/string_tuner
 
 dependencies:
@@ -78,6 +79,10 @@ dependencies:
   # shared: see packages/string_tuner/README.md.
   string_tuner:
     path: packages/string_tuner
+  # The MusicXML model, parser, editor and repairs. Pure Dart, extracted from
+  # the app: see packages/musicxml_tools/README.md.
+  musicxml_tools:
+    path: packages/musicxml_tools
 
   # Play-along audio/score sync: `just_audio` drives backing-track playback,
   # `wav` decodes the analysis track to PCM (pure Dart, zero native deps — see

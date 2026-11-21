@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/piece_media.dart';
 import 'audio_output.dart';
 import 'audio_decoder.dart';

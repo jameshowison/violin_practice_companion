@@ -9,8 +9,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';

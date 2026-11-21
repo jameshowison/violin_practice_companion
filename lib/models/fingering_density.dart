@@ -1,4 +1,4 @@
-import 'note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'note_annotation.dart';
 
 /// How much fingering the annotation view shows. A three-stop slider, because

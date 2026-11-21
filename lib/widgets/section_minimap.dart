@@ -8,7 +8,7 @@ import '../models/section_run.dart';
 import '../models/section_run_groups.dart';
 import '../services/media_catalog.dart';
 import '../services/measure_edit_session.dart';
-import '../services/measure_xml_editor.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart';
 import '../services/providers.dart';

@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/gdae_tuning.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
-import '../models/parsed_piece.dart';
 
 class FingeringMapper {
   Map<String, dynamic>? _fingeringTable;

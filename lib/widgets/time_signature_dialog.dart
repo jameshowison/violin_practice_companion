@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Asks for the time signature the bar at document index [measureIndex]
 /// starts, given that it currently starts [current] (null: none, it carries

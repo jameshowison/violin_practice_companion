@@ -2,7 +2,7 @@ import 'package:xml/xml.dart';
 
 import '../models/engraved_measure_map.dart';
 import '../models/section.dart';
-import 'preamble_xml_generator.dart' show changesMeter;
+import 'package:musicxml_tools/musicxml_tools.dart' show changesMeter;
 
 /// Inserts explicit MusicXML system breaks so Verovio can be told to honor
 /// them (`breaks: 'encoded'`) instead of choosing its own — the mechanism

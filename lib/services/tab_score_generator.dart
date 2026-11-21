@@ -1,9 +1,8 @@
 import 'package:xml/xml.dart';
 
 import '../models/gdae_tuning.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
-import '../models/parsed_piece.dart';
 
 /// The 2-staff MusicXML for the mandolin-style tab view, plus the ordered list
 /// of fingering labels that the SVG post-process swaps in for the native fret

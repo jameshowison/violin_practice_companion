@@ -1,6 +1,6 @@
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'fingering_annotation_builder.dart';
 
 /// Every distinct low/high finger placement the piece asks for — the notes

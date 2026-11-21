@@ -4,9 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'support/restricted_fixtures.dart';
 import 'package:violin_practice_companion/models/engraved_measure_map.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/section.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 import 'package:violin_practice_companion/services/system_break_injector.dart';
 

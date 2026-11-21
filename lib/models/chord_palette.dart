@@ -2,7 +2,7 @@ import 'package:flutter/painting.dart';
 
 import '../services/chord_analysis.dart';
 import 'engraved_measure_map.dart';
-import 'parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'section.dart';
 
 /// One color per **scale degree**, fixed across every piece — so the tonic looks

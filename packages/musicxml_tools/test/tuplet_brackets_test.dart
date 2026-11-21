@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
+import 'package:test/test.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:xml/xml.dart';
 
 /// The staff's tuplet brackets come from the notes' timing, not from the

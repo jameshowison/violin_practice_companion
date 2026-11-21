@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'chroma_vector.dart';
 import 'midi_generator.dart';
 

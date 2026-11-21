@@ -31,8 +31,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Performance-measure index -> the audio second it should land on.
 ///

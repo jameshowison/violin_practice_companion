@@ -1,9 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/abc_exporter.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Header + body of one exported document, split so tests can assert on the
 /// tune without the `X:`/`T:`/`M:`/`L:`/`K:` block getting in the way.

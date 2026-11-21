@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:xml/xml.dart';
-import 'package:violin_practice_companion/services/preamble_xml_generator.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 String _score(String attributesXml) =>
     '<?xml version="1.0" encoding="UTF-8"?>'

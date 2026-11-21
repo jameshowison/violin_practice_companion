@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 class NotationLayout {
   static const double cellWidth = 36;

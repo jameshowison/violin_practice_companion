@@ -1,4 +1,4 @@
-import '../models/note_event.dart' show KeyMode, KeyModeInfo;
+import 'package:musicxml_tools/musicxml_tools.dart' show KeyMode, KeyModeInfo;
 
 /// Diatonic analysis of a chord within a key — the scale-degree roman numeral
 /// (I, IV, V, vi, ♭VII, V7, vii°…). Case follows the chord's triad quality

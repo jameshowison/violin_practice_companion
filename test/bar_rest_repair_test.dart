@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/bar_rest_repair.dart';
-import 'package:violin_practice_companion/services/meter_repair.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 const _note = '<note><pitch><step>D</step><octave>4</octave></pitch>'
     '<duration>2</duration><type>eighth</type></note>';

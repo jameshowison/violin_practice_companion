@@ -1,8 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Regression for the "Will The Circle Be Unbroken" import lockup: the ABC has
 /// a blank line right after `K:` (which abcjs treats as end-of-tune) and blank

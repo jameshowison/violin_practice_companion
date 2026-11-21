@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/measure_edit_session.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 
 // Two bars in D major: the editor opens bar 2 while bar 1 stays as written,

@@ -1,9 +1,7 @@
 import 'dart:math' as math;
 
-import '../models/duration_step.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/engraved_measure_map.dart';
-import '../models/note_event.dart';
-import '../models/parsed_piece.dart';
 import '../models/section.dart';
 
 /// Detects a tune's sectional form (AABB, ABAA, …) from its parsed measures and

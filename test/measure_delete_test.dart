@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/section.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Four bars: 1 carries the attributes, 2 opens a repeated strain that 3 closes
 /// (and 3 states a chord), 4 is plain. Enough to exercise every carry-over rule.

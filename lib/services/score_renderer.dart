@@ -2,7 +2,7 @@
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
 import '../models/count_in.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'audio_score_auto_aligner.dart' show ScoreAudioAnchor;
 import 'midi_generator.dart';
 

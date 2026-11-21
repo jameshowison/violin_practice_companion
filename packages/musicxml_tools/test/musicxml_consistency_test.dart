@@ -1,7 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/services/musicxml_consistency.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:test/test.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:xml/xml.dart';
 
 /// Facts MusicXML states twice, settled in favour of the copy the app reads

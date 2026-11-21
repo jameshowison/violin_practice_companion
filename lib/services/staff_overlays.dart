@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_palette.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/display_mode.dart';
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/section.dart';
 import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';

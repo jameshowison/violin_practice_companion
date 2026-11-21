@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/duration_step.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';

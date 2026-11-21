@@ -2,11 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'dart:io';
 
 import 'support/restricted_fixtures.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
 import 'package:violin_practice_companion/models/section_run.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 
 NoteEvent _note(int midi) => NoteEvent(

@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/key_signature.dart';
+import 'package:test/test.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 void main() {
   test('C major (0 fifths) has no default accidentals', () {

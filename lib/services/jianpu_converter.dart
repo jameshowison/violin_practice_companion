@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/note_annotation.dart';
-import '../models/parsed_piece.dart';
-import 'jianpu_digits.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Fills in each note's Jianpu ([NoteAnnotation]) from [JianpuDigits], with
 /// the key table loaded from the app's assets.

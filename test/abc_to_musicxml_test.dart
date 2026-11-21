@@ -1,11 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 
 /// Validates the *downstream contract*: the MusicXML produced by the bundled

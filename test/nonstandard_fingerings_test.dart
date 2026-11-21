@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/nonstandard_fingerings.dart';
 
 NoteEvent _n(String? string, String? finger,

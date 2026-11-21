@@ -16,26 +16,12 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
-import 'package:violin_practice_companion/services/abc_exporter.dart';
-import 'package:violin_practice_companion/services/bar_rest_repair.dart';
-import 'package:violin_practice_companion/services/chord_xml_injector.dart';
 import 'package:violin_practice_companion/services/fingering_mapper.dart';
-import 'package:violin_practice_companion/services/fingering_xml_injector.dart';
 import 'package:violin_practice_companion/services/jianpu_converter.dart';
-import 'package:violin_practice_companion/services/lyric_xml_injector.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/meter_repair.dart';
-import 'package:violin_practice_companion/services/musicxml_beamer.dart';
-import 'package:violin_practice_companion/services/musicxml_consistency.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/palette_xml_generator.dart';
-import 'package:violin_practice_companion/services/preamble_xml_generator.dart';
-import 'package:violin_practice_companion/services/tuplet_repair.dart';
 
 import 'support/bundled_scores.dart';
 

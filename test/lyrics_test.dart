@@ -6,14 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 // into the hit map (see verovio_annotation_anchor_test.dart).
 import 'package:verovio_flutter/src/hit_map/parser.dart';
 import 'package:verovio_flutter/verovio_flutter.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
-import 'package:violin_practice_companion/services/lyric_xml_injector.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 import 'package:violin_practice_companion/services/verovio_engraver.dart';
 import 'support/restricted_fixtures.dart';

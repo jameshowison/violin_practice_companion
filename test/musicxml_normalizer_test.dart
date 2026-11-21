@@ -1,8 +1,7 @@
 
 import 'support/bundled_scores.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Wraps [measures] (raw `<measure>` elements) in the minimum score around them.
 /// Mirrors the helper in `abc_exporter_test.dart`.

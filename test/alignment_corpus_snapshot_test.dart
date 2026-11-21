@@ -25,8 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/media_playback_service.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_normalizer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 void main() {
   final out = Platform.environment['ALIGN_SNAPSHOT_OUT'];

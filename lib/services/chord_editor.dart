@@ -1,5 +1,4 @@
-import '../models/duration_step.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/section.dart';
 

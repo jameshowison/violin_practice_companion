@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/services/audio_decoder.dart';
 import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 import 'support/restricted_fixtures.dart';
 

@@ -10,13 +10,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
-import 'bar_rest_repair.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'bundled_asset_path.dart';
-import 'meter_repair.dart';
 import 'omr_service_base.dart';
 import 'storage_cleanup_io.dart';
 import 'title_recognizer.dart';
-import 'tuplet_repair.dart';
 
 /// Mobile/desktop scan-to-MusicXML pipeline: acquire every page's image
 /// (document scanner, photo library, or file/PDF) → crop each page to the

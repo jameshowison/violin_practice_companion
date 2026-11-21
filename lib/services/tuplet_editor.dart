@@ -1,4 +1,4 @@
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'chord_editor.dart';
 
 /// The measure editor's triplet toggle: makes the selected note and the two

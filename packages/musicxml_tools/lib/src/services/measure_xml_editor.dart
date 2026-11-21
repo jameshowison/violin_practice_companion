@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 import 'package:xml/xml.dart';
 
 import '../models/key_signature.dart';

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/piece.dart';
-import 'musicxml_parser.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'piece_storage_base.dart';
 
 /// Whether this platform can write MusicXML files (and therefore supports

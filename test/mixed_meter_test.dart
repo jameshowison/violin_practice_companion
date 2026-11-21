@@ -1,12 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
-import 'package:violin_practice_companion/models/parsed_piece.dart';
-import 'package:violin_practice_companion/services/abc_exporter.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/meter_repair.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/musicxml_beamer.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// One bar of a synthetic score: [quarters] quarter notes (or [eighths]
 /// eighth notes), and the `<time>` written in it, if any.

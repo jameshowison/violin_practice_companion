@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/abc_exporter.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Shows the ABC notation for one piece, with a single button that puts the
 /// whole tune on the clipboard.

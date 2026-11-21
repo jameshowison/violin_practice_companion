@@ -8,8 +8,7 @@
 /// piece that is open.
 library;
 
-import '../services/musicxml_parser.dart';
-import 'note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 class PieceMeta {
   /// Short key name as [MusicXmlParser.keyName] spells it: `A`, `Dm`, `Gmix`.

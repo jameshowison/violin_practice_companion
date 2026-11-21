@@ -1,14 +1,11 @@
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/gdae_tuning.dart';
-import '../models/key_signature.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
-import '../models/parsed_piece.dart';
 import '../models/section.dart';
 import '../models/string_label_style.dart';
-import 'musicxml_parser.dart';
 
 /// One fingering label to draw in the channel above a system.
 ///

@@ -3,14 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/duration_step.dart';
-import '../models/key_signature.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
 import '../services/fingering_mapper.dart';
 import '../services/measure_edit_session.dart';
-import '../services/musicxml_parser.dart';
 import '../services/providers.dart';
 import '../services/tuplet_editor.dart';
 import 'key_signature_dialog.dart';

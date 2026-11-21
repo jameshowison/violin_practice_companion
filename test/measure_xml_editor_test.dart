@@ -1,9 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
-import 'package:violin_practice_companion/services/measure_xml_editor.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 const _baseXml = '''<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="3.1">

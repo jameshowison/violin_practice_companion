@@ -7,7 +7,7 @@ import 'package:jovial_svg/jovial_svg.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/section.dart';
 import '../widgets/staff_view_verovio.dart';
 import 'print_paginator.dart';

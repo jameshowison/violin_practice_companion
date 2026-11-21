@@ -6,11 +6,10 @@ import '../models/count_in.dart';
 import '../models/tempo_presets.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/display_mode.dart';
 import '../models/note_number_mode.dart';
-import '../models/parsed_piece.dart';
 import '../models/piece.dart';
 import '../models/piece_layout.dart';
 import '../models/piece_library.dart';
@@ -28,17 +27,12 @@ import 'fingering_mapper.dart';
 import 'tab_score_generator.dart';
 import 'jianpu_converter.dart';
 import 'midi_generator.dart';
-import 'musicxml_parser.dart';
-import 'fingering_xml_injector.dart';
 import 'chord_shape_library.dart';
-import 'chord_xml_injector.dart';
-import 'lyric_xml_injector.dart';
 import 'count_in_store.dart';
 import 'tempo_store.dart';
 import 'piece_display_prefs.dart';
 import 'instrument_setting.dart';
 import 'palette_xml_generator.dart';
-import 'preamble_xml_generator.dart';
 import 'piece_library_store.dart';
 import 'piece_activity_store.dart';
 import 'piece_repository.dart';
@@ -58,7 +52,6 @@ import 'playback_service_base.dart';
 import 'staff_zoom.dart';
 import 'system_break_injector.dart';
 import 'launch_timing.dart';
-import 'measure_xml_editor.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 

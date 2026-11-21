@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import '../models/parsed_piece.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'media_playback_service.dart';
 import 'playback_service_base.dart';
 import 'rendered_score_cache.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';

@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/chord_analysis.dart';
 import 'package:violin_practice_companion/services/chord_shape_library.dart';
-import 'package:violin_practice_companion/services/musicxml_parser.dart';
 
 /// The two tunes seeded from `docs/wellerman.abc`.
 ///

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/fingering_density.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 
 NoteEvent _n(String string, String finger) => NoteEvent(
