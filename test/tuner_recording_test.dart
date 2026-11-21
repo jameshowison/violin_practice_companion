@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitch_tuner/pitch_tuner.dart';
-import 'package:violin_practice_companion/services/tuner_model.dart';
 import 'package:violin_practice_companion/services/tuner_recording_io.dart';
 
 void main() {

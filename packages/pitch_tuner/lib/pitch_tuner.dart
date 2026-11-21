@@ -4,5 +4,7 @@
 library;
 
 export 'src/pitch_tracker.dart';
+export 'src/tuner_model.dart';
 export 'src/tuning.dart';
+export 'src/unison_meter.dart';
 export 'src/yin.dart';

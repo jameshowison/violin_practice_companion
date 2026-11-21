@@ -1,11 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:pitch_tuner/pitch_tuner.dart';
-import 'package:violin_practice_companion/services/tuner_advice.dart';
-import 'package:violin_practice_companion/services/tuner_model.dart';
-import 'package:violin_practice_companion/services/unison_meter.dart';
+import 'package:test/test.dart';
 
 import 'support/plucked_pair.dart';
 
@@ -60,21 +57,5 @@ void main() {
   test('a beat too slow to hear in one pluck counts as together', () {
     final v = judge(pluck(440, 1.5), 440)!;
     expect(v.together, isTrue, reason: '$v');
-  });
-
-  test('the words', () {
-    final mandolin = InstrumentTuning.mandolin();
-    final a = mandolin.strings.firstWhere((s) => s.name == 'A4');
-    TunerReading at(double c, {bool inTune = false}) => TunerReading(a, c, a.hz, live: true, inTune: inTune);
-    const beat = UnisonVerdict(beatHz: 1.3, cents: 5.1, strength: 2);
-    const one = UnisonVerdict(beatHz: 0.3, cents: 1.2, strength: 2);
-    expect(unisonStatus(beat, at(1, inTune: true)), 'They beat, 5¢ apart · tap to tune each');
-    expect(unisonPassed(beat, at(1, inTune: true)), isFalse);
-    expect(unisonStatus(one, at(-9)), 'Together, but both flat · tap to tune each');
-    expect(unisonPassed(one, at(-9)), isFalse);
-    expect(unisonStatus(one, at(1, inTune: true)), 'Together! Both strings in tune');
-    expect(unisonPassed(one, at(-4.5)), isTrue, reason: 'within 5: each string was checked alone');
-    expect(unisonPassed(one, at(1, inTune: true)), isTrue);
-    expect(unisonStatus(null, null), 'Let both strings ring a little longer');
   });
 }

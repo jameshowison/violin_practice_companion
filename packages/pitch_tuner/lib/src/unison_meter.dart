@@ -1,4 +1,3 @@
-// Pure Dart, so tool/replay_tuner_session.dart judges exactly as the screen does.
 import 'dart:math' as math;
 
 /// What a frame meant to [UnisonMeter.add].

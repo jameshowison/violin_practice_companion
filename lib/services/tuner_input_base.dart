@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'tuner_model.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
-export 'tuner_model.dart' show TunerFrame;
+export 'package:pitch_tuner/pitch_tuner.dart' show TunerFrame;
 
 /// The microphone was refused.
 class TunerMicDenied implements Exception {

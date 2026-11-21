@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'tuner_model.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 /// One listening session, recorded for development: `<name>.wav` (the
 /// microphone, mono 16-bit at [sampleRate], exactly what the detector heard)

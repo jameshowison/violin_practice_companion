@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../services/tuner_advice.dart' show fineTunerHalfTurn;
-import '../../services/tuner_model.dart' show TunerModel;
+import 'package:pitch_tuner/pitch_tuner.dart' show TunerModel;
 import '../splash/stringlings_art.g.dart';
 
 /// One string's rung on the ladder.

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:pitch_tuner/pitch_tuner.dart';
+import 'tuning.dart';
+import 'yin.dart';
 
 /// One pitch reading from the microphone.
 class TunerFrame {

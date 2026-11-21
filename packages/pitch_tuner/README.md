@@ -15,6 +15,17 @@ and the web, or a command-line tool.
 - **`StringFollower`**: works out which string is being played without
   flickering between strings on one stray reading, or measures against a
   string the player has picked.
+- **`TunerModel`**: reads a stream of frames one *note* at a time, the way a
+  player plucks or bows: it skips the attack, ignores a fading tail, a beat's
+  null and octave slips, holds the last note's reading after it stops, and
+  says which way the tuning is going (`TunerTrend`: closer, wrong way,
+  overshot). Time comes from the frames, so it is exactly testable.
+- **`UnisonMeter`**: listens for beats between two strings plucked together
+  (a mandolin course), from the harmonic levels `PitchTracker.probeHz` asks
+  for, and judges whether they sound as one.
+
+What to *say* to the player (turn the peg up, roll the button toward the
+body) is left to the app: the words depend on the instrument's hardware.
 
 Written for the tuner in [Stringlings](../../README.md).
 

@@ -1,6 +1,5 @@
 // Pure Dart, so tool/replay_tuner_session.dart says exactly what the screen does.
-import 'tuner_model.dart';
-import 'unison_meter.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 /// The tuner's status line for [r]: which way to turn and, from the
 /// model's [TunerReading.trend], whether the last turn went the right way. "Wrong
