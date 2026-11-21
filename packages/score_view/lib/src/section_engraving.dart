@@ -85,7 +85,9 @@ import 'system_breaks.dart';
 /// Searched rather than solved, because a section's line count moves in whole
 /// steps as the floor drops: the floor is tried from [maxScale] down to
 /// [minScale] in [steps] even ratios, and the first plan whose predicted height
-/// fits wins. Past the floor the floor's plan is returned, and the piece scrolls.
+/// fits wins. If none does, the floor's plan (the fewest lines) is drawn at
+/// the biggest scale that fits, and below the floor it stays at the floor and
+/// the piece scrolls.
 ///
 /// [systemHeightPx] is one system's on-screen height at [measuredAtScale], as
 /// [predictedHeightPx] takes it. Every try is a pure plan (no engrave).
@@ -159,7 +161,27 @@ import 'system_breaks.dart';
     if (h <= budget) return (fits: plan, bigger: previous);
     previous = plan;
   }
-  return (fits: at(minScale), bigger: previous);
+  // Nothing fitted at the scale that fills the width. The floor's plan has
+  // the fewest lines there are, so draw it at the biggest scale whose height
+  // fits, never below the floor (then it scrolls) nor above its own
+  // fill-the-width scale. Returning it at that fill scale, as this did,
+  // spilled a piece of short sections over several screens on a wide iPad.
+  final floorPlan = at(minScale);
+  final fitScale = budget *
+      measuredAtScale /
+      (floorPlan.lines * systemHeightPx);
+  if (fitScale >= floorPlan.scale) return (fits: floorPlan, bigger: previous);
+  return (
+    fits: solveSectionLayout(
+      musicXml: musicXml,
+      naturalWidths: naturalWidths,
+      widthPx: widthPx,
+      minScale: minScale,
+      maxScale: math.max(minScale, fitScale),
+      sectionLabels: sectionLabels,
+    ),
+    bigger: previous,
+  );
 }
 
 /// Whether the section layout's LAST line should be stretched to the full

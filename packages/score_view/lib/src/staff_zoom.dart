@@ -186,6 +186,42 @@ double staffScaleForSize(StaffSize size, double shortestSidePx) {
   return mm / _mmPerInch * ptPerInch * 100 / staffHeightUnits;
 }
 
+/// The scales the SECTION layout may draw [size] at, on a screen whose
+/// shortest side is [shortestSidePx].
+///
+/// The section layout scales each line up until the widest one fills the
+/// width, so a size used only as a floor ([staffScaleForSize]) stopped
+/// meaning anything on a wide screen: on an 11-inch iPad a whole section
+/// fits on one line well above Small's and Medium's floors, so Fit, Small
+/// and Medium all came out the same, and Large, just past what one line
+/// allows, split every section and scaled the halves up to more than twice
+/// its size (2026-11-21, Hazel iPad).
+///
+/// So each size is a band: never below its own height (the floor it always
+/// was), and never above the geometric midpoint with the size above (Large:
+/// as far above its height as Medium's cap is above Medium's). The bands
+/// don't overlap, so a bigger size never draws smaller notes. A line too
+/// short to fill the width at the cap is drawn at the cap and its notes
+/// spread out (`justifyLastSectionLine` already handles the clamp). A band
+/// that started lower, at the midpoint below, let Large keep Medium's one
+/// line per section at 1.02× Medium's notes on the iPad simulator.
+/// [StaffSize.fit] takes Small's band.
+({double min, double max}) staffScaleBandForSize(
+  StaffSize size,
+  double shortestSidePx,
+) {
+  final small = staffScaleForSize(StaffSize.small, shortestSidePx);
+  final medium = staffScaleForSize(StaffSize.medium, shortestSidePx);
+  final large = staffScaleForSize(StaffSize.large, shortestSidePx);
+  final smallMedium = math.sqrt(small * medium);
+  final mediumLarge = math.sqrt(medium * large);
+  return switch (size) {
+    StaffSize.fit || StaffSize.small => (min: small, max: smallMedium),
+    StaffSize.medium => (min: medium, max: mediumLarge),
+    StaffSize.large => (min: large, max: large * mediumLarge / medium),
+  };
+}
+
 /// Measures per line for a FIXED [size] (not [StaffSize.fit], which needs the
 /// viewport — see [autoMeasuresPerLine]): the most bars that fit across
 /// [widthPx] with notes at least that size.

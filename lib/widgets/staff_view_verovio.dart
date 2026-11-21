@@ -973,8 +973,10 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
     if (widths == null) return;
     _naturalWidths = widths;
 
-    // A fixed size is a floor on the note size: each section takes the fewest
-    // lines that keep its notes at least that big. Fit searches for the
+    // A fixed size is a band of note sizes (`staffScaleBandForSize`): each
+    // section takes the fewest lines that keep its notes at least the band's
+    // bottom, and a line that would fill the width only past its top is drawn
+    // at the top, its notes spread out. Fit searches for the
     // biggest floor at which the whole piece is on one screen, Small at worst.
     final solved = widget.printedLines
         ? solveSectionLayout(
@@ -998,7 +1000,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
             musicXml: widget.musicXml,
             naturalWidths: _naturalWidths,
             widthPx: req.widthPx,
-            minScale: staffScaleForSize(req.size, req.shortestSidePx),
+            minScale: staffScaleBandForSize(req.size, req.shortestSidePx).min,
+            maxScale: staffScaleBandForSize(req.size, req.shortestSidePx).max,
             sectionLabels: widget.sectionLabels,
           );
     final scale = solved.scale;

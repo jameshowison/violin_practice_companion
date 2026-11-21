@@ -914,4 +914,26 @@ void main() {
           ['fit', 'small', 'medium', 'large']);
     });
   });
+
+  group('staffScaleBandForSize', () {
+    for (final side in [375.0, 820.0]) {
+      test('bands start at each size and rise without overlapping (side $side)', () {
+        final small = staffScaleBandForSize(StaffSize.small, side);
+        final medium = staffScaleBandForSize(StaffSize.medium, side);
+        final large = staffScaleBandForSize(StaffSize.large, side);
+        expect(medium.min, greaterThan(small.max));
+        expect(large.min, greaterThan(medium.max));
+        for (final (size, band) in [
+          (StaffSize.small, small),
+          (StaffSize.medium, medium),
+          (StaffSize.large, large),
+        ]) {
+          final h = staffScaleForSize(size, side);
+          expect(band.min, h);
+          expect(band.max, greaterThan(h));
+        }
+        expect(staffScaleBandForSize(StaffSize.fit, side), small);
+      });
+    }
+  });
 }

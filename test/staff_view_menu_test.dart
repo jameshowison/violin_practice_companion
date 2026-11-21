@@ -50,6 +50,32 @@ void main() {
       );
       expect(tiny.lines, atFloor.lines);
     });
+
+    // An iPad's width: one line of the whole section fills it well above the
+    // floor, so the plan that fills the width is often too tall even when
+    // the same lines at smaller notes would fit (Hazel iPad, 2026-11-21).
+    test('on a wide screen, fits whenever the floor would', () {
+      const tabletSide = 820.0;
+      final tabletFloor = staffScaleForSize(StaffSize.small, tabletSide);
+      for (var h = 20.0; h <= 400; h += 10) {
+        final r = solveSectionLayoutToFit(
+          musicXml: _xml(8),
+          naturalWidths: widths,
+          widthPx: 790,
+          viewportHeightPx: h,
+          systemHeightPx: 60,
+          minScale: tabletFloor,
+        );
+        final height = r.lines * 60 * r.scale / staffScaleProbe;
+        final atFloor = r.lines * 60 * tabletFloor / staffScaleProbe;
+        final budget = h * staffAutoFillFraction;
+        if (atFloor <= budget) {
+          expect(height, lessThanOrEqualTo(budget + 1e-6), reason: 'h=$h');
+        } else {
+          expect(r.scale, closeTo(tabletFloor, 1e-9), reason: 'h=$h');
+        }
+      }
+    });
   });
 
   group('StaffViewMenuButton', () {
