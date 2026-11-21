@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/display_mode.dart';
 import 'package:violin_practice_companion/models/piece.dart';
+import 'package:violin_practice_companion/models/piece_media.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_activity_store.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
@@ -135,6 +138,72 @@ void main() {
     await tester.scrollUntilVisible(find.text("Theo's instrument"), 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text("Theo's instrument"), findsOneWidget);
+  });
+
+  test('copy to all players: one player\'s look for a piece becomes everyone\'s',
+      () async {
+    final c = await containerWith({
+      'display.view.a': 'jianpu',
+      'display.spacing.a': '0.8',
+      'display.fretStyle.a': 'matchFingering', // the instrument's: untouched
+      'display.view.b': 'tab', // another piece: untouched
+    });
+    final n = c.read(playersProvider.notifier);
+    final theo = n.add('Theo', colour: 1);
+    final ivy = n.add('Ivy', colour: 2);
+    prefs.setString('player.${ivy.id}.display.noteNames.a', 'true');
+    final players = c.read(playersProvider);
+
+    expect(copyViewSettingsToAll(prefs, 'a', players.first, players), 2);
+    for (final p in [theo, ivy]) {
+      expect(prefs.getString('player.${p.id}.display.view.a'), 'jianpu');
+      expect(prefs.getString('player.${p.id}.display.spacing.a'), '0.8');
+      expect(prefs.getString('player.${p.id}.display.fretStyle.a'), isNull);
+      expect(prefs.getString('player.${p.id}.display.view.b'), isNull);
+    }
+    // What the first player left at its default is cleared for Ivy too.
+    expect(prefs.getString('player.${ivy.id}.display.noteNames.a'), isNull);
+
+    // Independent afterwards.
+    c.read(selectedPieceProvider.notifier).state = _piece('a');
+    c.read(currentPlayerIdProvider.notifier).state = theo.id;
+    expect(c.read(displayModeProvider), DisplayMode.jianpu);
+    c.read(displayModePrefProvider.notifier).state = DisplayMode.staff;
+    expect(prefs.getString('display.view.a'), 'jianpu');
+  });
+
+  test('a recording limited to a player is theirs; shared by default', () {
+    const shared = PieceMedia(
+        id: 'm1', label: 'Demo', kind: MediaKind.recorded, alignmentKey: 'k');
+    expect(shared.toJson().containsKey('playerId'), isFalse);
+    expect(shared.isFor('p2'), isTrue);
+    final own = shared.withPlayer('p2');
+    expect(PieceMedia.fromJson(own.toJson()), own);
+    expect(own.isFor('p2'), isTrue);
+    expect(own.isFor('p1'), isFalse);
+    expect(own.withPlayer(null), shared);
+  });
+
+  test('removing a player removes what was theirs, and shares their takes',
+      () async {
+    final c = await containerWith({'app.instruments': 'viola'});
+    final n = c.read(playersProvider.notifier);
+    final theo = n.add('Theo', colour: 1);
+    c.read(currentPlayerIdProvider.notifier).state = theo.id;
+    c.read(instrumentSetProvider.notifier).state = InstrumentSet.mandolin;
+    const take = PieceMedia(
+        id: 'm1', label: 'Take', kind: MediaKind.recorded, alignmentKey: 'k');
+    await prefs.setString('pieceMedia.a', jsonEncode([take.withPlayer(theo.id).toJson()]));
+
+    await shareRecordingsOf(theo.id);
+    n.remove(theo.id);
+    c.invalidate(currentPlayerIdProvider);
+
+    expect(prefs.getKeys().where((k) => k.startsWith('player.')), isEmpty);
+    expect(c.read(playersProvider), isEmpty); // back to one, unnamed
+    expect(c.read(instrumentSetProvider), InstrumentSet.viola);
+    final rows = jsonDecode(prefs.getString('pieceMedia.a')!) as List;
+    expect(PieceMedia.fromJson(rows.single), take);
   });
 }
 

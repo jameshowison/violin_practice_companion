@@ -99,6 +99,31 @@ class PlayersNotifier extends StateNotifier<List<Player>> {
 
   void rename(String id, String name) =>
       _save([for (final p in state) p.id == id ? p.copyWith(name: name) : p]);
+
+  /// Removes player [id] and every preference kept under their key. The
+  /// first player can't be removed: their settings are the device's own,
+  /// unprefixed keys. Removing the last other player returns the app to one
+  /// unnamed player, as it was before any were added.
+  void remove(String id) {
+    if (state.isEmpty || state.first.id == id) return;
+    final prefs = _prefs;
+    if (prefs != null) {
+      final prefix = 'player.$id.';
+      for (final k in prefs.getKeys().toList()) {
+        if (k.startsWith(prefix)) prefs.remove(k);
+      }
+      if (prefs.getString(currentPlayerKey) == id) {
+        prefs.remove(currentPlayerKey);
+      }
+    }
+    final left = [for (final p in state) if (p.id != id) p];
+    if (left.length == 1) {
+      state = const [];
+      prefs?.remove(playersKey);
+    } else {
+      _save(left);
+    }
+  }
 }
 
 final playersProvider = StateNotifierProvider<PlayersNotifier, List<Player>>(
@@ -150,3 +175,68 @@ final playerKeyProvider = Provider<String Function(String)>((ref) {
   final player = ref.watch(currentPlayerProvider);
   return (base) => playerKey(base, player, players);
 });
+
+/// The per-piece display settings that are the instrument's, not a player's
+/// (see `pieceDisplayPref`'s `perPlayer`): never copied between players.
+const instrumentDisplaySettings = {'fretStyle', 'violinStrings'};
+
+/// "Copy to all players": [from]'s view settings for piece [pieceId] become
+/// every other player's, once (docs/family/layers.md). Afterwards each
+/// player's are their own again. A setting [from] has left at its default
+/// is cleared for the others too, so they end up looking exactly alike.
+/// Returns how many players were changed.
+int copyViewSettingsToAll(SharedPreferences prefs, String pieceId,
+    Player from, List<Player> players) {
+  final fromPrefix = playerKey('display.', from, players);
+  final suffix = '.$pieceId';
+  String? nameOf(String key, String prefix) {
+    if (!key.startsWith(prefix) || !key.endsWith(suffix)) return null;
+    final name = key.substring(prefix.length, key.length - suffix.length);
+    if (name.isEmpty || name.contains('.')) return null;
+    return instrumentDisplaySettings.contains(name) ? null : name;
+  }
+
+  final values = <String, String>{
+    for (final k in prefs.getKeys())
+      if (nameOf(k, fromPrefix) case final name?)
+        if (prefs.getString(k) case final v?) name: v,
+  };
+  var changed = 0;
+  for (final p in players) {
+    if (p.id == from.id) continue;
+    final prefix = playerKey('display.', p, players);
+    for (final k in prefs.getKeys().toList()) {
+      final name = nameOf(k, prefix);
+      if (name != null && !values.containsKey(name)) prefs.remove(k);
+    }
+    for (final e in values.entries) {
+      prefs.setString('$prefix${e.key}$suffix', e.value);
+    }
+    changed++;
+  }
+  return changed;
+}
+
+/// Every recording limited to player [id], across all pieces, made shared.
+/// Reads the media rows straight from preferences (`pieceMedia.<pieceId>`).
+Future<void> shareRecordingsOf(String id) async {
+  final prefs = await SharedPreferences.getInstance();
+  for (final k in prefs.getKeys().toList()) {
+    if (!k.startsWith('pieceMedia.')) continue;
+    final raw = prefs.getString(k);
+    if (raw == null || !raw.contains('"playerId"')) continue;
+    try {
+      final rows = jsonDecode(raw) as List;
+      var changed = false;
+      for (final r in rows) {
+        if (r is Map && r['playerId'] == id) {
+          r.remove('playerId');
+          changed = true;
+        }
+      }
+      if (changed) await prefs.setString(k, jsonEncode(rows));
+    } catch (_) {
+      continue;
+    }
+  }
+}

@@ -289,3 +289,66 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
     );
   }
 }
+
+/// "Copy to all players" for [pieceId]: how the piece looks (a one-time copy)
+/// and, if the playing player has takes limited to them, sharing those.
+Future<void> showCopyToAllSheet(BuildContext context, String pieceId,
+    {required Future<void> Function(bool looks, bool takes) onCopy,
+    required int ownTakes}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      var looks = true;
+      var takes = false;
+      return StatefulBuilder(builder: (ctx, setSheet) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Copy to all players',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                CheckboxListTile(
+                  key: const ValueKey('copy_looks'),
+                  contentPadding: EdgeInsets.zero,
+                  value: looks,
+                  onChanged: (v) => setSheet(() => looks = v ?? false),
+                  title: const Text('How the piece looks'),
+                  subtitle: const Text('Zoom, string colours, fingering '
+                      'detail, note names. A one-time copy: afterwards each '
+                      'player changes their own.'),
+                ),
+                if (ownTakes > 0)
+                  CheckboxListTile(
+                    key: const ValueKey('copy_takes'),
+                    contentPadding: EdgeInsets.zero,
+                    value: takes,
+                    onChanged: (v) => setSheet(() => takes = v ?? false),
+                    title: Text(ownTakes == 1
+                        ? 'Your own recording'
+                        : 'Your $ownTakes own recordings'),
+                    subtitle: const Text('Limited to you now. Copying shares '
+                        'it with everyone.'),
+                  ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  key: const ValueKey('copy_to_all_confirm'),
+                  onPressed: looks || takes
+                      ? () async {
+                          Navigator.of(ctx).pop();
+                          await onCopy(looks, takes);
+                        }
+                      : null,
+                  child: const Text('Copy'),
+                ),
+              ],
+            ),
+          ),
+        );
+      });
+    },
+  );
+}

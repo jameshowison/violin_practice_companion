@@ -694,7 +694,12 @@ final pieceMediaProvider =
   final repo = ref.watch(pieceRepositoryProvider);
   final catalog = ref.watch(mediaCatalogProvider);
   final audioFolder = await repo.audioSyncFolderFor(pieceId);
-  return catalog.mediaFor(pieceId, audioFolder: audioFolder);
+  final player = ref.watch(currentPlayerProvider)?.id;
+  // Shared recordings, and those limited to the player playing now.
+  return [
+    for (final m in await catalog.mediaFor(pieceId, audioFolder: audioFolder))
+      if (m.isFor(player)) m,
+  ];
 });
 
 /// The selected medium's id, per piece; null means the synthesized score.

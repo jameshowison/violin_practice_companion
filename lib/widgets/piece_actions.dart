@@ -12,6 +12,9 @@ import '../services/providers.dart';
 import 'abc_export_dialog.dart';
 import 'checkbox_picker_dialog.dart';
 import 'library_dialogs.dart';
+import '../services/players.dart';
+import '../services/piece_display_prefs.dart' show sharedPreferencesProvider;
+import 'player_badge.dart';
 
 /// Every edit to a piece or a keyword, wherever it is started from: the piece
 /// list's press-and-hold menu, its swipe actions and Select toolbar, the
@@ -352,6 +355,33 @@ class PieceEditTiles extends ConsumerWidget {
   final BuildContext host;
   final Piece piece;
 
+  /// "Copy to all players" (docs/family/layers.md): the playing player's
+  /// view settings for this piece, once, and any takes limited to them.
+  Future<void> _copyToAll(WidgetRef ref) async {
+    final store = ref.read(pieceMediaStoreProvider);
+    final player = ref.read(currentPlayerProvider);
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (player == null || prefs == null) return;
+    final own = [
+      for (final m in await store.load(piece.id))
+        if (m.playerId == player.id) m,
+    ];
+    if (!host.mounted) return;
+    await showCopyToAllSheet(host, piece.id, ownTakes: own.length,
+        onCopy: (looks, takes) async {
+      if (looks) {
+        copyViewSettingsToAll(
+            prefs, piece.id, player, ref.read(playersProvider));
+      }
+      if (takes) {
+        for (final m in own) {
+          await store.update(piece.id, m.withPlayer(null));
+        }
+        ref.invalidate(pieceMediaProvider(piece.id));
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actions = PieceActions(host, ref);
@@ -382,6 +412,9 @@ class PieceEditTiles extends ConsumerWidget {
             () => run(() => actions.editKeywords([piece]))),
         tile('piece_edit_abc', Icons.code, 'Export as ABC…',
             () => run(() => actions.exportAbc(piece))),
+        if (ref.watch(multiplePlayersProvider))
+          tile('piece_copy_to_players', Icons.group_outlined,
+              'Copy to all players…', () => run(() => _copyToAll(ref))),
         if (bundled)
           tile('piece_edit_hide', Icons.visibility_off_outlined,
               'Hide from list', () => run(() async {

@@ -87,10 +87,18 @@ class SettingsScreen extends ConsumerWidget {
                 leading: PlayerAvatar(p),
                 title: Text(p.name),
                 subtitle: Text(instrumentNameOf(ref, p, players)),
-                trailing: p.id == current?.id
-                    ? Text('Playing',
-                        style: TextStyle(color: theme.colorScheme.primary))
-                    : null,
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (p.id == current?.id)
+                    Text('Playing',
+                        style: TextStyle(color: theme.colorScheme.primary)),
+                  if (p.id != players.first.id)
+                    IconButton(
+                      key: ValueKey('remove_player_${p.id}'),
+                      tooltip: 'Remove ${p.name}',
+                      icon: const Icon(Icons.person_remove_outlined),
+                      onPressed: () => _removePlayer(context, ref, p),
+                    ),
+                ]),
                 selected: p.id == current?.id,
                 onTap: () => ref.read(currentPlayerIdProvider.notifier).state =
                     p.id == players.first.id ? null : p.id,
@@ -383,4 +391,31 @@ class _SkinTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Asks, then removes [player]: their settings and recents go; recordings
+/// limited to them become shared, so no take is lost.
+Future<void> _removePlayer(
+    BuildContext context, WidgetRef ref, Player player) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Remove ${player.name}?'),
+      content: Text("${player.name}'s settings and recents are removed. "
+          'Recordings kept for ${player.name} are shared with everyone.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+        TextButton(
+            key: const ValueKey('remove_player_confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  await shareRecordingsOf(player.id);
+  ref.read(playersProvider.notifier).remove(player.id);
+  ref.invalidate(currentPlayerIdProvider);
 }

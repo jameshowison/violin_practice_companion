@@ -14,6 +14,7 @@ import '../services/piece_media_store.dart';
 import '../services/providers.dart';
 import '../services/teacher_recording_capture.dart';
 import '../services/video_shrinker.dart';
+import '../services/players.dart';
 
 enum _Stage { initializing, preview, recording, aligning, error }
 
@@ -115,7 +116,12 @@ class _RecordTeacherDemoScreenState
         }
       }
 
-      final media = await _persist(result, aligned);
+      // With more than one player: is this take everyone's, or one
+      // player's own? Asked before it is saved, so it is never seen by the
+      // wrong player. Shared is the default.
+      final limitedTo = await _askLimit();
+      if (!mounted) return;
+      final media = await _persist(result, aligned, limitedTo);
       // Selecting it is the point of having just recorded it — otherwise the
       // user is returned to the score and has to go and find the take they
       // made ten seconds ago in a menu.
@@ -139,6 +145,7 @@ class _RecordTeacherDemoScreenState
   Future<PieceMedia> _persist(
     TeacherRecordingCaptureResult result,
     AutoAlignmentResult aligned,
+    String? limitedTo,
   ) async {
     final pieceId = widget.piece.id;
     final mediaId = _mediaId!;
@@ -152,6 +159,7 @@ class _RecordTeacherDemoScreenState
       analysis: file,
       video: file,
       avOffsetMs: 0,
+      playerId: limitedTo,
     );
 
     await ref.read(mediaAlignmentStoreProvider).save(
@@ -176,6 +184,37 @@ class _RecordTeacherDemoScreenState
     final takes =
         existing.where((m) => m.kind == MediaKind.recorded).length + 1;
     return takes == 1 ? 'Teacher demo' : 'Teacher demo $takes';
+  }
+
+  /// "Limit to only this player?", only when there is more than one player.
+  /// The player's id to limit it to, or null to share it with every player
+  /// of the piece (the default, and the answer when the dialog is dismissed).
+  Future<String?> _askLimit() async {
+    if (!ref.read(multiplePlayersProvider)) return null;
+    final player = ref.read(currentPlayerProvider)!;
+    final only = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('limit_recording_dialog'),
+        title: const Text('Limit to only this player?'),
+        content: Text('Recordings are shared with every player of this '
+            'piece, like a teacher\'s demo. Limit this one if it is '
+            '${player.name}\'s own practice take.'),
+        actions: [
+          TextButton(
+            key: const ValueKey('limit_recording_only'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Only ${player.name}'),
+          ),
+          FilledButton(
+            key: const ValueKey('limit_recording_share'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Share with all players'),
+          ),
+        ],
+      ),
+    );
+    return only == true ? player.id : null;
   }
 
   Future<bool?> _showReviewDialog() {

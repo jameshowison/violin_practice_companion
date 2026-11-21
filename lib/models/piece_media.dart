@@ -309,6 +309,10 @@ class PieceMedia {
   /// so it lives on the medium and survives a realign.
   final AlignmentRating? alignmentRating;
 
+  /// The player this recording is limited to (`Player.id`), or null: shared
+  /// with every player of the piece, the default (docs/family/layers.md).
+  final String? playerId;
+
   const PieceMedia({
     required this.id,
     required this.label,
@@ -321,6 +325,7 @@ class PieceMedia {
     this.contentStartSeconds,
     this.contentEndSeconds,
     this.alignmentRating,
+    this.playerId,
   });
 
   /// The score played by the app's own soundfont engine. Always first in a
@@ -374,6 +379,7 @@ class PieceMedia {
         contentStartSeconds: contentStartSeconds,
         contentEndSeconds: contentEndSeconds,
         alignmentRating: alignmentRating,
+        playerId: playerId,
       );
 
   /// Sets [contentStartSeconds]/[contentEndSeconds] verbatim — a null ARGUMENT
@@ -396,6 +402,7 @@ class PieceMedia {
         contentStartSeconds: startSeconds,
         contentEndSeconds: endSeconds,
         alignmentRating: alignmentRating,
+        playerId: playerId,
       );
 
   /// This medium with [rating] in place of its current one; null clears it.
@@ -411,6 +418,7 @@ class PieceMedia {
         contentStartSeconds: contentStartSeconds,
         contentEndSeconds: contentEndSeconds,
         alignmentRating: rating,
+        playerId: playerId,
       );
 
   /// Every one of [audio], [analysis] and [video] that names [from], pointed
@@ -435,8 +443,28 @@ class PieceMedia {
       contentStartSeconds: contentStartSeconds,
       contentEndSeconds: contentEndSeconds,
       alignmentRating: alignmentRating,
+      playerId: playerId,
     );
   }
+
+  /// This medium limited to player [id], or shared with every player (null).
+  PieceMedia withPlayer(String? id) => PieceMedia(
+        id: this.id,
+        label: label,
+        kind: kind,
+        alignmentKey: alignmentKey,
+        audio: audio,
+        analysis: analysis,
+        video: video,
+        avOffsetMs: avOffsetMs,
+        contentStartSeconds: contentStartSeconds,
+        contentEndSeconds: contentEndSeconds,
+        alignmentRating: alignmentRating,
+        playerId: id,
+      );
+
+  /// Whether the player [id] (null: the only, unnamed one) sees this medium.
+  bool isFor(String? id) => playerId == null || playerId == id;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -455,6 +483,9 @@ class PieceMedia {
         if (contentEndSeconds != null) 'contentEndSeconds': contentEndSeconds,
         if (alignmentRating != null)
           'alignmentRating': alignmentRating!.toJson(),
+        // Only when limited: a shared recording's row is the same bytes as
+        // one written before players existed.
+        if (playerId != null) 'playerId': playerId,
       };
 
   /// Null for anything that doesn't parse, so one corrupt entry costs its own
@@ -484,6 +515,7 @@ class PieceMedia {
       contentStartSeconds: (json['contentStartSeconds'] as num?)?.toDouble(),
       contentEndSeconds: (json['contentEndSeconds'] as num?)?.toDouble(),
       alignmentRating: AlignmentRating.fromJson(json['alignmentRating']),
+      playerId: json['playerId'] is String ? json['playerId'] as String : null,
     );
   }
 
@@ -500,12 +532,13 @@ class PieceMedia {
       other.avOffsetMs == avOffsetMs &&
       other.contentStartSeconds == contentStartSeconds &&
       other.contentEndSeconds == contentEndSeconds &&
-      other.alignmentRating == alignmentRating;
+      other.alignmentRating == alignmentRating &&
+      other.playerId == playerId;
 
   @override
   int get hashCode => Object.hash(id, label, kind, alignmentKey, audio,
       analysis, video, avOffsetMs, contentStartSeconds, contentEndSeconds,
-      alignmentRating);
+      alignmentRating, playerId);
 
   @override
   String toString() => 'PieceMedia($id, ${kind.name}, "$label")';
