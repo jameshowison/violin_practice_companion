@@ -1,6 +1,6 @@
 # Moving code into libraries: how each step is done
 
-Status: step 0 done (2026-11-20). The plan itself, meaning which libraries,
+Status: steps 0–3 done (2026-11-21). The plan itself, meaning which libraries,
 what goes in each and in what order, is [`family/libraries.md`](family/libraries.md).
 This page covers how a step is carried out, so that Stringlings keeps
 building, passing its tests and shipping at every commit.
@@ -109,8 +109,8 @@ Rules that follow from it:
 | 0 | Workspace root, `scripts/test_all.sh`, unused codegen dependencies removed | done |
 | 1a | `musicxml_tools`: snapshot, `NoteAnnotation` seam, move | done |
 | 1b | `score_sync`: snapshot, `ScoreTiming` seam, move, alignment off the UI isolate | done |
-| 2 | Source / instrument / player layers, then viola and players ([`family/layers.md`](family/layers.md)); Annotate deferred | proposal |
-| 3 | `pitch_tuner` (chromatic, transposition, drone mode), `<transpose>` | |
+| 2 | Source / instrument / player layers, then viola and players ([`family/layers.md`](family/layers.md)); Annotate deferred | done (Annotate deferred) |
+| 3 | `pitch_tuner` (rename, `TunerModel` moved in, chromatic, transposition, drone), `<transpose>`/`<clef>` read | done (library only; no app UI yet) |
 | 4 | `score_view` | |
 | 5 | `audio_decoder`, `practice_core`, `apps/` | |
 | 6 | parts, staves, voices | |
@@ -157,3 +157,35 @@ background alignment after the move. Where they differ from
 - **`MidiGenerator` kept its `rootBundle` read.** It stays in the app, so
   nothing in a library depends on it.
 - **The app lost its direct `fftea` dependency**; score_sync has it.
+
+## How step 3 came out
+
+Four commits on a short branch: the rename, a seam, the move, then the new
+features. A fifth commit read `<transpose>` and `<clef>` in musicxml_tools.
+
+- **`string_tuner` became `pitch_tuner`** by a pure rename (every file an
+  `R`). It stays BSD-3-Clause.
+- **`TunerModel` and `UnisonMeter` moved in.** The seam was small:
+  `TunerFrame` moved off the microphone interface (`tuner_input_base.dart`,
+  which stays in the app and re-exports it).
+- **The words stay in the app.** `tuner_advice.dart` (pegs, fine tuners, a
+  mandolin's buttons) is the "strings implementation" that the plan calls
+  an advice interface. No interface was cut: with one implementation it
+  would be a guess. Do it when a wind app writes its own advice.
+- **Tests split by what they test.** The model's group and the meter's
+  tests are package tests. The words are `test/tuner_advice_test.dart`.
+  `plucked_pair.dart` is copied, because a test helper can't be shared
+  across packages.
+- **New, library only:**
+  - `InstrumentTuning.chromatic`, `InstrumentTuning.note` and `TargetKind`
+  - `Transposition` (sounding minus written, as `<transpose>` counts it)
+  - `DroneTone`: a seamless loop, written as a WAV, to be played as a file
+    and never as a live synth
+- **Frame length and clarity were already parameters**
+  (`PitchTracker.frameSize`, the YIN threshold, `TunerModel.minClarity`).
+- **musicxml_tools reads `ParsedPiece.openingClef` and
+  `openingTranspose`.** Nothing applies a transposition yet; that waits for
+  the woodwind prototype. `InstrumentView` keeps its own clef reading,
+  which compares without the octave change.
+- **Deferred, for a decision:** whether Stringlings' tuner gets a chromatic
+  mode or a drone button. Both are UI, so mock them first.
