@@ -28,7 +28,7 @@ import kotlin.math.min
 /**
  * Re-encodes an imported video's picture at a size it is actually shown at,
  * copying its audio across untouched — the Android half of the iOS plugin's
- * `shrinkVideo` (see `ios/Runner/AudioDecoderPlugin.swift` for the reasoning,
+ * `shrinkVideo` (see `ios/Runner/MediaToolsPlugin.swift` for the reasoning,
  * and `lib/services/video_shrinker_io.dart` for the caller).
  *
  * Media3 Transformer copies (transmuxes) an audio track it has no reason to

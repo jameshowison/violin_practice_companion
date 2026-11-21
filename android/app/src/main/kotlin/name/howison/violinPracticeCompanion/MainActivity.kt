@@ -7,6 +7,7 @@ import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
     private var audioDecoder: AudioDecoderPlugin? = null
+    private var mediaTools: MediaToolsPlugin? = null
     private var contentResolver: ContentResolverPlugin? = null
     private var incomingShare: IncomingSharePlugin? = null
     private var bundledAsset: BundledAssetPlugin? = null
@@ -16,7 +17,8 @@ class MainActivity : FlutterActivity() {
     // AudioDecoderPlugin.kt.
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        audioDecoder = AudioDecoderPlugin(
+        audioDecoder = AudioDecoderPlugin(flutterEngine.dartExecutor.binaryMessenger)
+        mediaTools = MediaToolsPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         contentResolver = ContentResolverPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
@@ -42,6 +44,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         audioDecoder?.dispose()
         audioDecoder = null
+        mediaTools?.dispose()
+        mediaTools = null
         contentResolver?.dispose()
         contentResolver = null
         incomingShare?.dispose()

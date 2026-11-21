@@ -8,8 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'audio_decoder.dart';
 import 'package:score_sync/score_sync.dart' show ScoreAudioAnchor;
+import 'media_tools.dart';
 import 'midi_generator.dart';
 import 'score_renderer.dart';
 
@@ -30,7 +30,7 @@ class RenderedScoreFile {
 
 /// Renders the score at a tempo (in an isolate) and encodes it as the app's
 /// own recordings are — AAC in an MPEG-4 file, by the platform's encoder
-/// (`encodeAac` on the decoder channel) — or leaves it a WAV where there is no
+/// (`encodeAac` on the media tools channel) — or leaves it a WAV where there is no
 /// encoder yet. One audio file and one JSON sidecar per key, in the cache
 /// directory; the sidecar is written last, so its presence means the audio is
 /// whole.
@@ -126,7 +126,7 @@ class RenderedScoreCache {
       sw.reset();
       final mp4 = File('${dir.path}/$key.mp4');
       try {
-        await AudioDecoder.channel.invokeMethod<void>('encodeAac', {
+        await MediaTools.channel.invokeMethod<void>('encodeAac', {
           'input': wav.path,
           'output': mp4.path,
           'bitRate': 64000,

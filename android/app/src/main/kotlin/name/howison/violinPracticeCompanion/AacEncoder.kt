@@ -13,7 +13,7 @@ import java.nio.ByteOrder
  * The rendered score (lib/services/rendered_score_cache_io.dart): a WAV the
  * Dart side rendered — 16-bit PCM, its own 44-byte header — re-encoded as the
  * app's recordings are, AAC-LC in an MPEG-4 file, by the platform's encoder.
- * The iOS twin is `encodeAac` in AudioDecoderPlugin.swift.
+ * The iOS twin is `encodeAac` in MediaToolsPlugin.swift.
  */
 object AacEncoder {
     fun encode(input: String, output: String, bitRate: Int) {

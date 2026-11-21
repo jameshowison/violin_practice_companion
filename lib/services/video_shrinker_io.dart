@@ -7,12 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/piece_media.dart';
-import 'audio_decoder_io.dart';
 import 'media_paths.dart';
+import 'media_tools.dart';
 import 'piece_media_store.dart';
 
-/// Calls the native re-encoder: `shrinkVideo` on the decoder channel
-/// (`ios/Runner/AudioDecoderPlugin.swift`, `android/.../VideoShrinker.kt`).
+/// Calls the native re-encoder: `shrinkVideo` on the media tools channel
+/// (`ios/Runner/MediaToolsPlugin.swift`, `android/.../VideoShrinker.kt`).
 /// Returns `{skipped: reason}` or `{width, height, codec, bytes}`; throws
 /// [PlatformException] on failure.
 typedef NativeVideoShrink = Future<Map<String, Object?>?> Function(
@@ -257,7 +257,7 @@ class VideoShrinker {
 
   static Future<Map<String, Object?>?> _channelShrink(
           String source, String destination) =>
-      AudioDecoder.channel.invokeMapMethod<String, Object?>('shrinkVideo', {
+      MediaTools.channel.invokeMapMethod<String, Object?>('shrinkVideo', {
         'source': source,
         'destination': destination,
         'shortSide': shortSide,

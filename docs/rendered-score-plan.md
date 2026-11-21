@@ -206,7 +206,7 @@ both platforms (open question 1).
   three bars as `countInPlan` counts them, less the pickup. Events land on
   32-sample blocks (0.7 ms). Exact anchors, one per performed measure.
 - `rendered_score_cache_io.dart`: render in an isolate, write a WAV, encode
-  with `encodeAac` on the decoder channel (AVAudioFile on iOS,
+  with `encodeAac` on the media tools channel (AVAudioFile on iOS,
   `AacEncoder.kt` MediaCodec + MediaMuxer on Android), WAV kept where there is
   no encoder. Key = notes + measure onsets + bpm + meter/pickup + patch +
   soundfont size + renderer version. LRU, 12 files.

@@ -1,6 +1,5 @@
 package name.howison.violinPracticeCompanion
 
-import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -28,43 +27,18 @@ import kotlin.concurrent.thread
  * than a channel round trip and works under `flutter test`. See
  * `lib/services/audio_decoder_io.dart`.
  *
- * Registered by hand from [MainActivity] rather than being a pub package: it
- * serves this app's one alignment pipeline, plus `shrinkVideo` on the same
- * channel (handed to [VideoShrinker]).
+ * Registered by hand from [MainActivity]. Decode only: `shrinkVideo` and
+ * `encodeAac` are the app's, on their own channel ([MediaToolsPlugin]).
  */
-class AudioDecoderPlugin(messenger: BinaryMessenger, context: Context) :
+class AudioDecoderPlugin(messenger: BinaryMessenger) :
     MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, CHANNEL_NAME).apply {
         setMethodCallHandler(this@AudioDecoderPlugin)
     }
-    private val videoShrinker = VideoShrinker(context)
 
     fun dispose() = channel.setMethodCallHandler(null)
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        if (call.method == "shrinkVideo") {
-            videoShrinker.handle(call, result)
-            return
-        }
-        if (call.method == "encodeAac") {
-            val input = call.argument<String>("input")
-            val output = call.argument<String>("output")
-            if (input == null || output == null) {
-                result.error("bad_args", "input and output are required", null)
-                return
-            }
-            val bitRate = call.argument<Int>("bitRate") ?: 64000
-            thread(name = "aac-encode") {
-                try {
-                    AacEncoder.encode(input, output, bitRate)
-                    postToMain { result.success(null) }
-                } catch (e: Exception) {
-                    java.io.File(output).delete()
-                    postToMain { result.error("encode_failed", e.message ?: "$e", input) }
-                }
-            }
-            return
-        }
         if (call.method != "decodeToPcm") {
             result.notImplemented()
             return
@@ -257,7 +231,7 @@ class AudioDecoderPlugin(messenger: BinaryMessenger, context: Context) :
     }
 
     companion object {
-        private const val CHANNEL_NAME = "violin_practice_companion/audio_decoder"
+        private const val CHANNEL_NAME = "audio_decoder"
         private const val TIMEOUT_US = 10_000L
     }
 }

@@ -485,7 +485,7 @@ the docked strip or floating window needs. The **audio track is copied, not
 re-encoded**, so playback sounds the same and cached alignments stay valid.
 Measured: decoded audio identical to the original, offset by at most 0.8 ms.
 
-- Native: `shrinkVideo` on the decoder channel (`ios/Runner/AudioDecoderPlugin.swift`,
+- Native: `shrinkVideo` on the media tools channel (`ios/Runner/MediaToolsPlugin.swift`,
   AVAssetReader/Writer; `android/.../VideoShrinker.kt`, Media3 Transformer).
   Skips a video that is already ≤720p and ≤3 Mbps, or whose audio can't go
   into an mp4 unchanged.

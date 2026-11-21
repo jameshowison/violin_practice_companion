@@ -24,6 +24,8 @@ import UIKit
     // AudioDecoderPlugin.swift.
     AudioDecoderPlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioDecoderPlugin")!)
+    MediaToolsPlugin.register(
+      with: engineBridge.pluginRegistry.registrar(forPlugin: "MediaToolsPlugin")!)
     AudioRoutePlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioRoutePlugin")!)
     AudioCalibrationPlugin.register(

@@ -20,7 +20,7 @@ import 'audio_decoder_base.dart';
 class AudioDecoder implements AudioDecoderBase {
   /// Matches the channel name registered in both native plugins.
   static const MethodChannel channel =
-      MethodChannel('violin_practice_companion/audio_decoder');
+      MethodChannel('audio_decoder');
 
   const AudioDecoder();
 
