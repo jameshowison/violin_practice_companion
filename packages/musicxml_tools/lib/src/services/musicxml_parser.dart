@@ -1,6 +1,8 @@
 import 'package:xml/xml.dart';
+import '../models/clef.dart';
 import '../models/note_event.dart';
 import '../models/parsed_piece.dart';
+import '../models/transpose.dart';
 
 class MusicXmlParser {
   /// The score's own title — `<work-title>`, falling back to `<movement-title>`.
@@ -319,7 +321,51 @@ class MusicXmlParser {
       beatsPerMeasure: beatsPerMeasure,
       beatType: beatType,
       markedBpm: markedBpmOf(doc),
+      openingClef: openingClefOf(doc),
+      openingTranspose: openingTransposeOf(doc),
     );
+  }
+
+  /// The first part: where the opening clef and transpose are read from, so
+  /// a later part's (a piano under a clarinet) never stands in for its.
+  static XmlElement _firstPart(XmlDocument doc) =>
+      doc.findAllElements('part').firstOrNull ?? doc.rootElement;
+
+  /// The first part's first `<clef>`, or null for none. A clef with no
+  /// `<sign>` is skipped; a missing or unreadable `<line>` takes the sign's
+  /// MusicXML default ([Clef.defaultLine]).
+  static Clef? openingClefOf(XmlDocument doc) {
+    for (final c in _firstPart(doc).findAllElements('clef')) {
+      final sign = c.getElement('sign')?.innerText.trim() ?? '';
+      if (sign.isEmpty) continue;
+      final line = int.tryParse(c.getElement('line')?.innerText.trim() ?? '');
+      final octave = int.tryParse(
+              c.getElement('clef-octave-change')?.innerText.trim() ?? '') ??
+          0;
+      return Clef(sign, line ?? Clef.defaultLine(sign), octaveChange: octave);
+    }
+    return null;
+  }
+
+  /// The first part's first `<transpose>`, or null for none. One without a
+  /// readable whole-number `<chromatic>` (the required element) is skipped;
+  /// a missing or unreadable `<diatonic>` or `<octave-change>` counts as 0.
+  static Transpose? openingTransposeOf(XmlDocument doc) {
+    int? whole(XmlElement t, String name) {
+      final v = double.tryParse(t.getElement(name)?.innerText.trim() ?? '');
+      return v != null && v == v.roundToDouble() ? v.round() : null;
+    }
+
+    for (final t in _firstPart(doc).findAllElements('transpose')) {
+      final chromatic = whole(t, 'chromatic');
+      if (chromatic == null) continue;
+      return Transpose(
+        chromatic: chromatic,
+        diatonic: whole(t, 'diatonic') ?? 0,
+        octaveChange: whole(t, 'octave-change') ?? 0,
+      );
+    }
+    return null;
   }
 
   /// The score's first tempo, in quarter notes per minute: the printed

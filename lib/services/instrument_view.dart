@@ -1,4 +1,4 @@
-import 'package:musicxml_tools/musicxml_tools.dart';
+import 'package:musicxml_tools/musicxml_tools.dart' hide Clef;
 import 'package:xml/xml.dart';
 
 import '../models/instrument_profile.dart';

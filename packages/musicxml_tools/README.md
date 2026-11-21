@@ -6,7 +6,8 @@ MusicXML in pure Dart, with no Flutter and no platform code.
   with chords, ties, tuplets, lyrics, repeats, endings and navigation marks.
   `NoteEvent.annotation` carries whatever an app works out about a note (a
   fingering, a Jianpu digit) without the model reading it.
-- **`MusicXmlParser`:** MusicXML text to `ParsedPiece`.
+- **`MusicXmlParser`:** MusicXML text to `ParsedPiece`, with the opening
+  `Clef` and `Transpose` (read, not applied).
 - **`MeasureXmlEditor`:** writes a bar's notes back into the MusicXML,
   keeping what it doesn't model (grace notes, notations).
 - **Repairs**, each MusicXML text to MusicXML text, for scores read by optical

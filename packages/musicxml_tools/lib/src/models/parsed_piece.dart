@@ -1,4 +1,6 @@
+import 'clef.dart';
 import 'note_event.dart';
+import 'transpose.dart';
 
 /// A time signature: [beats] of [beatType] notes per bar.
 class Meter {
@@ -198,6 +200,14 @@ class ParsedPiece {
   /// performance tempo when nothing more particular is known.
   final double? markedBpm;
 
+  /// The clef the first part opens in: its first `<clef>`. Null when the
+  /// score writes none. Later clef changes are not modelled.
+  final Clef? openingClef;
+
+  /// The first part's opening `<transpose>`, sounding minus written. Null
+  /// when the part is written at concert pitch (no `<transpose>`).
+  final Transpose? openingTranspose;
+
   const ParsedPiece({
     required this.keySignature,
     required this.keyFifths,
@@ -207,6 +217,8 @@ class ParsedPiece {
     this.beatsPerMeasure = 4,
     this.beatType = 4,
     this.markedBpm,
+    this.openingClef,
+    this.openingTranspose,
   });
 
   /// The same music with the meter change at document index [index] set to
@@ -229,6 +241,8 @@ class ParsedPiece {
         beatsPerMeasure: meter.beats,
         beatType: meter.beatType,
         markedBpm: markedBpm,
+        openingClef: openingClef,
+        openingTranspose: openingTranspose,
       );
     }
     return copyWithMeasures([
@@ -337,6 +351,8 @@ class ParsedPiece {
         beatsPerMeasure: beatsPerMeasure,
         beatType: beatType,
         markedBpm: markedBpm,
+        openingClef: openingClef,
+        openingTranspose: openingTranspose,
       );
 
   List<NoteEvent> get allNotes =>

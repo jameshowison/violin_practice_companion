@@ -3,7 +3,7 @@ description: >-
   MusicXML in pure Dart: a parser into a simple single-line note model, a bar
   editor, repairs for noisy recognized (OMR) scores, injectors and generators,
   ABC export and Jianpu digits.
-version: 0.1.0
+version: 0.2.0
 publish_to: none  # not yet; see docs/family/libraries.md, "Decisions"
 
 environment:
