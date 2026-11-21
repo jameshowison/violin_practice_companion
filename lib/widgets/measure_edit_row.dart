@@ -4,8 +4,8 @@ import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
-import '../services/fingering_mapper.dart';
 import '../services/fingering_annotation_builder.dart';
+import '../models/instrument_profile.dart';
 
 /// Horizontal row of large, tappable note cards for the measure being edited.
 /// Each card shows the pitch (or "rest"), the duration, and the fingering label
@@ -42,7 +42,11 @@ class MeasureEditRow extends StatelessWidget {
     this.fretStyle = FretStyle.openStrings,
     this.repeatStart = false,
     this.repeatEnd = false,
+    this.profile = InstrumentProfile.violin,
   });
+
+  /// The instrument, for which notes have the open-or-4th choice.
+  final InstrumentProfile profile;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +101,7 @@ class MeasureEditRow extends StatelessWidget {
         chordMember: chordMember,
         numberMode: numberMode,
         fretStyle: fretStyle,
+        profile: profile,
         onTap: () => onSelect(i),
       );
 
@@ -144,8 +149,11 @@ class _NoteEditCard extends StatelessWidget {
     required this.onTap,
     required this.numberMode,
     required this.fretStyle,
+    required this.profile,
     this.chordMember = false,
   });
+
+  final InstrumentProfile profile;
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +215,7 @@ class _NoteEditCard extends StatelessWidget {
                   // Pinned open / 4th in the STRING group, rather than left
                   // to the piece's setting — so a chosen fingering can be
                   // told from a predicted one.
-                  if (_pinned(note))
+                  if (_pinned(note, profile))
                     Icon(Icons.push_pin,
                         key: const ValueKey('string_pinned'),
                         size: 10,
@@ -221,10 +229,10 @@ class _NoteEditCard extends StatelessWidget {
     );
   }
 
-  static bool _pinned(NoteEvent n) =>
+  static bool _pinned(NoteEvent n, InstrumentProfile profile) =>
       !n.isRest &&
       (n.scoreFinger == 0 || n.scoreFinger == 4) &&
-      FingeringMapper.hasFourthFingerChoice(n.midiNumber);
+      profile.hasFourthFingerChoice(n.midiNumber);
 
   // Pretty pitch: "F#5" → "F♯5", "Bb3" → "B♭3". (Pitch only — not the
   // fingering label, which must never be transformed.)

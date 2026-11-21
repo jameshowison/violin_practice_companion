@@ -8,16 +8,7 @@ import 'package:xml/xml.dart';
 
 import 'support/bundled_scores.dart';
 
-/// A viola as the instrument layer will see it: alto clef, C3 to E5. Here
-/// only to exercise the view; the real profile arrives with viola support.
-const _viola = InstrumentProfile(
-  id: 'viola',
-  displayName: 'Viola',
-  layerId: 'viola',
-  clef: altoClef,
-  lowestMidi: 48,
-  highestMidi: 76,
-);
+const _viola = InstrumentProfile.viola;
 
 List<NoteEvent> _notes(String xml) =>
     MusicXmlParser().parse(xml).measures.expand((m) => m.notes).toList();

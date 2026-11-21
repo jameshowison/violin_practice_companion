@@ -449,7 +449,10 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     final i = s?.selectedIndex;
     if (s == null || i == null || s.notes[i].isRest) return;
     final n = s.notes[i];
-    if (!FingeringMapper.hasFourthFingerChoice(n.midiNumber)) return;
+    if (!_ref.read(instrumentProfileProvider).hasFourthFingerChoice(
+        n.midiNumber)) {
+      return;
+    }
     final notes = ChordEditor.replaceAt(
       s.notes,
       i,
@@ -727,7 +730,8 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
         xml = MeasureXmlEditor.replaceMeasureNotes(
             xml,
             s.measureNumber,
-            _toSource(StringChoiceMigration.withoutChoices(s.notes)),
+            _toSource(StringChoiceMigration.withoutChoices(
+                s.notes, _ref.read(instrumentProfileProvider))),
             parsed.divisions);
         xml = MeasureXmlEditor.setMeasureRepeats(xml, s.measureNumber,
             start: s.repeatStart, end: s.repeatEnd);
@@ -756,7 +760,8 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
             InstrumentLayerStore.withMeasure(
                 await layers.stringChoices(piece.id, layer),
                 s.measureNumber,
-                StringChoiceMigration.ofNotes(s.notes)));
+                StringChoiceMigration.ofNotes(
+                    s.notes, _ref.read(instrumentProfileProvider))));
         _ref.invalidate(stringChoicesProvider);
       }
       final updated = await repo.writeEditedMusicXml(piece, xml);

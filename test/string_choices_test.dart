@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
+import 'package:violin_practice_companion/models/instrument_profile.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
+import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/services/fingering_mapper.dart';
 import 'package:violin_practice_companion/services/instrument_layer_store.dart';
 import 'package:violin_practice_companion/services/piece_repository.dart';
@@ -157,6 +159,46 @@ void main() {
       expect(await storage.readOriginal('old_1'), pinned);
       // Opening again changes nothing.
       expect(await repo.loadMusicXml(piece), opened);
+    });
+  });
+
+  group('viola fingering', () {
+    NoteEvent note(int midi) => NoteEvent(
+        pitch: 'X4', midiNumber: midi, octave: 4,
+        noteValue: NoteValue.quarter, dotted: false, isRest: false);
+    ParsedPiece line(List<int> midis) => ParsedPiece(
+        keySignature: 'C', keyFifths: 0, keyMode: KeyMode.major,
+        measures: [Measure(number: 1, notes: [for (final m in midis) note(m)])]);
+
+    test('every violin note is the same finger a fifth lower, a string lower',
+        () {
+      const rename = {'G': 'C', 'D': 'G', 'A': 'D', 'E': 'A'};
+      final midis = [for (var m = 55; m <= 83; m++) m];
+      final violin = mapper
+          .map(line(midis), preference: ViolinStringPreference.openStrings)
+          .measures.single.notes;
+      final viola = mapper
+          .map(line([for (final m in midis) m - 7]),
+              preference: ViolinStringPreference.openStrings,
+              profile: InstrumentProfile.viola)
+          .measures.single.notes;
+      for (var i = 0; i < midis.length; i++) {
+        expect(viola[i].fingerNumber, violin[i].fingerNumber,
+            reason: 'midi ${midis[i] - 7}');
+        expect(viola[i].fingerString, rename[violin[i].fingerString],
+            reason: 'midi ${midis[i] - 7}');
+      }
+      expect(viola.first.fingerString, 'C');
+    });
+
+    test('the choice notes are the open strings above C', () {
+      const viola = InstrumentProfile.viola;
+      expect([for (var m = 48; m <= 76; m++) if (viola.hasFourthFingerChoice(m)) m],
+          [55, 62, 69]);
+      final four = mapper
+          .map(line([55]), choices: {'1:0': 4}, profile: viola)
+          .measures.single.notes.single;
+      expect((four.fingerString, four.fingerNumber), ('C', '4'));
     });
   });
 }

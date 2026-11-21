@@ -46,6 +46,10 @@ class InstrumentProfile {
   /// How a part written in another clef is transcribed (see [Transcription]).
   final Transcription transcription;
 
+  /// The open strings, lowest first: their names, and their MIDI numbers.
+  final List<String> strings;
+  final List<int> openMidi;
+
   const InstrumentProfile({
     required this.id,
     required this.displayName,
@@ -53,6 +57,8 @@ class InstrumentProfile {
     required this.clef,
     required this.lowestMidi,
     required this.highestMidi,
+    required this.strings,
+    required this.openMidi,
     this.transcription = Transcription.none,
   });
 
@@ -63,8 +69,16 @@ class InstrumentProfile {
         clef: clef,
         lowestMidi: lowestMidi,
         highestMidi: highestMidi,
+        strings: strings,
+        openMidi: openMidi,
         transcription: t,
       );
+
+  /// Whether [midi] is both an open string and a 4th finger on the string
+  /// below: the notes where the fingering is a choice (violin D4, A4, E5;
+  /// viola G3, D4, A4).
+  bool hasFourthFingerChoice(int midi) =>
+      midi != openMidi.first && openMidi.contains(midi);
 
   /// G3 to B5.
   static const violin = InstrumentProfile(
@@ -74,6 +88,8 @@ class InstrumentProfile {
     clef: trebleClef,
     lowestMidi: 55,
     highestMidi: 83,
+    strings: ['G', 'D', 'A', 'E'],
+    openMidi: [55, 62, 69, 76],
   );
 
   /// Tuned like the violin (G D A E), read in treble at sounding pitch. Its
@@ -86,5 +102,20 @@ class InstrumentProfile {
     clef: trebleClef,
     lowestMidi: 55,
     highestMidi: 83,
+    strings: ['G', 'D', 'A', 'E'],
+    openMidi: [55, 62, 69, 76],
+  );
+
+  /// A fifth below the violin (C G D A), read in alto clef. First position
+  /// runs C3 to E5. Its fingering is the violin's, a string lower.
+  static const viola = InstrumentProfile(
+    id: 'viola',
+    displayName: 'Viola',
+    layerId: 'viola',
+    clef: altoClef,
+    lowestMidi: 48,
+    highestMidi: 76,
+    strings: ['C', 'G', 'D', 'A'],
+    openMidi: [48, 55, 62, 69],
   );
 }

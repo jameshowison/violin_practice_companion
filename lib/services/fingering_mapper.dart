@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
-import '../models/gdae_tuning.dart';
+import '../models/instrument_profile.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
@@ -15,11 +15,12 @@ class FingeringMapper {
   }
 
   /// Whether [midi] is both an open string and a 4th finger on the string
-  /// below — D4, A4, E5 in first position. These are the only notes where
-  /// the fingering is a choice, and so the only ones that take an override.
-  static bool hasFourthFingerChoice(int midi) =>
-      midi != GdaeTuning.openMidi['G'] &&
-      GdaeTuning.openMidi.containsValue(midi);
+  /// below, on [profile] (violin: D4, A4, E5 in first position). These are
+  /// the only notes where the fingering is a choice, and so the only ones
+  /// that take an override.
+  static bool hasFourthFingerChoice(int midi,
+          [InstrumentProfile profile = InstrumentProfile.violin]) =>
+      profile.hasFourthFingerChoice(midi);
 
   /// Fingers each note from the first-position table. On the notes with a
   /// choice ([hasFourthFingerChoice]), the first of these that applies wins:
@@ -35,13 +36,26 @@ class FingeringMapper {
   /// 4. [preference]: open strings (also Auto's fallback) or 4th finger.
   ///
   /// [preference] is the piece's setting (`violinStringPreferenceProvider`).
+  ///
+  /// [profile] is the instrument. The table is the violin's; another
+  /// four-string instrument tuned in fifths (the viola) reads it a string
+  /// lower: its note is looked up where the violin plays the same finger on
+  /// the matching string, and the string renamed (violin G D A E to viola
+  /// C G D A). The finger labels, L/H included, carry over verbatim.
   ParsedPiece map(ParsedPiece piece,
       {ViolinStringPreference preference = ViolinStringPreference.auto,
-      Map<String, int> choices = const {}}) {
+      Map<String, int> choices = const {},
+      InstrumentProfile profile = InstrumentProfile.violin}) {
     assert(_fingeringTable != null, 'Call init() before map()');
     final notes = _fingeringTable!['notes'] as Map<String, dynamic>;
+    const violin = InstrumentProfile.violin;
+    final offset = violin.openMidi.first - profile.openMidi.first;
+    String rename(String s) {
+      final i = violin.strings.indexOf(s);
+      return i < 0 || i >= profile.strings.length ? s : profile.strings[i];
+    }
     final byContext = preference == ViolinStringPreference.auto
-        ? _fourthByContext(piece)
+        ? _fourthByContext(piece, profile)
         : const <NoteEvent>{};
 
     // The last single note's pitch and choice, so a tied continuation can
@@ -56,13 +70,16 @@ class FingeringMapper {
             () {
               final note = measure.notes[i];
               if (note.isRest) return note;
-              final entry =
-                  notes[note.midiNumber.toString()] as Map<String, dynamic>?;
+              final entry = notes[(note.midiNumber + offset).toString()]
+                  as Map<String, dynamic>?;
               if (entry == null) return note;
 
-              var chosenString = entry['string'] as String;
+              var chosenString = rename(entry['string'] as String);
               var chosenFinger = entry['finger'] as String;
-              final alt = entry['alt'] as Map<String, dynamic>?;
+              final rawAlt = entry['alt'] as Map<String, dynamic>?;
+              final alt = rawAlt == null
+                  ? null
+                  : {...rawAlt, 'string': rename(rawAlt['string'] as String)};
 
               if (alt != null) {
                 final pinned =
@@ -117,7 +134,8 @@ class FingeringMapper {
   /// and the whole run is fingered alike. The melody runs across barlines; a
   /// rest, a chord, or the start or end of the piece breaks it, and a note
   /// next to one is left to the fallback.
-  static Set<NoteEvent> _fourthByContext(ParsedPiece piece) {
+  static Set<NoteEvent> _fourthByContext(
+      ParsedPiece piece, InstrumentProfile profile) {
     // Melodic runs: consecutive single notes of one pitch; null = a break.
     final runs = <List<NoteEvent>?>[];
     final all = piece.measures.expand((m) => m.notes).toList();
@@ -146,7 +164,10 @@ class FingeringMapper {
     final fourth = Set<NoteEvent>.identity();
     for (var k = 1; k + 1 < runs.length; k++) {
       final run = runs[k];
-      if (run == null || !hasFourthFingerChoice(run.first.midiNumber)) continue;
+      if (run == null ||
+          !profile.hasFourthFingerChoice(run.first.midiNumber)) {
+        continue;
+      }
       final midi = run.first.midiNumber;
       if (stepBelow(runs[k - 1], midi) && stepBelow(runs[k + 1], midi)) {
         fourth.addAll(run);

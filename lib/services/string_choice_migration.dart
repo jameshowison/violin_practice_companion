@@ -1,5 +1,6 @@
 import 'package:musicxml_tools/musicxml_tools.dart';
 
+import '../models/instrument_profile.dart';
 import 'fingering_mapper.dart';
 
 /// Moves open-string / 4th-finger choices out of a score and into the violin
@@ -49,17 +50,20 @@ class StringChoiceMigration {
 
   /// A bar's string choices as the measure editor holds them (a 0 or 4
   /// [NoteEvent.scoreFinger] on a note with the choice), by note index.
-  static Map<int, int> ofNotes(List<NoteEvent> notes) => {
+  static Map<int, int> ofNotes(List<NoteEvent> notes,
+          [InstrumentProfile profile = InstrumentProfile.violin]) =>
+      {
         for (var i = 0; i < notes.length; i++)
           if (!notes[i].isRest &&
               (notes[i].scoreFinger == 0 || notes[i].scoreFinger == 4) &&
-              FingeringMapper.hasFourthFingerChoice(notes[i].midiNumber))
+              profile.hasFourthFingerChoice(notes[i].midiNumber))
             i: notes[i].scoreFinger!,
       };
 
   /// [notes] with those choices taken off, to be written into the score.
-  static List<NoteEvent> withoutChoices(List<NoteEvent> notes) {
-    final pinned = ofNotes(notes);
+  static List<NoteEvent> withoutChoices(List<NoteEvent> notes,
+      [InstrumentProfile profile = InstrumentProfile.violin]) {
+    final pinned = ofNotes(notes, profile);
     if (pinned.isEmpty) return notes;
     return [
       for (var i = 0; i < notes.length; i++)

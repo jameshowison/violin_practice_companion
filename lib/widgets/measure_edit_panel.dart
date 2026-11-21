@@ -6,13 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
-import '../services/fingering_mapper.dart';
 import '../services/measure_edit_session.dart';
 import '../services/providers.dart';
 import '../services/tuplet_editor.dart';
 import 'key_signature_dialog.dart';
 import 'measure_edit_row.dart';
 import 'time_signature_dialog.dart';
+import '../models/instrument_profile.dart';
 
 const _accGlyph = TextStyle(fontSize: 18);
 
@@ -129,6 +129,7 @@ class MeasureEditPanel extends ConsumerWidget {
                     repeatEnd: s.repeatEnd,
                     numberMode: ref.watch(noteNumberModeProvider),
                     fretStyle: ref.watch(fretStyleProvider),
+                    profile: ref.watch(instrumentProfileProvider),
                   ),
                 ),
               ],
@@ -523,7 +524,9 @@ class _ControlPanel extends ConsumerWidget {
           if (ref.watch(noteNumberModeProvider) ==
               NoteNumberMode.violinFingering) ...[
             _divider(context),
-            _group(context, 'STRING', [_stringChoice(context, ctl)]),
+            _group(context, 'STRING', [
+              _stringChoice(context, ctl, ref.watch(instrumentProfileProvider))
+            ]),
           ],
           _divider(context),
           _group(context, 'BOW', [_bowChoice(context, ctl)]),
@@ -650,16 +653,26 @@ class _ControlPanel extends ConsumerWidget {
 
   /// Open string / 4th finger for the selected note: `auto` (the piece's
   /// setting decides), `0` or `4`. Only enabled on D4, A4 and E5.
-  Widget _stringChoice(BuildContext context, MeasureEditController ctl) {
+  /// The strings above the lowest, as a sentence: "D, A and E".
+  static String _upper(InstrumentProfile p) {
+    final up = p.strings.skip(1).toList();
+    return up.length < 2
+        ? up.join()
+        : '${up.sublist(0, up.length - 1).join(', ')} and ${up.last}';
+  }
+
+  Widget _stringChoice(BuildContext context, MeasureEditController ctl,
+      InstrumentProfile profile) {
     final sel = session.selected;
     final enabled = sel != null &&
         !sel.isRest &&
-        FingeringMapper.hasFourthFingerChoice(sel.midiNumber);
+        profile.hasFourthFingerChoice(sel.midiNumber);
     final pinned = enabled ? sel.scoreFinger : null;
     final current = (pinned == 0 || pinned == 4) ? pinned : null;
     final why = enabled
         ? ''
-        : ' Only D, A and E (open strings above G) have the choice.';
+        : ' Only ${_upper(profile)} (open strings above '
+            '${profile.strings.first}) have the choice.';
     Widget btn(int? value, Widget child, String caption, String tooltip) =>
         Tooltip(
           message: '$tooltip$why',

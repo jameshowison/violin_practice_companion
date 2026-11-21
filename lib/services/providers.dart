@@ -414,7 +414,8 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   final withJianpu = jianpu.convert(parsed);
   final withFingering = fingering.map(withJianpu,
       preference: ref.watch(violinStringPreferenceProvider),
-      choices: choices);
+      choices: choices,
+      profile: ref.watch(instrumentProfileProvider));
   return withFingering;
 });
 

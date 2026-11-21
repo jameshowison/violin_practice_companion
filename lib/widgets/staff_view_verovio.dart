@@ -1503,6 +1503,9 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               stringRuns: widget.stringRuns,
                               style: widget.stringColourStyle,
                               withNameRow: widget.showNoteNames,
+                              strings: ref
+                                  .watch(instrumentProfileProvider)
+                                  .strings,
                             ),
                           ),
                         ),
@@ -1985,11 +1988,16 @@ class _FingeringLanePainter extends CustomPainter {
     required this.style,
     this.monochromeRules = false,
     this.withNameRow = false,
+    this.strings = const ['G', 'D', 'A', 'E'],
   });
 
   final EngravedScore score;
   final double scale;
   final List<FingeringAnnotation> annotations;
+
+  /// The instrument's open strings, lowest first: the order the underline
+  /// stagger climbs in.
+  final List<String> strings;
 
   /// The note-name row is claiming the upper row — see [annotationStackOf].
   final bool withNameRow;
@@ -2160,7 +2168,7 @@ class _FingeringLanePainter extends CustomPainter {
   /// pixels, for a channel [channelH] tall. G sits on the floor; each string above
   /// it rises one [underlineStringStepFraction].
   double _lift(String? string, double channelH) =>
-      ViolinStringPalette.stepOf(string) *
+      ViolinStringPalette.stepOf(string, strings) *
       channelH *
       underlineStringStepFraction;
 
@@ -2334,7 +2342,8 @@ class _FingeringLanePainter extends CustomPainter {
       old.scale != scale ||
       old.annotations != annotations ||
       old.stringRuns != stringRuns ||
-      old.style != style;
+      old.style != style ||
+      old.strings != strings;
 }
 
 /// Drawn in the lane ABOVE each system: one labelled colored bar per chord run,

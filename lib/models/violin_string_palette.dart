@@ -26,6 +26,9 @@ class ViolinStringPalette {
     'D': Color(0xFF1565C0), // blue
     'A': Color(0xFFC62828), // red
     'E': Color(0xFFFBC02D), // yellow
+    // The viola's C. Strings keep their colour by name across instruments,
+    // so a family's G string is green on the violin and the viola alike.
+    'C': Color(0xFF6A1B9A), // purple
   };
 
   /// A note whose string we don't know (no `fingerString` in the lookup table).
@@ -51,8 +54,14 @@ class ViolinStringPalette {
   static final int maxStackOrder =
       stackOrder.values.reduce((a, b) => a > b ? a : b);
 
-  /// [string]'s step in the stagger, or G's floor for anything off the four.
-  static int stepOf(String? string) => stackOrder[string] ?? 0;
+  /// [string]'s step in the stagger: its place among [strings], the
+  /// instrument's open strings lowest first (the violin's by default, which
+  /// is [stackOrder]), or the floor for anything off them.
+  static int stepOf(String? string,
+      [List<String> strings = const ['G', 'D', 'A', 'E']]) {
+    final i = strings.indexOf(string ?? '');
+    return i < 0 ? 0 : i;
+  }
 
   /// Fill for [string], or [unknown] for anything off the four.
   static Color of(String? string) => byString[string] ?? unknown;
@@ -152,6 +161,7 @@ const underlineRuleFraction = 0.15;
 /// An unknown string takes the lightest weight (and a pale grey — see the
 /// painter): it has no place in the order to claim.
 const underlineGreyWeightByString = <String, double>{
+  'C': 1.0,
   'G': 1.0,
   'D': 0.72,
   'A': 0.5,
