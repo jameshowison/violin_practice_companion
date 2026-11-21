@@ -115,6 +115,7 @@ Rules that follow from it:
 | 4b | `score_view` widget, without Riverpod | when a second app needs it |
 | 5a | `audio_decoder` as a plugin package | done (SBR fix unchecked on a phone) |
 | 5b | `practice_core`, `apps/` | family-only, on `next_gen` when a second app exists |
+| 5b (experiment) | Mandolin as a second app by build flavor: Mandolings beside Stringlings, one Runner ([`family/mandolin-app.md`](family/mandolin-app.md)) | experiment on `next_gen` |
 | 6 | parts, staves, voices | |
 
 ## How steps 1a and 1b came out
