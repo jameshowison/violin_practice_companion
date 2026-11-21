@@ -292,6 +292,10 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     _draftTimer = Timer(draftDelay, _publishDraft);
   }
 
+  /// [notes], edited on the instrument's view, as they belong in the source.
+  List<NoteEvent> _toSource(List<NoteEvent> notes) =>
+      _ref.read(instrumentViewProvider).valueOrNull?.toSource(notes) ?? notes;
+
   void _publishDraft() {
     final s = state;
     if (s == null) return;
@@ -305,7 +309,9 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     draft.state = MeasureDraft(
       pieceId: s.pieceId,
       measureNumber: s.measureNumber,
-      notes: rebuild ? s.notes : null,
+      // The bar is edited on the instrument's view; the draft is applied to
+      // the source, so it goes back first (docs/family/layers.md).
+      notes: rebuild ? _toSource(s.notes) : null,
       key: s.keyChanged ? (fifths: s.keyChange) : null,
       divisions: parsed?.divisions ?? draft.state?.divisions ?? 1,
       repeatStart: s.repeatStart,
@@ -690,7 +696,7 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       }
       if (s.notesChanged || s.repeatsChanged) {
         xml = MeasureXmlEditor.replaceMeasureNotes(
-            xml, s.measureNumber, s.notes, parsed.divisions);
+            xml, s.measureNumber, _toSource(s.notes), parsed.divisions);
         xml = MeasureXmlEditor.setMeasureRepeats(xml, s.measureNumber,
             start: s.repeatStart, end: s.repeatEnd);
       }

@@ -2,6 +2,8 @@ import 'dart:async' show scheduleMicrotask, unawaited;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
+import '../models/instrument_profile.dart';
+import 'instrument_view.dart';
 import 'package:score_sync/score_sync.dart';
 import '../models/tempo_presets.dart';
 import '../models/engraved_measure_map.dart';
@@ -340,8 +342,37 @@ final pieceMusicXmlProvider = FutureProvider<String?>((ref) async {
   }
 });
 
+// ── The instrument layer (docs/family/layers.md) ──────────────────────────────
+
+/// The instrument the piece is shown for. Violin, or mandolin when the piece
+/// is in fret numbers; both read treble, so both see every source as it is.
+final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
+    ref.watch(noteNumberModeProvider) == NoteNumberMode.mandolinFret
+        ? InstrumentProfile.mandolin
+        : InstrumentProfile.violin);
+
+/// How the selected piece's source is shown for [instrumentProfileProvider].
+final instrumentViewProvider = FutureProvider<InstrumentView?>((ref) async {
+  final profile = ref.watch(instrumentProfileProvider);
+  final xml = await ref.watch(pieceMusicXmlProvider.future);
+  return xml == null ? null : InstrumentView.of(profile, xml);
+});
+
+/// The selected piece's MusicXML as the instrument reads it: the source
+/// ([pieceMusicXmlProvider]) through [instrumentViewProvider]. What every view
+/// engraves and parses. Never saved: an edit goes back to the source through
+/// [InstrumentView.toSource] (`measure_edit_session.dart`).
+final pieceViewXmlProvider = FutureProvider<String?>((ref) async {
+  final xml = await ref.watch(pieceMusicXmlProvider.future);
+  final view = await ref.watch(instrumentViewProvider.future);
+  if (xml == null || view == null) return xml;
+  return view.apply(xml);
+});
+
 // ── Parsed piece (loads + parses + converts on piece selection) ───────────────
 
+/// The selected piece as its instrument reads it ([pieceViewXmlProvider]),
+/// with Jianpu and fingering filled in.
 final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   final piece = ref.watch(selectedPieceProvider);
   if (piece == null) return null;
@@ -353,7 +384,7 @@ final parsedPieceProvider = FutureProvider<ParsedPiece?>((ref) async {
   await jianpu.init();
   await fingering.init();
 
-  final xml = await ref.watch(pieceMusicXmlProvider.future);
+  final xml = await ref.watch(pieceViewXmlProvider.future);
   if (xml == null) return null;
   final parsed = parser.parse(xml);
   final withJianpu = jianpu.convert(parsed);
@@ -1037,7 +1068,7 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
   // that push redo this whole pipeline. stripLayoutHints never reads them.
   final parsed = await ref.watch(parsedPieceProvider.future);
   if (parsed == null) return null;
-  String? source = await ref.watch(pieceMusicXmlProvider.future);
+  String? source = await ref.watch(pieceViewXmlProvider.future);
   if (source == null) return null;
   String xml = source;
   // The printed page's lines, before [PieceLayout.stripLayoutHints] drops them.
@@ -1143,7 +1174,7 @@ final tabScoreProvider = FutureProvider<TabScore?>((ref) async {
   if (parsed == null) return null;
   final numberMode = ref.watch(noteNumberModeProvider);
   final fretStyle = ref.watch(fretStyleProvider);
-  final source = await ref.watch(pieceMusicXmlProvider.future);
+  final source = await ref.watch(pieceViewXmlProvider.future);
   if (source == null) return null;
   String xml = source;
   xml = PieceLayout.stripLayoutHints(xml);

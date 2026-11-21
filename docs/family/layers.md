@@ -158,7 +158,14 @@ cleared`); those remain source data.
 
 ## Migration, in steps that each ship
 
-1. **The layer seam, without a second instrument.**
+1. **The layer seam, without a second instrument.** *Done 2026-11-21:*
+   `source_originals/`, `InstrumentProfile` (violin, mandolin),
+   `InstrumentView` (`lib/services/instrument_view.dart`: clef rewrite and
+   whole-octave moves, the octave chosen by range and then by centring), the
+   view providers (`pieceViewXmlProvider` feeds `parsedPieceProvider` and the
+   engraved XML), and the editor's draft and save through `toSource`. A source
+   in the instrument's own clef is always shown as written, so violin and
+   mandolin are unchanged on every score (`test/instrument_view_test.dart`).
    - Keep the as-imported original beside the normalized source, as scans
      and ABC already are (decided 2026-11-21).
    - Add `InstrumentProfile` (violin and mandolin), the view function, and
