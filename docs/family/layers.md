@@ -203,11 +203,11 @@ player, and a family test of the switcher.
 - **Choosing a child:** next to the instrument, in Settings; initials in a
   coloured circle in the title bar.
 - **Instrument-specific edits:** a sparse instrument part, with a sticky
-  scope switch in the editor (proposed above; to be confirmed).
+  scope switch in the editor that defaults to the music.
+- **A child's own practice recording** is theirs (player layer), shared with
+  the family only if they choose; teacher recordings stay shared (source).
 
 ## Open questions
 
-1. **Players and recordings:** a teacher's recording is shared. Is one
-   child's own practice recording theirs (player) or the family's (source)?
-2. **What "copy to all players" copies:** notes only, or view settings
+1. **What "copy to all players" copies:** notes only, or view settings
    (zoom, colours, fingering detail) too?
