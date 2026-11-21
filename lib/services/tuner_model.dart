@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 import 'tuner_input_base.dart';
 

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:violin_practice_companion/debug/screenshot_mode.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
 import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart';

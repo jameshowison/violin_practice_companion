@@ -1,4 +1,4 @@
-# string_tuner
+# pitch_tuner
 
 Pitch detection and string tuning in pure Dart, with no dependencies and no
 platform code, so it runs anywhere Dart does: Flutter on iOS, Android, macOS
@@ -21,7 +21,7 @@ Written for the tuner in [Stringlings](../../README.md).
 ## Example
 
 ```dart
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 final tuning = InstrumentTuning.violin(a4: 442);
 final range = tuning.detectionRange;

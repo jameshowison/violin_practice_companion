@@ -4,12 +4,12 @@ import 'dart:isolate';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 import 'tuner_input_base.dart';
 
 /// The tuner's microphone on iOS, Android and macOS: 48 kHz mono 16-bit PCM
-/// from `record`, cut into frames and analysed by `string_tuner` on a
+/// from `record`, cut into frames and analysed by `pitch_tuner` on a
 /// long-lived background isolate, so the YIN work (about 0.6 ms a frame,
 /// ~90 frames a second) never lands on the UI thread.
 ///

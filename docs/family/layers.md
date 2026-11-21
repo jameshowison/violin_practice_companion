@@ -117,7 +117,7 @@ An `InstrumentProfile` (as in [`approach.md`](approach.md)) supplies:
   is the violin's a fifth lower, with C/G/D/A in place of G/D/A/E, so the
   L/H labels carry over (`D2L` is viola's F♮).
 - **Playback program:** GM 41 for viola. The soundfont cut gains that bank.
-- **Tuning** for the tuner: `packages/string_tuner` already has the viola.
+- **Tuning** for the tuner: `packages/pitch_tuner` already has the viola.
 
 **Instrument overrides** are stored **per piece, per instrument**, keyed by
 note (measure, index). They replace the `<fingering>` 0/4 that the editor

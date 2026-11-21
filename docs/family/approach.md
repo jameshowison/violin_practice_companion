@@ -50,7 +50,7 @@ The same commitments carry to every app in the family:
 | **Practise** | Selects a bar or range, loops it, plays it at a slower tempo with a count-in, follows the cursor, prints | Measure hit maps, a scheduler, a count-in, autoscroll | `playback_service_*`, `models/count_in.dart`, `measure_drag_select`, `score_printer` |
 | **Annotate** | Writes down what the teacher said, or what went wrong today, on the bar it applies to | Notes anchored to the score, quick stamps, a dated log | **Nothing yet**; see below |
 | **Reference** | Records or imports the teacher playing it; taps a bar to hear that bar | Score↔audio alignment, a transport with honest timing | `audio_score_auto_aligner`, `dtw_align`, chroma, `media_playback_service`, `media_transport` (`NativeTransport`) |
-| **Tune** | Tunes (or checks pitch) before playing | Pitch detection with instrument-appropriate targets and advice | `packages/string_tuner`, `tuner_model`, `tuner_advice` |
+| **Tune** | Tunes (or checks pitch) before playing | Pitch detection with instrument-appropriate targets and advice | `packages/pitch_tuner`, `tuner_model`, `tuner_advice` |
 | **Keep** | Builds a library, sees recents, shares with a teacher or another device | Storage, catalog, share bundle, cleanup | `piece_repository`, `piece_library_store`, `piece_activity_store`, `storage_cleanup` |
 
 ### The Annotate stage
@@ -244,7 +244,7 @@ needs no second app.
   bigger table.
 - **Group:** the string; colours from the profile.
 - **Tuning:** N-string, replacing `GdaeTuning`. The tuner already has viola and
-  cello presets (`packages/string_tuner/lib/src/tuning.dart:57,62`).
+  cello presets (`packages/pitch_tuner/lib/src/tuning.dart:57,62`).
 - **Clef:** alto for viola; bass and tenor for cello. The parser must start
   reading `<clef>`.
 - **Alignment:** cello C2 is 65 Hz, far under the 180 Hz band floor. Below

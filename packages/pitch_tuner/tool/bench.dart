@@ -2,7 +2,7 @@
 // ignore_for_file: avoid_print
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 void main() {
   const sr = 48000.0;

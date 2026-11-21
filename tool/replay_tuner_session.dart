@@ -1,5 +1,5 @@
 // Replays a recorded tuner session (lib/services/tuner_recording_io.dart)
-// through the tuner's own pipeline: the WAV through string_tuner's
+// through the tuner's own pipeline: the WAV through pitch_tuner's
 // PitchTracker, every frame into TunerModel, with the strings picked and the
 // tuning changed when the CSV says they were. So a session from the phone can
 // be studied, and the model's settings tried on it, at the desk.
@@ -23,7 +23,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:violin_practice_companion/services/tuner_advice.dart';
 import 'package:violin_practice_companion/services/tuner_input_base.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';

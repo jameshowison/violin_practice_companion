@@ -38,7 +38,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 const _hop = 512, _frame = 2048;
 
@@ -56,7 +56,7 @@ Future<void> main(List<String> args) async {
 
   final minClarity = double.parse(opt('--clarity') ?? '0.85');
   final takes = _readTakes(File('${dir.path}/takes.csv'));
-  final tmp = Directory.systemTemp.createTempSync('string_tuner_eval');
+  final tmp = Directory.systemTemp.createTempSync('pitch_tuner_eval');
   try {
     final framesFor = opt('--frames');
     if (framesFor != null) {

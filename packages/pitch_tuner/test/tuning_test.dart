@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:test/test.dart';
 
 List<double> hz(InstrumentTuning t) => [for (final s in t.strings) s.hz];

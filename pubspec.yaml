@@ -14,7 +14,7 @@ environment:
 workspace:
   - packages/musicxml_tools
   - packages/score_sync
-  - packages/string_tuner
+  - packages/pitch_tuner
 
 dependencies:
   flutter:
@@ -77,9 +77,9 @@ dependencies:
   jovial_svg:
     path: packages/jovial_svg
   # The tuner's pitch detection and string targets. Pure Dart, written to be
-  # shared: see packages/string_tuner/README.md.
-  string_tuner:
-    path: packages/string_tuner
+  # shared: see packages/pitch_tuner/README.md.
+  pitch_tuner:
+    path: packages/pitch_tuner
   # The MusicXML model, parser, editor and repairs. Pure Dart, extracted from
   # the app: see packages/musicxml_tools/README.md.
   musicxml_tools:

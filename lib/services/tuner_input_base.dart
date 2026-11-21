@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 /// One pitch reading from the microphone.
 class TunerFrame {

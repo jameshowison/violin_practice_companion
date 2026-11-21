@@ -671,7 +671,7 @@ and `docs/plan.md` for the remaining roadmap.
 | `dev/` | dev-only entrypoints (e.g. `flutter run -t dev/verovio_harness.dart`) | no |
 | `scripts/` | dev tooling: device install, dev-library sync, content cleanup, OMR evaluation | no |
 | `docs/` | design notes, plans, our own ABC sources | no |
-| `packages/` | vendored `jovial_svg`, and our own libraries (`string_tuner`), members of the pub workspace; `bash scripts/test_all.sh` runs their tests too ([docs/libraries-migration.md](docs/libraries-migration.md)) | yes, as code |
+| `packages/` | vendored `jovial_svg`, and our own libraries (`musicxml_tools`, `score_sync`, `pitch_tuner`), members of the pub workspace; `bash scripts/test_all.sh` runs their tests too ([docs/libraries-migration.md](docs/libraries-migration.md)) | yes, as code |
 
 **The soundfont** is not committed. Download GeneralUser GS (S. Christian
 Collins, schristiancollins.com) and cut it down to the sounds the app plays:

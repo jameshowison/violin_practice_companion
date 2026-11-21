@@ -39,7 +39,7 @@ Rules that follow from it:
   VPC_RESTRICTED_DIR=/nonexistent bash scripts/test_all.sh   # as a clone would
   ```
 - **A member needs a README, a CHANGELOG and a LICENSE.** The libraries are
-  GPL-3.0, except `string_tuner`/`pitch_tuner`, which is BSD-3-Clause. A
+  GPL-3.0, except `pitch_tuner` (once `string_tuner`), which is BSD-3-Clause. A
   member also needs `publish_to: none` until the pub.dev decision is
   revisited, and an `analysis_options.yaml` that includes
   `package:lints/recommended.yaml`.

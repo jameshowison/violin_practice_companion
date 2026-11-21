@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:string_tuner/string_tuner.dart';
+import 'package:pitch_tuner/pitch_tuner.dart';
 
 import '../build_info.dart';
 import '../models/violin_string_palette.dart';
@@ -54,7 +54,7 @@ const tunerLeftHandedKey = 'tuner.leftHanded';
 /// stops: the stringling keeps the pose of the last pluck or bow, with its
 /// advice, and says when a turn went the wrong way ([TunerModel] has why).
 /// Violin targets are pure fifths from A, mandolin's equal-tempered
-/// (`string_tuner`'s [InstrumentTuning]). The reference A, with the strings'
+/// (`pitch_tuner`'s [InstrumentTuning]). The reference A, with the strings'
 /// frequencies, and the instrument are in the settings sheet (the cog).
 class TunerScreen extends ConsumerStatefulWidget {
   const TunerScreen({super.key});
