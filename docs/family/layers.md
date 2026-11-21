@@ -28,8 +28,9 @@ Both say the same thing: a piece is not one object. It is:
 
 ## The rule that makes it safe
 
-**Only the source is ever written as a score.** Each instrument view is a
-pure function, `view(sourceXml, profile, overrides)`, and is never saved.
+**The view is never written over the source.** Each instrument view is a
+pure function, `view(sourceXml, profile, instrumentPart)`, and the view
+itself is never saved.
 The view's engraving and rendered audio are cached by their own content, as
 today; both caches already hash the exact XML and note schedule.
 
@@ -39,7 +40,40 @@ An edit made while looking at a view is **mapped back** before it is saved:
 - a note entered on the viola staff at C3 is stored as the source's C4 when
   the source is a violin part
 
-This is the one hazard the inventory found that would corrupt data. The
+This is the one hazard the inventory found that would corrupt data.
+
+### Edits that belong to one instrument
+
+Some edits are true only for one instrument: a run the viola takes down
+where the violin goes up. Those persist as a **sparse instrument part**: per
+piece and per instrument, only the bars that differ, written in that
+instrument's clef and octave.
+
+- The view is the transcription with those bars laid over it.
+- The bars keep the source's measure numbers, so sections and alignments
+  still line up.
+- If the source bar changes later (a scan fix), the override is **flagged**,
+  not silently kept or dropped.
+
+It is a part, not a voice. In MusicXML a voice is a line sounding at the
+same time as the others on one staff; this run *replaces* the violin's
+notes. MusicXML's own tool for "the same music, written for another
+instrument" is a part. A sparse part can always be expanded into a full
+`<part>` (for export, or for printing a viola part) by filling in the
+transcription.
+
+**Scope without a question on every edit.** Notes have only two scopes: the
+music (everyone) or this instrument. A child doesn't get different pitches
+from a sibling on the same instrument; what is per child is notes and
+practice choices (the player layer). So:
+
+- The measure editor carries a sticky switch, **Editing: the music · viola
+  part**, defaulting to the music. Fixing a scan error is by far the common
+  case.
+- An edit made under "viola part" goes to the instrument part; an edit made
+  under "the music" goes to the source, mapped back through the inverse.
+- A bar that has an instrument override shows a small marker on that
+  instrument's staff, so the split is visible, not hidden. The
 measure editor saves whatever `parsedPieceProvider` parsed
 (`measure_edit_session.dart:670-720`). So the view must live in its own
 providers, and the editor must keep reading the source, with the inverse
@@ -96,6 +130,9 @@ cleared`); those remain source data.
 - **A player** has an id, a name, an instrument and a colour or avatar.
 - **A family with one child** never sees players: the app behaves exactly as
   now. Adding a second child shows a switcher, perhaps beside the title.
+- **Choosing the child** sits next to choosing the instrument, in Settings.
+  With more than one child, the title bar shows whose app it is: their
+  initials in a circle of their colour, which also opens the switcher.
 - **Player prefs** are today's per-piece `display.*` keys and the app-wide
   practice settings, re-keyed by player. On first launch, everything that
   exists becomes the first player's.
@@ -111,6 +148,10 @@ cleared`); those remain source data.
   **instrument overrides for the instrument the receiver plays**. It never
   carries player data: notes stay with the child unless explicitly shared
   (Annotate's open question).
+- **Notes travel only if the child chooses.** Each share asks whether to
+  include that child's notes. A **copy to all players** action pushes one
+  child's notes, or their view settings for a piece, to the others in the
+  family.
 - **The dev library syncs source and instrument layers.** Today's
   `display:numbers` and `display:fretStyle` entries become instrument
   overrides, and the Dart and Python fingerprints change together.
@@ -118,6 +159,8 @@ cleared`); those remain source data.
 ## Migration, in steps that each ship
 
 1. **The layer seam, without a second instrument.**
+   - Keep the as-imported original beside the normalized source, as scans
+     and ABC already are (decided 2026-11-21).
    - Add `InstrumentProfile` (violin and mandolin), the view function, and
      the view's own providers.
    - The editor reads and writes through the inverse, which is the identity
@@ -129,10 +172,12 @@ cleared`); those remain source data.
    - The score keeps any fingering it came with. To tell them apart, the
      catalog's `fingerings` field says whether a bundled score had its own;
      a scanned or imported score's 0/4 on those notes counts as the app's.
-   - The share bundle and the dev library carry overrides.
+   - The share bundle and the dev library carry overrides, and the sparse
+     instrument parts once they exist.
 3. **Viola:**
    - the profile
    - the alto transcription and its inverse in the editor
+   - the sparse instrument part and the editor's scope switch
    - the C/G/D/A palette and table
    - the GM 41 soundfont cut
    - the tuner preset as default
@@ -149,18 +194,20 @@ Each step keeps Stringlings shipping. Step 1 changes nothing visible. Steps
 3 and 4 are the user-visible ones, and need a check on a device by a viola
 player, and a family test of the switcher.
 
+## Decided (2026-11-21)
+
+- **Originals:** keep the as-imported file beside the normalized source.
+- **Octave:** chosen per piece, by range.
+- **Tempo pin:** it is the piece's (source); a child's practice tempo stays
+  theirs.
+- **Choosing a child:** next to the instrument, in Settings; initials in a
+  coloured circle in the title bar.
+- **Instrument-specific edits:** a sparse instrument part, with a sticky
+  scope switch in the editor (proposed above; to be confirmed).
+
 ## Open questions
 
-1. **Normalization on open:** opening a piece runs the repairs and saves the
-   result over the stored file (`piece_repository.dart:144-172`). So the
-   "source" is already normalized, and an imported MusicXML keeps no
-   original. Keep that (the repairs are lossless fixes), or keep the original
-   file beside the normalized one, as scans and ABC already do?
-2. **Octave choice:** decide it per piece by range, the proposal, or fix it
-   per pair of instruments (violin source → viola is always an octave down)?
-   Per piece is more often playable. Fixed is more predictable for a teacher
-   comparing parts.
-3. **Players and recordings:** a teacher's recording is shared. Is one child's
-   own practice recording theirs (player) or the family's (source)?
-4. **The tempo pin:** is it the piece's tempo (source, proposed), or each
-   child's goal (player)?
+1. **Players and recordings:** a teacher's recording is shared. Is one
+   child's own practice recording theirs (player) or the family's (source)?
+2. **What "copy to all players" copies:** notes only, or view settings
+   (zoom, colours, fingering detail) too?
