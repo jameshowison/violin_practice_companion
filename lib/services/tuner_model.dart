@@ -2,7 +2,20 @@ import 'dart:math' as math;
 
 import 'package:pitch_tuner/pitch_tuner.dart';
 
-import 'tuner_input_base.dart';
+/// One pitch reading from the microphone.
+class TunerFrame {
+  const TunerFrame(this.at, this.pitch, [this.bands]);
+
+  /// Time since the microphone started, at the end of the analysed frame.
+  final Duration at;
+
+  /// The estimate, or null when the frame was silent.
+  final PitchEstimate? pitch;
+
+  /// The frame's level at the 1st, 2nd and 3rd harmonics of
+  /// the tracker's probe frequency (`PitchTracker.probeHz`), when one is set (PitchReading.bands).
+  final List<double>? bands;
+}
 
 /// Which way the last change of tuning went, measured on the |cents| from
 /// the target: what lets the tuner say "Wrong way!" while there is still

@@ -1,21 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:pitch_tuner/pitch_tuner.dart';
+import 'tuner_model.dart';
 
-/// One pitch reading from the microphone.
-class TunerFrame {
-  const TunerFrame(this.at, this.pitch, [this.bands]);
-
-  /// Time since the microphone started, at the end of the analysed frame.
-  final Duration at;
-
-  /// The estimate, or null when the frame was silent.
-  final PitchEstimate? pitch;
-
-  /// The frame's level at the 1st, 2nd and 3rd harmonics of
-  /// [TunerInputBase.probeHz], when one is set (PitchReading.bands).
-  final List<double>? bands;
-}
+export 'tuner_model.dart' show TunerFrame;
 
 /// The microphone was refused.
 class TunerMicDenied implements Exception {

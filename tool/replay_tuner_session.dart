@@ -25,7 +25,6 @@ import 'dart:typed_data';
 
 import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:violin_practice_companion/services/tuner_advice.dart';
-import 'package:violin_practice_companion/services/tuner_input_base.dart';
 import 'package:violin_practice_companion/services/tuner_model.dart';
 import 'package:violin_practice_companion/services/unison_meter.dart';
 

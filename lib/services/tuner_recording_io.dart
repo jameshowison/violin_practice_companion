@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'tuner_input_base.dart';
 import 'tuner_model.dart';
 
 /// One listening session, recorded for development: `<name>.wav` (the
