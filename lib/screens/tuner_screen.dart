@@ -26,9 +26,6 @@ import '../debug/screenshot_mode.dart';
 /// The reference A, `tuner.a4`: 440 or 442.
 const tunerA4Key = 'tuner.a4';
 
-/// `violin` or `mandolin`, `tuner.instrument`. Mandolin is offered only when
-/// the app's Instruments setting includes it.
-const tunerInstrumentKey = 'tuner.instrument';
 
 /// `tuner.autoString`: follow whichever string is played (Sense) rather than
 /// the one tapped (Choose). Off by default; Auto as a chip beside the strings
@@ -260,11 +257,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _a4 = (prefs?.getInt(tunerA4Key) ?? 440) == 442 ? 442 : 440;
     final set = ref.read(instrumentSetProvider);
     _viola = set == InstrumentSet.viola;
-    // The mandolin setting tunes a mandolin; the old combined setting lets
-    // the tuner's own Violin / Mandolin switch decide.
-    _mandolin = set == InstrumentSet.mandolin ||
-        (prefs?.getString(tunerInstrumentKey) == 'mandolin' &&
-            ref.read(instrumentFeaturesProvider).fretNumbers);
+    // The tuner tunes the instrument the app is set up for.
+    _mandolin = set == InstrumentSet.mandolin;
     _auto = prefs?.getBool(tunerAutoStringKey) ?? false;
     _leftHanded = prefs?.getBool(tunerLeftHandedKey) ?? false;
     _record = kTunerRecording && (prefs?.getBool(tunerRecordSessionsKey) ?? false);
@@ -442,17 +436,13 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   void _aimProbe() =>
       _input.probeHz = _mandolin && !_auto ? _model.tuning.strings[_rung].hz : null;
 
-  void _retune({double? a4, bool? mandolin}) {
+  void _retune({double? a4}) {
     final prefs = ref.read(sharedPreferencesProvider);
     if (a4 != null) {
       _a4 = a4;
       prefs?.setInt(tunerA4Key, a4.round());
     }
     final rangeBefore = _model.tuning.detectionRange;
-    if (mandolin != null) {
-      _mandolin = mandolin;
-      prefs?.setString(tunerInstrumentKey, mandolin ? 'mandolin' : 'violin');
-    }
     setState(() => _model.tuning = _tuning());
     _rec?.event('tuning ${_model.tuning.name} a4=${_model.tuning.a4}');
     _reading.value = null;
@@ -524,7 +514,6 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 
   Future<void> _openSettings() async {
-    final features = ref.read(instrumentFeaturesProvider);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -567,23 +556,6 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                   const SizedBox(height: 4),
                   Text('Most teachers use 440. Some orchestras tune a little higher, to 442.',
                       style: theme.textTheme.bodySmall),
-                  if (features.fretNumbers) ...[
-                    const SizedBox(height: 18),
-                    Text('Instrument', style: theme.textTheme.titleSmall),
-                    const SizedBox(height: 6),
-                    SegmentedButton<bool>(
-                      key: const ValueKey('tuner_instrument'),
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Violin')),
-                        ButtonSegment(value: true, label: Text('Mandolin')),
-                      ],
-                      selected: {_mandolin},
-                      onSelectionChanged: (v) {
-                        _retune(mandolin: v.first);
-                        setSheet(() {});
-                      },
-                    ),
                     if (_mandolin) ...[
                       const SizedBox(height: 18),
                       Text('Playing hand', style: theme.textTheme.titleSmall),
@@ -605,7 +577,6 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                       const SizedBox(height: 4),
                       Text('Which way round the headstock is drawn.', style: theme.textTheme.bodySmall),
                     ],
-                  ],
                 ],
               ),
             ),

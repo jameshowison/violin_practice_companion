@@ -236,7 +236,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
           'mediaAlignment.media:tune_1:demo_1', '{"anchors":[]}');
-      await prefs.setString('display.numbers.tune_1', 'fingers');
+      await prefs.setString('display.fretStyle.tune_1', 'openStrings');
       await writeFile(sender, 'media/tune_1/demo_1/audio.wav', 1000);
       await writeFile(sender, 'media/tune_1/demo_1/video.mp4', 5000);
       await InstrumentLayerStore(root: sender)
@@ -317,7 +317,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('mediaAlignment.media:tune_1:demo_1'),
           '{"anchors":[]}');
-      expect(prefs.getString('display.numbers.tune_1'), 'fingers');
+      expect(prefs.getString('display.fretStyle.tune_1'), 'openStrings');
       expect(
           await InstrumentLayerStore(root: receiver)
               .stringChoices('tune_1', 'violin'),

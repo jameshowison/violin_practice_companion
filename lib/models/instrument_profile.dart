@@ -31,8 +31,7 @@ class InstrumentProfile {
   final String displayName;
 
   /// Whose instrument layer this instrument's string choices are kept in
-  /// (`InstrumentLayerStore`). The mandolin's frets follow the violin
-  /// fingering, so it shares the violin's.
+  /// (`InstrumentLayerStore`): each instrument its own.
   final String layerId;
 
   /// The clef this instrument reads.
@@ -98,7 +97,7 @@ class InstrumentProfile {
   static const mandolin = InstrumentProfile(
     id: 'mandolin',
     displayName: 'Mandolin',
-    layerId: 'violin',
+    layerId: 'mandolin',
     clef: trebleClef,
     lowestMidi: 55,
     highestMidi: 83,

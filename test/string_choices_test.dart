@@ -160,6 +160,29 @@ void main() {
       // Opening again changes nothing.
       expect(await repo.loadMusicXml(piece), opened);
     });
+
+    test('the launch pass converts every stored score and seeds the mandolin',
+        () async {
+      final storage = PieceStorage(root: root);
+      final repo = PieceRepository(storage: storage, layers: store);
+      for (final id in ['one_1', 'two_2']) {
+        await storage.saveScannedPieceAs(id, id,
+            _pinned(File(scorePath('lightly_row')).readAsStringSync()));
+      }
+      final pieces = await storage.loadScannedPieces();
+      expect(await repo.normalizeAll(pieces), 2);
+      for (final p in pieces) {
+        final xml = await storage.readScannedMusicXml(p.musicXmlFilePath!);
+        expect(StringChoiceMigration.extract(xml).choices, isEmpty);
+        final violin = await store.stringChoices(p.id, 'violin');
+        expect(violin, isNotEmpty);
+        expect(await store.stringChoices(p.id, 'mandolin'), violin);
+      }
+      // A mandolin layer of its own is never overwritten by the violin's.
+      await store.setStringChoices('one_1', 'mandolin', {'1:0': 0});
+      await repo.normalizeAll(pieces);
+      expect(await store.stringChoices('one_1', 'mandolin'), {'1:0': 0});
+    });
   });
 
   group('viola fingering', () {

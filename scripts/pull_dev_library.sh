@@ -8,7 +8,7 @@
 #   bash scripts/pull_dev_library.sh dev-iphone ../lib --dry-run # print the plan only
 #
 # Three-way merge per item (a file, a media row, a title, a piece's synced
-# display setting (numbers, fretStyle), a cached alignment, the library blob)
+# display setting (fretStyle), a cached alignment, the library blob)
 # between the library (L), the device (D) and the device's base (B, what it
 # held at its last sync — `devLibrary.base` in its prefs):
 #
@@ -158,7 +158,7 @@ state.setdefault("pieceLibrary", None)
 
 # Per-piece display settings that travel with the library — mirror of
 # devLibrarySyncedDisplay in lib/services/dev_library_io.dart.
-SYNCED_DISPLAY = {"numbers", "fretStyle"}
+SYNCED_DISPLAY = {"fretStyle"}
 def synced_display(rest):
     name, dot, pid = rest.partition(".")
     return bool(dot) and bool(name) and name in SYNCED_DISPLAY

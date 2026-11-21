@@ -529,7 +529,7 @@ void main() {
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
         {bool deny = false, bool mandolin = false, bool auto = false, bool record = false}) async {
       SharedPreferences.setMockInitialValues({
-        if (mandolin) instrumentSetKey: InstrumentSet.violinAndMandolin.name,
+        if (mandolin) instrumentSetKey: InstrumentSet.mandolin.name,
         if (auto) tunerAutoStringKey: true,
         if (record) tunerRecordSessionsKey: true,
       });
@@ -778,11 +778,6 @@ void main() {
     testWidgets('mandolin: a first tap picks the lower string of a pair, the next the upper',
         (tester) async {
       await pumpTuner(tester, mandolin: true);
-      await openSettings(tester);
-      await tester.tap(find.text('Mandolin'));
-      await tester.pump();
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pump(const Duration(milliseconds: 400));
       MandolinHeadstock head() => tester.widget(find.byKey(const ValueKey('tuner_headstock')));
       StringlingClimber climber() => tester.widget(find.byKey(const ValueKey('tuner_climber')));
 
@@ -825,11 +820,6 @@ void main() {
 
     testWidgets('mandolin: a third tap is both strings together, judged by their beats', (tester) async {
       final fake = await pumpTuner(tester, mandolin: true);
-      await openSettings(tester);
-      await tester.tap(find.text('Mandolin'));
-      await tester.pump();
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       StringlingClimber climber() => tester.widget(find.byKey(const ValueKey('tuner_climber')));
       MandolinHeadstock head() => tester.widget(find.byKey(const ValueKey('tuner_headstock')));
@@ -873,11 +863,6 @@ void main() {
 
     testWidgets('mandolin: wrong way, in tuner words', (tester) async {
       final fake = await pumpTuner(tester, mandolin: true);
-      await openSettings(tester);
-      await tester.tap(find.text('Mandolin'));
-      await tester.pump();
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       await play(tester, fake, off(440, 15), n: 100);
       expect(status(tester), 'Sharp · roll top toward the headstock end');
@@ -943,7 +928,8 @@ void main() {
       expect(sp.getInt(tunerA4Key), 442);
     });
 
-    testWidgets('mandolin only with the mandolin instrument set', (tester) async {
+    testWidgets('the tuner tunes the instrument set up, with no switch of its own',
+        (tester) async {
       await pumpTuner(tester);
       await openSettings(tester);
       expect(find.text('Mandolin'), findsNothing);
@@ -951,11 +937,6 @@ void main() {
 
     testWidgets('mandolin is equal-tempered, and has no fine-tuner advice', (tester) async {
       final fake = await pumpTuner(tester, mandolin: true, auto: true);
-      await openSettings(tester);
-      await tester.tap(find.text('Mandolin'));
-      await tester.pump();
-      await tester.tapAt(const Offset(10, 10)); // close the sheet
-      await tester.pump(const Duration(milliseconds: 400));
       await listen(tester);
       await play(tester, fake, 196.0); // equal-tempered G: in tune here
       expect(status(tester), startsWith('In tune!'));

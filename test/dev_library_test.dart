@@ -325,36 +325,36 @@ void main() {
     expect(report.kept, 1);
   });
 
-  test('a piece\'s number display travels; layout settings do not', () async {
+  test('a piece\'s fret placement travels; layout settings do not', () async {
     await stageLibrary(display: {
-      'numbers.lightly_row': 'violinFingering',
       'fretStyle.lightly_row': 'openStrings',
+      'numbers.lightly_row': 'mandolinFret', // retired: ignored
       'spacing.lightly_row': '0.8', // not a synced setting: ignored
     });
     final report = await ingest();
     expect(report.conflicts, isEmpty);
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('display.numbers.lightly_row'), 'violinFingering');
     expect(prefs.getString('display.fretStyle.lightly_row'), 'openStrings');
+    expect(prefs.getString('display.numbers.lightly_row'), isNull);
     expect(prefs.getString('display.spacing.lightly_row'), isNull);
 
     // Changed here afterwards: kept for the pull, not overwritten.
-    await prefs.setString('display.numbers.lightly_row', 'mandolinFret');
+    await prefs.setString('display.fretStyle.lightly_row', 'matchFingering');
     await prefs.setString('display.view.lightly_row', 'tab');
     final again = await ingest();
     expect(again.kept, 1);
-    expect(prefs.getString('display.numbers.lightly_row'), 'mandolinFret');
+    expect(prefs.getString('display.fretStyle.lightly_row'), 'matchFingering');
   });
 
-  test('the first time they meet, the library\'s number setting wins over one '
+  test('the first time they meet, the library\'s fret setting wins over one '
       'the device chose before settings travelled', () async {
     SharedPreferences.setMockInitialValues(
-        {'display.numbers.p': 'mandolinFret'});
-    await stageLibrary(display: {'numbers.p': 'violinFingering'});
+        {'display.fretStyle.p': 'matchFingering'});
+    await stageLibrary(display: {'fretStyle.p': 'openStrings'});
     final report = await ingest();
     expect(report.conflicts, isEmpty);
     expect((await SharedPreferences.getInstance())
-        .getString('display.numbers.p'), 'violinFingering');
+        .getString('display.fretStyle.p'), 'openStrings');
   });
 
   test('cached alignments travel, verbatim', () async {

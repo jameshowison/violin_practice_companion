@@ -200,6 +200,12 @@ cleared`); those remain source data.
    - the GM 41 soundfont cut
    - the tuner preset as default
    - "Viola" in Settings
+   *Also done 2026-11-21:* every stored score is brought up to date in one
+   pass at launch (`PieceRepository.normalizeAll`, once per device, the
+   `library.normalized` pref), not as each piece opens; and Mandolin is an
+   instrument of its own: its own layer (seeded from the violin's choices in
+   that pass), no per-piece picker, no tuner switch, and the old combined
+   setting read as Mandolin.
 4. **Players:**
    - the model
    - re-keying prefs, with the first player inheriting everything

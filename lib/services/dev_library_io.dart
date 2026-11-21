@@ -25,11 +25,12 @@ const List<String> devLibrarySyncedFolders = [
 ];
 
 /// The per-piece display settings a dev library carries
-/// (`display.<name>.<pieceId>`, see `pieceDisplayPref`): how a piece's numbers
-/// are shown, which is a property of the piece's repertoire (violin fingering
-/// for a violin method book). Layout settings — spacing, view, annotations — stay
-/// per device, since a phone and an iPad want them different.
-const Set<String> devLibrarySyncedDisplay = {'numbers', 'fretStyle'};
+/// (`display.<name>.<pieceId>`, see `pieceDisplayPref`): how a mandolin piece's
+/// frets are placed, a property of the repertoire. Layout settings — spacing,
+/// view, annotations — stay per device, since a phone and an iPad want them
+/// different. (`numbers`, the per-piece violin/mandolin choice, went when the
+/// instruments became separate settings.)
+const Set<String> devLibrarySyncedDisplay = {'fretStyle'};
 
 /// Cached score-to-audio alignments (`MediaAlignmentStore`, one pref per
 /// alignment key) travel too: they are computed per device, and two devices

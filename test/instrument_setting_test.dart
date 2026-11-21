@@ -39,7 +39,7 @@ void main() {
     final c = await containerWith({});
     expect(c.read(instrumentSetProvider), InstrumentSet.violin);
     final f = c.read(instrumentFeaturesProvider);
-    expect([f.fretNumbers, f.tabView, f.chords], [false, false, false]);
+    expect([f.tabView, f.chords], [false, false]);
   });
 
   test('violin mode overrides a piece saved for the mandolin', () async {
@@ -51,13 +51,11 @@ void main() {
     expect(c.read(pieceChordShapesProvider), isEmpty);
   });
 
-  test('switching to violin and mandolin brings the saved choices back',
-      () async {
+  test('switching to the mandolin brings the saved choices back', () async {
     final c = await containerWith(mandolinPiece);
     c.read(selectedPieceProvider.notifier).state = _piece('a');
     c.read(noteNumberModeProvider); // read once in violin mode
-    c.read(instrumentSetProvider.notifier).state =
-        InstrumentSet.violinAndMandolin;
+    c.read(instrumentSetProvider.notifier).state = InstrumentSet.mandolin;
     expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
     expect(c.read(displayModeProvider), DisplayMode.tab);
     expect(c.read(showChordsProvider), isTrue);
@@ -75,16 +73,14 @@ void main() {
 
   test('the setting is saved and restored', () async {
     final c = await containerWith({});
-    c.read(instrumentSetProvider.notifier).state =
-        InstrumentSet.violinAndMandolin;
-    expect(prefs.getString(instrumentSetKey), 'violinAndMandolin');
+    c.read(instrumentSetProvider.notifier).state = InstrumentSet.viola;
+    expect(prefs.getString(instrumentSetKey), 'viola');
 
     final relaunch = ProviderContainer(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
     );
     addTearDown(relaunch.dispose);
-    expect(relaunch.read(instrumentSetProvider),
-        InstrumentSet.violinAndMandolin);
+    expect(relaunch.read(instrumentSetProvider), InstrumentSet.viola);
   });
 
   test('opening the app in the default never writes the setting', () async {
@@ -104,8 +100,9 @@ void main() {
       c.read(selectedPieceProvider.notifier).state = _piece('b');
       expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
       final f = c.read(instrumentFeaturesProvider);
-      expect((f.fretNumbers, f.tabView, f.chords), (false, true, true));
-      expect(c.read(instrumentProfileProvider).id, 'mandolin');
+      expect((f.tabView, f.chords), (true, true));
+      final p = c.read(instrumentProfileProvider);
+      expect((p.id, p.layerId), ('mandolin', 'mandolin'));
     });
 
     test('the viola fingers on its own strings, in the viola layer', () async {
@@ -116,7 +113,7 @@ void main() {
       expect((p.id, p.layerId, p.strings.first), ('viola', 'viola', 'C'));
       expect(p.transcription, Transcription.none);
       final f = c.read(instrumentFeaturesProvider);
-      expect((f.fretNumbers, f.tabView, f.chords), (false, false, false));
+      expect((f.tabView, f.chords), (false, false));
     });
 
     test('the viola\'s transcription is a saved setting', () async {
@@ -130,12 +127,13 @@ void main() {
       expect(prefs.getString('app.violaTranscription'), 'none');
     });
 
-    test('the old combined setting keeps its per-piece choice', () async {
-      final c = await containerWith(
-          {...mandolinPiece, 'app.instruments': 'violinAndMandolin'});
+    test('the old combined setting becomes the mandolin, and is rewritten',
+        () async {
+      final c = await containerWith({'app.instruments': 'violinAndMandolin'});
+      expect(c.read(instrumentSetProvider), InstrumentSet.mandolin);
+      expect(prefs.getString('app.instruments'), 'mandolin');
       c.read(selectedPieceProvider.notifier).state = _piece('a');
       expect(c.read(noteNumberModeProvider), NoteNumberMode.mandolinFret);
-      expect(c.read(instrumentFeaturesProvider).fretNumbers, isTrue);
     });
   });
 }

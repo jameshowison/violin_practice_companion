@@ -79,36 +79,27 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) {
               if (v != null) ref.read(instrumentSetProvider.notifier).state = v;
             },
-            child: Column(
-              key: const ValueKey('instrument_setting'),
+            child: const Column(
+              key: ValueKey('instrument_setting'),
               children: [
-                const RadioListTile<InstrumentSet>(
+                RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_violin'),
                   value: InstrumentSet.violin,
                   dense: true,
                   title: Text('Violin'),
                 ),
-                const RadioListTile<InstrumentSet>(
+                RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_viola'),
                   value: InstrumentSet.viola,
                   dense: true,
                   title: Text('Viola: alto clef, C G D A'),
                 ),
-                const RadioListTile<InstrumentSet>(
+                RadioListTile<InstrumentSet>(
                   key: ValueKey('instrument_setting_mandolin'),
                   value: InstrumentSet.mandolin,
                   dense: true,
                   title: Text('Mandolin: frets, tab, chords'),
                 ),
-                // The old combined setting, offered only while it is the one
-                // chosen, so switching away from it is a one-way step.
-                if (set == InstrumentSet.violinAndMandolin)
-                  const RadioListTile<InstrumentSet>(
-                    key: ValueKey('instrument_setting_violin_mandolin'),
-                    value: InstrumentSet.violinAndMandolin,
-                    dense: true,
-                    title: Text('Violin and mandolin, chosen per piece'),
-                  ),
               ],
             ),
           ),

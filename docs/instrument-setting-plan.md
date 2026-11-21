@@ -1,5 +1,12 @@
 # Plan: one app, violin-only by default, with an Instruments setting
 
+> **Superseded 2026-11-21.** The setting is now Violin / Viola / Mandolin,
+> three separate instruments, each with its own instrument layer
+> (`docs/family/layers.md`). The per-piece Violin / Mandolin picker and its
+> `display.numbers` pref are gone; a stored `violinAndMandolin` reads as
+> Mandolin and is rewritten. What follows is the plan as it was built first.
+
+
 Status: implemented 2026-11-11 (first cut). This replaces the earlier plan for two
 store apps built as Flutter flavors (`docs/two-apps-flavors-plan.md`, renamed
 to this file). Flavors are kept below as a later option.

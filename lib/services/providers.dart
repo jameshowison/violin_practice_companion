@@ -87,9 +87,26 @@ final fingeringMapperProvider = Provider<FingeringMapper>(
 /// everything, with hidden marked — without a source.
 final piecesProvider = FutureProvider<List<Piece>>((ref) async {
   await ref.watch(devLibraryProvider.future);
-  return LaunchTiming.span(
-      'loadAll', () => ref.watch(pieceRepositoryProvider).loadAll());
+  final repo = ref.watch(pieceRepositoryProvider);
+  final pieces = await LaunchTiming.span('loadAll', () => repo.loadAll());
+  // Once per device: every stored score brought up to date together.
+  final prefs = ref.read(sharedPreferencesProvider);
+  if (prefs != null &&
+      (prefs.getInt(libraryNormalizedKey) ?? 0) < libraryNormalizedVersion) {
+    final n = await LaunchTiming.span(
+        'normalizeAll', () => repo.normalizeAll(pieces));
+    await prefs.setInt(libraryNormalizedKey, libraryNormalizedVersion);
+    // ignore: avoid_print
+    print('[library] normalized $n stored scores');
+  }
+  return pieces;
 });
+
+/// Which one-time pass over the stored scores this device has had
+/// ([PieceRepository.normalizeAll]); bump [libraryNormalizedVersion] to run
+/// one again.
+const libraryNormalizedKey = 'library.normalized';
+const libraryNormalizedVersion = 1;
 
 /// Merges a synced dev library (see [DevLibraryIngester]) once per launch,
 /// before the first piece list or library read. A no-op unless
@@ -346,17 +363,14 @@ final pieceMusicXmlProvider = FutureProvider<String?>((ref) async {
 
 // ── The instrument layer (docs/family/layers.md) ──────────────────────────────
 
-/// The instrument the piece is shown for. Violin, or mandolin when the piece
-/// is in fret numbers; both read treble, so both see every source as it is.
-final instrumentProfileProvider = Provider<InstrumentProfile>((ref) {
-  if (ref.watch(instrumentSetProvider) == InstrumentSet.viola) {
-    return InstrumentProfile.viola
-        .withTranscription(ref.watch(violaTranscriptionProvider));
-  }
-  return ref.watch(noteNumberModeProvider) == NoteNumberMode.mandolinFret
-      ? InstrumentProfile.mandolin
-      : InstrumentProfile.violin;
-});
+/// The instrument the piece is shown for: the instrument setting's.
+final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
+    switch (ref.watch(instrumentSetProvider)) {
+      InstrumentSet.violin => InstrumentProfile.violin,
+      InstrumentSet.mandolin => InstrumentProfile.mandolin,
+      InstrumentSet.viola => InstrumentProfile.viola
+          .withTranscription(ref.watch(violaTranscriptionProvider)),
+    });
 
 /// How the selected piece's source is shown for [instrumentProfileProvider].
 final instrumentViewProvider = FutureProvider<InstrumentView?>((ref) async {
@@ -1147,36 +1161,12 @@ final staffFingeringXmlProvider = FutureProvider<String?>(
   (ref) => _staffXml(ref, fingering: true),
 );
 
-/// Violin fingering vs true mandolin fret numbers — the drawer's "Instrument" —
-/// wherever a number labels a note: the tab staff's string lines, the
-/// annotation view's fingering channel, the vocabulary palette and the title
-/// line's low/high fingerings. ONE preference for all — see [NoteNumberMode].
-///
-/// Remembered per piece — see [pieceDisplayPref].
-///
-/// Note the asymmetry in what a change costs: the tab staff carries its numbers
-/// in the engraved xml ([tabScoreProvider] watches this, so it re-engraves),
-/// while the channel draws them in a Flutter overlay, so there it is a repaint.
-///
-/// This is the STORED choice; read [noteNumberModeProvider].
-final noteNumberModePrefProvider = pieceDisplayEnumPref<NoteNumberMode>(
-  'numbers',
-  NoteNumberMode.violinFingering,
-  NoteNumberMode.values,
-);
-
 /// The numbers in effect, from the instrument setting: frets for the
-/// mandolin, fingering for the violin and the viola, and the piece's own
-/// choice ([noteNumberModePrefProvider]) only under the old combined
-/// violin-and-mandolin setting, which has the per-piece picker. The saved
-/// choice is kept, so it comes back if that setting does.
+/// mandolin, fingering for the violin and the viola.
 final noteNumberModeProvider = Provider<NoteNumberMode>(
-  (ref) => switch (ref.watch(instrumentSetProvider)) {
-    InstrumentSet.mandolin => NoteNumberMode.mandolinFret,
-    InstrumentSet.violinAndMandolin => ref.watch(noteNumberModePrefProvider),
-    InstrumentSet.violin || InstrumentSet.viola =>
-      NoteNumberMode.violinFingering,
-  },
+  (ref) => ref.watch(instrumentSetProvider) == InstrumentSet.mandolin
+      ? NoteNumberMode.mandolinFret
+      : NoteNumberMode.violinFingering,
 );
 
 /// In fret mode: prefer open strings (frets ≤6, beginner-friendly) vs put the

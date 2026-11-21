@@ -18,24 +18,20 @@ enum InstrumentSet {
   /// sound and tuning (docs/family/layers.md).
   viola,
 
-  /// The mandolin: fret numbers on every piece, the tab view and chords.
+  /// The mandolin: fret numbers on every piece, the tab view and chords, and
+  /// an instrument layer of its own.
   mandolin,
-
-  /// The setting before the instruments were separate: violin with a
-  /// per-piece Violin / Mandolin picker, frets, tab and chords. Still read
-  /// and honoured where it is stored; Settings offers it only while chosen.
-  violinAndMandolin,
 }
+
+/// The stored name of the setting from before the instruments were separate
+/// (violin, with a per-piece Violin / Mandolin picker). It turned the
+/// mandolin on, so it reads as [InstrumentSet.mandolin], and is rewritten.
+const legacyViolinAndMandolin = 'violinAndMandolin';
 
 /// What an [InstrumentSet] turns on. Widgets and providers ask about these
 /// capabilities, never about the set itself, so a new set (or splitting one
 /// capability out into its own setting) touches only [InstrumentFeatures.of].
 class InstrumentFeatures {
-  /// The per-piece Violin / Mandolin picker (only [InstrumentSet
-  /// .violinAndMandolin]). Which numbers a piece shows is
-  /// `noteNumberModeProvider`'s answer.
-  final bool fretNumbers;
-
   /// The tab view (melody plus a GDAE tab staff).
   final bool tabView;
 
@@ -44,18 +40,14 @@ class InstrumentFeatures {
   final bool chords;
 
   const InstrumentFeatures({
-    required this.fretNumbers,
     required this.tabView,
     required this.chords,
   });
 
   factory InstrumentFeatures.of(InstrumentSet set) => switch (set) {
     InstrumentSet.violin || InstrumentSet.viola =>
-      const InstrumentFeatures(fretNumbers: false, tabView: false, chords: false),
-    InstrumentSet.mandolin =>
-      const InstrumentFeatures(fretNumbers: false, tabView: true, chords: true),
-    InstrumentSet.violinAndMandolin =>
-      const InstrumentFeatures(fretNumbers: true, tabView: true, chords: true),
+      const InstrumentFeatures(tabView: false, chords: false),
+    InstrumentSet.mandolin => const InstrumentFeatures(tabView: true, chords: true),
   };
 }
 
@@ -82,6 +74,10 @@ final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
 
   final stored = prefs.getString(instrumentSetKey);
   if (stored == null) return fallback;
+  if (stored == legacyViolinAndMandolin) {
+    prefs.setString(instrumentSetKey, InstrumentSet.mandolin.name);
+    return InstrumentSet.mandolin;
+  }
   try {
     return InstrumentSet.values.byName(stored);
   } catch (_) {

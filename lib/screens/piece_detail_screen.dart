@@ -423,10 +423,6 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // [NoteNumberMode]. Only when the instrument setting has
                   // mandolin frets; otherwise the numbers are violin fingering.
                   const SizedBox(height: 12),
-                  if (features.fretNumbers) ...[
-                    const _NoteNumberPicker(),
-                    const SizedBox(height: 12),
-                  ],
                   if (ref.watch(noteNumberModeProvider) ==
                       NoteNumberMode.mandolinFret)
                     const _FretStylePicker()
@@ -1245,40 +1241,6 @@ class _LyricVersePicker extends ConsumerWidget {
               DropdownMenuItem<int?>(value: v, child: Text('Verse $v')),
           ],
           onChanged: (v) => ref.read(lyricVerseProvider.notifier).state = v,
-        ),
-      ],
-    );
-  }
-}
-
-/// Violin fingering vs mandolin fret, for every view alike — one preference,
-/// one control, near the top of the drawer.
-class _NoteNumberPicker extends ConsumerWidget {
-  const _NoteNumberPicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(noteNumberModeProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _DrawerLabel('Instrument'),
-        SegmentedButton<NoteNumberMode>(
-          key: const ValueKey('instrument_picker'),
-          segments: const [
-            ButtonSegment(
-                value: NoteNumberMode.violinFingering,
-                label: Text('Violin')),
-            ButtonSegment(
-                value: NoteNumberMode.mandolinFret, label: Text('Mandolin')),
-          ],
-          selected: {mode},
-          onSelectionChanged: (s) =>
-              ref.read(noteNumberModePrefProvider.notifier).state = s.first,
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
         ),
       ],
     );

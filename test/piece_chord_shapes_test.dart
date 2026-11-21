@@ -39,8 +39,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(overrides: [
       parsedPieceProvider.overrideWith((ref) async => piece),
-      // Chords are a violin-and-mandolin feature; violin mode has none.
-      instrumentSetProvider.overrideWith((_) => InstrumentSet.violinAndMandolin),
+      // Chords are a mandolin feature; violin mode has none.
+      instrumentSetProvider.overrideWith((_) => InstrumentSet.mandolin),
     ]);
     addTearDown(container.dispose);
     await container.read(parsedPieceProvider.future);

@@ -188,6 +188,34 @@ class PieceRepository {
     return repaired;
   }
 
+  /// Brings every stored score in [pieces] up to date at once, rather than
+  /// as each is opened (docs/family/layers.md): each file-backed piece is
+  /// loaded, which repairs it and moves its string choices into the violin
+  /// layer ([loadMusicXml]), and a piece with violin choices but no mandolin
+  /// layer gets a copy of them, so the mandolin, now an instrument of its
+  /// own, starts where the violin's fingering left it. A piece that can't be
+  /// read is skipped. Returns how many pieces were looked at.
+  Future<int> normalizeAll(List<Piece> pieces) async {
+    var n = 0;
+    for (final piece in pieces) {
+      if (piece.musicXmlFilePath == null) continue;
+      try {
+        await loadMusicXml(piece);
+        n++;
+      } catch (_) {
+        continue;
+      }
+      final violin = await _layers.stringChoices(
+          piece.id, InstrumentProfile.violin.layerId);
+      final mandolin = InstrumentProfile.mandolin.layerId;
+      if (violin.isNotEmpty &&
+          (await _layers.stringChoices(piece.id, mandolin)).isEmpty) {
+        await _layers.setStringChoices(piece.id, mandolin, violin);
+      }
+    }
+    return n;
+  }
+
   /// Persists a scanned/imported piece's MusicXML and returns the resulting
   /// [Piece]. Auto-detects the sectional form (AABB/ABAA …) and, when found,
   /// writes it to the piece's override sidecar so the section minimap appears.

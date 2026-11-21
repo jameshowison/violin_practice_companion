@@ -38,9 +38,9 @@ const String kShareSectionsName = 'sections.json';
 const String kShareLayersDir = 'instrument_layers';
 
 /// The `display.<name>.<pieceId>` settings that travel with a piece — the same
-/// two the dev library carries (`devLibrarySyncedDisplay`): how its numbers
+/// ones the dev library carries (`devLibrarySyncedDisplay`): how its frets
 /// read is a property of the repertoire, not of the device.
-const Set<String> kSharedDisplayPrefs = {'numbers', 'fretStyle'};
+const Set<String> kSharedDisplayPrefs = {'fretStyle'};
 
 class PieceShareManifest {
   PieceShareManifest({
