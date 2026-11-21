@@ -7,9 +7,10 @@
 /// A flat "three beats" couldn't promise that, and a flat "one bar" would count
 /// straight over the note you are about to play.
 ///
-/// Everything here is measured in **32nd-note units** (the app's exact duration
-/// currency — see [thirtySecondUnits]), so a sub-beat pickup needs no rounding:
-/// the last counted beat is simply cut short by it.
+/// Everything here is measured in **32nd-note units** (the exact duration
+/// currency of `thirtySecondUnits` in musicxml_tools), so a sub-beat pickup
+/// needs no rounding: the last counted beat is simply cut short by it.
+library;
 
 /// Never fewer than three counted beats: two is not enough to hear the pulse, and
 /// hearing the pulse is half of what the count is for. When a bar can't supply

@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/count_in.dart';
+import 'package:test/test.dart';
+import 'package:score_sync/score_sync.dart';
 
 void main() {
   group('barCounting', () {

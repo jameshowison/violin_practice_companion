@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 
 /// Apex of an ordinary hop between two counted beats, and of the last one —
 /// the hop into the first note — as fractions of the font size.

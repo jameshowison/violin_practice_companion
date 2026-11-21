@@ -1,10 +1,7 @@
 import 'package:musicxml_tools/musicxml_tools.dart';
 
-import 'audio_chroma_features.dart';
+import 'package:score_sync/score_sync.dart';
 import 'audio_decoder_base.dart' show PcmAudio;
-import 'audio_score_auto_aligner.dart';
-import 'score_timing.dart';
-import 'dtw_align.dart';
 import 'midi_generator.dart';
 
 /// [ScoreAligner] for the app's own scores: a [ParsedPiece], laid out in

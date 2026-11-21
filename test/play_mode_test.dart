@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/playback_service_base.dart';
 import 'package:violin_practice_companion/services/providers.dart';

@@ -8,7 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/section_run_groups.dart';
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';

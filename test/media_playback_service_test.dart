@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:violin_practice_companion/services/media_playback_service.dart';
 
 void main() {

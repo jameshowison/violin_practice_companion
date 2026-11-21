@@ -6,7 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import 'audio_output.dart';
 import 'media_transport.dart';
-import 'sync_calibration.dart';
+import 'package:score_sync/score_sync.dart';
 import 'sync_calibration_clip.dart';
 
 /// Thrown inside a calibration run to stop it with a reason for the user.

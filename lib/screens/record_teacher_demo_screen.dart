@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/piece.dart';
 import '../models/piece_media.dart';
 import '../services/audio_decoder.dart';
-import '../services/audio_score_auto_aligner.dart';
+import 'package:score_sync/score_sync.dart';
 import '../services/piece_aligner.dart';
 import '../services/media_alignment_store.dart';
 import '../services/media_migration.dart';

@@ -10,7 +10,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'package:violin_practice_companion/services/audio_energy_envelope.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:violin_practice_companion/services/piece_aligner.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 

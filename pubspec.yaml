@@ -13,6 +13,7 @@ environment:
 # party, so it stays a plain path dependency, not a member.
 workspace:
   - packages/musicxml_tools
+  - packages/score_sync
   - packages/string_tuner
 
 dependencies:
@@ -83,17 +84,19 @@ dependencies:
   # the app: see packages/musicxml_tools/README.md.
   musicxml_tools:
     path: packages/musicxml_tools
+  # Score-to-recording alignment and the count-in math. Pure Dart, extracted
+  # from the app: see packages/score_sync/README.md.
+  score_sync:
+    path: packages/score_sync
 
-  # Play-along audio/score sync: `just_audio` drives backing-track playback,
-  # `wav` decodes the analysis track to PCM (pure Dart, zero native deps — see
-  # lib/services/audio_chroma_features.dart), `fftea` does the STFT for chroma
-  # feature extraction. All three declare iOS/Android/macOS/Web.
+  # Play-along audio: `just_audio` drives backing-track playback, `wav` reads
+  # and writes WAV (pure Dart, zero native deps). The chroma analysis and its
+  # STFT (`fftea`) are in packages/score_sync. Both declare iOS/Android.
   just_audio: ^0.10.6
   # Already just_audio's; direct so the app can configure it before anything
   # plays (lib/services/app_audio_session.dart). iOS/Android/macOS/Web.
   audio_session: ^0.2.4
   wav: ^1.5.0
-  fftea: ^1.5.0+1
 
   # Teacher-demo recording: `camera` captures one video with its sound (see
   # lib/services/teacher_recording_capture_io.dart). `record` is the tuner's

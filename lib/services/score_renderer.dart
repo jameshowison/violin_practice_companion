@@ -1,9 +1,8 @@
 
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'audio_score_auto_aligner.dart' show ScoreAudioAnchor;
 import 'midi_generator.dart';
 
 /// The synthesized score rendered offline to PCM, so it can play like a

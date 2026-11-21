@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/piece_media.dart';
-import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:violin_practice_companion/services/media_alignment_store.dart';
 import 'package:violin_practice_companion/services/piece_media_store.dart';
 import 'package:violin_practice_companion/services/providers.dart';

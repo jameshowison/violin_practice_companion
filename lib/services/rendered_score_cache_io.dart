@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'audio_decoder.dart';
-import 'audio_score_auto_aligner.dart' show ScoreAudioAnchor;
+import 'package:score_sync/score_sync.dart' show ScoreAudioAnchor;
 import 'midi_generator.dart';
 import 'score_renderer.dart';
 

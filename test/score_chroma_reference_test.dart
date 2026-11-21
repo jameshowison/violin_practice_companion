@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
-import 'package:violin_practice_companion/services/score_chroma_reference.dart';
+import 'package:score_sync/score_sync.dart';
 
 NoteEvent _note(int midi, NoteValue v) => NoteEvent(
       pitch: 'X',

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'support/restricted_fixtures.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'package:violin_practice_companion/services/audio_score_auto_aligner.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 

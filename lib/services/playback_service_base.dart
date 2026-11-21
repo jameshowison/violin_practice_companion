@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'midi_generator.dart';
 

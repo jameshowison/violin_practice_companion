@@ -1,6 +1,7 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// The calibration clip: a few sharp clicks at deliberately irregular times,
 /// so that the pattern lines up with what the mic heard at exactly one delay

@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'score_timing.dart';
 
 class ScheduledNote implements TimedNote {
+  @override
   final double onsetSeconds;
+  @override
   final double offsetSeconds;
+  @override
   final int midiNote;
 
   const ScheduledNote(this.onsetSeconds, this.offsetSeconds, this.midiNote);
@@ -55,12 +57,16 @@ class HighlightEvent {
 }
 
 class MidiData implements TimedScore {
+  @override
   final List<ScheduledNote> notes; // sorted by onset ascending
+  @override
   final List<double> measureOnsetSeconds; // index i → onset of measures[i]
   // measureNumbers[i] is the Measure.number whose onset is measureOnsetSeconds[i],
   // in document order. NOT i+1: a pickup makes measures[0].number == 0, so callers
   // must map a measure number → index via this list rather than assuming number-1.
+  @override
   final List<int> measureNumbers;
+  @override
   final double totalDurationSeconds;
   // Per measure (0-indexed), per note (0-indexed): absolute (onsetSecs, offsetSecs)
   final List<List<(double, double)>> measureNoteTimings;

@@ -1,0 +1,22 @@
+name: score_sync
+description: >-
+  Score-to-recording alignment in pure Dart: chroma features from audio, a
+  symbolic chroma reference from the score, DTW with onset and skip terms,
+  bar anchors with their post-passes, count-in math and calibration click
+  matching.
+version: 0.1.0
+publish_to: none  # not yet; see docs/family/libraries.md, "Decisions"
+
+environment:
+  sdk: ^3.6.0  # pub workspaces need 3.6
+
+resolution: workspace  # resolved with the app; see the root pubspec.yaml
+
+dependencies:
+  fftea: ^1.5.0+1
+  meta: ^1.15.0
+  wav: ^1.5.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

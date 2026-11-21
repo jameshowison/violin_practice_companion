@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/services/sync_calibration.dart';
+import 'package:test/test.dart';
+import 'package:score_sync/score_sync.dart';
 
 /// What the native capture would report if the clip were heard [delay]
 /// seconds late at [gain], over room noise of [noise] (rms), with the clicks

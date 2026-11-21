@@ -2,7 +2,7 @@ import 'dart:async' show scheduleMicrotask, unawaited;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chord_shape.dart';
-import '../models/count_in.dart';
+import 'package:score_sync/score_sync.dart';
 import '../models/tempo_presets.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
