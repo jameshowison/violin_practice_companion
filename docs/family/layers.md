@@ -222,18 +222,28 @@ player, and a family test of the switcher.
 
 - **Originals:** keep the as-imported file beside the normalized source.
 - **Octave:** chosen per piece, by range.
-- **Tempo pin:** it is the piece's (source); a child's practice tempo stays
+- **Tempo pin:** it is the piece's (source); a player's practice tempo stays
   theirs.
-- **Choosing a child:** next to the instrument, in Settings; initials in a
+- **Choosing a player:** next to the instrument, in Settings; initials in a
   coloured circle in the title bar.
 - **Instrument-specific edits:** a sparse instrument part, with a sticky
   scope switch in the editor that defaults to the music.
-- **A child's own practice recording** is theirs (player layer), shared with
-  the family only if they choose; teacher recordings stay shared (source).
-- **"Copy to all players"** works on a child's recordings too: copying one
-  gives every child in the family that take.
-
-## Open questions
-
-1. **Does "copy to all players" also copy notes and view settings** (zoom,
-   colours, fingering detail), or only recordings?
+- **"Player", not "child"** in the app and the docs from here on.
+- **Recordings are shared** with every player of the piece by default.
+  With more than one player, the app asks after a recording is made:
+  "Limit to only this player?" (the default answer is to share). A limited
+  take is that player's (player layer) until shared. *This replaces the
+  earlier "a child's own recording is theirs" default.*
+- **"Copy to all players"** copies a piece's view settings (zoom, colours,
+  fingering detail, note names) once; afterwards each player's are
+  independent. It can also share a take limited to one player. Notes join it
+  when Annotate exists.
+- **No hold or parent check** on switching players, for now: one tap on the
+  badge.
+- **The piece list is shared**, like a physical book: no per-player order.
+  Recents and "where you left off" are per player.
+- **The UI is approved** as mocked:
+  [Stringlings Players](https://claude.ai/artifact/4mAFxjyUJjZPufuAPQWN6Z)
+  (one player as today; the switcher; Settings with "Who's playing" beside
+  the player's instrument; adding a player; copy to all players; the
+  after-recording question).
