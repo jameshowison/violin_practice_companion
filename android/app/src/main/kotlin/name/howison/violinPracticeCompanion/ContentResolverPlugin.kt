@@ -13,7 +13,7 @@ import kotlin.concurrent.thread
  * `OmrService._resolveToFile` in `lib/services/omr_service_io.dart` copies
  * them into the cache dir through this channel. iOS never calls it.
  *
- * Registered by hand from [MainActivity], like [AudioDecoderPlugin].
+ * Registered by hand from [MainActivity], like [MediaToolsPlugin].
  */
 class ContentResolverPlugin(
     messenger: BinaryMessenger,

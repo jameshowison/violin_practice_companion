@@ -19,11 +19,9 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    // Registered by hand because it is app-local rather than a pub package —
-    // GeneratedPluginRegistrant only knows about pubspec dependencies. See
-    // AudioDecoderPlugin.swift.
-    AudioDecoderPlugin.register(
-      with: engineBridge.pluginRegistry.registrar(forPlugin: "AudioDecoderPlugin")!)
+    // Registered by hand because they are app-local rather than pub packages —
+    // GeneratedPluginRegistrant only knows about pubspec dependencies (which
+    // now include packages/audio_decoder). See MediaToolsPlugin.swift.
     MediaToolsPlugin.register(
       with: engineBridge.pluginRegistry.registrar(forPlugin: "MediaToolsPlugin")!)
     AudioRoutePlugin.register(

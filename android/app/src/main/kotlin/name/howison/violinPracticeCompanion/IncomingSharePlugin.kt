@@ -22,7 +22,7 @@ import kotlin.concurrent.thread
  * before Dart is listening, so Dart drains the queue with `takePending` at
  * startup and whenever this sends `pending`.
  *
- * Registered by hand from [MainActivity], like [AudioDecoderPlugin].
+ * Registered by hand from [MainActivity], like [MediaToolsPlugin].
  */
 class IncomingSharePlugin(
     messenger: BinaryMessenger,

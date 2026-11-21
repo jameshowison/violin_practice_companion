@@ -29,7 +29,7 @@ class ChromaSequence {
 ///
 /// Input is mono PCM ([extractFromSamples]): WAV bytes are decoded here via
 /// `package:wav` ([extractFromWavBytes]); anything else is decoded first by
-/// the per-platform `AudioDecoder` (audio_decoder.dart), which is how the
+/// the per-platform `AudioDecoder` (package:audio_decoder), which is how the
 /// bundled tracks' `melody.mp3` and imported media are aligned.
 ///
 /// Two deliberate choices keep a real, imperfect room recording usable; see

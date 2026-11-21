@@ -9,7 +9,7 @@ import UIKit
 /// the route changes, so the synthesized score can move its cursor to match
 /// what is actually heard. See `lib/services/audio_output.dart`.
 ///
-/// Registered by hand from `AppDelegate`, like `AudioDecoderPlugin`: it is a
+/// Registered by hand from `AppDelegate`, like `MediaToolsPlugin`: it is a
 /// few lines of AVAudioSession, and `audio_session` (already a transitive
 /// dependency via just_audio) exposes the route but not its latency.
 public class AudioRoutePlugin: NSObject, FlutterPlugin {

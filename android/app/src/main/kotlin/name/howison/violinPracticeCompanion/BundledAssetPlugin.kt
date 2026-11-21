@@ -21,7 +21,7 @@ import kotlin.concurrent.thread
  * deleted when a new one is made. Copied by streaming, never through Dart's
  * heap — the OMR decoder is 94 MB.
  *
- * Registered by hand from [MainActivity], like [AudioDecoderPlugin].
+ * Registered by hand from [MainActivity], like [MediaToolsPlugin].
  */
 class BundledAssetPlugin(
     messenger: BinaryMessenger,

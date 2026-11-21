@@ -1,0 +1,34 @@
+name: audio_decoder
+description: >-
+  Decodes an audio or video file (mp3, m4a/aac, flac, ogg, caf, aif, and the
+  audio track of an mp4/mov) to mono float PCM at the file's own sample rate,
+  for analysis such as score-to-audio alignment. AVFoundation on iOS,
+  MediaCodec on Android; WAV is read in Dart.
+version: 0.1.0
+publish_to: none  # not yet; see docs/family/libraries.md, "Decisions"
+
+environment:
+  sdk: ^3.6.0  # pub workspaces need 3.6
+  flutter: '>=3.3.0'
+
+resolution: workspace  # resolved with the app; see the root pubspec.yaml
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.5
+  wav: ^1.5.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: name.howison.audio_decoder
+        pluginClass: AudioDecoderPlugin
+      ios:
+        pluginClass: AudioDecoderPlugin

@@ -1,9 +1,9 @@
-package name.howison.violinPracticeCompanion
+package name.howison.audio_decoder
 
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
@@ -14,9 +14,9 @@ import kotlin.concurrent.thread
 /**
  * Decodes any container the platform can open — mp3, m4a/aac, ogg, flac, and
  * the audio track of an mp4 — to mono `Float32` PCM at the source sample rate,
- * for the score-to-audio DTW alignment on the Dart side.
+ * for analysis (in Stringlings, score-to-audio alignment) on the Dart side.
  *
- * Checked 2026-11-17 on dev-android, imported through the app's own picker:
+ * Checked 2026-11-17 on dev-android, imported through Stringlings' picker:
  * the 320 kbps stereo Happy Farmer mp3 (71.4 s, 44.1 kHz) aligned to 21
  * anchors spanning 6.66–63.14 s. The iOS decoder, checked earlier with an
  * older aligner, gave 6.87–66.57 s. A wrong sample rate would scale every
@@ -25,18 +25,23 @@ import kotlin.concurrent.thread
  *
  * WAV never arrives here: `package:wav` reads it in pure Dart, which is faster
  * than a channel round trip and works under `flutter test`. See
- * `lib/services/audio_decoder_io.dart`.
+ * `lib/src/audio_decoder_io.dart`.
  *
- * Registered by hand from [MainActivity]. Decode only: `shrinkVideo` and
- * `encodeAac` are the app's, on their own channel ([MediaToolsPlugin]).
+ * A Flutter plugin: the generated registrant attaches it.
  */
-class AudioDecoderPlugin(messenger: BinaryMessenger) :
-    MethodChannel.MethodCallHandler {
-    private val channel = MethodChannel(messenger, CHANNEL_NAME).apply {
-        setMethodCallHandler(this@AudioDecoderPlugin)
+class AudioDecoderPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
+    private var channel: MethodChannel? = null
+
+    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        channel = MethodChannel(binding.binaryMessenger, CHANNEL_NAME).also {
+            it.setMethodCallHandler(this)
+        }
     }
 
-    fun dispose() = channel.setMethodCallHandler(null)
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        channel?.setMethodCallHandler(null)
+        channel = null
+    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (call.method != "decodeToPcm") {

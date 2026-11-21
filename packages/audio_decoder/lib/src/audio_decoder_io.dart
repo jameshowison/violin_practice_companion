@@ -8,9 +8,9 @@ import 'package:wav/wav.dart';
 import 'audio_decoder_base.dart';
 
 /// Decodes through the host platform: `AVAssetReader` on iOS,
-/// `MediaExtractor`+`MediaCodec` on Android (see
-/// `ios/Runner/AudioDecoderPlugin.swift` and
-/// `android/app/src/main/kotlin/.../AudioDecoderPlugin.kt`). Both hand back
+/// `MediaExtractor`+`MediaCodec` on Android (this package's
+/// `ios/Classes/AudioDecoderPlugin.swift` and
+/// `android/src/main/kotlin/.../AudioDecoderPlugin.kt`). Both hand back
 /// mono `Float32` at the source sample rate; everything about what to do with
 /// it lives here.
 ///
@@ -24,10 +24,8 @@ class AudioDecoder implements AudioDecoderBase {
 
   const AudioDecoder();
 
-  /// macOS, Linux and Windows have no plugin (`macos/Runner` has no
-  /// AudioDecoderPlugin); they still decode WAV, but nothing else, and bundled
-  /// tracks are analysed from `melody.mp3`. Add a platform here only once its
-  /// plugin is registered.
+  /// Only iOS and Android have a plugin. Elsewhere WAV still decodes, but
+  /// nothing else. Add a platform here only once it has a plugin.
   @override
   bool get isSupported =>
       debugPlatformSupported ?? (Platform.isIOS || Platform.isAndroid);
@@ -66,8 +64,8 @@ class AudioDecoder implements AudioDecoderBase {
     if (!isSupported) return null;
     // The native decoders read files, not buffers: both APIs want a URL, and
     // handing them one avoids copying the whole compressed file across the
-    // channel only for the platform to need it on disk anyway. Asset-backed
-    // media are the only callers: the bundled tracks' `melody.mp3`.
+    // channel only for the platform to need it on disk anyway. In Stringlings,
+    // asset-backed media are the only callers (a bundled track's mp3).
     final temporary = File('${(await getTemporaryDirectory()).path}/'
         'decode_${DateTime.now().microsecondsSinceEpoch}.$extension');
     try {

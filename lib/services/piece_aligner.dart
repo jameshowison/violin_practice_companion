@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:score_sync/score_sync.dart';
 
-import 'audio_decoder_base.dart' show PcmAudio;
+import 'package:audio_decoder/audio_decoder.dart' show PcmAudio;
 import 'midi_generator.dart';
 
 /// [ScoreAligner] for the app's own scores: a [ParsedPiece], laid out in

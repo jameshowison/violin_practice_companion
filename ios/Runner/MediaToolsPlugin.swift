@@ -3,8 +3,9 @@ import Flutter
 
 /// The app's own native media helpers, on `violin_practice_companion/media_tools`
 /// (lib/services/media_tools.dart): `shrinkVideo` and `encodeAac`. They once
-/// shared the decoder's channel and file; the decoder is headed for a library
-/// and these write files in the app's own formats, so they stay here.
+/// shared the decoder's channel and file; the decoder is a library now
+/// (packages/audio_decoder) and these write files in the app's own formats,
+/// so they stay here.
 ///
 /// Registered by hand from `AppDelegate`.
 public class MediaToolsPlugin: NSObject, FlutterPlugin {

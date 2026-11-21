@@ -1,6 +1,6 @@
 /// The ONE place the app's UI looks at which platform it is on. (Services'
 /// `_io.dart` halves still check `Platform.is*` for capabilities, e.g.
-/// `audio_decoder_io.dart`, `omr_service_io.dart`.)
+/// `omr_service_io.dart`.)
 ///
 /// Screens call these wrappers instead of branching themselves, so every
 /// iOS-versus-Android difference is here, auditable in one file. The rule

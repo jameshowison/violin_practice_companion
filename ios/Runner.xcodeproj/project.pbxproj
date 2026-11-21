@@ -14,7 +14,6 @@
 		3B4A3752690DEB55049621CF /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B7E53CF3751D174E7473DF33 /* Pods_RunnerTests.framework */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
-		7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */; };
 		7884E8C12EC3CC0700C636F3 /* MediaToolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8C02EC3CC0400C636F3 /* MediaToolsPlugin.swift */; };
 		7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */; };
 		7884E8A12EC3CC0700C636F3 /* BundledAssetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */; };
@@ -62,7 +61,6 @@
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDecoderPlugin.swift; sourceTree = "<group>"; };
 		7884E8C02EC3CC0400C636F3 /* MediaToolsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaToolsPlugin.swift; sourceTree = "<group>"; };
 		7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRoutePlugin.swift; sourceTree = "<group>"; };
 		7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledAssetPlugin.swift; sourceTree = "<group>"; };
@@ -163,7 +161,6 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
-				7884E86F2EC3CC0400C636F3 /* AudioDecoderPlugin.swift */,
 				7884E8C02EC3CC0400C636F3 /* MediaToolsPlugin.swift */,
 				7884E8722EC3CC0400C636F3 /* AudioRoutePlugin.swift */,
 				7884E8A02EC3CC0400C636F3 /* BundledAssetPlugin.swift */,
@@ -422,7 +419,6 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
-				7884E8702EC3CC0700C636F3 /* AudioDecoderPlugin.swift in Sources */,
 				7884E8C12EC3CC0700C636F3 /* MediaToolsPlugin.swift in Sources */,
 				7884E8732EC3CC0700C636F3 /* AudioRoutePlugin.swift in Sources */,
 				7884E8A12EC3CC0700C636F3 /* BundledAssetPlugin.swift in Sources */,

@@ -6,18 +6,16 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
-    private var audioDecoder: AudioDecoderPlugin? = null
     private var mediaTools: MediaToolsPlugin? = null
     private var contentResolver: ContentResolverPlugin? = null
     private var incomingShare: IncomingSharePlugin? = null
     private var bundledAsset: BundledAssetPlugin? = null
 
-    // Registered by hand because it is app-local rather than a pub package —
-    // GeneratedPluginRegistrant only knows about pubspec dependencies. See
-    // AudioDecoderPlugin.kt.
+    // Registered by hand because they are app-local rather than pub packages —
+    // GeneratedPluginRegistrant only knows about pubspec dependencies (which
+    // now include packages/audio_decoder). See MediaToolsPlugin.kt.
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        audioDecoder = AudioDecoderPlugin(flutterEngine.dartExecutor.binaryMessenger)
         mediaTools = MediaToolsPlugin(
             flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         contentResolver = ContentResolverPlugin(
@@ -42,8 +40,6 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
-        audioDecoder?.dispose()
-        audioDecoder = null
         mediaTools?.dispose()
         mediaTools = null
         contentResolver?.dispose()

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 
 import '../models/piece_media.dart';
-import 'audio_decoder_base.dart';
+import 'package:audio_decoder/audio_decoder.dart';
 import 'media_migration.dart';
 import 'media_paths.dart';
 import 'piece_media_store.dart';

@@ -3,14 +3,14 @@ import Flutter
 
 /// Decodes any container AVFoundation can open — mp3, m4a/aac, caf, aif, flac,
 /// and the audio track of an mp4/mov — to mono `Float32` PCM at the source
-/// sample rate, for the score-to-audio DTW alignment on the Dart side.
+/// sample rate, for analysis (in Stringlings, score-to-audio alignment) on the
+/// Dart side.
 ///
 /// The Dart side never sends WAV here: `package:wav` reads that in pure Dart,
 /// which is faster than a channel round trip and works under `flutter test`.
-/// See `lib/services/audio_decoder_io.dart`.
+/// See `lib/src/audio_decoder_io.dart`.
 ///
-/// Registered by hand from `AppDelegate`. Decode only: `shrinkVideo` and
-/// `encodeAac` are the app's, on their own channel (MediaToolsPlugin.swift).
+/// A Flutter plugin: the generated registrant registers it.
 public class AudioDecoderPlugin: NSObject, FlutterPlugin {
   private static let channelName = "audio_decoder"
 

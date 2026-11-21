@@ -1,4 +1,6 @@
 PODS:
+  - audio_decoder (0.1.0):
+    - Flutter
   - audio_session (0.0.1):
     - Flutter
   - camera_avfoundation (0.0.1):
@@ -91,6 +93,7 @@ PODS:
     - Flutter
 
 DEPENDENCIES:
+  - audio_decoder (from `.symlinks/plugins/audio_decoder/ios`)
   - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - camera_avfoundation (from `.symlinks/plugins/camera_avfoundation/darwin`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
@@ -125,6 +128,8 @@ SPEC REPOS:
     - TOCropViewController
 
 EXTERNAL SOURCES:
+  audio_decoder:
+    :path: ".symlinks/plugins/audio_decoder/ios"
   audio_session:
     :path: ".symlinks/plugins/audio_session/ios"
   camera_avfoundation:
@@ -171,6 +176,7 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/wakelock_plus/ios"
 
 SPEC CHECKSUMS:
+  audio_decoder: eced5d392accad8857fc31bc5fe674bf10844e3c
   audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   camera_avfoundation: 968a9a5323c79a99c166ad9d7866bfd2047b5a9b
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe

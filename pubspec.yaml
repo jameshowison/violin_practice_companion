@@ -16,6 +16,7 @@ workspace:
   - packages/score_sync
   - packages/pitch_tuner
   - packages/score_view
+  - packages/audio_decoder
 
 dependencies:
   flutter:
@@ -94,6 +95,11 @@ dependencies:
   # packages/score_view/README.md.
   score_view:
     path: packages/score_view
+  # Any audio or video file to mono PCM at its own rate, for alignment. A
+  # Flutter plugin (AVFoundation / MediaCodec), extracted from the app: see
+  # packages/audio_decoder/README.md.
+  audio_decoder:
+    path: packages/audio_decoder
 
   # Play-along audio: `just_audio` drives backing-track playback, `wav` reads
   # and writes WAV (pure Dart, zero native deps). The chroma analysis and its

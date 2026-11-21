@@ -10,8 +10,8 @@ import kotlin.concurrent.thread
  * The app's own native media helpers, on `violin_practice_companion/media_tools`
  * (lib/services/media_tools.dart): `shrinkVideo` (handed to [VideoShrinker])
  * and `encodeAac` ([AacEncoder]). They once shared the decoder's channel; the
- * decoder is headed for a library and these write files in the app's own
- * formats, so they stay here.
+ * decoder is a library now (packages/audio_decoder) and these write files in
+ * the app's own formats, so they stay here.
  *
  * Registered by hand from [MainActivity].
  */

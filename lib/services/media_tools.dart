@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 /// and `encodeAac` (rendered_score_cache_io.dart).
 ///
 /// They once shared the decoder's channel. They are the app's, not the
-/// decoder's: the decoder reads any file into PCM for alignment and is headed
-/// for a library (`audio_decoder`, docs/family/libraries.md), while these two
-/// write files in the app's own formats. Native halves:
+/// decoder's: the decoder reads any file into PCM for alignment and is a
+/// library now (packages/audio_decoder), while these two write files in the
+/// app's own formats. Native halves:
 /// `ios/Runner/MediaToolsPlugin.swift`, and on Android `MediaToolsPlugin.kt`
 /// (which hands to `VideoShrinker` and `AacEncoder`), both registered by hand.
 class MediaTools {

@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 /// Mono PCM in `[-1, 1]` plus the rate it was sampled at — the one form
-/// [AudioChromaExtractor.extractFromSamples] consumes, and therefore the only
-/// thing a decoder has to produce.
+/// score_sync's `AudioChromaExtractor.extractFromSamples` consumes, and
+/// therefore the only thing a decoder has to produce.
 class PcmAudio {
   final Float64List samples;
   final double sampleRate;
