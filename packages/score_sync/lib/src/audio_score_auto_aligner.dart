@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'alignment_profile.dart';
 import 'audio_chroma_features.dart';
 import 'dtw_align.dart';
 import 'score_chroma_reference.dart';
@@ -64,19 +65,23 @@ class ScoreAligner<S> {
   final AudioChromaExtractor _extractor;
   final DtwAligner _dtw;
 
-  /// How long a note rings on into a following rest in the score's reference
-  /// (see [ScoreChromaReferenceBuilder.ringSeconds]): about a second for a
-  /// string, near zero for an instrument that stops dead.
-  final double ringSeconds;
+  /// The instrument's parameters: the chroma band, how long notes ring
+  /// into rests, and the onset weight (see [AlignmentProfile]).
+  ///
+  /// An [extractor] or [dtw] given explicitly is used as it is, and the
+  /// profile's values for that stage are ignored: the parts are for tests
+  /// that vary one of their other parameters. The reference's ring always
+  /// comes from the profile.
+  final AlignmentProfile profile;
 
   ScoreAligner({
     required ScoreTiming<S> timing,
+    this.profile = AlignmentProfile.bowedStrings,
     AudioChromaExtractor? extractor,
     DtwAligner? dtw,
-    this.ringSeconds = 1.0,
   })  : _timing = timing,
-        _extractor = extractor ?? const AudioChromaExtractor(),
-        _dtw = dtw ?? const DtwAligner();
+        _extractor = extractor ?? profile.extractor(),
+        _dtw = dtw ?? profile.dtw();
 
   /// [wavBytes] is a whole WAV file's bytes for the recording to align
   /// against [piece].
@@ -162,7 +167,7 @@ class ScoreAligner<S> {
     var estimatedBpm =
         (60 * quarterBeatCount / realDurationSeconds).round().clamp(20, 400);
 
-    var reference = ScoreChromaReferenceBuilder(ringSeconds: ringSeconds)
+    var reference = profile.referenceBuilder()
         .build(_timing(piece, estimatedBpm), realChroma.hopSeconds);
 
     var dtwResult = _dtw.align(reference.frames, window.frames,
@@ -183,7 +188,7 @@ class ScoreAligner<S> {
     if (foundBpm != null &&
         (foundBpm - estimatedBpm).abs() > 0.05 * estimatedBpm) {
       estimatedBpm = foundBpm;
-      reference = ScoreChromaReferenceBuilder(ringSeconds: ringSeconds)
+      reference = profile.referenceBuilder()
           .build(_timing(piece, estimatedBpm), realChroma.hopSeconds);
       dtwResult = _dtw.align(reference.frames, window.frames,
           openBegin: true,

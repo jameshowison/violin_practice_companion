@@ -17,9 +17,11 @@ starts.
 - **Count-in:** `barCounting`, `countInPlan`, `countInUnitSeconds`.
 - **Calibration:** the click pattern and its matcher (`sync_calibration`).
 
-The defaults are tuned on violin. Other instruments want other values for
-the chroma band, `ringSeconds` and the onset weight
-(`docs/family/approach.md`, Part 2).
+- **`AlignmentProfile`:** the parameters that depend on the instrument (the
+  chroma band, `ringSeconds`, the onset weight), passed to `ScoreAligner` as
+  `profile`. `AlignmentProfile.bowedStrings`, the default, is tuned on
+  violin; other instruments want other values (`docs/family/approach.md`,
+  Part 2).
 
 Written for [Stringlings](../../README.md), and extracted from it
 (`docs/libraries-migration.md`). Licence: GPL-3.0.

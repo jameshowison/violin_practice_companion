@@ -1,6 +1,7 @@
 /// Score-to-recording alignment in pure Dart: see README.md.
 library;
 
+export 'src/alignment_profile.dart';
 export 'src/audio_chroma_features.dart';
 export 'src/audio_energy_envelope.dart';
 export 'src/audio_score_auto_aligner.dart';
