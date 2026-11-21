@@ -304,7 +304,8 @@ even if the family never happens.
 1. **`musicxml_tools` (first tier) and `score_sync`.** Both are pure Dart,
    lowest risk and easy to test, and they force the clean `NoteEvent` and
    `ScoreTimeline` seams.
-2. **`InstrumentProfile` inside Stringlings,** proved with **viola**: alto
+2. **`InstrumentProfile` inside Stringlings,** proved with **viola**, on the
+   source/instrument/player layers of [`layers.md`](layers.md): alto
    clef, a different tuning, and no second app.
    - **2a. Annotate in Stringlings:** text notes and stamps, then voice notes.
      It is useful to violin families right away, and it pulls `MeasureMarker`

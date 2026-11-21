@@ -109,7 +109,7 @@ Rules that follow from it:
 | 0 | Workspace root, `scripts/test_all.sh`, unused codegen dependencies removed | done |
 | 1a | `musicxml_tools`: snapshot, `NoteAnnotation` seam, move | done |
 | 1b | `score_sync`: snapshot, `ScoreTiming` seam, move, alignment off the UI isolate | done |
-| 2 | `InstrumentProfile`, viola, Annotate | |
+| 2 | Source / instrument / player layers, then viola and players ([`family/layers.md`](family/layers.md)); Annotate deferred | proposal |
 | 3 | `pitch_tuner` (chromatic, transposition, drone mode), `<transpose>` | |
 | 4 | `score_view` | |
 | 5 | `audio_decoder`, `practice_core`, `apps/` | |
