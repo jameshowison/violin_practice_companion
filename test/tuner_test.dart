@@ -10,6 +10,7 @@ import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:violin_practice_companion/debug/screenshot_mode.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
 import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart';
+import 'package:violin_practice_companion/services/drone_player.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
 import 'package:violin_practice_companion/services/piece_display_prefs.dart';
 import 'package:violin_practice_companion/services/tuner_input.dart';
@@ -62,6 +63,32 @@ class FakeTunerInput implements TunerInputBase {
   double? probe;
   @override
   set probeHz(double? hz) => probe = hz;
+}
+
+class FakeDronePlayer implements DronePlayerBase {
+  /// Every pitch asked for, in order.
+  final played = <double>[];
+  double? sounding;
+  int stops = 0;
+  bool disposed = false;
+
+  @override
+  Future<void> play(double hz) async {
+    played.add(hz);
+    sounding = hz;
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    sounding = null;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+    sounding = null;
+  }
 }
 
 void main() {
@@ -161,6 +188,8 @@ void main() {
   });
 
   group('TunerScreen', () {
+    late FakeDronePlayer drone;
+
     Future<FakeTunerInput> pumpTuner(WidgetTester tester,
         {bool deny = false, bool mandolin = false, bool auto = false, bool record = false}) async {
       SharedPreferences.setMockInitialValues({
@@ -170,6 +199,7 @@ void main() {
       });
       final sp = await SharedPreferences.getInstance();
       final fake = FakeTunerInput(deny: deny);
+      drone = FakeDronePlayer();
       tester.view.physicalSize = const Size(375, 667) * 3; // iPhone SE
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
@@ -177,6 +207,7 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(sp),
           tunerInputFactoryProvider.overrideWithValue(() => fake),
+          dronePlayerFactoryProvider.overrideWithValue(() => drone),
         ],
         child: const MaterialApp(home: TunerScreen()),
       ));
@@ -651,7 +682,8 @@ void main() {
       // The E string's own rule sits under the corner controls.
       final restE = onScreen(StringlingClimber.bodyAt(card.size, 4, 3, 0));
       final ry = restE.height / 2.05, ruleE = restE.top + ry * 1.3;
-      for (final r in [play, tune, sense, choose]) {
+      final droneButton = tester.getRect(find.byKey(const ValueKey('tuner_drone')));
+      for (final r in [play, tune, sense, choose, droneButton]) {
         expect(ruleE, greaterThan(r.bottom), reason: 'E rule at $ruleE under $r');
       }
       final flatG = StringlingClimber.bodyAt(card.size, 4, 0, -50);
@@ -662,6 +694,127 @@ void main() {
       final tenFlat = StringlingClimber.bodyAt(card.size, 4, 2, -10).top;
       final fiftyFlat = StringlingClimber.bodyAt(card.size, 4, 2, -50).top;
       expect((tenFlat - rest) / (fiftyFlat - rest), greaterThan(0.4));
+    });
+
+    Future<void> toggleDrone(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('tuner_drone')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    group('drone', () {
+      testWidgets('on: the microphone stops and the picked string sounds', (tester) async {
+        final fake = await pumpTuner(tester);
+        await listen(tester);
+        expect(fake.ctl, isNotNull);
+        await toggleDrone(tester);
+        expect(fake.ctl, isNull, reason: 'the mic would only hear the drone');
+        expect(drone.sounding, closeTo(440, 0.01));
+        expect(status(tester), 'Tune by ear to the drone');
+        expect(cents(tester), isNull, reason: 'the stringling rests');
+        // Neither mode pill is lit while it sounds.
+        bool lit(String key) => tester
+            .widget<Semantics>(find
+                .descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Semantics))
+                .first)
+            .properties
+            .selected!;
+        expect(lit('tuner_mode_tune'), isFalse);
+        expect(lit('tuner_mode_play'), isFalse);
+      });
+
+      testWidgets('another string tapped sounds that one, in pure fifths', (tester) async {
+        await pumpTuner(tester);
+        await toggleDrone(tester);
+        await tester.tap(find.byKey(const ValueKey('tuner_string_E')));
+        await tester.pump();
+        expect(drone.sounding, closeTo(660, 0.01));
+        await tester.tap(find.byKey(const ValueKey('tuner_string_G')));
+        await tester.pump();
+        expect(drone.sounding, closeTo(440 * 4 / 9, 0.01));
+        await tester.pump(const Duration(seconds: 3)); // the notes clear
+      });
+
+      testWidgets('off: back to listening if it was listening', (tester) async {
+        final fake = await pumpTuner(tester);
+        await listen(tester);
+        await toggleDrone(tester);
+        expect(fake.starts, 1);
+        await toggleDrone(tester);
+        expect(drone.sounding, isNull);
+        expect(fake.starts, 2);
+        expect(fake.ctl, isNotNull, reason: 'listening again');
+        await play(tester, fake, 440);
+        expect(status(tester), startsWith('In tune!'));
+      });
+
+      testWidgets('off: back to Play Mode if it was playing', (tester) async {
+        final fake = await pumpTuner(tester);
+        await toggleDrone(tester);
+        expect(drone.sounding, closeTo(440, 0.01));
+        await toggleDrone(tester);
+        expect(drone.sounding, isNull);
+        expect(fake.starts, 0);
+        expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
+        expect(cents(tester), 0);
+      });
+
+      testWidgets('Ready to Tune while it sounds stops it and listens', (tester) async {
+        final fake = await pumpTuner(tester);
+        await toggleDrone(tester);
+        await listen(tester);
+        expect(drone.sounding, isNull);
+        expect(fake.ctl, isNotNull);
+      });
+
+      testWidgets('settings stop it; A = 442 retargets the next drone', (tester) async {
+        await pumpTuner(tester);
+        await toggleDrone(tester);
+        await openSettings(tester);
+        expect(drone.sounding, isNull);
+        await tester.tap(find.text('A = 442'));
+        await tester.pump();
+        await tester.tapAt(const Offset(10, 10)); // close the sheet
+        await tester.pump(const Duration(milliseconds: 400));
+        await toggleDrone(tester);
+        expect(drone.sounding, closeTo(442, 0.01));
+      });
+
+      testWidgets('in Sense it sounds the string last followed, A at first', (tester) async {
+        final fake = await pumpTuner(tester, auto: true);
+        await toggleDrone(tester);
+        expect(drone.sounding, closeTo(440, 0.01));
+        await toggleDrone(tester);
+        await listen(tester);
+        await play(tester, fake, 293.33);
+        await toggleDrone(tester);
+        expect(drone.sounding, closeTo(440 * 2 / 3, 0.01), reason: 'followed to D');
+      });
+
+      testWidgets('the app going to the background stops it', (tester) async {
+        final fake = await pumpTuner(tester);
+        await listen(tester);
+        await toggleDrone(tester);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await tester.pump();
+        expect(drone.sounding, isNull);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(fake.ctl, isNotNull, reason: 'back to listening, as before the drone');
+      });
+
+      testWidgets('leaving the screen releases it', (tester) async {
+        await pumpTuner(tester);
+        await toggleDrone(tester);
+        await tester.pumpWidget(const SizedBox());
+        expect(drone.disposed, isTrue);
+        expect(drone.sounding, isNull);
+      });
     });
 
     testWidgets('microphone refused, then back to playing', (tester) async {

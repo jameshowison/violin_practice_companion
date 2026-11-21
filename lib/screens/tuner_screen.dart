@@ -9,6 +9,7 @@ import 'package:pitch_tuner/pitch_tuner.dart';
 
 import '../build_info.dart';
 import '../models/violin_string_palette.dart';
+import '../services/drone_player.dart';
 import '../services/instrument_setting.dart';
 import '../services/keep_awake.dart';
 import '../services/piece_display_prefs.dart' show sharedPreferencesProvider;
@@ -54,6 +55,11 @@ const tunerLeftHandedKey = 'tuner.leftHanded';
 /// Violin targets are pure fifths from A, mandolin's equal-tempered
 /// (`pitch_tuner`'s [InstrumentTuning]). The reference A, with the strings'
 /// frequencies, and the instrument are in the settings sheet (the cog).
+///
+/// The Drone button under Play Mode sounds the picked string's target, on a
+/// loop, to tune by ear against. The microphone is off while it sounds (it
+/// would only hear the drone); turning it off goes back to the mode it was
+/// turned on from.
 class TunerScreen extends ConsumerStatefulWidget {
   const TunerScreen({super.key});
 
@@ -112,6 +118,45 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   bool get _partyForPair => _mandolin && !_auto;
   bool _auto = false; // follow the string played, not the one tapped
   bool _resumeListening = false;
+
+  /// The drone: the shown string's target pitch on a loop, to tune by ear.
+  late final DronePlayerBase _drone;
+  bool _droning = false;
+
+  /// Listening when the drone was turned on: turning it off listens again.
+  bool _droneWasListening = false;
+
+  Future<void> _droneOn() async {
+    if (_droning) return;
+    _droneWasListening = _listening;
+    setState(() => _droning = true);
+    // The microphone would only hear the drone.
+    if (_listening) await _stop();
+    if (!mounted || !_droning) return;
+    _sound();
+  }
+
+  /// Off, and back to the mode it was turned on from unless [resume] is
+  /// false (the caller picks the mode itself).
+  Future<void> _droneOff({bool resume = true}) async {
+    if (!_droning) return;
+    setState(() => _droning = false);
+    await _drone.stop();
+    if (resume && mounted && _droneWasListening && !_droning) await _start();
+  }
+
+  /// The drone sounds the shown string: the one picked, or in Sense the one
+  /// last followed (A until something is heard).
+  void _sound() => _drone.play(_model.tuning.strings[_rung].hz);
+
+  /// Play Mode, tapped: from listening or from the drone.
+  void _toPlay() => _droning ? _droneOff(resume: false) : _stop();
+
+  /// Ready to Tune, tapped: from Play Mode or from the drone.
+  Future<void> _toTune() async {
+    if (_droning) await _droneOff(resume: false);
+    if (mounted) await _start();
+  }
 
   /// What the Choose | Sense switch just did, said for a moment in place of
   /// the status line.
@@ -249,6 +294,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     // Made here, not lazily: dispose() can't use ref, and in play mode
     // nothing else may have touched it.
     _input = ref.read(tunerInputFactoryProvider)();
+    _drone = ref.read(dronePlayerFactoryProvider)();
     _spring = AnimationController(vsync: this, duration: const Duration(milliseconds: 650))
       ..addListener(() =>
           _play.value = _springFrom * (1 - Curves.easeOutBack.transform(_spring.value)));
@@ -273,6 +319,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     KeepAwake.disable();
     _sub?.cancel();
     _endRecording().then((_) => _input.dispose());
+    _drone.dispose();
     _fallTimer?.cancel();
     _stretchTimer?.cancel();
     _noteTimer?.cancel();
@@ -289,10 +336,15 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     if (state == AppLifecycleState.resumed) {
       if (_resumeListening) _start();
       _resumeListening = false;
-    } else if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
-        _listening) {
-      _resumeListening = true;
-      _stop();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (_droning) {
+        // Silent in the background; back in the mode it was turned on from.
+        _resumeListening = _droneWasListening;
+        _droneOff(resume: false);
+      } else if (_listening) {
+        _resumeListening = true;
+        _stop();
+      }
     }
   }
 
@@ -330,6 +382,12 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     try {
       final frames = await _input.start(minHz: range.minHz, maxHz: range.maxHz);
       if (!mounted) return;
+      if (_droning) {
+        // The drone came on while this was starting (on the permission
+        // prompt, say): the microphone stays off.
+        await _input.stop();
+        return;
+      }
       _sub = frames.listen(_onFrame, onError: (Object e) {
         if (mounted) setState(() => _error = '$e');
       });
@@ -453,6 +511,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _pairSays.value = null;
     _aimProbe();
     if (_model.tuning.detectionRange != rangeBefore && _listening) _start();
+    if (_droning) _sound(); // the new target
   }
 
   /// A tapped string. Following what is played, it only moves the
@@ -485,6 +544,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     }
     _reading.value = null;
     _hearing.value = false;
+    if (_droning) _sound();
   }
 
   /// The string a rule stands for. The climber's strings run as they do
@@ -513,6 +573,8 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
   }
 
   Future<void> _openSettings() async {
+    if (_droning) await _droneOff();
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -604,7 +666,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     ];
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
     final shown = Listenable.merge([_reading, _play, _hearing, _pairSays]);
-    TunerReading? current() => _listening ? _reading.value : _pretend(_play.value);
+    // While the drone sounds there is no reading: the stringling rests.
+    TunerReading? current() =>
+        _droning ? null : _listening ? _reading.value : _pretend(_play.value);
 
     return Scaffold(
       appBar: AppBar(
@@ -704,7 +768,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         hearing: _listening && _hearing.value,
                                         falls: _falls,
                                         stretches: _stretches,
-                                        picked: _auto ? null : _rung,
+                                        picked: _auto && !_droning ? null : _rung,
                                         pickedLine: _mandolin && !_auto ? _line : null,
                                         pickedLabel: !_mandolin || _auto
                                             ? null
@@ -729,7 +793,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                         builder: (context, _) {
                                           final r = current();
                                           final course = r?.string.name[0] ??
-                                              (_auto ? null : _model.tuning.strings[_rung].name[0]);
+                                              (_auto && !_droning ? null : _model.tuning.strings[_rung].name[0]);
                                           return MandolinHeadstock(
                                             key: const ValueKey('tuner_headstock'),
                                             course: course,
@@ -752,12 +816,22 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                             Positioned(
                               top: 8,
                               left: 8,
-                              child: _ModeButton(
-                                key: const ValueKey('tuner_mode_play'),
-                                lines: const ('Play', 'Mode'),
-                                icon: Icons.swipe,
-                                selected: !_listening,
-                                onTap: _listening ? _stop : null,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _ModeButton(
+                                    key: const ValueKey('tuner_mode_play'),
+                                    lines: const ('Play', 'Mode'),
+                                    icon: Icons.swipe,
+                                    selected: !_listening && !_droning,
+                                    onTap: _listening || _droning ? _toPlay : null,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _DroneButton(
+                                    on: _droning,
+                                    onTap: _droning ? _droneOff : _droneOn,
+                                  ),
+                                ],
                               ),
                             ),
                             Positioned(
@@ -771,7 +845,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                                     lines: const ('Ready to', 'Tune'),
                                     icon: _listening ? Icons.mic : Icons.mic_none,
                                     selected: _listening,
-                                    onTap: _listening ? null : _start,
+                                    onTap: _listening ? null : _toTune,
                                     iconColor: _listening ? const Color(0xFFFF8A80) : null,
                                   ),
                                   const SizedBox(height: 6),
@@ -796,8 +870,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                     listening: _listening,
                     hearing: _listening && _hearing.value,
                     say: _listening ? _pairSays.value : null,
+                    drone: _droning,
                     fineTuners: !_mandolin,
-                    onDrag: _listening ? null : _dragTo,
+                    onDrag: _listening || _droning ? null : _dragTo,
                     onLetGo: _springBack,
                   );
                 },
@@ -857,6 +932,49 @@ class _ModeButton extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [Text(lines.$1, style: style), Text(lines.$2, style: style)],
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The drone switch, under Play Mode, the same size as Choose | Sense
+/// opposite: a speaker and "Drone", filled while it sounds.
+class _DroneButton extends StatelessWidget {
+  const _DroneButton({required this.on, required this.onTap});
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = on ? Colors.white : const Color(0xFF6A6180);
+    return Semantics(
+      button: true,
+      toggled: on,
+      label: 'Drone',
+      hint: on ? 'Stop the drone' : 'Sound the string to tune by ear',
+      excludeSemantics: true,
+      child: Material(
+        color: on ? _ModeButton.ink : const Color(0xFFEFEAF6),
+        shape: StadiumBorder(
+            side: BorderSide(color: on ? _ModeButton.ink : const Color(0xFFD9D1E6))),
+        child: InkWell(
+          key: const ValueKey('tuner_drone'),
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(9, 5, 11, 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(on ? Icons.volume_up : Icons.volume_up_outlined,
+                    size: 15, color: on ? const Color(0xFFFFD54F) : fg),
+                const SizedBox(width: 4),
+                Text('Drone',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: fg)),
               ],
             ),
           ),
@@ -943,10 +1061,14 @@ class _Readout extends StatelessWidget {
     required this.listening,
     this.hearing = false,
     this.say,
+    this.drone = false,
     required this.fineTuners,
     required this.onDrag,
     required this.onLetGo,
   });
+
+  /// The drone is sounding: the line says to tune by ear.
+  final bool drone;
 
   /// Said in place of the advice, unless it is listening (both strings of a
   /// course together: the verdict on the last pluck).
@@ -999,7 +1121,9 @@ class _Readout extends StatelessWidget {
     );
   }
 
-  String _status(TunerReading? r) => listening && !hearing && say != null
+  String _status(TunerReading? r) => drone
+      ? 'Tune by ear to the drone'
+      : listening && !hearing && say != null
       ? say!
       : tunerStatus(r, listening: listening, playing: _playing, fineTuners: fineTuners, hearing: hearing);
 }
