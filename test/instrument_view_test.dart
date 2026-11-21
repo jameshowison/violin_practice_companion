@@ -48,7 +48,7 @@ void main() {
   test('a treble part is shown to a viola in alto, an octave down', () {
     final xml = File(scorePath('lightly_row')).readAsStringSync();
     final view = InstrumentView.of(_viola, xml);
-    expect(view.octaves, -1);
+    expect(view.interval, (steps: -7, semitones: -12));
     final shown = view.apply(xml);
     final clefs = XmlDocument.parse(shown).findAllElements('clef');
     expect(clefs, isNotEmpty);
@@ -87,7 +87,7 @@ void main() {
     expect(InstrumentView.of(_viola, violaPart).isIdentity, isTrue);
 
     final view = InstrumentView.of(InstrumentProfile.violin, violaPart);
-    expect(view.octaves, 1);
+    expect(view.interval, (steps: 7, semitones: 12));
     final shown = _notes(view.apply(violaPart));
     final original = _notes(violinXml);
     for (var i = 0; i < original.length; i++) {
@@ -99,5 +99,42 @@ void main() {
     final xml = _alto(File(scorePath('lightly_row')).readAsStringSync())
         .replaceAll(RegExp(r'<clef[^>]*>.*?</clef>', dotAll: true), '');
     expect(InstrumentView.of(_viola, xml).isIdentity, isTrue);
+  });
+
+  group('a fifth down (Transcription.fifthDown)', () {
+    final viola = _viola.withTranscription(Transcription.fifthDown);
+
+    int keyOf(String xml) => MusicXmlParser().parse(xml).keyFifths;
+
+    test('moves the key and every note a fifth, spelled by letter', () {
+      final xml = File(scorePath('lightly_row')).readAsStringSync();
+      final view = InstrumentView.of(viola, xml);
+      expect(view.interval.semitones % 12, 5); // a fifth down, plus octaves
+      expect(view.keepsPitchClasses, isFalse);
+      final shown = view.apply(xml);
+      expect(keyOf(shown), keyOf(xml) - 1);
+      final source = _notes(xml), viewed = _notes(shown);
+      for (var i = 0; i < source.length; i++) {
+        if (source[i].isRest) continue;
+        expect(viewed[i].midiNumber - source[i].midiNumber,
+            view.interval.semitones);
+      }
+    });
+
+    test('every bundled score goes back to its exact source spelling', () {
+      for (final f in bundledScoreFiles()) {
+        final xml = f.readAsStringSync();
+        final view = InstrumentView.of(viola, xml);
+        final shown = view.apply(xml);
+        final back = view.toSource(_notes(shown));
+        final source = _notes(xml);
+        for (var i = 0; i < source.length; i++) {
+          expect((back[i].pitch, back[i].midiNumber, back[i].octave),
+              (source[i].pitch, source[i].midiNumber, source[i].octave),
+              reason: '${f.path} note $i');
+        }
+        expect(view.keyToSource(keyOf(shown)), keyOf(xml), reason: f.path);
+      }
+    });
   });
 }

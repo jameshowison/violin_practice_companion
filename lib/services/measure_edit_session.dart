@@ -299,6 +299,13 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
     _draftTimer = Timer(draftDelay, _publishDraft);
   }
 
+  /// A key (in fifths) chosen on the instrument's view, as the source states
+  /// it; null stays null (no key change).
+  int? _keyToSource(int? fifths) => fifths == null
+      ? null
+      : _ref.read(instrumentViewProvider).valueOrNull?.keyToSource(fifths) ??
+          fifths;
+
   /// Measure [measureNumber]'s string choices in the instrument layer, by
   /// note index.
   Map<int, int> _choicesOf(int measureNumber) {
@@ -332,7 +339,7 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       // The bar is edited on the instrument's view; the draft is applied to
       // the source, so it goes back first (docs/family/layers.md).
       notes: rebuild ? _toSource(s.notes) : null,
-      key: s.keyChanged ? (fifths: s.keyChange) : null,
+      key: s.keyChanged ? (fifths: _keyToSource(s.keyChange)) : null,
       divisions: parsed?.divisions ?? draft.state?.divisions ?? 1,
       repeatStart: s.repeatStart,
       repeatEnd: s.repeatEnd,
@@ -709,7 +716,7 @@ class MeasureEditController extends StateNotifier<MeasureEditSession?> {
       // The key first: it re-spells the notes of every bar it governs, this
       // one included, and a rebuilt bar then overwrites its own.
       if (s.keyChanged) {
-        final f = s.keyChange;
+        final f = _keyToSource(s.keyChange);
         xml = f == null
             ? MeasureXmlEditor.removeKeyChange(xml, s.measureNumber)
             : MeasureXmlEditor.setKeyChange(xml, s.measureNumber, f);
