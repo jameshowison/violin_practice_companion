@@ -12,6 +12,20 @@ enum Temperament {
   pureFifths,
 }
 
+/// What an [InstrumentTuning]'s targets are.
+enum TargetKind {
+  /// An instrument's open strings: tune each to its target.
+  openStrings,
+
+  /// Every equal-tempered semitone over a range: whatever note is played is
+  /// measured against the nearest one, as for a wind instrument's long
+  /// tones or a check of intonation.
+  chromatic,
+
+  /// A single note, as when a teacher asks for one pitch.
+  note,
+}
+
 const _names = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 
 /// Scientific pitch name of a MIDI note, such as `G3` for 55.
@@ -46,7 +60,25 @@ class InstrumentTuning {
     required List<int> openStrings,
     required this.temperament,
     this.a4 = 440,
+    this.kind = TargetKind.openStrings,
   }) : strings = List.unmodifiable(_targets(openStrings, temperament, a4));
+
+  /// Every semitone from [lowest] to [highest] (MIDI notes; C2 to C7 by
+  /// default), equal-tempered from [a4]. A narrower range is cheaper to
+  /// detect: [detectionRange] follows it.
+  factory InstrumentTuning.chromatic({double a4 = 440, int lowest = 36, int highest = 96}) {
+    if (highest < lowest) {
+      throw ArgumentError.value(highest, 'highest', 'is below lowest ($lowest)');
+    }
+    return InstrumentTuning(
+        name: 'Chromatic', openStrings: [for (var m = lowest; m <= highest; m++) m],
+        temperament: Temperament.equal, a4: a4, kind: TargetKind.chromatic);
+  }
+
+  /// One target, the MIDI note [midi], equal-tempered from [a4].
+  factory InstrumentTuning.note(int midi, {double a4 = 440}) => InstrumentTuning(
+      name: midiNoteName(midi), openStrings: [midi],
+      temperament: Temperament.equal, a4: a4, kind: TargetKind.note);
 
   /// Violin: G3 D4 A4 E5 in pure fifths.
   factory InstrumentTuning.violin({double a4 = 440}) => InstrumentTuning(
@@ -71,6 +103,7 @@ class InstrumentTuning {
 
   final String name;
   final Temperament temperament;
+  final TargetKind kind;
 
   /// The reference A4, in hertz: usually 440, often 442 in orchestras.
   final double a4;
@@ -83,8 +116,14 @@ class InstrumentTuning {
   ({double minHz, double maxHz}) get detectionRange =>
       (minHz: strings.first.hz / 1.5, maxHz: strings.last.hz * 2);
 
-  /// The string nearest [hz] in cents.
+  /// The string (or, chromatically, the note) nearest [hz] in cents.
   TunedString nearest(double hz) {
+    if (kind == TargetKind.chromatic) {
+      // Every semitone is a target, so the nearest is a rounding.
+      final m = (69 + 12 * math.log(hz / a4) / math.ln2).round();
+      final i = (m - strings.first.midi).clamp(0, strings.length - 1);
+      return strings[i];
+    }
     var best = strings.first;
     var bestCents = centsBetween(hz, best.hz).abs();
     for (final s in strings.skip(1)) {

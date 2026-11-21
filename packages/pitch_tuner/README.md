@@ -1,6 +1,6 @@
 # pitch_tuner
 
-Pitch detection and string tuning in pure Dart, with no dependencies and no
+Pitch detection and tuning in pure Dart, with no dependencies and no
 platform code, so it runs anywhere Dart does: Flutter on iOS, Android, macOS
 and the web, or a command-line tool.
 
@@ -23,6 +23,16 @@ and the web, or a command-line tool.
 - **`UnisonMeter`**: listens for beats between two strings plucked together
   (a mandolin course), from the harmonic levels `PitchTracker.probeHz` asks
   for, and judges whether they sound as one.
+
+- **Other targets**: `InstrumentTuning.chromatic()` (every semitone over a
+  range, for long tones and intonation on any instrument) and
+  `InstrumentTuning.note(midi)` (one pitch). `kind` says which.
+- **`Transposition`**: the written note of what a B♭, E♭, F or octave
+  instrument sounds (`Transposition.bFlat.writtenName(target)`), counted as
+  MusicXML's `<transpose>` counts it.
+- **`DroneTone`**: a target pitch rendered as a buffer that loops with no
+  click, and `toWav()` to play it as a file, for tuning by ear. It is meant
+  for an ordinary player with looping on, not a live synth.
 
 What to *say* to the player (turn the peg up, roll the button toward the
 body) is left to the app: the words depend on the instrument's hardware.
