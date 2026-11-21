@@ -1,4 +1,5 @@
 import 'note_event.dart';
+import 'note_annotation.dart';
 
 /// How much fingering the annotation view shows. A three-stop slider, because
 /// the useful amount changes as a piece is learned: everything while sight-

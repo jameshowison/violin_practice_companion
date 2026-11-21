@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/note_event.dart'; // DisplayMode
+import '../models/display_mode.dart';
 import '../models/section_run.dart';
 import '../services/midi_generator.dart'; // HighlightEvent
 import '../services/playback_service_base.dart';

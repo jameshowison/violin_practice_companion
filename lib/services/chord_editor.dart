@@ -1,5 +1,6 @@
 import '../models/duration_step.dart';
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
 import '../models/section.dart';
 
 /// A contiguous chord group. [start] is the primary's index; [end] is
@@ -332,8 +333,12 @@ class ChordEditor {
         // not: it joins two notes of the SAME pitch, so a new pitch drops it.
         lyrics: from.lyrics,
         scoreFinger: keepFingering ? from.scoreFinger : null,
-        fingerNumber: keepFingering ? from.fingerNumber : null,
-        fingerString: keepFingering ? from.fingerString : null,
+        annotation: keepFingering
+            ? NoteAnnotation(
+                fingerString: from.fingerString,
+                fingerNumber: from.fingerNumber,
+              )
+            : null,
         // Bowing, slurs and articulations say how the note is played, not
         // which note it is, so they stay through a pitch change.
         bowing: from.bowing,

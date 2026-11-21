@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/nonstandard_fingerings.dart';
@@ -13,8 +14,7 @@ NoteEvent _n(String? string, String? finger,
       noteValue: NoteValue.quarter,
       dotted: false,
       isRest: rest,
-      fingerString: string,
-      fingerNumber: finger,
+      annotation: NoteAnnotation(fingerString: string, fingerNumber: finger),
     );
 
 ParsedPiece _piece(List<NoteEvent> notes) => ParsedPiece(

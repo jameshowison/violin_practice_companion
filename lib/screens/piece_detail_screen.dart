@@ -12,6 +12,7 @@ import '../models/count_in.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
+import '../models/display_mode.dart';
 import '../models/note_number_mode.dart';
 import '../models/piece.dart';
 import '../models/parsed_piece.dart';

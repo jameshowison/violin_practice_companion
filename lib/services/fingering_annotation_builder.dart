@@ -3,6 +3,7 @@ import '../models/fingering_density.dart';
 import '../models/gdae_tuning.dart';
 import '../models/key_signature.dart';
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 import '../models/section.dart';

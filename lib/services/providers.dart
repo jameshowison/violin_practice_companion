@@ -7,6 +7,8 @@ import '../models/tempo_presets.dart';
 import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
+import '../models/display_mode.dart';
 import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 import '../models/piece.dart';
@@ -1058,7 +1060,8 @@ Future<String?> _staffXml(Ref ref, {required bool fingering, bool print = false}
     // style-independent placeholders purely so Verovio reserves the row. The
     // publisher's own fingerings are replaced, so a leftover engraved label can
     // never contradict the app's note for note.
-    xml = FingeringXmlInjector.injectPlaceholders(xml, parsed);
+    xml = FingeringXmlInjector.injectPlaceholders(
+        xml, fingeringLabelsOf(parsed));
   }
   // Keep `<harmony>` so the chord row is reserved too.
   if (_stripHarmonyFor(ref)) xml = ChordXmlInjector.stripHarmony(xml);
@@ -1181,7 +1184,7 @@ final paletteMusicXmlProvider = FutureProvider<String?>((ref) async {
   final palette = PaletteXmlGenerator.piece(parsed);
   if (palette == null) return null;
   return FingeringXmlInjector.injectPlaceholders(
-      PaletteXmlGenerator.generate(parsed), palette);
+      PaletteXmlGenerator.generate(parsed), fingeringLabelsOf(palette));
 });
 
 /// The note vocabulary as a piece of its own — see [PaletteXmlGenerator.piece].

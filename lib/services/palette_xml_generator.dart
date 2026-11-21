@@ -1,4 +1,5 @@
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
 import '../models/parsed_piece.dart';
 
 class PaletteXmlGenerator {

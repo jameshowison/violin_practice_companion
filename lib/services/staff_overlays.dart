@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/chord_palette.dart';
 import '../models/engraved_measure_map.dart';
-import '../models/note_event.dart';
+import '../models/display_mode.dart';
 import '../models/parsed_piece.dart';
 import '../models/section.dart';
 import '../models/section_palette.dart';

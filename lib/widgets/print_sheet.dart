@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import '../models/note_event.dart';
+import '../models/display_mode.dart';
 import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';
 import '../services/print_debug_dump.dart';

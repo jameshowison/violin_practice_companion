@@ -2,6 +2,7 @@ import 'package:xml/xml.dart';
 
 import '../models/engraved_measure_map.dart';
 import '../models/section.dart';
+import 'preamble_xml_generator.dart' show changesMeter;
 
 /// Inserts explicit MusicXML system breaks so Verovio can be told to honor
 /// them (`breaks: 'encoded'`) instead of choosing its own — the mechanism
@@ -433,18 +434,6 @@ String hideFirstSystemPreamble(String musicXml) {
     }
   }
   return doc.toXmlString();
-}
-
-/// Whether [doc] states more than one meter in its `<time>`s.
-bool changesMeter(XmlDocument doc) {
-  String? first;
-  for (final t in doc.findAllElements('time')) {
-    final m = '${t.getElement('beats')?.innerText.trim()}/'
-        '${t.getElement('beat-type')?.innerText.trim()}';
-    first ??= m;
-    if (m != first) return true;
-  }
-  return false;
 }
 
 /// The clef/time/divisions in effect at whatever measure was last [update]d —

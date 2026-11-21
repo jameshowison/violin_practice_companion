@@ -32,8 +32,6 @@ extension KeyModeInfo on KeyMode {
 /// (⊓, pull) or `<up-bow/>` (V, push).
 enum Bowing { down, up }
 
-enum DisplayMode { staff, staffFingering, jianpu, fingering, combined, tab }
-
 /// One lyric syllable: a MusicXML `<lyric>`'s `<text>`, `<syllabic>`
 /// (`single`/`begin`/`middle`/`end` — where it sits in its word, which is what
 /// draws the hyphens) and whether it carries an `<extend/>` (held over the
@@ -102,14 +100,13 @@ class NoteEvent {
   /// redundant accidental.
   final String? displayAccidental;
 
-  // Populated by JianpuConverter
-  final int? jianpuNumber;
-  final int? jianpuOctaveDots;
-  final bool? jianpuAccidentalSharp;
-
-  // Populated by FingeringMapper
-  final String? fingerString;
-  final String? fingerNumber;
+  /// What the app has worked out about this note that MusicXML doesn't say:
+  /// how to play it on an instrument (a fingering), or how to write it in
+  /// another notation (Jianpu). This model only carries it, through
+  /// [copyWith] and the editor, and never reads it; the app gives it a type
+  /// and getters (`lib/models/note_annotation.dart`). Null until a pass fills
+  /// it in.
+  final Object? annotation;
 
   /// Chord symbol that begins at this note, as a display string built from the
   /// MusicXML `<harmony>` that immediately precedes it (e.g. `'A'`, `'E7'`,
@@ -179,11 +176,7 @@ class NoteEvent {
     required this.isRest,
     this.scoreFinger,
     this.displayAccidental,
-    this.jianpuNumber,
-    this.jianpuOctaveDots,
-    this.jianpuAccidentalSharp,
-    this.fingerString,
-    this.fingerNumber,
+    this.annotation,
     this.chordSymbol,
     this.isChord = false,
     this.lyrics = const {},
@@ -212,11 +205,7 @@ class NoteEvent {
     bool? isRest,
     int? scoreFinger,
     String? displayAccidental,
-    int? jianpuNumber,
-    int? jianpuOctaveDots,
-    bool? jianpuAccidentalSharp,
-    String? fingerString,
-    String? fingerNumber,
+    Object? annotation,
     String? chordSymbol,
     bool? isChord,
     Map<int, Lyric>? lyrics,
@@ -239,12 +228,7 @@ class NoteEvent {
         scoreFinger:
             clearScoreFinger ? null : (scoreFinger ?? this.scoreFinger),
         displayAccidental: displayAccidental ?? this.displayAccidental,
-        jianpuNumber: jianpuNumber ?? this.jianpuNumber,
-        jianpuOctaveDots: jianpuOctaveDots ?? this.jianpuOctaveDots,
-        jianpuAccidentalSharp:
-            jianpuAccidentalSharp ?? this.jianpuAccidentalSharp,
-        fingerString: fingerString ?? this.fingerString,
-        fingerNumber: fingerNumber ?? this.fingerNumber,
+        annotation: annotation ?? this.annotation,
         chordSymbol: chordSymbol ?? this.chordSymbol,
         isChord: isChord ?? this.isChord,
         lyrics: lyrics ?? this.lyrics,

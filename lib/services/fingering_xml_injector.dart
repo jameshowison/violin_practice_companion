@@ -1,5 +1,4 @@
 import 'package:xml/xml.dart';
-import '../models/parsed_piece.dart';
 
 class FingeringXmlInjector {
   /// Injects a fixed placeholder `<fingering>` on every note that HAS a
@@ -20,17 +19,17 @@ class FingeringXmlInjector {
   /// The cost is that a label wider than the placeholder can overrun its
   /// neighbour horizontally; the chip painter's left-to-right overlap guard
   /// already drops those, which is the same thing it has always done.
-  static String injectPlaceholders(String musicXml, ParsedPiece parsed) {
+  ///
+  /// [labels] has one entry per parsed note in document order (each measure's
+  /// notes, rests included), null where a note has no fingering; the app's
+  /// `fingeringLabelsOf` builds it.
+  static String injectPlaceholders(String musicXml, List<String?> labels) {
     final doc = XmlDocument.parse(musicXml);
-    final noteEvents = parsed.measures.expand((m) => m.notes).toList();
     int idx = 0;
     for (final noteEl in doc.findAllElements('note')) {
       if (noteEl.getAttribute('print-object') == 'no') continue;
-      if (idx >= noteEvents.length) break;
-      final ne = noteEvents[idx++];
-      if (ne.isRest || ne.fingerString == null || ne.fingerNumber == null) {
-        continue;
-      }
+      if (idx >= labels.length) break;
+      if (labels[idx++] == null) continue;
       _setFingering(noteEl, placeholderLabel);
     }
     return doc.toXmlString();

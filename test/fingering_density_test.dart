@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/fingering_density.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_annotation.dart';
 
 NoteEvent _n(String string, String finger) => NoteEvent(
       pitch: 'A4',
@@ -9,8 +10,7 @@ NoteEvent _n(String string, String finger) => NoteEvent(
       noteValue: NoteValue.quarter,
       dotted: false,
       isRest: false,
-      fingerString: string,
-      fingerNumber: finger,
+      annotation: NoteAnnotation(fingerString: string, fingerNumber: finger),
     );
 
 /// A note in the middle of a phrase — every landmark flag off, so a predicate can

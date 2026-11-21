@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/services/abc_exporter.dart';
@@ -125,7 +126,8 @@ Map<String, String> _stages(
   out['verseNone'] = guard(() => LyricXmlInjector.selectVerse(xml, null));
   out['fingering.strip'] = guard(() => FingeringXmlInjector.stripFingerings(xml));
   out['fingering.inject'] =
-      guard(() => FingeringXmlInjector.injectPlaceholders(xml, fingered));
+      guard(() => FingeringXmlInjector.injectPlaceholders(
+          xml, fingeringLabelsOf(fingered)));
   out['preamble'] = guard(() => buildPreambleXml(xml));
   out['palette'] = guard(() => PaletteXmlGenerator.generate(fingered));
   out['abc'] = guard(() => AbcExporter.export(parsed, title: 'Snapshot'));

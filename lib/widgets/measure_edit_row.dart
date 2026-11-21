@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
 import '../services/fingering_mapper.dart';

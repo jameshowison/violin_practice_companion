@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/duration_step.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/chord_editor.dart';
 
@@ -351,8 +352,7 @@ void main() {
       chordSymbol: 'Am7',
       displayAccidental: 'natural',
       scoreFinger: 2,
-      fingerNumber: 'A2L',
-      fingerString: 'A',
+      annotation: NoteAnnotation(fingerString: 'A', fingerNumber: 'A2L'),
     );
 
     test('carries the structural fields through — the regression lock', () {

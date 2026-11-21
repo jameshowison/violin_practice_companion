@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/note_event.dart'; // DisplayMode
+import '../models/display_mode.dart';
 import '../models/piece_media.dart';
 import '../models/section.dart'; // sectionsAfterMeasureDelete
 import '../models/section_run.dart';

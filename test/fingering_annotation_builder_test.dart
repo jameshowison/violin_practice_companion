@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_practice_companion/models/fingering_density.dart';
 import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/parsed_piece.dart';
 import 'package:violin_practice_companion/models/string_label_style.dart';
@@ -16,8 +17,7 @@ NoteEvent _n(String? string, String? finger,
       noteValue: NoteValue.quarter,
       dotted: false,
       isRest: rest,
-      fingerString: string,
-      fingerNumber: finger,
+      annotation: NoteAnnotation(fingerString: string, fingerNumber: finger),
       isChord: chord,
     );
 
@@ -461,8 +461,7 @@ void main() {
           noteValue: NoteValue.quarter,
           dotted: false,
           isRest: rest,
-          fingerString: string,
-          fingerNumber: finger,
+          annotation: NoteAnnotation(fingerString: string, fingerNumber: finger),
           isChord: chord,
           tieStop: tieStop,
         );

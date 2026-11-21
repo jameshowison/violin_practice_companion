@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:violin_practice_companion/models/note_event.dart';
+import 'package:violin_practice_companion/models/display_mode.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';

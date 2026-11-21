@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/note_event.dart';
+import '../models/display_mode.dart';
 
 /// The view picker, as a wrapping row of chips.
 ///

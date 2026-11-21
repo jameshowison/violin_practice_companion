@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/note_event.dart';
+import '../models/display_mode.dart';
 import '../services/providers.dart';
 import '../services/staff_zoom.dart';
 

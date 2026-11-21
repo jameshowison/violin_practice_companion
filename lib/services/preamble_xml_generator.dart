@@ -1,6 +1,5 @@
 import 'package:xml/xml.dart';
 
-import 'system_break_injector.dart' show changesMeter;
 
 /// Builds a minimal one-measure MusicXML carrying only the piece's opening
 /// clef, key, and time signature — no real notes — for a small standalone
@@ -92,4 +91,16 @@ String buildPreambleXml(String musicXml) {
     XmlProcessing('xml', 'version="1.0" encoding="UTF-8"'),
     root,
   ]).toXmlString();
+}
+
+/// Whether [doc] states more than one meter in its `<time>`s.
+bool changesMeter(XmlDocument doc) {
+  String? first;
+  for (final t in doc.findAllElements('time')) {
+    final m = '${t.getElement('beats')?.innerText.trim()}/'
+        '${t.getElement('beat-type')?.innerText.trim()}';
+    first ??= m;
+    if (m != first) return true;
+  }
+  return false;
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/gdae_tuning.dart';
 import '../models/note_event.dart';
+import '../models/note_annotation.dart';
 import '../models/note_number_mode.dart';
 import '../models/parsed_piece.dart';
 
@@ -85,9 +86,9 @@ class FingeringMapper {
               }
               if (!note.isChord) heldMidi = note.midiNumber;
 
-              return note.copyWith(
-                fingerString: chosenString,
-                fingerNumber: chosenFinger,
+              return note.withFingering(
+                string: chosenString,
+                number: chosenFinger,
               );
             }(),
         ]),
