@@ -55,6 +55,9 @@ import '../ui/stringlings/stringling_peekers.dart';
 import 'scan_photo_screen.dart';
 import '../debug/screenshot_mode.dart';
 import '../widgets/player_badge.dart';
+import '../widgets/recorder_fingering_panel.dart';
+import '../models/fingering_group_palette.dart';
+import '../services/wind_fingering.dart' show NoteLaneDash, windLaneDashes;
 
 class PieceDetailScreen extends ConsumerStatefulWidget {
   const PieceDetailScreen({super.key});
@@ -709,12 +712,21 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   canEditSelection ||
                   selection != null;
 
+              // A wind's fingering panel, on the score's right in landscape
+              // (the recorder only; every other instrument gets [child] back
+              // untouched — see FingeringPanelSlot).
+              Widget withFingeringPanel(Widget child) => FingeringPanelSlot(
+                    highlight: activeService.currentHighlightNotifier,
+                    events: () => activeService.highlightEvents,
+                    child: child,
+                  );
+
               if (useCompact && editing != null) {
                 // Editing a bar: the play tray (and its sections) step aside
                 // for the edit panel, docked under the score so the bar stays
                 // in view in its place in the piece.
                 return Column(children: [
-                  Expanded(child: notationView),
+                  Expanded(child: withFingeringPanel(notationView)),
                   const MeasureEditPanel(),
                 ]);
               }
@@ -724,7 +736,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                 // a rail over the music (see SectionChipRow).
                 return Column(children: [
                   const _PalettePanel(),
-                  Expanded(child: _CompactPieceLayout(
+                  // The panel beside the whole layout, so the play tray
+                  // spans the score alone.
+                  Expanded(child: withFingeringPanel(_CompactPieceLayout(
                   notationView: notationView,
                   sectionRowHasStrip:
                       runGroups.any((g) => g.isLoop || g.isJump),
@@ -745,7 +759,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   displayMode: displayMode,
                   media: mediaList,
                   selectedMedia: selectedMedia,
-                  )),
+                  ))),
                 ]);
               }
 
@@ -769,7 +783,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         Expanded(
                           child: Stack(
                             children: [
-                              Positioned.fill(child: notationView),
+                              Positioned.fill(
+                                  child: withFingeringPanel(notationView)),
                             ],
                           ),
                         ),
@@ -2104,6 +2119,8 @@ class _NotationView extends ConsumerWidget {
   // bar a section break splits, the tap selects just the half it is in.
   void _selectMeasure(WidgetRef ref, int measure, {int? note}) {
     final selection = ref.read(measureSelectionProvider.notifier);
+    ref.read(fingeringFocusProvider.notifier).state =
+        note == null ? null : (measure: measure, note: note);
     final now = DateTime.now();
     final prev = _lastTap;
     if (prev != null &&
@@ -2218,6 +2235,16 @@ class _NotationView extends ConsumerWidget {
     final colourStyle = overlays.colourStyle;
     final annotations = overlays.annotations;
     final stringRuns = overlays.stringRuns;
+    // A wind's colour lane (the recorder): a dash under each note by its
+    // fingering group. Empty for the strings.
+    final chart = ref.watch(instrumentProfileProvider).fingeringChart;
+    final brightness = Theme.of(context).brightness;
+    final laneDashes = (chart == null ||
+            parsed == null ||
+            !(mode == DisplayMode.staff || mode == DisplayMode.staffFingering))
+        ? const <NoteLaneDash>[]
+        : windLaneDashes(measureMap, parsed, chart,
+            (g) => fingeringGroupColor(g, brightness));
     // Minimap tap → scroll the staff to the (folded) run's first measure index.
     // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
@@ -2267,6 +2294,7 @@ class _NotationView extends ConsumerWidget {
         noteNames: overlays.noteNames,
         showNoteNames: overlays.showNoteNames,
         colourNoteheads: overlays.colourNoteheads,
+        laneDashes: laneDashes,
         scrollNav: staffNav,
       );
     }

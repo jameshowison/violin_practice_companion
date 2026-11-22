@@ -715,6 +715,10 @@ abstract class PlaybackServiceBase {
   /// or (with [highlightDownbeatOnly]) just each measure's first, per
   /// [noteIndex] `== 0` (a chord's members all share that first note's index,
   /// so a downbeat chord still highlights as one event).
+  /// Every highlight event of the loaded piece, in playing order (repeats
+  /// unfolded) — the order a wind's fingering panel reads "next" from.
+  List<HighlightEvent> get highlightEvents => _data?.highlightEvents ?? const [];
+
   List<HighlightEvent> get _activeHighlightEvents {
     final events = _data?.highlightEvents ?? const [];
     if (!_highlightDownbeatOnly) return events;

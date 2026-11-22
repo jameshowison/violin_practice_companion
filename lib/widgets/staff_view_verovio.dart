@@ -14,6 +14,7 @@ import '../services/fingering_annotation_builder.dart';
 import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart' show PlaybackState;
 import '../services/providers.dart';
+import '../services/wind_fingering.dart' show NoteLaneDash;
 import 'package:score_view/score_view.dart';
 import 'chord_swatch.dart';
 import 'measure_drag_select.dart';
@@ -124,6 +125,10 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// engrave, never a re-layout.
   final bool colourNoteheads;
 
+  /// A wind's colour lane: a short dash under each note, coloured by its
+  /// fingering group ([windLaneDashes]). Empty for the strings.
+  final List<NoteLaneDash> laneDashes;
+
   /// The vocabulary's key-signature labels: each accidental's letter above it,
   /// and the key's name above those. Null draws nothing. Needs [showNoteNames]
   /// for the row the key name sits in.
@@ -177,6 +182,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.noteNames = const [],
     this.showNoteNames = false,
     this.colourNoteheads = false,
+    this.laneDashes = const [],
     this.keySignatureLabel,
     this.scrollNav,
     this.tabMode = false,
@@ -1488,6 +1494,18 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                           ),
                         ),
                       ),
+                      if (widget.laneDashes.isNotEmpty)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _NoteLanePainter(
+                                score: score,
+                                scale: scale,
+                                dashes: widget.laneDashes,
+                              ),
+                            ),
+                          ),
+                        ),
                       // The two lanes last, so a lane whose y-estimate drifts stays
                       // visible rather than hiding under a stem or a bar number.
                       // Their bands never overlap, so the order between them is
@@ -3117,6 +3135,54 @@ class _MeasureNumberPainter extends CustomPainter {
       old.measureMap != measureMap ||
       old.selection != selection ||
       old.color != color;
+}
+
+/// A wind's colour lane: one short rounded dash under each note, on a row
+/// below the staff — two staff spaces under the bottom line, or lower on a
+/// system whose notes (a stem down, a ledger) reach further.
+class _NoteLanePainter extends CustomPainter {
+  _NoteLanePainter({
+    required this.score,
+    required this.scale,
+    required this.dashes,
+  });
+
+  final EngravedScore score;
+  final double scale;
+  final List<NoteLaneDash> dashes;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final space = score.staffSpaceViewBox;
+    if (space <= 0) return;
+    // The row per system line, in viewBox units.
+    final rowOf = <int, double>{};
+    for (final n in score.notes) {
+      final line = score.lineOfMeasure(n.measureIndex);
+      final staff = score.staffLineAt(n.measureIndex);
+      if (line < 0 || staff == null) continue;
+      final floor = staff.top + score.staffHeightViewBox + space * 2.0;
+      final below = n.rect.bottom + space * 0.8;
+      final y = math.max(floor, below);
+      rowOf[line] = math.max(rowOf[line] ?? y, y);
+    }
+    final halfW = space * 0.9, h = space * 0.38;
+    for (final d in dashes) {
+      final note = score.noteAt(d.measureIndex, d.noteIndex);
+      final row = rowOf[score.lineOfMeasure(d.measureIndex)];
+      if (note == null || row == null) continue;
+      final cx = note.rect.center.dx;
+      final rect = Rect.fromLTRB((cx - halfW) * scale, row * scale,
+          (cx + halfW) * scale, (row + h) * scale);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
+          Paint()..color = d.color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_NoteLanePainter old) =>
+      old.score != score || old.scale != scale || old.dashes != dashes;
 }
 
 /// Drawn OVER the notation: selection range, flagged markers, current-note

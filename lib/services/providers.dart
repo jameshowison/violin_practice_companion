@@ -1428,6 +1428,12 @@ class MeasureSelection {
 
 final measureSelectionProvider = StateProvider<MeasureSelection?>((_) => null);
 
+/// The note last tapped on the staff — a model measure number and note
+/// index — for a wind's fingering side panel to show while stopped
+/// (`RecorderFingeringPanel`). Null from a view that taps whole bars.
+final fingeringFocusProvider =
+    StateProvider<({int measure, int note})?>((_) => null);
+
 /// [measureSelectionProvider] as Play takes it: cut at the section breaks
 /// inside its first and last bars ([MeasureSelection.cutAtSections]).
 final playedSelectionProvider = Provider<MeasureSelection?>((ref) => ref
