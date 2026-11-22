@@ -148,9 +148,10 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
-  # Two apps from one codebase (docs/family/mandolin-app.md). Android's
-  # productFlavors need a flavor on every build, so a plain `flutter run` or
-  # `flutter build` means stringlings; `--flavor mandolin` builds the other.
+  # Three apps from one codebase (docs/family/mandolin-app.md,
+  # windlings-app.md). Android's productFlavors need a flavor on every build,
+  # so a plain `flutter run` or `flutter build` means stringlings;
+  # `--flavor mandolin` or `--flavor windlings` builds another.
   default-flavor: stringlings
   generate: true
 

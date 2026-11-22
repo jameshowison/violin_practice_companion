@@ -39,6 +39,11 @@ android {
             applicationIdSuffix = ".mandolin"
             manifestPlaceholders["appName"] = "Mandolings"
         }
+        create("windlings") {
+            dimension = "edition"
+            applicationIdSuffix = ".windlings"
+            manifestPlaceholders["appName"] = "Windlings"
+        }
     }
 
     buildTypes {

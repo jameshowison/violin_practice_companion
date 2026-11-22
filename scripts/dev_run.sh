@@ -15,6 +15,8 @@
 # Mandolin app, which installs beside Stringlings under its own bundle id.
 # Unset, flutter uses pubspec's default-flavor (stringlings). The dev library
 # sync knows only Stringlings' bundle id, so it is skipped for mandolin.
+# FLUTTER_FLAVOR=windlings (the recorder, docs/family/windlings-app.md) is the
+# same.
 #   FLUTTER_FLAVOR=mandolin FLUTTER_FIFO=/tmp/flutter_ctl_mandolin bash scripts/dev_run.sh dev-ipad
 set -u
 

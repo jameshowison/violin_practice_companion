@@ -1,0 +1,4 @@
+// The Windlings edition (experiment, docs/family/windlings-app.md): the
+// recorder, with its own bundle id, so it installs beside Stringlings.
+PRODUCT_BUNDLE_IDENTIFIER = name.howison.violinPracticeCompanion.windlings
+APP_DISPLAY_NAME = Windlings
