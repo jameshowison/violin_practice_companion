@@ -1,5 +1,12 @@
 # Mandolings: the mandolin as a second app, by flavor
 
+> **Decided 2026-11-22: one app for now.** Stringlings, the app that ships,
+> offers every instrument: violin, viola, mandolin and recorder
+> (`instrumentsOffered` in `lib/services/instrument_setting.dart`). The
+> `mandolin` and `windlings` flavors stay, each a single instrument, so the
+> family can still be split into separate apps later by changing that table.
+> This work is merged to main; `next_gen` is no longer separate.
+
 An experiment on `next_gen` (step 5b in
 [`../libraries-migration.md`](../libraries-migration.md)). One codebase, one
 Runner, and two installable apps that can sit side by side on one phone:
@@ -93,12 +100,11 @@ offer". The first in the list is the default. Everything else asks it:
 
 Per edition:
 
-- **Stringlings:** violin and viola. Mandolin is gone from every choice. A
-  stored `mandolin` (or the legacy `violinAndMandolin`) reads as the violin.
-  **The stored value is left alone**, not rewritten, so a future migration can
-  still see it. A shipped version would need a real migration story for
-  existing mandolin users: tell them, point them at the new app, perhaps
-  carry their pieces over. The experiment just falls back.
+- **Stringlings:** every instrument (since 2026-11-22; above). During the
+  experiment it offered violin and viola only, and a stored `mandolin` read
+  as the violin. If an instrument is ever moved out, those who chose it need
+  a migration story: tell them, point them at the new app, perhaps carry
+  their pieces over.
 - **Mandolings:** the mandolin, whatever is stored. No instrument choice
   anywhere. The tuner is the mandolin's: courses, pairs and the headstock.
 - **The app's name** comes from `AppEdition.appName`, Stringlings or

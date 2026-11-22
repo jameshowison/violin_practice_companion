@@ -2,10 +2,10 @@ import 'package:flutter/services.dart' show appFlavor;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Which app this build is: one codebase, several installable apps, chosen by
-/// the build flavor (docs/family/mandolin-app.md, windlings-app.md). An
-/// experiment on `next_gen`.
+/// the build flavor (docs/family/mandolin-app.md, windlings-app.md). Only
+/// Stringlings ships today; the other flavors keep a later split possible.
 enum AppEdition {
-  /// Violin and viola: the App Store app.
+  /// Every instrument: the App Store app.
   stringlings,
 
   /// The mandolin alone, installed beside Stringlings under its own bundle id.

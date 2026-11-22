@@ -469,3 +469,78 @@ limitation:** in unfolded/sectioned (ABAA) mode the cursor maps a repeated
 measure number to its FIRST rendered copy (`_anchorForEvent` uses `indexOf`);
 fixing it needs driving by performance-occurrence. (`_anchorForEvent` now
 goes through `measureMap.locatePlayed(…, ev.performanceIndex)`.)
+
+## 11. Libraries, layers and the instrument family (2026-11-20 to 11-22)
+
+The goal was a family of practice apps: other instruments, several players
+per household, and code that can be reused outside this app. Two documents
+drove it, `docs/family/libraries.md` (what goes where) and
+`docs/libraries-migration.md` (the method, the checklist and how each step
+came out). Open follow-ups moved to `docs/plan.md` §7.
+
+**The method: snapshot, seam, move.** Each extraction was three commits on a
+short branch, fast-forwarded into main:
+1. a snapshot test that pins behaviour across the move
+2. a seam that cuts the code's ties to the app
+3. a `git mv` in which every file shows as a rename, plus the import rewrite
+
+There were no shims and no re-exporting stubs left behind. The snapshots
+never changed during a move, which is what made moves this size safe without
+a device check at each one.
+
+**What came out** (a pub workspace, one `pubspec.lock`, all tests run by
+`scripts/test_all.sh`):
+- `musicxml_tools` (GPL): parsing, the score model, `Section`, Jianpu digits,
+  `<transpose>`/`<clef>`. `NoteEvent` carries one opaque `annotation`, so
+  fingering and Jianpu stay app data.
+- `score_sync` (GPL): the DTW aligner, generic over a `ScoreTiming`, with an
+  `AlignmentProfile` per instrument; alignment now runs off the UI isolate.
+- `pitch_tuner` (BSD, renamed from `string_tuner`): `TunerModel`, chromatic
+  and one-note targets, transposition, and a drone played as a looped file,
+  never a live synth.
+- `score_view` (GPL): the Verovio engraving layer, staff sizes, the section
+  planner and solver, the paginator, the engrave cache, and the system-break
+  injector.
+- `audio_decoder` (GPL): the native decoder as a self-registering plugin, iOS
+  and Android.
+
+**Layers and players** (`docs/family/layers.md`). Every display reads an
+`InstrumentView` between the stored source and the screen, so the viola
+(alto clef, transcribed a fifth down) and the mandolin are views of the same
+score. String choices left the score, and every stored score was converted
+once at launch rather than lazily on open. Players got their own instrument
+and prefs, with recordings shared by default.
+
+**One app, several possible apps.** The plan was a second Flutter app under
+`apps/`, with the shared code in `practice_core`. Build flavors proved the
+split far more cheaply: one Runner, with `stringlings`, `mandolin`
+(Mandolings) and `windlings` (Windlings, the soprano recorder) as separate
+bundle ids that install side by side. `AppEdition` comes from the flavor, and
+`instrumentsOffered(edition)` is the one place that says what an app offers.
+Features (string fingering, string tuner, tab, chords, the recorder's
+fingering panel and colour lane) follow the instrument, not the app.
+- **Decided 2026-11-22: a single app for now.** Stringlings offers violin,
+  viola, mandolin and recorder. The other flavors stay, so a split later is
+  a change to that table plus a migration for the users whose instrument
+  moves.
+- **Why flavors rather than `apps/`:** the native plugins registered by hand
+  in the Runner (AirPlay, calibration, media tools, sharing) would have had
+  to become packages or be copied, along with their hard-won audio fixes.
+  `family/mandolin-app.md` lists what a real second Runner would still need.
+
+**The recorder** (`family/windlings-app.md`):
+- Notes are stored at **written** pitch, and the MIDI schedule adds the
+  octave for sound and alignment. The family plan had said concert pitch;
+  this must be settled before a B♭ instrument.
+- The fingering chart (baroque) runs C4 to A5, checked against two charts.
+  B♭5, C♯6 and D6 are marked unverified.
+- In landscape a side panel shows the fingering: the hole diagram, the holes
+  that change ("Lift left 1"), and the next note.
+
+**Along the way:**
+- Staff sizes became bands, and Fit learned to fit on a wide screen (an iPad
+  bug found during installs).
+- The soundfont cut grew to keep the viola and recorder programs (README,
+  "The soundfont").
+- Xcode's "No Accounts" trap turned up when the first new bundle id needed a
+  profile: sign out and back in.

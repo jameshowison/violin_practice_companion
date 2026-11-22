@@ -10,8 +10,9 @@ import 'package:violin_practice_companion/services/providers.dart';
 import 'package:violin_practice_companion/screens/settings_screen.dart';
 import 'package:violin_practice_companion/widgets/player_badge.dart';
 
-/// Two apps from one codebase (docs/family/mandolin-app.md): Stringlings
-/// offers violin and viola, the mandolin app the mandolin alone.
+/// One codebase, several possible apps (docs/family/mandolin-app.md):
+/// Stringlings offers every instrument; the mandolin flavor, kept for a later
+/// split, the mandolin alone.
 void main() {
   late SharedPreferences prefs;
 
@@ -38,44 +39,47 @@ void main() {
   });
 
   group('Stringlings', () {
-    test('offers the violin and the viola only', () async {
+    test('offers every instrument, the violin first', () async {
       final c = await containerWith(AppEdition.stringlings, {});
-      expect(c.read(instrumentsOfferedProvider),
-          [InstrumentSet.violin, InstrumentSet.viola]);
+      expect(c.read(instrumentsOfferedProvider), [
+        InstrumentSet.violin,
+        InstrumentSet.viola,
+        InstrumentSet.mandolin,
+        InstrumentSet.recorder,
+      ]);
       expect(c.read(instrumentSetProvider), InstrumentSet.violin);
     });
 
-    test('a stored mandolin falls back to the violin, and is left alone',
-        () async {
+    test('a stored mandolin is the mandolin', () async {
       final c =
           await containerWith(AppEdition.stringlings, {instrumentSetKey: 'mandolin'});
-      expect(c.read(instrumentSetProvider), InstrumentSet.violin);
-      expect(c.read(instrumentProfileProvider).id, 'violin');
-      expect(c.read(instrumentFeaturesProvider).tabView, isFalse);
-      expect(prefs.getString(instrumentSetKey), 'mandolin');
+      expect(c.read(instrumentSetProvider), InstrumentSet.mandolin);
+      expect(c.read(instrumentProfileProvider).id, 'mandolin');
+      expect(c.read(instrumentFeaturesProvider).tabView, isTrue);
     });
 
-    test('the old combined setting falls back to the violin too', () async {
+    test('the old combined setting is the mandolin, rewritten', () async {
       final c = await containerWith(
           AppEdition.stringlings, {instrumentSetKey: legacyViolinAndMandolin});
-      expect(c.read(instrumentSetProvider), InstrumentSet.violin);
-      expect(prefs.getString(instrumentSetKey), legacyViolinAndMandolin);
+      expect(c.read(instrumentSetProvider), InstrumentSet.mandolin);
+      expect(prefs.getString(instrumentSetKey), InstrumentSet.mandolin.name);
     });
 
-    testWidgets('Settings offers violin and viola, not the mandolin',
-        (tester) async {
+    testWidgets('Settings offers all four instruments', (tester) async {
       final c = await containerWith(AppEdition.stringlings, {});
       await tester.pumpWidget(UncontrolledProviderScope(
           container: c, child: const MaterialApp(home: SettingsScreen())));
       final list = find.byType(Scrollable).first;
       await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('instrument_setting_viola')), 200,
+          find.byKey(const ValueKey('instrument_setting_recorder')), 200,
           scrollable: list);
-      expect(find.byKey(const ValueKey('instrument_setting_violin')),
-          findsOneWidget);
-      expect(find.byKey(const ValueKey('instrument_setting_mandolin')),
-          findsNothing);
-      expect(find.textContaining('Mandolin'), findsNothing);
+      for (final s in InstrumentSet.values) {
+        expect(find.byKey(ValueKey('instrument_setting_${s.name}')),
+            findsOneWidget, reason: s.name);
+      }
+      await tester.scrollUntilVisible(
+          find.textContaining('Stringlings collects no data'), 200,
+          scrollable: list);
       expect(find.textContaining('Stringlings collects no data'), findsOneWidget);
     });
   });

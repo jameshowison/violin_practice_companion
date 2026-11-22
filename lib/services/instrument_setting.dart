@@ -76,12 +76,19 @@ class InstrumentFeatures {
 /// The instruments [edition] offers, the first its default: the one place
 /// that answers it, for Settings, a new player and the stored setting.
 ///
-/// Stringlings has no mandolin: a stored mandolin reads as the violin (the
-/// value itself is left alone; a shipped split would need a migration story,
-/// docs/family/mandolin-app.md). The mandolin app has only the mandolin,
-/// and Windlings only the recorder (docs/family/windlings-app.md).
+/// Stringlings, the one app that ships, offers every instrument (decided
+/// 2026-11-22: a single app for now). The mandolin and Windlings flavors are
+/// kept so the family can still be split into separate apps later: each is
+/// a single instrument here, and moving one out of Stringlings is a change to
+/// this table alone (plus a migration for those who chose it;
+/// docs/family/mandolin-app.md, windlings-app.md).
 List<InstrumentSet> instrumentsOffered(AppEdition edition) => switch (edition) {
-      AppEdition.stringlings => const [InstrumentSet.violin, InstrumentSet.viola],
+      AppEdition.stringlings => const [
+          InstrumentSet.violin,
+          InstrumentSet.viola,
+          InstrumentSet.mandolin,
+          InstrumentSet.recorder,
+        ],
       AppEdition.mandolin => const [InstrumentSet.mandolin],
       AppEdition.windlings => const [InstrumentSet.recorder],
     };

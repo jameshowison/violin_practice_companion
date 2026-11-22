@@ -198,7 +198,17 @@ The root `pubspec.yaml` is a pub workspace: the app plus its libraries under
 being moved into libraries step by step, per `docs/libraries-migration.md`
 (technique, checklist, progress) and `docs/family/libraries.md` (what goes
 where). `flutter test` runs only the app's `test/`, so use
-`bash scripts/test_all.sh` to run the libraries' tests too.
+`bash scripts/test_all.sh` to run the libraries' tests too. The migration is
+done (2026-11-22); follow-ups are in `docs/plan.md` §7.
+
+**Build flavors.** `stringlings` is the default and the app that ships, with
+every instrument (violin, viola, mandolin, recorder). The `mandolin`
+(Mandolings) and `windlings` (Windlings) flavors are single-instrument apps
+with their own bundle ids, kept so the family can be split later
+(`instrumentsOffered` in `lib/services/instrument_setting.dart`;
+`docs/family/mandolin-app.md`). A plain `flutter run`/`build` is
+Stringlings. A new flavor's first device build needs
+`xcodebuild -allowProvisioningUpdates -allowProvisioningDeviceRegistration`.
 
 ## homr_flutter dependency
 

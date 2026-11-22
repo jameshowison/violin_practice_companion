@@ -321,3 +321,84 @@ The native Verovio + jovial_svg renderer is the only renderer (see
   didn't respond" message appears, then `bash scripts/pull_sync_trace.sh Jamz`
   and read the "item failed" / "retrying on a fresh item" / "rebuilding the
   player" / "giving up" lines to see which step, if any, brought it back.
+
+---
+
+## 7. Instrument family and libraries: follow-ups
+
+The libraries migration is done (`docs/libraries-migration.md`;
+`docs/explore.md` §11). Stringlings is one app offering violin, viola,
+mandolin and recorder, and the `mandolin` and `windlings` flavors are kept
+for a later split.
+
+### 7.1 Splitting into separate apps (decision, when wanted)
+
+Nothing here is needed while there is one app. Each becomes real only if an
+instrument moves into its own app:
+
+- **Which shape:** all in one; a violin family plus mandolin plus winds; or
+  one app per instrument. The change itself is the `instrumentsOffered` table
+  in `lib/services/instrument_setting.dart`.
+- **Users of a moved instrument:** they need a migration. Tell them, point
+  them at the new app, perhaps carry their pieces over.
+- **Shared data:** separate apps have separate containers, so pieces,
+  recordings and players are not shared. Sharing would need an App Group on
+  iOS and a content provider on Android.
+- **`.stringlings` files:** every flavor declares itself Owner of the same
+  document type. Should each get its own extension?
+- **App Store and Play:** each app needs its own record, listing,
+  screenshots, privacy answers and TestFlight group. `push_listing.py`
+  knows one app.
+- **Dev library:** the sync scripts hard-code Stringlings' bundle id.
+- **A real `apps/` Runner** (step 5b as first planned) only if the apps must
+  differ natively: see `family/mandolin-app.md`, "What a real apps/mandolin
+  target would still need". Step 4b, the `score_view` widget without
+  Riverpod, goes with it.
+
+### 7.2 Recorder and winds
+
+- **(decision) Written or concert pitch in `NoteEvent`.** Today the parsed
+  notes are written pitch and the schedule adds the transposition. The
+  family plan said concert pitch. Settle it before any B♭ instrument.
+- **Check the upper register** (B♭5, C♯6, D6) against a real recorder or a
+  method-neutral chart. C♯6's stopped bell needs a mark on the diagram.
+- **(decision) Hole naming:** "left 1–3 / right 1–4", as now, or 0–7.
+- **Mini diagrams above each note, and note-name labels:** not built.
+- **The lane's room:** with tight system spacing, a dash can crowd the next
+  system.
+- **Real audio:** listen to the recorder sound on a device. Try the
+  chromatic tuner, and the alignment profile (400–4000 Hz, first guesses),
+  on a real recorder.
+- **Range:** the octave search aims at C4–D6, a beginner's range.
+- **The picker now lists all four instruments.** Check that the Settings
+  instrument list still reads well on the 375-pt phone.
+
+### 7.3 Stringlings UI (mock first)
+
+- **Annotate,** as a player-layer feature (deferred in layers step 2).
+- **(decision) A chromatic mode in the string tuner:** `pitch_tuner` has
+  it; there is no UI. The drone is done.
+- **Players:**
+  - the badge squeezes the title on 375-pt screens
+  - the tray collapsed once after a player switch
+  - there is no way to change a take's "only this player" limit after
+    recording
+- **(decision) Fit vs Large on Song of the Wind:** Fit still draws smaller
+  than Large because of `sectionFitMaxSpread` (1.25). Loosen it, or accept
+  it?
+- **A cached alignment is not invalidated** when the instrument (and so the
+  `AlignmentProfile`) changes.
+
+### 7.4 Libraries housekeeping
+
+- **(decision) `verovio_bbox_test` and `verovio_svg_shim_test`** can move to
+  `score_view` only if `repo_content_policy_test` allows SVG fixtures under
+  `packages/`. Widen it for that, or leave them in the app.
+- **Step 6, parts, staves and voices:** not started; scope it first.
+- **The tuner advice interface:** `tuner_advice.dart` is the strings'
+  words. Cut an interface when a wind writes its own advice.
+- **HE-AAC (SBR) decode on a physical Android phone** (step 5a), to rule
+  out a doubled anchor span.
+- **The bigger soundfont** (recorder included) ships in every flavor.
+  Flavor-specific assets would need a split bundle.
+

@@ -52,7 +52,7 @@ void main() {
       expect(AppEdition.windlings.appName, 'Windlings');
       expect(instrumentsOffered(AppEdition.windlings), [InstrumentSet.recorder]);
       expect(instrumentsOffered(AppEdition.stringlings),
-          isNot(contains(InstrumentSet.recorder)));
+          contains(InstrumentSet.recorder));
       expect(instrumentsOffered(AppEdition.mandolin),
           isNot(contains(InstrumentSet.recorder)));
     });

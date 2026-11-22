@@ -87,9 +87,9 @@ Rules that follow from it:
 - **Use a worktree only when another session holds the main checkout.** It
   then lands with a fast-forward push to `origin/main`, and the main checkout
   catches up with `git pull --ff-only`.
-- **Family-only work goes on `next_gen`.** That is the work no use to
-  Stringlings alone: the second app, the woodwind prototype, and the move of
-  the app to `apps/`. `next_gen` is rebased onto main after each step lands.
+- **Family-only work went on `next_gen`** (the second app, the woodwind
+  prototype), rebased onto main after each step. Since the single-app
+  decision of 2026-11-22 it is all on main, and `next_gen` is not needed.
 
 ## Checklist for every step
 
@@ -112,11 +112,11 @@ Rules that follow from it:
 | 2 | Source / instrument / player layers, then viola and players ([`family/layers.md`](family/layers.md)); Annotate deferred | done (Annotate deferred) |
 | 3 | `pitch_tuner` (rename, `TunerModel` moved in, chromatic, transposition, drone), `<transpose>`/`<clef>` read | done (library only; no app UI yet) |
 | 4a | `score_view` engraving layer: snapshot, seam, move | done |
-| 4b | `score_view` widget, without Riverpod | when a second app needs it |
+| 4b | `score_view` widget, without Riverpod | not done; `docs/plan.md` §7 |
 | 5a | `audio_decoder` as a plugin package | done (SBR fix unchecked on a phone) |
-| 5b | `practice_core`, `apps/` | family-only, on `next_gen` when a second app exists |
+| 5b | Editions by build flavor (Mandolings, Windlings); `practice_core` and `apps/` not needed yet | done, as one app with every instrument |
 | 5b (experiment) | Mandolin as a second app by build flavor: Mandolings beside Stringlings, one Runner ([`family/mandolin-app.md`](family/mandolin-app.md)) | experiment on `next_gen` |
-| 6 | parts, staves, voices | |
+| 6 | parts, staves, voices | not started; `docs/plan.md` §7 |
 
 ## How steps 1a and 1b came out
 
@@ -278,3 +278,32 @@ federated: nobody needs a third platform yet.
   - `encodeAac` works on both, over the new channel.
 - **Still to check on a phone:** an HE-AAC (SBR) file on a real Android
   phone, to rule out a doubled anchor span.
+
+## How step 5b came out
+
+Not as planned. The plan had a second Flutter app under `apps/`, with the
+shared Dart in `practice_core`. A build flavor proved the split for far less:
+
+- **One Runner, three flavors.** `stringlings` (the default, today's bundle
+  id), `mandolin` (Mandolings) and `windlings` (Windlings), each with its own
+  bundle id and home-screen name. All three install side by side on Hazel
+  iPad and Jamz.
+- **One table decides what each app offers.** `AppEdition` comes from the
+  flavor, and `instrumentsOffered(edition)` lists its instruments. Settings,
+  a new player and the stored setting all ask it.
+- **Features follow the instrument, not the app.** `InstrumentFeatures`
+  (`stringFingering`, `stringTuner`, tab, chords) and the recorder's
+  fingering panel turn on per instrument, so one app can hold strings and
+  winds at once.
+- **Decided 2026-11-22: one app for now.** Stringlings offers violin, viola,
+  mandolin and recorder. The other flavors are kept, so a later split is a
+  change to the table plus a migration for the people who chose the
+  instrument that moves. Details: `family/mandolin-app.md` and
+  `family/windlings-app.md`.
+
+## The migration is done (2026-11-22)
+
+Steps 0 to 5b are done. Step 4b (the `score_view` widget) and step 6
+(parts, staves, voices) were never needed by a second app, so they moved to
+`docs/plan.md` §7 with the other follow-ups and the decisions still open.
+What came of the whole migration is summarised in `docs/explore.md` §11.

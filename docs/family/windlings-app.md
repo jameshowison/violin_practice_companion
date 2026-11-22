@@ -1,5 +1,12 @@
 # Windlings: the recorder as a third app, by flavor
 
+> **Decided 2026-11-22: one app for now.** Stringlings, the app that ships,
+> offers every instrument: violin, viola, mandolin and recorder
+> (`instrumentsOffered` in `lib/services/instrument_setting.dart`). The
+> `mandolin` and `windlings` flavors stay, each a single instrument, so the
+> family can still be split into separate apps later by changing that table.
+> This work is merged to main; `next_gen` is no longer separate.
+
 Step W1 of the winds (approach.md §2.3, "First: recorder or flute"). A third
 flavor beside Stringlings and Mandolings ([`mandolin-app.md`](mandolin-app.md)),
 on `next_gen`, that runs and offers one instrument: the soprano (descant)
