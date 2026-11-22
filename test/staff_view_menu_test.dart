@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,6 +75,60 @@ void main() {
           expect(height, lessThanOrEqualTo(budget + 1e-6), reason: 'h=$h');
         } else {
           expect(r.scale, closeTo(tabletFloor, 1e-9), reason: 'h=$h');
+        }
+      }
+    });
+  });
+
+  group('solveSectionLayoutToFit, more than one section', () {
+    // Four 4-bar sections on an iPad's width: one line each fills the width
+    // at big notes, so the plans differ in how many lines each section takes.
+    String sections() => '<score-partwise><part id="P1">'
+        '${[
+          for (var i = 1; i <= 16; i++)
+            '<measure number="$i">'
+                '${i > 1 && i % 4 == 1 ? '<print new-system="yes"/>' : ''}'
+                '</measure>'
+        ].join()}'
+        '</part></score-partwise>';
+    final widths = List<double>.filled(16, 300);
+    const tabletSide = 820.0;
+    final floor = staffScaleForSize(StaffSize.small, tabletSide);
+
+    test('never draws smaller notes than the first plan that fits', () {
+      for (var h = 100.0; h <= 1200; h += 25) {
+        final r = solveSectionLayoutToFit(
+          musicXml: sections(),
+          naturalWidths: widths,
+          widthPx: 790,
+          viewportHeightPx: h,
+          systemHeightPx: 60,
+          minScale: floor,
+        );
+        // What the search used to return: the first floor, from the top,
+        // whose plan fits at its fill-the-width scale.
+        final ratio = math.pow(floor / staffScaleMax, 1 / 16);
+        double? old;
+        for (var i = 0; i < 16 && old == null; i++) {
+          final p = solveSectionLayout(
+            musicXml: sections(),
+            naturalWidths: widths,
+            widthPx: 790,
+            minScale: staffScaleMax * math.pow(ratio, i),
+          );
+          if (p.lines * 60 * p.scale / staffScaleProbe <=
+              h * staffAutoFillFraction) {
+            old = p.scale;
+          }
+        }
+        if (old != null) {
+          expect(r.scale, greaterThanOrEqualTo(old - 1e-9), reason: 'h=$h');
+        }
+        final atFloor = r.lines * 60 * floor / staffScaleProbe;
+        if (atFloor <= h * staffAutoFillFraction) {
+          expect(r.lines * 60 * r.scale / staffScaleProbe,
+              lessThanOrEqualTo(h * staffAutoFillFraction + 1e-6),
+              reason: 'h=$h');
         }
       }
     });

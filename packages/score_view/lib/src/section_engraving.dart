@@ -84,10 +84,11 @@ import 'system_breaks.dart';
 ///
 /// Searched rather than solved, because a section's line count moves in whole
 /// steps as the floor drops: the floor is tried from [maxScale] down to
-/// [minScale] in [steps] even ratios, and the first plan whose predicted height
-/// fits wins. If none does, the floor's plan (the fewest lines) is drawn at
-/// the biggest scale that fits, and below the floor it stays at the floor and
-/// the piece scrolls.
+/// [minScale] in [steps] even ratios, each plan drawn at the biggest scale
+/// that fits (spreading its notes by at most [sectionFitMaxSpread]), and the
+/// biggest notes win. If none fits, the floor's plan (the fewest lines) is
+/// drawn at the biggest scale that fits, and below the floor it stays at the
+/// floor and the piece scrolls.
 ///
 /// [systemHeightPx] is one system's on-screen height at [measuredAtScale], as
 /// [predictedHeightPx] takes it. Every try is a pure plan (no engrave).
@@ -153,36 +154,71 @@ import 'system_breaks.dart';
   }
   final budget = viewportHeightPx * staffAutoFillFraction;
   final ratio = math.pow(minScale / maxScale, 1 / steps);
+  // The biggest scale at which [lines] lines fit the budget.
+  double fitting(int lines) =>
+      budget * measuredAtScale / (lines * systemHeightPx);
   ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
-      double widestUnits, double? minLastJustification})? previous;
-  for (var i = 0; i < steps; i++) {
-    final plan = at(maxScale * math.pow(ratio, i));
-    final h = plan.lines * systemHeightPx * plan.scale / measuredAtScale;
-    if (h <= budget) return (fits: plan, bigger: previous);
+      double widestUnits, double? minLastJustification}) capped(
+    double floor,
+    double scale,
+  ) =>
+      solveSectionLayout(
+        musicXml: musicXml,
+        naturalWidths: naturalWidths,
+        widthPx: widthPx,
+        minScale: floor,
+        maxScale: scale,
+        sectionLabels: sectionLabels,
+      );
+
+  // Every floor's plan, each drawn at the smaller of its fill-the-width scale
+  // and the biggest that fits; the biggest notes win. Drawn below its fill
+  // scale a plan's notes spread out, so only by [sectionFitMaxSpread] at most.
+  // A plan that fits at its fill scale is a candidate as it is, so this never
+  // picks smaller notes than taking the first such plan (what it used to do);
+  // it can pick bigger ones, from a plan with more lines that is a little too
+  // tall at its fill scale (Fit drew smaller notes than Large, which also fit
+  // on the screen: 38pt and 43pt, Song of the Wind on dev-ipad).
+  ({String xml, double scale, int lines, int maxLines, Set<int> breaks,
+      double widestUnits, double? minLastJustification})? previous, bigger;
+  ({double floor, double scale})? best;
+  for (var i = 0; i <= steps; i++) {
+    final floor = i == steps ? minScale : maxScale * math.pow(ratio, i);
+    final plan = at(floor);
+    final scale = math.min(plan.scale, fitting(plan.lines));
+    if (scale >= minScale &&
+        plan.scale / scale <= sectionFitMaxSpread &&
+        (best == null || scale > best.scale + 1e-9)) {
+      best = (floor: floor, scale: scale);
+      bigger = previous;
+    }
     previous = plan;
   }
-  // Nothing fitted at the scale that fills the width. The floor's plan has
-  // the fewest lines there are, so draw it at the biggest scale whose height
-  // fits, never below the floor (then it scrolls) nor above its own
-  // fill-the-width scale. Returning it at that fill scale, as this did,
-  // spilled a piece of short sections over several screens on a wide iPad.
+  if (best != null) {
+    final plan = at(best.floor);
+    return (
+      fits: best.scale >= plan.scale ? plan : capped(best.floor, best.scale),
+      bigger: bigger,
+    );
+  }
+  // Nothing fits within the spread. The floor's plan has the fewest lines
+  // there are, so draw it at the biggest scale whose height fits, never below
+  // the floor (then it scrolls) nor above its own fill-the-width scale.
+  // Returning it at that fill scale spilled a piece of short sections over
+  // several screens on a wide iPad.
   final floorPlan = at(minScale);
-  final fitScale = budget *
-      measuredAtScale /
-      (floorPlan.lines * systemHeightPx);
+  final fitScale = fitting(floorPlan.lines);
   if (fitScale >= floorPlan.scale) return (fits: floorPlan, bigger: previous);
   return (
-    fits: solveSectionLayout(
-      musicXml: musicXml,
-      naturalWidths: naturalWidths,
-      widthPx: widthPx,
-      minScale: minScale,
-      maxScale: math.max(minScale, fitScale),
-      sectionLabels: sectionLabels,
-    ),
+    fits: capped(minScale, math.max(minScale, fitScale)),
     bigger: previous,
   );
 }
+
+/// How far below its fill-the-width scale Fit may draw a section plan to fit
+/// it on the screen: its notes then sit up to this much further apart than
+/// natural. About what the free flow's rounding allows.
+const double sectionFitMaxSpread = 1.25;
 
 /// Whether the section layout's LAST line should be stretched to the full
 /// width, so that its notes sit about as far apart as everyone else's.

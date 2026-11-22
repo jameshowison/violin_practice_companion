@@ -236,6 +236,7 @@ int measuresPerLineForSize({
       unitsPerMeasure: unitsPerMeasure,
       shortestSidePx: shortestSidePx,
       minScale: staffScaleForSize(size, shortestSidePx),
+      maxN: fixedSizeMeasuresPerLineMax,
     );
 
 // ── Note spacing: the size control's second lever ────────────────────────────
@@ -945,14 +946,24 @@ int maxMeasuresPerLineFor({
   required double unitsPerMeasure,
   required double shortestSidePx,
   double? minScale,
+  int maxN = measuresPerLineMax,
 }) {
   minScale ??= minStaffScaleFor(shortestSidePx);
   if (widthPx <= 0 || unitsPerMeasure <= 0 || minScale <= 0) {
     return measuresPerLineMax;
   }
   final n = widthPx * 100 / (unitsPerMeasure * staffFitSlack * minScale);
-  return n.floor().clamp(measuresPerLineMin, measuresPerLineMax);
+  return n.floor().clamp(measuresPerLineMin, maxN);
 }
+
+/// The bars-per-line ceiling for a FIXED size ([measuresPerLineForSize]),
+/// in place of [measuresPerLineMax]. A fixed size is a note height, so on a
+/// wide screen it packs more bars rather than drawing them bigger: capped at
+/// 8, Small and Medium both hit the cap on an 11-inch iPad and the scale
+/// solved from 8 bars drew Small's notes BIGGER than Medium's (41pt vs 37pt,
+/// Song of the Wind, 2026-11-21). High enough never to bind on a real
+/// screen; it only keeps a degenerate measurement from asking for thousands.
+const int fixedSizeMeasuresPerLineMax = 32;
 
 /// The default measures-per-line for a piece in a given viewport: **the whole
 /// piece on one screen if that can be had without shrinking the notes past the

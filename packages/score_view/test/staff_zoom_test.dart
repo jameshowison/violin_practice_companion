@@ -798,6 +798,24 @@ void main() {
       expect(n(StaffSize.large), 2);
     });
 
+    // An 11-inch iPad's score width with a narrow bar: Small and Medium
+    // both used to hit the 8-bar cap, and Small then drew bigger notes.
+    test('on a wide screen a bigger size never draws smaller notes', () {
+      const tablet = 820.0;
+      double scale(StaffSize size) => scaleFor(
+            widthPx: 790,
+            unitsPerMeasure: 180,
+            n: measuresPerLineForSize(
+              size: size,
+              widthPx: 790,
+              unitsPerMeasure: 180,
+              shortestSidePx: tablet,
+            ),
+          );
+      expect(scale(StaffSize.small), lessThan(scale(StaffSize.medium)));
+      expect(scale(StaffSize.medium), lessThan(scale(StaffSize.large)));
+    });
+
     test('the bar count it picks keeps the notes at least that size', () {
       for (final size in [StaffSize.small, StaffSize.medium, StaffSize.large]) {
         final count = measuresPerLineForSize(
