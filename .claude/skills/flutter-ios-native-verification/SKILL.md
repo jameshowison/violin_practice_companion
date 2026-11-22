@@ -134,12 +134,46 @@ pushes `routeChanged` on every switch. On the simulator, a debug extension
 that returns `getRoute` is a five-line addition. On the phone, read the sync
 trace instead.
 
-**Ground truth:** the real receiver (the Kitchen speaker) for a by-ear check.
-For a check that needs no ears, run `shairport-sync` (AirPlay 2 also needs
-`nqptp`) with the pipe backend (`-o pipe -- /tmp/airplay.pcm`) on a spare
-machine, and confirm non-silent bytes arrive. On this Mac, first turn off
-System Settings ▸ AirDrop & Handoff ▸ AirPlay Receiver, which holds the same
-port. Untested here as of 2026-11-22.
+**Ground truth:** the real receiver, Kitchen, by ear (or the person in the
+room). Software receivers were tried on 2026-11-22 and none worked: iOS 27
+refuses an AirPlay-1-only receiver (Homebrew's shairport-sync), AirPlay 2's
+nqptp is Linux-only, and the Mac's own AirPlay Receiver played nothing
+audible, then refused even YouTube. Don't spend a session on them again.
+
+**Hands: `ios/RunnerUITests/AirPlayHarnessTests.swift`** (a UI-test target,
+added 2026-11-22). It opens a piece, picks the receiver in the system route
+sheet, closes the sheets, sets Loop on a section, plays for MINUTES, and turns
+the media volume up after Play. The route sheet's rows are reachable through
+the app's own tree, as "<name>, volume high". Never query
+`com.apple.MediaRemoteUI`: that fails the test outright. Settings come in as
+`TEST_RUNNER_PIECE`, `_RECEIVER` (default Kitchen), `_SECTION`, `_MINUTES`,
+`_REPICK` (the phone's speaker first, then the receiver: a fresh
+connection), `_VOLUME_UP=0`, and `_SKIP_ROUTE` for a simulator smoke run.
+On the phone:
+
+```bash
+flutter build ios --release --config-only --dart-define=TUNER_RECORDING=true
+cd ios && xcodebuild build-for-testing -workspace Runner.xcworkspace \
+  -scheme stringlings -configuration Release-stringlings \
+  -destination "platform=iOS,name=JamzJamzJamzz" -only-testing:RunnerUITests \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=V8MB2893V6
+TEST_RUNNER_MINUTES=5 xcodebuild test-without-building … \
+  -only-testing:RunnerUITests/AirPlayHarnessTests/testLoopOnAirPlay
+```
+
+- `DEVELOPMENT_TEAM` on the command line because `RunnerTests` has no team.
+- This installs a release build over the top, like `device_install.sh`,
+  without killing anyone's `flutter run`.
+- First run on a device: Settings ▸ Developer ▸ **Enable UI Automation**,
+  phone unlocked, someone present to approve the passcode prompt. Otherwise
+  "Timed out while enabling automation mode".
+- The test runner can hang after a failure: put a time limit on it (macOS
+  has no `timeout`: background it and `kill` it after a few minutes).
+- **Check the phone's media volume first.** Jamz's was 0 (the trace's
+  `vol=`), and every run was silent. Before Play, the volume buttons set
+  the ringer.
+- Flutter keeps off-screen list rows in the tree with empty frames, so a
+  test must scroll until a row is on screen, not just until it `exists`.
 
 **Verified when:** the route is selected, the app reports an AirPlay
 `portType` with the receiver's `portName`, and the receiver gets audio. For

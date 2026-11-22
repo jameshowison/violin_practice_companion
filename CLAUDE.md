@@ -587,6 +587,18 @@ looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
    (`MediaTransport.speakerFailures`). Which step wins was unknown when this
    was written: read the trace's "item failed" lines the next time it happens.
 
+7. **AVPlayer can stop itself on AirPlay with no error at all.** A receiver
+   that refused or had dropped the connection (the Mac's own receiver, Jamz,
+   2026-11-22) gave 6 s of "waiting", 5 ms of "playing", then "paused" at
+   0 ms for good: no "failed to play to end", so nothing reacted and the
+   transport sat on "playing" with the cursor on beat 1. `pausedItself` in
+   `VideoTransportPlugin.swift` now treats 1.5 s of that, while Play is in
+   force, like `itemFailed` (fresh item, new AVPlayer, then the picker); the
+   retries then surfaced the real error (`-11800 <- -71830`). A seek clears a
+   give-up on both sides, or every Play after one stopped at once. The same
+   Mac session reproduced trap 6 on demand (the Mac cancelled the session,
+   the phone kept the route), and re-picking the speaker cured it.
+
 For anything audio-routing on a device, calibrate once and read the trace
 (`bash scripts/pull_sync_trace.sh "Hazel iPad"`): every volume, category, route and
 engine-configuration change, with the step it happened in. It is what found all
