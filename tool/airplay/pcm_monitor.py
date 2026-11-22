@@ -1,7 +1,7 @@
 """Ground truth for AirPlay tests: what audio actually reached the receiver.
 
     shairport-sync -o stdout | python3 -I pcm_monitor.py LOG     # record
-    python3 -I pcm_monitor.py --summarize LOG [--since HH:MM:SS]  # read back
+    python3 -I pcm_monitor.py --summarize LOG [--since HH:MM:SS] [--silent-db -45]
 
 Recording reads shairport-sync's stdout (S16LE stereo 44.1 kHz) and appends one
 line per 100 ms of audio: wall clock, seconds of audio so far, RMS in dBFS.
@@ -86,6 +86,8 @@ def summarize(path, since=None):
 if __name__ == '__main__':
     if sys.argv[1] == '--summarize':
         since = sys.argv[sys.argv.index('--since') + 1] if '--since' in sys.argv else None
+        if '--silent-db' in sys.argv:
+            SILENT_DB = float(sys.argv[sys.argv.index('--silent-db') + 1])
         summarize(sys.argv[2], since)
     else:
         record(sys.argv[1])

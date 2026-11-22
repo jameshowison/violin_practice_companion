@@ -166,6 +166,14 @@ private class VideoTransport: NSObject, FlutterTexture {
   /// worked; dev-iphone-se, 2026-11-18).
   private var pendingSeeks = 0
   private var stalledSince: CFTimeInterval?
+  /// When AVPlayer went to `paused` on its own while Play is in force; see
+  /// [pausedItself].
+  private var pausedSince: CFTimeInterval?
+  /// An audio interruption (a call, Siri) is in progress: AVPlayer was paused
+  /// by the system on purpose, so [pausedItself] leaves it alone.
+  private var interrupted = false
+  /// Not in [tokens]: those are per item, and cleared for each fresh one.
+  private var interruptionObserver: NSObjectProtocol?
   private var playAfterSeek = false
   /// How far [itemFailed] has got in this Play: 0 none, 1 retried on a fresh
   /// item, 2 rebuilt the player. A third failure gives up ([failed]).
@@ -220,9 +228,17 @@ private class VideoTransport: NSObject, FlutterTexture {
     setUpPlayer()
     player.replaceCurrentItem(with: item)
     observeItem(item)
+    interruptionObserver = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+    ) { [weak self] n in
+      let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+      self?.interrupted = raw == AVAudioSession.InterruptionType.began.rawValue
+    }
     heartbeat = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-      guard let self = self, self.player.timeControlStatus == .playing else {
-        self?.stalledSince = nil
+      guard let self = self else { return }
+      self.pausedItself()
+      guard self.player.timeControlStatus == .playing else {
+        self.stalledSince = nil
         return
       }
       self.unwedge()
@@ -306,6 +322,7 @@ private class VideoTransport: NSObject, FlutterTexture {
   func seekFresh(ms: Int, _ done: @escaping () -> Void) {
     guard let old = item else { return done() }
     trace("fresh item at \(ms)ms")
+    failed = false  // as in seek
     let fresh = AVPlayerItem(asset: old.asset)
     fresh.audioTimePitchAlgorithm = .timeDomain
     fresh.forwardPlaybackEndTime = old.forwardPlaybackEndTime
@@ -449,6 +466,33 @@ private class VideoTransport: NSObject, FlutterTexture {
     seekFresh(ms: ms) {}
   }
 
+  /// AVPlayer went to `paused` by itself while Play is in force, with no
+  /// error and no "failed to play to end" — so nothing else noticed, and
+  /// Dart went on showing a playing transport with its cursor on beat 1.
+  /// Seen with the Mac's own AirPlay receiver (Jamz, 2026-11-22, the
+  /// harness in ios/RunnerUITests): 6 s of "waiting", then "playing" for
+  /// 5 ms, then "paused" at 0 ms for good. Treated like [itemFailed] after
+  /// 1.5 s, since it is the same speaker not answering, minus the error.
+  /// Not during an interruption (the system paused it on purpose), a seek,
+  /// or at the item's end (`actionAtItemEnd` is .pause).
+  private func pausedItself() {
+    guard playing, !interrupted, pendingSeeks == 0, !completed,
+      player.timeControlStatus == .paused
+    else {
+      pausedSince = nil
+      return
+    }
+    let now = CACurrentMediaTime()
+    guard let since = pausedSince else {
+      pausedSince = now
+      return
+    }
+    guard now - since > 1.5 else { return }
+    pausedSince = nil
+    trace("paused by itself while playing")
+    recover()
+  }
+
   /// The item gave up mid-play ("failed to play to end time"). Seen on Jamz +
   /// Kitchen (2026-11-20) on the first Plays after ~2 h idle, for a recording
   /// and the rendered score alike: the item failed ~50 ms after starting, with
@@ -474,6 +518,12 @@ private class VideoTransport: NSObject, FlutterTexture {
       what += " log: \(ev.errorDomain) \(ev.errorStatusCode) \(ev.errorComment ?? "-")"
     }
     trace("item failed: \(what)")
+    recover()
+  }
+
+  /// The recovery ladder for a Play the speaker isn't answering:
+  /// [itemFailed] and [pausedItself].
+  private func recover() {
     guard playing else { return }
     let at = player.currentTime()
     let ms = at.isNumeric ? max(0, Int((at.seconds * 1000).rounded())) : 0
@@ -526,6 +576,7 @@ private class VideoTransport: NSObject, FlutterTexture {
 
   func seek(ms: Int, _ done: @escaping () -> Void) {
     completed = false
+    failed = false  // a seek starts the next attempt (MediaTransport.seek)
     pendingSeeks += 1
     trace("seek to \(ms)ms")
     let target = CMTime(value: CMTimeValue(ms), timescale: 1000)
@@ -553,6 +604,7 @@ private class VideoTransport: NSObject, FlutterTexture {
 
   func dispose() {
     heartbeat?.invalidate()
+    if let o = interruptionObserver { NotificationCenter.default.removeObserver(o) }
     displayLink?.invalidate()
     displayLink = nil
     observations.forEach { $0.invalidate() }

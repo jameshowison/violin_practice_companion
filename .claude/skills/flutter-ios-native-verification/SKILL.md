@@ -146,7 +146,21 @@ dBFS) plus GAP/RESUME when the stream stops. Found on 2026-11-22:
   Desktop can't pass mDNS or PTP to the LAN. A receiver on another LAN host
   was rejected (it would see too much of the home network), so the receiver
   is the Mac's own (System Settings ▸ AirDrop & Handoff ▸ AirPlay Receiver,
-  Current User), recorded by a Core Audio process tap.
+  Current User).
+- **No tap reaches the Mac's receiver.** It renders in `AirPlayXPCHelper`
+  (root), which isn't in a user's Core Audio process list; even a global tap
+  recorded silence. So the ear is the Mac's microphone:
+  `tool/airplay/tap_monitor.swift` (`swiftc -O … -o /tmp/vpc_airplay/tap_monitor`,
+  then `tap_monitor mic /tmp/vpc_airplay/mic.log`; summarize with
+  `pcm_monitor.py --summarize … --silent-db -45`, room noise is ~-55 dB).
+  It heard the simulator and Jamz's own speaker clearly.
+- **The Mac's receiver was too unreliable to test against** (2026-11-22): it
+  took streams but played nothing audible, then dropped the connection and
+  refused even YouTube until restarted. Use the Kitchen speaker, with the
+  mic as the ear if it's within earshot.
+- **Check the phone's media volume first.** Jamz's was 0 (the trace's
+  `vol=`), so every run was silent. Before Play the volume buttons set the
+  ringer, so the test presses them after Play.
 
 **Hands: `ios/RunnerUITests/AirPlayHarnessTests.swift`** (a UI-test target,
 added 2026-11-22) opens a piece, picks the receiver in the system route sheet

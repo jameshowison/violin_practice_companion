@@ -13,6 +13,9 @@ import XCTest
 ///   SECTION   section chip to loop, or "All" (default "A")
 ///   MINUTES   how long testLoopOnAirPlay plays (default 5)
 ///   SKIP_ROUTE  set to skip picking the receiver (a simulator smoke run)
+///   REPICK    set to pick the phone's speaker, then the receiver, even when
+///             the receiver is already the route (a fresh connection)
+///   VOLUME_UP "0" to leave the volume alone (default: 16 presses up)
 ///
 /// See `scripts/airplay_harness.sh`, which builds, runs and collects all three.
 final class AirPlayHarnessTests: XCTestCase {
@@ -79,13 +82,17 @@ final class AirPlayHarnessTests: XCTestCase {
   /// The system route sheet is drawn out of process; look for the receiver's
   /// row in every place it might be listed.
   private func receiverRow(timeout: TimeInterval) -> XCUIElement? {
+    routeRow(receiver, timeout: timeout)
+  }
+
+  private func routeRow(_ name: String, timeout: TimeInterval) -> XCUIElement? {
     let hosts = [
       app,
       // Not com.apple.MediaRemoteUI: querying it fails the test outright
       // (kAXErrorServerNotFound), whatever its .state says.
       XCUIApplication(bundleIdentifier: "com.apple.springboard"),
     ]
-    let match = NSPredicate(format: "label CONTAINS %@", receiver)
+    let match = NSPredicate(format: "label CONTAINS %@", name)
     let deadline = Date().addingTimeInterval(timeout)
     repeat {
       for h in hosts {
@@ -101,7 +108,8 @@ final class AirPlayHarnessTests: XCTestCase {
 
   private func pickReceiver() {
     if env["SKIP_ROUTE"] != nil { return }  // simulator smoke run: no AirPlay there
-    if outputButton.label.contains(receiver) {
+    let repick = env["REPICK"] != nil
+    if outputButton.label.contains(receiver) && !repick {
       log("already on \(receiver)")
       return
     }
@@ -109,19 +117,38 @@ final class AirPlayHarnessTests: XCTestCase {
     let change = app.buttons.matching(beginning("Change")).firstMatch
     XCTAssertTrue(change.waitForExistence(timeout: 5))
     change.tap()
+    // REPICK: away to the phone's own speaker and back, for a fresh
+    // connection. The cure for a stale speaker (CLAUDE.md, "Audio on iOS"
+    // 6), reproduced with the Mac's receiver on 2026-11-22: the Mac
+    // cancelled the session, the phone kept the route, every Play failed.
+    if repick, let phone = routeRow("iPhone", timeout: 10) {
+      log("re-pick: tapping '\(phone.label)' first")
+      phone.tap()
+      sleep(3)
+      // Picking the phone's own speaker closes the system sheet: open it again.
+      if routeRow(receiver, timeout: 3) == nil {
+        closeSheets()
+        if outputButton.waitForExistence(timeout: 10) { outputButton.tap() }
+        let again = app.buttons.matching(beginning("Change")).firstMatch
+        if again.waitForExistence(timeout: 5) { again.tap() }
+      }
+    }
     guard let row = receiverRow(timeout: 20) else {
       XCTFail("receiver \(receiver) not in the route sheet (trees printed above)")
       return
     }
     log("tapping route row '\(row.label)'")
     row.tap()
-    log("app sees receiver name: \(app.staticTexts[receiver].waitForExistence(timeout: 20))")
+    // The system sheet stays up after a row is picked, hiding the app's
+    // tree; let the route settle, then tap above the sheet to close it.
+    sleep(4)
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)).tap()
+    log("app sees receiver name: \(app.staticTexts[receiver].waitForExistence(timeout: 15))")
     // App belief: the sheet's title is the route's port name.
     let ok = app.staticTexts[receiver].exists
     // Close the system sheet if it's still up, then the app's own sheet.
     sleep(2)
-    if app.buttons["Dismiss"].exists { app.buttons["Dismiss"].tap() }
-    sleep(1)
+    closeSheets()
     // The button rebuilds on a route change (hidden while the route is null).
     if outputButton.waitForExistence(timeout: 15) {
       log("route now: \(outputButton.label)")
@@ -131,7 +158,43 @@ final class AirPlayHarnessTests: XCTestCase {
     XCTAssertTrue(ok || outputButton.label.contains(receiver), "the app never reported \(receiver) as its route")
   }
 
+  /// Media volume up, once playing: with nothing playing the volume buttons
+  /// set the RINGER instead (seen on Jamz, 2026-11-22). Jamz's media volume
+  /// was 0 (the sync trace's `vol=0.000`), so every run was silent.
+  private func turnVolumeUp() {
+    guard env["VOLUME_UP"] != "0" else { return }
+    #if !targetEnvironment(simulator)  // no volume buttons there
+    for _ in 0..<16 { XCUIDevice.shared.press(.volumeUp); usleep(150_000) }
+    log("volume up x16")
+    #endif
+  }
+
+  /// Closes the app's bottom sheet (and the system route sheet, if it is
+  /// still up): tap the scrim above it, else flick it down. Tapping the
+  /// sheet's drag handle ("Dismiss") does nothing.
+  private func closeSheets() {
+    for _ in 0..<4 {
+      let scrim = app.staticTexts["Scrim"]
+      guard scrim.exists || app.buttons["Dismiss"].exists else { return }
+      if scrim.exists && scrim.isHittable {
+        scrim.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+      } else {
+        let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+        top.press(forDuration: 0.05,
+          thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+      }
+      sleep(1)
+    }
+  }
+
   private func setLoop() {
+    // The transport can be left hidden (a stray flick, remembered across
+    // launches); then its controls sit below the screen and can't be tapped.
+    if app.buttons["Show controls"].exists {
+      app.buttons["Show controls"].tap()
+      sleep(1)
+      log("showed the hidden controls")
+    }
     // The mode is a popup (compact) or a segmented button (wide).
     let loopSeg = app.buttons["Loop"]
     if loopSeg.exists {
@@ -173,6 +236,8 @@ final class AirPlayHarnessTests: XCTestCase {
     XCTAssertTrue(playButton.waitForExistence(timeout: 5))
     playButton.tap()
     log("PLAY")
+    sleep(1)
+    turnVolumeUp()
     let end = Date().addingTimeInterval(minutes * 60)
     var lastState = ""
     while Date() < end {

@@ -67,7 +67,7 @@ abstract class MediaTransport {
   bool get completed;
 
   /// Gave up on this Play: the sound couldn't be got to the speaker, even
-  /// after retrying (see [speakerFailures]). Cleared by the next [play].
+  /// after retrying (see [speakerFailures]). Cleared by the next seek or [play].
   bool get failed;
 
   /// Fires whenever [playing] or [completed] may have changed.
@@ -298,6 +298,11 @@ class NativeTransport implements MediaTransport {
     // Read as there at once, as just_audio's position is, rather than where
     // the player was until the native seek reports back.
     _completed = false;
+    // A seek starts the next attempt: a give-up left over from the last one
+    // must not stop it before its play() — a count-in's wait, or the seek
+    // reporting back, otherwise found it still set and stopped every Play
+    // after a give-up (Jamz, 2026-11-22). The native side clears it too.
+    _failed = false;
     _setSnap(position.inMicroseconds, 0);
     await _seekBy('seek', position);
   }
@@ -305,6 +310,7 @@ class NativeTransport implements MediaTransport {
   @override
   Future<void> seekFresh(Duration position) async {
     _completed = false;
+    _failed = false; // as in seek
     _setSnap(position.inMicroseconds, 0);
     await _seekBy('seekFresh', position);
   }
