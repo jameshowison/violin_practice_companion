@@ -2,7 +2,7 @@
 """Cut a SoundFont 2 bank down to the presets the app actually plays.
 
 The app plays the violin, the viola and the recorder (bank 0, programs 40,
-41 and 73, from
+41 and 73) and the mandolin (bank 16, program 25, a GS variation), from
 assets/engine/lookup_tables/midi_patch.json) and two notes of the GM drum kit
 (bank 128, program 0): the high and low woodblocks (76, 77) for the rendered
 score's count-in (score_renderer.dart). GeneralUser GS is ~31 MB for all
@@ -12,7 +12,7 @@ allows modifying it (assets/engine/licenses/generaluser_gs.txt).
 
     python3 scripts/subset_soundfont.py ../GeneralUser-GS/GeneralUser-GS.sf2 \
         assets/engine/soundfonts/generaluser_gs.sf2 \
-        --keep 0:40 --keep 0:41 --keep 0:73 --keep 128:0:76,77
+        --keep 0:40 --keep 0:41 --keep 0:73 --keep 16:25 --keep 128:0:76,77
 
 --keep BANK:PROGRAM keeps a whole preset; BANK:PROGRAM:KEY[,KEY...] keeps only
 the zones whose key range covers one of those keys (plus global zones). If you

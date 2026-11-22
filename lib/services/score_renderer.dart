@@ -38,7 +38,8 @@ class ScoreRender {
 /// MeltySynth port: no platform code, so it runs the same on iOS and Android,
 /// in an isolate.
 ///
-/// Sounds as the live synth it replaced did: the violin [program] on channel 0 at
+/// Sounds as the live synth it replaced did: the violin [program] (in [bank])
+/// on channel 0 at
 /// [velocity], dry (no reverb or chorus). The count is the GM drum kit's
 /// woodblocks on channel 9: the high block (76) on each bar's first beat, the
 /// low one (77) on the rest.
@@ -46,12 +47,16 @@ class ScoreRenderer {
   ScoreRenderer(
     this.soundFont, {
     this.program = 40,
+    this.bank = 0,
     this.velocity = 90,
     this.sampleRate = 44100,
   });
 
   final ByteData soundFont;
   final int program;
+
+  /// The preset's bank: 0 for General MIDI, 16 for GeneralUser GS's mandolin.
+  final int bank;
   final int velocity;
   final int sampleRate;
 
@@ -85,6 +90,9 @@ class ScoreRenderer {
         enableReverbAndChorus: false,
       ),
     );
+    // Bank select (CC 0) before the program change, which reads it.
+    synth.processMidiMessage(
+        channel: _violinChannel, command: 0xB0, data1: 0, data2: bank);
     synth.processMidiMessage(
         channel: _violinChannel, command: 0xC0, data1: program, data2: 0);
 

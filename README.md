@@ -675,17 +675,19 @@ and `docs/plan.md` for the remaining roadmap.
 
 **The soundfont** is not committed. Download GeneralUser GS (S. Christian
 Collins, schristiancollins.com) and cut it down to the sounds the app plays:
-the violin (40), the viola (41), the recorder (73, for the Windlings flavor)
-and the rendered score's count-in woodblocks (76, 77) (31 MB → 2.5 MB):
+the violin (40), the viola (41), the recorder (73), the mandolin (bank 16,
+program 25: a GeneralUser GS variation, since GM has none) and the rendered
+score's count-in woodblocks (76, 77) (31 MB → 2.9 MB):
 
 ```bash
 python3 scripts/subset_soundfont.py path/to/GeneralUser-GS.sf2 \
     assets/engine/soundfonts/generaluser_gs.sf2 \
-    --keep 0:40 --keep 0:41 --keep 0:73 --keep 128:0:76,77
+    --keep 0:40 --keep 0:41 --keep 0:73 --keep 16:25 --keep 128:0:76,77
 ```
 
 A bank cut before the woodblocks were added counts in silently, and one cut
-before the viola (or the recorder) plays that part silently;
+before the viola (or the recorder) plays that part silently, and one cut
+before the mandolin plays it as a steel guitar;
 `test/score_renderer_test.dart` fails on each.
 
 If the app starts playing another instrument, add its `--keep` and rerun.

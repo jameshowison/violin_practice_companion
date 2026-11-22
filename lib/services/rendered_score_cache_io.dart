@@ -50,8 +50,9 @@ class RenderedScoreFile {
 class RenderedScoreCache {
   RenderedScoreCache({this.maxFiles = 12, this.instrument = 'violin'});
 
-  /// The instrument profile whose sound plays the score: its General MIDI
-  /// program in `midi_patch.json`, else the violin's.
+  /// The instrument profile whose sound plays the score: its preset in
+  /// `midi_patch.json` (a General MIDI program, or a bank and program), else
+  /// the violin's.
   final String instrument;
 
   /// About four pieces' three renders, ~2 MB for a one-minute piece.
@@ -87,9 +88,15 @@ class RenderedScoreCache {
                 .loadString('assets/engine/lookup_tables/midi_patch.json'))
             as Map<String, dynamic>;
         final sf = await rootBundle.load(patch['soundfontAsset'] as String);
+        final (bank, program) = switch (patch[instrument] ?? patch['violin']) {
+          int p => (0, p),
+          {'bank': int b, 'program': int p} => (b, p),
+          final e => throw FormatException('midi_patch.json: $instrument: $e'),
+        };
         return _Sound(
           soundFont: sf,
-          program: (patch[instrument] ?? patch['violin']) as int,
+          bank: bank,
+          program: program,
           velocity: patch['noteVelocity'] as int? ?? 90,
         );
       }();
@@ -139,7 +146,8 @@ class RenderedScoreCache {
         debugPrint('[rendered] AAC encode failed, keeping the WAV: $e');
       }
       final line = '[rendered] ${rendered.seconds.toStringAsFixed(1)}s at '
-          '$bpm bpm: render ${renderMs}ms, encode ${sw.elapsedMilliseconds}ms '
+          '$bpm bpm, $instrument (bank ${sound.bank} program ${sound.program}): '
+          'render ${renderMs}ms, encode ${sw.elapsedMilliseconds}ms '
           '-> ${audio.path.split('/').last} '
           '(${(audio.lengthSync() / 1024).round()} KB)';
       debugPrint(line);
@@ -232,6 +240,7 @@ class RenderedScoreCache {
       ..addInt(rendererVersion)
       ..addInt(introBars)
       ..addInt(bpm)
+      ..addInt(sound.bank)
       ..addInt(sound.program)
       ..addInt(sound.velocity)
       ..addInt(sound.soundFont.lengthInBytes);
@@ -263,7 +272,9 @@ Future<({Uint8List wav, double preroll, List<List<double>> anchors, double secon
     _renderInIsolate(_Sound sound, ParsedPiece piece, MidiData data, int bpm) =>
         Isolate.run(() {
           final r = ScoreRenderer(sound.soundFont,
-                  program: sound.program, velocity: sound.velocity)
+                  bank: sound.bank,
+                  program: sound.program,
+                  velocity: sound.velocity)
               .render(piece, data, bpm,
                   introBars: RenderedScoreCache.introBars);
           return (
@@ -278,10 +289,14 @@ Future<({Uint8List wav, double preroll, List<List<double>> anchors, double secon
 
 class _Sound {
   final ByteData soundFont;
+  final int bank;
   final int program;
   final int velocity;
   const _Sound(
-      {required this.soundFont, required this.program, required this.velocity});
+      {required this.soundFont,
+      this.bank = 0,
+      required this.program,
+      required this.velocity});
 }
 
 /// FNV-1a over 64 bits, as two 32-bit halves so it is exact on every
@@ -313,12 +328,16 @@ class _Fnv64 {
 /// For tests: a key with a stand-in soundfont of [soundFontBytes] bytes.
 @visibleForTesting
 String renderedScoreKey(ParsedPiece piece, MidiData data, int bpm,
-        {int program = 40, int velocity = 90, int soundFontBytes = 0}) =>
+        {int bank = 0,
+        int program = 40,
+        int velocity = 90,
+        int soundFontBytes = 0}) =>
     RenderedScoreCache._keyFor(
         piece,
         data,
         bpm,
         _Sound(
             soundFont: ByteData(soundFontBytes),
+            bank: bank,
             program: program,
             velocity: velocity));
