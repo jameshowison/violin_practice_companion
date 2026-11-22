@@ -1,9 +1,8 @@
 import 'package:flutter/painting.dart';
 
 import '../services/chord_analysis.dart';
-import 'engraved_measure_map.dart';
+import 'package:score_view/score_view.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'section.dart';
 
 /// One color per **scale degree**, fixed across every piece — so the tonic looks
 /// the same in every tune and the color itself becomes a piece of harmonic

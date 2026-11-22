@@ -20,9 +20,8 @@ import 'dart:io';
 import 'dart:ui' show Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/section.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:score_view/score_view.dart';
-import 'package:violin_practice_companion/services/system_break_injector.dart';
 
 import 'support/bundled_scores.dart';
 

@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/models/section_palette.dart';
-import 'package:violin_practice_companion/models/engraved_measure_map.dart';
+import 'package:score_view/score_view.dart';
 
 NoteEvent _n() => const NoteEvent(
       pitch: 'A4',

@@ -1,6 +1,5 @@
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
-import '../models/section.dart';
 
 /// A contiguous chord group. [start] is the primary's index; [end] is
 /// EXCLUSIVE. A note carrying no members is `(start: i, end: i + 1)`.

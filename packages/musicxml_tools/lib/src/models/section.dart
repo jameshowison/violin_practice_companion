@@ -1,4 +1,4 @@
-import 'package:musicxml_tools/musicxml_tools.dart';
+import 'parsed_piece.dart';
 
 /// One section START marker, in document order within a piece. A section runs
 /// from its marker until the next marker (or the end of the piece) — so the

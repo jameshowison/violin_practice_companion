@@ -2,12 +2,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'support/restricted_fixtures.dart';
-import 'package:violin_practice_companion/models/engraved_measure_map.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
 import 'package:score_view/score_view.dart';
-import 'package:violin_practice_companion/services/system_break_injector.dart';
 
 /// Section-aware staff layout, end to end on Along the Road to Gundagai (2/4,
 /// a one-beat opening pickup, four 8-bar strains each entered on a one-beat

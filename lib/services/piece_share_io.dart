@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/piece.dart';
 import '../models/piece_media.dart';
-import '../models/section.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'instrument_layer_store.dart';
 import 'piece_media_store.dart';
 import 'piece_repository.dart';

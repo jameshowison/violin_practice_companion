@@ -5,7 +5,7 @@ import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/models/string_label_style.dart';
 import 'package:violin_practice_companion/services/fingering_annotation_builder.dart';
-import 'package:violin_practice_companion/models/engraved_measure_map.dart';
+import 'package:score_view/score_view.dart';
 
 NoteEvent _n(String? string, String? finger,
         {bool rest = false, bool chord = false, int midi = 69}) =>

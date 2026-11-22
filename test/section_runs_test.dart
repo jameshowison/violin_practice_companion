@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/models/piece_layout.dart';
-import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/midi_generator.dart';
 import 'package:violin_practice_companion/services/providers.dart';
 

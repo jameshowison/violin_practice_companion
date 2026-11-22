@@ -15,6 +15,9 @@ resolution: workspace  # resolved with the app; see the root pubspec.yaml
 dependencies:
   flutter:
     sdk: flutter
+  # A workspace sibling: Section and the measure model come from it.
+  musicxml_tools:
+    path: ../musicxml_tools
   path_provider: ^2.1.5
   # Its xml ^6.5.0 is overridden to xml 7 at the workspace root.
   verovio_flutter: ^0.3.1

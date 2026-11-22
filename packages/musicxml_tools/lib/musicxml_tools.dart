@@ -7,6 +7,7 @@ export 'src/models/key_signature.dart';
 export 'src/models/note_event.dart';
 export 'src/models/parsed_piece.dart';
 export 'src/models/pickup.dart';
+export 'src/models/section.dart';
 export 'src/models/transpose.dart';
 export 'src/services/abc_exporter.dart';
 export 'src/services/bar_rest_repair.dart';

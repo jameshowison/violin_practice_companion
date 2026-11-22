@@ -3,11 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'support/restricted_fixtures.dart';
-import 'package:violin_practice_companion/models/engraved_measure_map.dart';
+import 'package:score_view/score_view.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'package:violin_practice_companion/models/section.dart';
 import 'package:violin_practice_companion/services/section_detector.dart';
-import 'package:violin_practice_companion/services/system_break_injector.dart';
 
 /// Devil's Dream, `e2 |: … A2 e2 :| |: ceAe …`: in a section layout, B's
 /// line opens on bar 9's `e2`, so A's repeat moves to include its pickup.

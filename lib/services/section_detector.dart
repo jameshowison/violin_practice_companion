@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:musicxml_tools/musicxml_tools.dart';
-import '../models/engraved_measure_map.dart';
-import '../models/section.dart';
+import 'package:score_view/score_view.dart';
 
 /// Detects a tune's sectional form (AABB, ABAA, …) from its parsed measures and
 /// returns section START markers (`Section` list). Restated strains reuse the

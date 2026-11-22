@@ -8,7 +8,6 @@ import 'players.dart';
 import 'instrument_view.dart';
 import 'package:score_sync/score_sync.dart';
 import '../models/tempo_presets.dart';
-import '../models/engraved_measure_map.dart';
 import '../models/fingering_density.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_annotation.dart';
@@ -22,7 +21,6 @@ import '../models/piece_media.dart';
 // (renameCollection, reorderInCollection, setHidden, forgetPiece), where the
 // method would otherwise shadow it.
 import '../models/piece_library.dart' as plib;
-import '../models/section.dart';
 import '../models/section_run.dart';
 import '../models/section_run_groups.dart';
 import '../models/string_label_style.dart';
@@ -55,7 +53,6 @@ import 'piece_media_store.dart';
 import 'playback_service_base.dart';
 import 'package:score_view/score_view.dart';
 export 'package:score_view/score_view.dart' show staffSpacingDefault, staffSpacingMax, staffSpacingMin;
-import 'system_break_injector.dart';
 import 'launch_timing.dart';
 
 // ── Singletons ────────────────────────────────────────────────────────────────

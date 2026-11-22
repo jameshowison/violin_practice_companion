@@ -1,5 +1,4 @@
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'section.dart';
 
 /// Where a model measure is cut in two for engraving, before its [note]-th
 /// note (positional, rests and chord members counted — the same index as

@@ -1,4 +1,4 @@
-import 'section.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 
 class Piece {
   final String id;

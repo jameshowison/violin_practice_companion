@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../models/instrument_profile.dart';
 import '../models/piece.dart';
 import '../models/piece_catalog.dart';
-import '../models/section.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import 'launch_timing.dart';
 import 'instrument_layer_store.dart';

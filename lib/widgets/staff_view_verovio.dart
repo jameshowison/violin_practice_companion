@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 
 import '../models/chord_palette.dart';
-import '../models/engraved_measure_map.dart';
 import '../models/section_palette.dart';
 import '../models/violin_string_palette.dart';
 import '../services/fingering_annotation_builder.dart';
@@ -16,7 +15,6 @@ import '../services/midi_generator.dart';
 import '../services/playback_service_base.dart' show PlaybackState;
 import '../services/providers.dart';
 import 'package:score_view/score_view.dart';
-import '../services/system_break_injector.dart';
 import 'chord_swatch.dart';
 import 'measure_drag_select.dart';
 

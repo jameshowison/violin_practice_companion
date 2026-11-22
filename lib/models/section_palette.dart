@@ -1,7 +1,6 @@
 import 'package:flutter/painting.dart';
-import 'engraved_measure_map.dart';
+import 'package:score_view/score_view.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'section.dart';
 
 /// One low-saturation color per section, the shared visual identity across the
 /// staff wash, the jianpu/fingering section bands, and the minimap emblems.

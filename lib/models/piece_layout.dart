@@ -1,6 +1,5 @@
 import 'package:xml/xml.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
-import 'section.dart';
 import 'section_run.dart';
 
 /// Returns the number of measures per row appropriate for a given screen width.

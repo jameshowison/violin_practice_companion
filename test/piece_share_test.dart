@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violin_practice_companion/models/piece.dart';
 import 'package:violin_practice_companion/models/piece_media.dart';
-import 'package:violin_practice_companion/models/section.dart';
+import 'package:musicxml_tools/musicxml_tools.dart';
 import 'package:violin_practice_companion/services/piece_media_store.dart';
 import 'package:violin_practice_companion/services/piece_repository.dart';
 import 'package:violin_practice_companion/services/piece_share_bundle.dart';

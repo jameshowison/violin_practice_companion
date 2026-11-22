@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicxml_tools/musicxml_tools.dart';
-import '../models/section.dart';
 import 'chord_editor.dart';
 import 'fingering_mapper.dart';
 import 'instrument_layer_store.dart';

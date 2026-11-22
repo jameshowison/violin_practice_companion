@@ -1,5 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:violin_practice_companion/models/section.dart';
+import 'package:test/test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 
 /// Four bars: 1 carries the attributes, 2 opens a repeated strain that 3 closes

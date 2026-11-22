@@ -8,7 +8,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'package:musicxml_tools/musicxml_tools.dart';
-import '../models/section.dart';
 import '../widgets/staff_view_verovio.dart';
 import 'package:score_view/score_view.dart';
 import 'staff_overlays.dart';
