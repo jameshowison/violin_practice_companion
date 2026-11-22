@@ -222,8 +222,8 @@ commits: a snapshot, a seam, a move.
   - The `staffSpacing*` constants live in staff_zoom; `providers.dart`
     re-exports them.
 - **What stayed in the app:**
-  - `system_break_injector.dart`, which needs `Section`, `BarSplit` and
-    `MovedRepeat`.
+  - `system_break_injector.dart`, which needed `Section`, `BarSplit` and
+    `MovedRepeat`. Step 4a.4 moved it, below.
   - `verovio_bbox_test` and `verovio_svg_shim_test`. Their SVG fixtures are
     allowed only under `test/fixtures/` (`repo_content_policy_test`), and
     the guard was not widened. To move them, decide on that guard first.
@@ -233,6 +233,26 @@ commits: a snapshot, a seam, a move.
   Lightly Row wrote the cache with the new stamp, and a reopen after a hot
   restart was a disk hit. Android was not run; this is a pure move of Dart
   code.
+
+## How step 4a.4 came out
+
+One commit, a move: the three files were pure Dart, so there was no seam.
+
+- **What moved:**
+  - `section.dart` (`Section`, `resolveSectionRanges`,
+    `sectionLabelByMeasure`, `sectionsAfterMeasureDelete`) went to
+    musicxml_tools. It is score structure.
+  - `engraved_measure_map.dart` (`BarSplit`, `MovedRepeat`,
+    `EngravedMeasureMap`) and `system_break_injector.dart` went to
+    score_view.
+- **score_view now depends on musicxml_tools,** as a `path:` dependency on
+  its workspace sibling. It is the first member to depend on another.
+- **Tests moved:** `section_test` and `measure_delete_test` to
+  musicxml_tools (on `package:test`), `system_break_injector_test` to
+  score_view. The others that use these files also need app code or
+  fixtures under `test/fixtures/`, so they stayed.
+- **The snapshots were unchanged.** `flutter analyze` went from 52 issues
+  to 51.
 
 ## How step 5a came out
 
