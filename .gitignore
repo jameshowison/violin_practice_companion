@@ -81,3 +81,8 @@ lyrics_eval/
 
 # Speaker-calibration trace copied off a device (scripts/pull_sync_trace.sh)
 sync_cal_trace.txt
+
+# Upstream package skills (dart run skills@ get) — read in place by the
+# .claude/skills/marionette shim, never vendored
+.claude/skills/marionette-flutter-*/
+.config/dart_skills/

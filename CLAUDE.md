@@ -233,95 +233,26 @@ never in the package. README "OMR" has the release procedure.
 
 ## Marionette MCP — Live UI Inspection
 
-Marionette lets agents interact with the running simulator (screenshots, taps, text input, scroll) without touching the physical device.
+Marionette lets agents drive the running app on a simulator or emulator
+(screenshots, taps, text input, scroll, debug extensions). **Load the
+`marionette` skill** before using it: a shim that reads LeanCode's upstream
+skill out of the pinned `marionette_flutter` package, then this project's
+overrides (connecting through `dev_run.sh`, logs from `flutter_run.log`,
+burst capture of short-lived UI, coordinates, troubleshooting). Upstream is
+never vendored; re-sync steps are in the shim.
 
-Marionette screenshots consume large token space. Wherever possible launch these in sub-agents to get the needed insights rather than launching in the main session.
-
-**MCP server:** registered in `.claude.json` as `marionette`. The `marionette_mcp` binary is at `~/.pub-cache/bin/marionette_mcp`. The Flutter binding is initialised in `lib/main.dart` via `MarionetteBinding.ensureInitialized()` (debug mode only).
-
-**Connect at the start of every session:**
-```
-1. Get the current VM Service URL:
-   grep "VM Service" flutter_run.log | tail -1
-
-2. Connect (the URL changes on every cold start):
-   mcp__marionette__connect(uri: "ws://127.0.0.1:<PORT>/<TOKEN>=/ws")
-```
-
-The connection is lost on cold restarts (pubspec changes, new assets). Hot reloads and hot restarts keep the same URL.
-
-**Common operations:**
-```
-mcp__marionette__take_screenshots()          # see current UI state
-mcp__marionette__get_interactive_elements()  # list tappable widgets
-mcp__marionette__tap(text: "Lightly Row")    # tap by visible text
-mcp__marionette__tap(coordinates: {x, y})   # tap by screen coords
-mcp__marionette__get_logs()                  # app stdout/flutter: logs
-mcp__marionette__hot_reload()                # trigger reload via MCP
-```
-
-**The staff is drawn in Flutter's own pipeline**, so Marionette screenshots capture
-the notation: Verovio engraves, `jovial_svg` draws the SVG (not `flutter_svg`, which
-rendered Verovio's SVG blank), and native overlays draw the cursor and highlights.
-See `lib/widgets/staff_view_verovio.dart`. (The old OSMD WebView renderer, which
-screenshots showed blank, was removed on 2026-11-17 along with the macOS and web
-targets.)
-
-**Capturing short-lived UI — arm the screenshots BEFORE the tap.**
-
-Anything transient (the playback count-in, the cursor on a fast note, autoscroll, a
-snackbar) can be over before you can look at it: the gap between two agent tool calls is
-seconds, and a 3-beat count-in at 115 bpm lasts 1.6. Tap-then-screenshot samples an
-arbitrary moment several seconds late — it will *look* like the feature never fired.
-
-Launch a detached burst first, then do the interaction. Each `simctl io screenshot` takes
-roughly half a second, so 20 shots cover about ten seconds and bracket the tap wherever
-it lands:
-```bash
-rm -rf /tmp/shots && mkdir -p /tmp/shots     # not `rm *.png` — zsh errors on an empty glob
-nohup bash -c 'sleep 2; for i in $(seq -w 1 20); do
-  xcrun simctl io dev-ipad screenshot /tmp/shots/f$i.png >/dev/null 2>&1; done' \
-  >/dev/null 2>&1 &
-# ...now send the Marionette tap...
-md5 -q /tmp/shots/f*.png | cat -n | uniq -f1   # which frames actually differ
-```
-Then rotate/crop only the interesting frames (`sips -r 90 f07.png`, then
-`sips -c <h> <w> --cropOffset <y> <x> f07.png --out f07c.png`), writing the crops
-somewhere else — a crop sitting next to its original doubles every entry in that dedupe
-list and the pattern reads like the screen alternating between two states.
-
-Better still, widen the window before capturing:
-- Slow the tempo — but with `mcp__marionette__swipe`, not `tap`. A synthetic tap on a
-  `Slider` moves the label without firing `onChangeEnd`, so the service never sees the
-  new value; a coordinate swipe is a real drag and does.
-- Or lengthen the thing itself (e.g. set the count-in minimum to 8 beats), verify the
-  visual there, and leave the short default to the unit tests.
-
-And prefer not to need a picture: `get_interactive_elements` returns `Text` contents, so
-a label can be asserted without an image — subject to the same latency, so widen the
-window first. Timing-sensitive *logic* belongs in a test (see `test/count_in_test.dart`,
-`test/count_in_providers_test.dart`); use the capture for the appearance only.
-
-**Don't use the screenshot-burst technique to verify continuous playback.** It's for
-one short-lived moment, not for watching an animation over 10+ seconds — each frame
-Read into context costs real tokens, and confirming something like "the cursor never
-jumps backward across a 40-second play-through" would need dozens of frames read one
-by one. That kind of verification is cheaper and more reliable as a human spot-check:
-ask the user to press Play and watch, rather than sampling frames yourself.
-
-**Troubleshooting:**
-- `Unknown method "ext.flutter.marionette.getVersion"` → version mismatch; ensure `marionette_flutter` in `pubspec.yaml` matches `marionette_mcp` (both should be `^0.5.0`).
-- Connection refused → the app crashed or hasn't launched yet; check `flutter_run.log`.
-- Screenshots show piece-list screen → navigate to a piece with `mcp__marionette__tap(text: "Lightly Row")`.
-
-**Screen coordinates** in marionette are in logical pixels at whatever scale the simulator reports. `dev-iphone` in landscape reports ~874×402pt for the full screen (including AppBar). The body below the AppBar starts at y≈52.
+**Setup:** `marionette_flutter` (pubspec) and the global `marionette_mcp`
+(`~/.pub-cache/bin/marionette_mcp`, registered in `.claude.json` as
+`marionette`) must be the same version, now 0.7.0. The binding is initialised in
+`lib/main.dart` via `MarionetteBinding.ensureInitialized()` (debug mode only).
 
 **Marionette cannot touch native iOS UI.** Its taps go into the Flutter engine,
 so anything the system draws — the document picker, the photo picker, a
 permission alert — is invisible to `get_interactive_elements` and untappable.
 Screenshots show it (they capture the framebuffer), which makes it easy to
 think you can drive it. You can't. Either find a CLI route (below), or hand
-that one tap to the user.
+that one tap to the user. The `flutter-ios-native-verification` skill maps
+the other routes (simctl pre-set state, XCUITest, debug extensions, traces).
 
 ## Getting a media file onto the simulator
 

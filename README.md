@@ -589,7 +589,7 @@ It is the way to capture native UI (pickers, alerts) that Marionette can't see.
 
 Catching something that only lasts a moment (the count-in, the cursor on a fast
 note) needs the capture running *before* you trigger it — a single screenshot
-lands seconds too late. See `CLAUDE.md` ("Capturing short-lived UI") for the
+lands seconds too late. See the `marionette` skill (`.claude/skills/marionette/`, "Capturing short-lived UI") for the
 armed-burst pattern and for widening the window instead.
 
 ## App Store screenshots
