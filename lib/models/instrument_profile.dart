@@ -1,6 +1,8 @@
 import 'package:pitch_tuner/pitch_tuner.dart' show Transposition;
 import 'package:score_sync/score_sync.dart' show AlignmentProfile;
 
+import 'recorder_fingering.dart';
+
 /// A clef, as MusicXML writes it: `<sign>` and `<line>`.
 typedef Clef = ({String sign, int line});
 
@@ -29,7 +31,7 @@ enum Transcription {
 /// Fingering, palette, playback sound and tuning still live where they did
 /// (`FingeringMapper`, `ViolinStringPalette`, `midi_patch.json`, the tuner);
 /// they join the profile as each one gains a second instrument. A wind's
-/// fingering chart (the recorder's, step W2) would join it here too.
+/// fingering chart (the recorder's) is [fingeringChart].
 class InstrumentProfile {
   final String id;
   final String displayName;
@@ -115,6 +117,11 @@ class InstrumentProfile {
   /// Whether the instrument is fingered on strings: the string fingering,
   /// its colours and lanes, and the open-or-4th choice exist only then.
   bool get hasStrings => openMidi.isNotEmpty;
+
+  /// A wind's fingering chart, keyed on written pitch: the hole diagram, the
+  /// side panel and the colour lane read it. Null for the strings.
+  HoleFingeringChart? get fingeringChart =>
+      id == 'recorder' ? HoleFingeringChart.sopranoBaroque : null;
 
   /// Whether [midi] is both an open string and a 4th finger on the string
   /// below: the notes where the fingering is a choice (violin D4, A4, E5;
