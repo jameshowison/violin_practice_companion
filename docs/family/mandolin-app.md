@@ -146,7 +146,17 @@ cheaper shape.
   `app-mandolin-debug.apk` (package `…mandolin`, label Mandolings) and
   `app-stringlings-debug.apk` (today's package, label Stringlings). Not run on
   the emulator, which another session was using.
-- Not tried: a physical device, a release or TestFlight build of Mandolings.
+- Physical devices: release builds of both flavors (with
+  `TUNER_RECORDING=true`) installed side by side on Hazel iPad (iPad Air 5)
+  and Jamz (iPhone SE 3) with `devicectl`, over the top. The `.mandolin`
+  bundle id was registered by `xcodebuild -allowProvisioningUpdates
+  -allowProvisioningDeviceRegistration`, which needs an Apple ID in Xcode's
+  Accounts *as the command line sees it*: Xcode's window can show one while
+  `defaults read com.apple.dt.Xcode DVTDeveloperAccountManagerAppleIDLists`
+  is empty and the build fails with "No Accounts". Signing out and back in
+  wrote it. Stringlings had kept building only on its cached profile.
+- Not tried: a TestFlight build of Mandolings (it has no App Store Connect
+  record).
 
 ## Open questions
 
@@ -155,9 +165,8 @@ cheaper shape.
   group. `scripts/push_listing.py` and `docs/app-store-listing.md` know one
   app; they would need an app id per flavor. Before any device or TestFlight
   build, the `.mandolin` bundle id has to be registered: Xcode's automatic
-  signing can do it with `-allowProvisioningUpdates`. Not tried here: only
-  simulators were used. The Android Play listing would be a second package as
-  well.
+  signing did it with `-allowProvisioningUpdates` (above). The Android Play
+  listing would be a second package as well.
 - **Shared data between the two apps.** None: separate containers, so
   separate pieces, recordings, players and prefs. Sharing would need an App
   Group on iOS and a shared user id or content provider on Android. Is a
