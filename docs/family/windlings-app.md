@@ -3,8 +3,9 @@
 Step W1 of the winds (approach.md §2.3, "First: recorder or flute"). A third
 flavor beside Stringlings and Mandolings ([`mandolin-app.md`](mandolin-app.md)),
 on `next_gen`, that runs and offers one instrument: the soprano (descant)
-recorder. Everything string-specific is off. The fingering chart, the hole
-diagram and the fingering side panel are step W2.
+recorder. Everything string-specific is off. Step W2 added the fingering
+chart, the hole diagram, the fingering side panel and the colour lane
+(below, "Step W2").
 
 | Flavor | Name on the home screen | iOS bundle id / Android applicationId | Instruments |
 |---|---|---|---|
@@ -110,20 +111,67 @@ guard:
   headstock or drone, because the drone tunes to a string. No developer
   recording either. The string tuner is untouched.
 
-## What W2 adds, and where
+## Step W2: the fingering chart, the panel and the lane
 
-- **The fingering chart:** a lookup keyed on written MIDI, with alternates
-  (approach.md §2.3). It would join `InstrumentProfile` (a chart, as the
-  strings have a first-position table) and fill the annotations that the
-  mapper now leaves empty. `FingeringMapper.map`'s early return for
-  `!hasStrings` is where a wind mapper would branch.
-- **The hole diagram:** a widget, the wind equivalent of `ChordDiagram`.
-- **The side panel / drawer:** the slot is the `features.stringFingering`
-  guard round the string picker in the drawer
-  (`piece_detail_screen.dart`). Breath and tonguing marks would go where the
-  editor's BOW group was.
-- A sustained-tone segmenter and a clarity threshold for the tuner
-  (§2.3), measured on a real recorder.
+The design target is the woodwind mockup on the `family-plan` branch
+(`docs/design/woodwind-fingering-lane.html`, its "side" layout, recorder),
+in landscape with the panel on the right.
+
+- **The chart** (`lib/models/recorder_fingering.dart`):
+  `HoleFingeringChart.sopranoBaroque`, keyed on **written** MIDI, C4 (60)
+  to D6 (86). Each `ChartEntry` has the thumb and holes 1–7 as
+  open / half / closed (half is the pinched thumb, or the larger of a
+  double hole 6 or 7), alternates, and a group. Checked against two public
+  charts, Dolmetsch's text chart and Wikipedia's table, which agree from C4
+  to A5. **B♭5, C♯6 and D6** are `verified: false`: the charts differ (the
+  other fingering is kept as an alternate), and C♯6 also needs the bell end
+  stopped, which the diagram can't show. `InstrumentProfile.fingeringChart`
+  returns it for the recorder, null for the strings.
+- **Groups**, for the lane and the bar under the panel's letter: left hand
+  only (teal: G4–C5), both hands (amber), thumb off or half-holed (magenta:
+  C♯5 up, over the break). Colours from the mockup,
+  `fingering_group_palette.dart`.
+- **Change words** (`fingeringChangeLines`): "Put down left 2", "Lift
+  thumb, left 1", "Half-hole thumb", "Half-cover right 4". Holes are named
+  by hand and finger, as the mockup does: hole 4 is "right 1", hole 7
+  "right 4".
+- **The hole diagram** (`lib/widgets/hole_diagram.dart`): a CustomPainter
+  in theme colours, sized from its height. The thumb hole is drawn left of
+  hole 1, then 1–3, a gap, 4–7, with 6 and 7 as double holes. With
+  `changedFrom`, the holes that changed are ringed: solid in the primary
+  colour going down, dashed grey coming up.
+- **The panel** (`lib/widgets/recorder_fingering_panel.dart`):
+  `FingeringPanelSlot` wraps the score in `piece_detail_screen.dart`. On a
+  phone it wraps the whole compact layout, so the play tray spans only the
+  score; on a tablet it wraps the notation view. It adds the panel (132pt)
+  only for an instrument with a chart and in landscape. Otherwise it returns
+  the child as it was, with no LayoutBuilder, so violin, viola and mandolin
+  are unchanged. Portrait shows no panel.
+- **The current note** (`lib/services/wind_fingering.dart`): the notes in
+  playing order come from the player's highlight events
+  (`PlaybackServiceBase.highlightEvents`, repeats unfolded), leaving out
+  rests, tie continuations and lower chord notes. While playing, the panel
+  shows the highlighted note: over a rest, the next note; over a tie, the
+  note held. When stopped, it shows the note last tapped on the staff
+  (`fingeringFocusProvider`, set by the staff's tap, which already knew the
+  note), if that note is inside the selection; otherwise the selection's
+  first note, or the piece's first. "Next" is the following note in that
+  order, and the change is measured from the note before it.
+- **The lane**: one short dash under each note on the Staff and Annotated
+  views, coloured by group. It is drawn by `_NoteLanePainter` in
+  `staff_view_verovio.dart` from `windLaneDashes`, two staff spaces under
+  the bottom line, or lower where a system's stems reach further. The engrave
+  reserves no room for it; it sits in the gap between systems. It is not in
+  print. The string lane (chips and underline) was not reused: its channel
+  is above the staff and reserved by placeholders in the XML.
+
+Not done:
+- the mockup's mini diagrams above notes;
+- note names as the label in place of the Annotated view's note-name
+  toggle;
+- breath and tonguing marks;
+- the sustained-tone segmenter and clarity threshold for the tuner
+  (§2.3).
 
 ## Verified (2026-11-21)
 
@@ -148,7 +196,36 @@ guard:
   `app-windlings-debug.apk`, package `…windlings`, label Windlings. Not run
   on the emulator.
 
+### W2 verified (2026-11-21)
+
+- `bash scripts/test_all.sh`: all pass, with the new
+  `test/recorder_fingering_test.dart`. It covers the chart (every
+  chromatic note in range, the low octave C4–D5 exactly, the groups and the
+  unverified set), the change words, the current-note rules, and a widget
+  test: a landscape recorder gets the panel to the right of the score, and
+  portrait or the violin gets none. `flutter analyze`: 51, the baseline.
+- `dev-iphone`, windlings flavor, own pipe, with the stamp read back.
+  **Rotating took a workaround.** The Simulator's windows weren't reachable
+  from AppleScript, so the Device menu was disabled. The app was put in
+  landscape by a temporary, uncommitted
+  `SystemChrome.setPreferredOrientations([landscapeLeft])` in `main()`,
+  then a hot restart. Marionette bounds confirmed the layout: 874×402, with
+  the panel at x=680, 132 wide. In Lightly Row (written A4–E5) the lane
+  read teal for A and B and magenta for C♯, D and E. A tap on bar 3's D
+  showed "D / high", "Lift left 1" with hole 1 ringed dashed, and "Next: E"
+  with a half-holed thumbnail. With Play, the panel followed the cursor
+  (C♯, "Same fingers", "Next: D" on bar 1's third note). Portrait showed
+  the lane and no panel.
+
 ## Open questions
+
+- **The upper register**: B♭5, C♯6 and D6 need checking against a real
+  recorder or a method-neutral teacher's chart, and C♯6's stopped bell
+  needs a mark on the diagram.
+- **Hole naming**: "right 1" for hole 4 follows the mockup. Some teachers
+  count holes 0–7 instead.
+- **The lane's room**: no vertical space is reserved below the staff. With
+  tight system spacing, a dash could crowd the next system.
 
 - **Written vs concert in `NoteEvent`** (above).
 - **The bigger soundfont** ships in Stringlings too. Flavor-specific assets
