@@ -1,14 +1,18 @@
 import 'package:flutter/services.dart' show appFlavor;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Which app this build is: one codebase, two installable apps, chosen by the
-/// build flavor (docs/family/mandolin-app.md). An experiment on `next_gen`.
+/// Which app this build is: one codebase, several installable apps, chosen by
+/// the build flavor (docs/family/mandolin-app.md, windlings-app.md). An
+/// experiment on `next_gen`.
 enum AppEdition {
   /// Violin and viola: the App Store app.
   stringlings,
 
   /// The mandolin alone, installed beside Stringlings under its own bundle id.
-  mandolin;
+  mandolin,
+
+  /// The winds: the soprano recorder, for now. Its own bundle id too.
+  windlings;
 
   /// The edition for a build flavor. No flavor (tests, the harness, a run
   /// straight from Xcode's Runner scheme) or an unknown one is Stringlings.
@@ -19,6 +23,7 @@ enum AppEdition {
   String get appName => switch (this) {
         stringlings => 'Stringlings',
         mandolin => 'Mandolings',
+        windlings => 'Windlings',
       };
 }
 

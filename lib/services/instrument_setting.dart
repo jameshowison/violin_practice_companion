@@ -23,6 +23,11 @@ enum InstrumentSet {
   /// The mandolin: fret numbers on every piece, the tab view and chords, and
   /// an instrument layer of its own.
   mandolin,
+
+  /// The soprano recorder (the Windlings app): no strings, so no string
+  /// fingering; the score is its written part, sounding an octave higher;
+  /// a chromatic tuner (docs/family/windlings-app.md).
+  recorder,
 }
 
 /// The stored name of the setting from before the instruments were separate
@@ -41,15 +46,30 @@ class InstrumentFeatures {
   /// diagrams.
   final bool chords;
 
+  /// String fingering: finger labels and string colours on the annotated
+  /// staff, the Fingering and Combined views, the open-or-4th choice (the
+  /// piece's picker and the measure editor's), the key summary's finger
+  /// vocabulary. Off for a wind, whose fingering is a chart (step W2 adds
+  /// it; docs/family/windlings-app.md).
+  final bool stringFingering;
+
+  /// The tuner tunes open strings (the climber, courses, headstock and
+  /// drone); otherwise it is chromatic and names the written note.
+  final bool stringTuner;
+
   const InstrumentFeatures({
     required this.tabView,
     required this.chords,
+    this.stringFingering = true,
+    this.stringTuner = true,
   });
 
   factory InstrumentFeatures.of(InstrumentSet set) => switch (set) {
     InstrumentSet.violin || InstrumentSet.viola =>
       const InstrumentFeatures(tabView: false, chords: false),
     InstrumentSet.mandolin => const InstrumentFeatures(tabView: true, chords: true),
+    InstrumentSet.recorder => const InstrumentFeatures(
+        tabView: false, chords: false, stringFingering: false, stringTuner: false),
   };
 }
 
@@ -58,10 +78,12 @@ class InstrumentFeatures {
 ///
 /// Stringlings has no mandolin: a stored mandolin reads as the violin (the
 /// value itself is left alone; a shipped split would need a migration story,
-/// docs/family/mandolin-app.md). The mandolin app has only the mandolin.
+/// docs/family/mandolin-app.md). The mandolin app has only the mandolin,
+/// and Windlings only the recorder (docs/family/windlings-app.md).
 List<InstrumentSet> instrumentsOffered(AppEdition edition) => switch (edition) {
       AppEdition.stringlings => const [InstrumentSet.violin, InstrumentSet.viola],
       AppEdition.mandolin => const [InstrumentSet.mandolin],
+      AppEdition.windlings => const [InstrumentSet.recorder],
     };
 
 /// [instrumentsOffered] for this build's edition.

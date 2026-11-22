@@ -369,6 +369,7 @@ final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
       InstrumentSet.mandolin => InstrumentProfile.mandolin,
       InstrumentSet.viola => InstrumentProfile.viola
           .withTranscription(ref.watch(violaTranscriptionProvider)),
+      InstrumentSet.recorder => InstrumentProfile.recorder,
     });
 
 /// How the selected piece's source is shown for [instrumentProfileProvider].
@@ -644,12 +645,17 @@ final displayModePrefProvider = pieceDisplayEnumPref<DisplayMode>(
 );
 
 /// The view in effect: [displayModePrefProvider], except that a saved tab view
-/// opens annotated when the instrument setting has no tab view. The saved
-/// choice is kept, so it comes back if the setting does.
+/// opens annotated when the instrument setting has no tab view, and so do the
+/// Fingering and Combined views (string lanes) for a wind. The saved choice is
+/// kept, so it comes back if the setting does.
 final displayModeProvider = Provider<DisplayMode>((ref) {
   final stored = ref.watch(displayModePrefProvider);
-  if (stored == DisplayMode.tab &&
-      !ref.watch(instrumentFeaturesProvider).tabView) {
+  final features = ref.watch(instrumentFeaturesProvider);
+  if (stored == DisplayMode.tab && !features.tabView) {
+    return DisplayMode.staffFingering;
+  }
+  if ((stored == DisplayMode.fingering || stored == DisplayMode.combined) &&
+      !features.stringFingering) {
     return DisplayMode.staffFingering;
   }
   return stored;
@@ -1435,7 +1441,11 @@ final measureDragActiveProvider = StateProvider<bool>((_) => false);
 
 // ── Playback ──────────────────────────────────────────────────────────────────
 
-final midiGeneratorProvider = Provider<MidiGenerator>((_) => MidiGenerator());
+/// The score's MIDI schedule, at the pitch the instrument sounds: playback
+/// and the aligner's reference both read it ([InstrumentProfile.transposition]).
+final midiGeneratorProvider = Provider<MidiGenerator>((ref) => MidiGenerator(
+    soundingSemitones: ref.watch(
+        instrumentProfileProvider.select((p) => p.transposition.semitones))));
 
 /// Settings every playback service takes, whichever one is playing. Applied
 /// here rather than pushed in by the screen, so a service is right from the

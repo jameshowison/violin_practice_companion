@@ -22,7 +22,9 @@ import 'abc_import_screen.dart';
 import 'piece_detail_screen.dart';
 import 'scan_screen.dart';
 import 'settings_screen.dart';
+import 'chromatic_tuner_screen.dart';
 import 'tuner_screen.dart';
+import '../services/instrument_setting.dart' show instrumentFeaturesProvider;
 import '../services/launch_timing.dart';
 import '../ui/stringlings/stringling_tuner_icon.dart';
 import '../ui/stringlings/stringlings_tile.dart';
@@ -166,8 +168,13 @@ class PieceListScreen extends ConsumerWidget {
             key: const ValueKey('tuner_button'),
             icon: const StringlingTunerIcon(),
             tooltip: 'Tuner',
+            // Open strings to tune, or (a wind) any note, chromatically.
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const TunerScreen()),
+              MaterialPageRoute<void>(
+                  builder: (_) =>
+                      ref.read(instrumentFeaturesProvider).stringTuner
+                          ? const TunerScreen()
+                          : const ChromaticTunerScreen()),
             ),
           ),
           IconButton(

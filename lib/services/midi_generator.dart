@@ -96,13 +96,19 @@ class MidiGenerator {
   int _tpb;
   bool _initialized;
 
+  /// Added to every note's pitch in the schedule: the instrument's
+  /// transposition (`InstrumentProfile.transposition`), so a written part
+  /// plays, and is aligned, at the pitch the instrument sounds. 0 for the
+  /// strings; 12 for the soprano recorder, written an octave below.
+  final int soundingSemitones;
+
   /// Production constructor — reads tpb from midi_patch.json on first [init].
-  MidiGenerator()
+  MidiGenerator({this.soundingSemitones = 0})
       : _tpb = 480,
         _initialized = false;
 
   /// Test constructor — skips asset loading and uses [ticksPerBeat] directly.
-  MidiGenerator.forTest({int ticksPerBeat = 480})
+  MidiGenerator.forTest({int ticksPerBeat = 480, this.soundingSemitones = 0})
       : _tpb = ticksPerBeat,
         _initialized = true;
 
@@ -215,7 +221,7 @@ class MidiGenerator {
 
         var continuesTie = false;
         if (!note.isRest) {
-          final midi = note.midiNumber;
+          final midi = note.midiNumber + soundingSemitones;
           final open = openTies[midi];
           if (note.tieStop && open != null && open.endTick == chordPerfTick) {
             final held = notes[open.noteIndex];

@@ -374,6 +374,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   NotationSwitcher(
                     current: displayMode,
                     showTab: features.tabView,
+                    showStringViews: features.stringFingering,
                     onChanged: (mode) =>
                         ref.read(displayModePrefProvider.notifier).state = mode,
                   ),
@@ -423,13 +424,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // vocabulary follow it whatever the view. See
                   // [NoteNumberMode]. Only when the instrument setting has
                   // mandolin frets; otherwise the numbers are violin fingering.
-                  const SizedBox(height: 12),
-                  if (ref.watch(noteNumberModeProvider) ==
-                      NoteNumberMode.mandolinFret)
-                    const _FretStylePicker()
-                  else
-                    const _ViolinStringPicker(),
-                  const Divider(),
+                  // A wind has no strings to choose between; its fingering
+                  // chart's choices (alternates) would sit here (step W2).
+                  if (features.stringFingering) ...[
+                    const SizedBox(height: 12),
+                    if (ref.watch(noteNumberModeProvider) ==
+                        NoteNumberMode.mandolinFret)
+                      const _FretStylePicker()
+                    else
+                      const _ViolinStringPicker(),
+                    const Divider(),
+                  ],
                   // Never hidden behind a display mode: it's the one setting
                   // here that's about playing along rather than about how the
                   // notation looks.
@@ -533,7 +538,8 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         onChanged: (v) =>
                             ref.read(showChordsPrefProvider.notifier).state = v,
                       ),
-                    if (displayMode != DisplayMode.tab)
+                    if (displayMode != DisplayMode.tab &&
+                        features.stringFingering)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
@@ -562,21 +568,25 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                         }
                       },
                     ),
-                    const _StringColourPicker(),
-                    // Only meaningful while the letter is actually drawn — while
-                    // a colour is carrying the string, the label doesn't repeat
-                    // it.
-                    if (ref.watch(stringColourStyleProvider) ==
-                        StringColourStyle.off) ...[
+                    // String colours, string letters and how many finger
+                    // labels to show: none of them exist without strings.
+                    if (features.stringFingering) ...[
+                      const _StringColourPicker(),
+                      // Only meaningful while the letter is actually drawn — while
+                      // a colour is carrying the string, the label doesn't repeat
+                      // it.
+                      if (ref.watch(stringColourStyleProvider) ==
+                          StringColourStyle.off) ...[
+                        const SizedBox(height: 12),
+                        const _StringLabelPicker(),
+                      ],
                       const SizedBox(height: 12),
-                      const _StringLabelPicker(),
-                    ],
-                    const SizedBox(height: 12),
-                    const _FingeringDensitySlider(),
-                    if (ref.watch(fingeringDensityProvider) !=
-                        FingeringDensity.all) ...[
-                      const SizedBox(height: 12),
-                      const _FingeringDensityPolicyPicker(),
+                      const _FingeringDensitySlider(),
+                      if (ref.watch(fingeringDensityProvider) !=
+                          FingeringDensity.all) ...[
+                        const SizedBox(height: 12),
+                        const _FingeringDensityPolicyPicker(),
+                      ],
                     ],
                   ],
                 ],
@@ -1906,7 +1916,8 @@ class _KeySummary extends ConsumerWidget {
           Text(odd.join(' '),
               style: const TextStyle(
                   fontSize: 12, fontWeight: FontWeight.w700, color: _lhText))
-        else
+        // The finger vocabulary is the strings'; a wind shows the key alone.
+        else if (ref.watch(instrumentFeaturesProvider).stringFingering)
           Text(
               numberMode == NoteNumberMode.violinFingering
                   ? 'All: 1 2H 3'

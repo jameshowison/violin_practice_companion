@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/note_number_mode.dart';
 import '../services/chord_editor.dart';
+import '../services/instrument_setting.dart' show instrumentFeaturesProvider;
 import '../services/measure_edit_session.dart';
 import '../services/providers.dart';
 import '../services/tuplet_editor.dart';
@@ -520,16 +521,22 @@ class _ControlPanel extends ConsumerWidget {
             accidental(const Text('♯', style: _accGlyph), 'sharp'),
           ]),
           // Open string vs 4th finger. Violin only: in fret mode it has no
-          // fingering to show, as in the piece view's Instrument panel.
+          // fingering to show, as in the piece view's Instrument panel, and
+          // a wind has no strings at all.
           if (ref.watch(noteNumberModeProvider) ==
-              NoteNumberMode.violinFingering) ...[
+                  NoteNumberMode.violinFingering &&
+              ref.watch(instrumentFeaturesProvider).stringFingering) ...[
             _divider(context),
             _group(context, 'STRING', [
               _stringChoice(context, ctl, ref.watch(instrumentProfileProvider))
             ]),
           ],
-          _divider(context),
-          _group(context, 'BOW', [_bowChoice(context, ctl)]),
+          // Bowings are for the strings; a wind's breath and tonguing marks
+          // would go here (step W2 and later).
+          if (ref.watch(instrumentFeaturesProvider).stringFingering) ...[
+            _divider(context),
+            _group(context, 'BOW', [_bowChoice(context, ctl)]),
+          ],
           _divider(context),
           _group(context, 'DURATION', [
             // Value name sits above the ◀ ▶ buttons so the group stays narrow.

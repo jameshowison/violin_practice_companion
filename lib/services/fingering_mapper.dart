@@ -42,11 +42,16 @@ class FingeringMapper {
   /// lower: its note is looked up where the violin plays the same finger on
   /// the matching string, and the string renamed (violin G D A E to viola
   /// C G D A). The finger labels, L/H included, carry over verbatim.
+  ///
+  /// An instrument without strings (the recorder) gets no string fingering:
+  /// [piece] is returned as it is, with no `fingerString`/`fingerNumber`, so
+  /// no view draws a string label. A wind's chart fingering is step W2.
   ParsedPiece map(ParsedPiece piece,
       {ViolinStringPreference preference = ViolinStringPreference.auto,
       Map<String, int> choices = const {},
       InstrumentProfile profile = InstrumentProfile.violin}) {
     assert(_fingeringTable != null, 'Call init() before map()');
+    if (!profile.hasStrings) return piece;
     final notes = _fingeringTable!['notes'] as Map<String, dynamic>;
     const violin = InstrumentProfile.violin;
     final offset = violin.openMidi.first - profile.openMidi.first;

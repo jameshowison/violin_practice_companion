@@ -1,3 +1,4 @@
+import 'package:pitch_tuner/pitch_tuner.dart' show Transposition;
 import 'package:score_sync/score_sync.dart' show AlignmentProfile;
 
 /// A clef, as MusicXML writes it: `<sign>` and `<line>`.
@@ -27,7 +28,8 @@ enum Transcription {
 ///
 /// Fingering, palette, playback sound and tuning still live where they did
 /// (`FingeringMapper`, `ViolinStringPalette`, `midi_patch.json`, the tuner);
-/// they join the profile as each one gains a second instrument.
+/// they join the profile as each one gains a second instrument. A wind's
+/// fingering chart (the recorder's, step W2) would join it here too.
 class InstrumentProfile {
   final String id;
   final String displayName;
@@ -40,7 +42,8 @@ class InstrumentProfile {
   final Clef clef;
 
   /// The first-position range, as MIDI numbers: open lowest string to 4th
-  /// finger on the highest.
+  /// finger on the highest. For a transposing instrument it is the WRITTEN
+  /// range, as the instrument reads it (see [transposition]).
   final int lowestMidi;
   final int highestMidi;
 
@@ -48,8 +51,28 @@ class InstrumentProfile {
   final Transcription transcription;
 
   /// The open strings, lowest first: their names, and their MIDI numbers.
+  /// Both empty for an instrument without strings (a wind): no string
+  /// fingering, no open-or-4th choice, no string colours ([hasStrings]).
   final List<String> strings;
   final List<int> openMidi;
+
+  /// How the instrument's written notes sound: [Transposition.concert] for
+  /// the strings, an octave up for the soprano recorder.
+  ///
+  /// Where pitch is which (decided for the recorder, the first transposing
+  /// instrument; docs/family/windlings-app.md):
+  ///
+  /// - The stored **source** is concert pitch, as it always was.
+  /// - The **view** (`InstrumentView`) is the written part: the source moved
+  ///   down by [Transposition.semitones], then by whole octaves into
+  ///   [lowestMidi]..[highestMidi]. What is engraved, annotated, named and
+  ///   edited, and so what `parsedPieceProvider`'s notes carry.
+  /// - **Sound** is the written note plus [Transposition.semitones]: the
+  ///   score's MIDI schedule (`MidiGenerator.soundingSemitones`), which both
+  ///   playback and the aligner's reference read.
+  /// - The **tuner** hears sounding pitch and names the written note
+  ///   ([Transposition.writtenName]).
+  final Transposition transposition;
 
   /// What the score aligner needs to know about the instrument: the chroma
   /// band, how long a note rings into a rest, the onset weight
@@ -71,6 +94,7 @@ class InstrumentProfile {
     required this.strings,
     required this.openMidi,
     this.transcription = Transcription.none,
+    this.transposition = Transposition.concert,
     this.alignment = AlignmentProfile.bowedStrings,
   });
 
@@ -84,14 +108,19 @@ class InstrumentProfile {
         strings: strings,
         openMidi: openMidi,
         transcription: t,
+        transposition: transposition,
         alignment: alignment,
       );
 
+  /// Whether the instrument is fingered on strings: the string fingering,
+  /// its colours and lanes, and the open-or-4th choice exist only then.
+  bool get hasStrings => openMidi.isNotEmpty;
+
   /// Whether [midi] is both an open string and a 4th finger on the string
   /// below: the notes where the fingering is a choice (violin D4, A4, E5;
-  /// viola G3, D4, A4).
+  /// viola G3, D4, A4). Never, without strings.
   bool hasFourthFingerChoice(int midi) =>
-      midi != openMidi.first && openMidi.contains(midi);
+      hasStrings && midi != openMidi.first && openMidi.contains(midi);
 
   /// G3 to B5.
   static const violin = InstrumentProfile(
@@ -143,5 +172,36 @@ class InstrumentProfile {
     strings: ['C', 'G', 'D', 'A'],
     openMidi: [48, 55, 62, 69],
     alignment: AlignmentProfile(minFrequencyHz: 120),
+  );
+
+  /// The soprano (descant) recorder: read in treble, written C4 to D6, and
+  /// sounding an octave higher (C5 to D7), as its parts are written
+  /// ([Transposition.octaveUp]). No strings.
+  ///
+  /// A violin tune (concert pitch, treble) is shown to it as a written part:
+  /// moved an octave down for the transposition, then back up by whole
+  /// octaves into the written range (`InstrumentView`). A first-position
+  /// violin tune therefore reads exactly as the violin part does and sounds
+  /// an octave above it; one that dips onto the G string reads an octave
+  /// higher. Playback and the aligner's reference both use the sounding
+  /// pitch ([transposition]).
+  ///
+  /// Its [AlignmentProfile] is a first guess, with no recorder recording to
+  /// measure it on: almost no ring (a wind stops when the breath does), a
+  /// band from 400 Hz (the lowest sounding note is C5, 523 Hz, with room for
+  /// a flat one) up to 4 kHz (the top, D7, is about 2350 Hz). Onset weight is
+  /// the violin's.
+  static const recorder = InstrumentProfile(
+    id: 'recorder',
+    displayName: 'Recorder',
+    layerId: 'recorder',
+    clef: trebleClef,
+    lowestMidi: 60,
+    highestMidi: 86,
+    strings: [],
+    openMidi: [],
+    transposition: Transposition.octaveUp,
+    alignment: AlignmentProfile(
+        minFrequencyHz: 400, maxFrequencyHz: 4000, ringSeconds: 0.15),
   );
 }

@@ -38,7 +38,9 @@ class InstrumentView {
         reclef = false;
 
   /// The view of [sourceXml] for [profile]: identity when the source opens in
-  /// the profile's clef (or has no clef). Otherwise the profile's clef, its
+  /// the profile's clef (or has no clef) and the profile doesn't transpose.
+  /// A transposing profile ([InstrumentProfile.transposition]) moves the
+  /// source down to written pitch first. Otherwise the profile's clef, its
   /// transcription, and the octave that puts the most notes inside its range;
   /// among octaves that do equally well, the one whose median note is nearest
   /// the middle of the range (a tune that fits either way is played across
@@ -51,20 +53,30 @@ class InstrumentView {
       return InstrumentView.identity(profile);
     }
     final clef = _firstClef(doc);
-    if (clef == null || clef == profile.clef) {
+    // A transposing instrument (the recorder) reads a written part, so even
+    // a source in its own clef is moved: down by the transposition, then
+    // into its written range by octaves.
+    final transposes = profile.transposition.semitones != 0;
+    if (clef == null || (clef == profile.clef && !transposes)) {
       return InstrumentView.identity(profile);
     }
-    final base = switch (profile.transcription) {
+    final reclef = clef != profile.clef;
+    final transcribed = switch (profile.transcription) {
       Transcription.none => (steps: 0, semitones: 0),
       Transcription.fifthDown => (steps: -4, semitones: -7),
     };
+    final written = _intervalOf(-profile.transposition.semitones);
+    final base = (
+      steps: transcribed.steps + written.steps,
+      semitones: transcribed.semitones + written.semitones,
+    );
     final midis = [
       for (final p in doc.findAllElements('pitch'))
         if (_midiOf(p) case final m?) m + base.semitones,
     ];
     Interval at(int k) =>
         (steps: base.steps + 7 * k, semitones: base.semitones + 12 * k);
-    if (midis.isEmpty) return InstrumentView._(profile, at(0), true);
+    if (midis.isEmpty) return InstrumentView._(profile, at(0), reclef);
     final median = ([...midis]..sort())[midis.length ~/ 2];
     final middle = (profile.lowestMidi + profile.highestMidi) / 2;
     int inRange(int k) => midis
@@ -79,7 +91,20 @@ class InstrumentView {
           (inRange(k) == inRange(best) && offCentre(k) < offCentre(best));
       if (better) best = k;
     }
-    return InstrumentView._(profile, at(best), true);
+    return InstrumentView._(profile, at(best), reclef);
+  }
+
+  /// [semitones] as a written interval: the usual spelling of each (a major
+  /// second is one letter, a minor sixth five; the tritone an augmented
+  /// fourth), plus whole octaves.
+  static Interval _intervalOf(int semitones) {
+    const stepsOf = [0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6];
+    final sign = semitones < 0 ? -1 : 1;
+    final a = semitones.abs();
+    return (
+      steps: sign * (7 * (a ~/ 12) + stepsOf[a % 12]),
+      semitones: semitones,
+    );
   }
 
   bool get isIdentity => interval.semitones == 0 && !reclef;

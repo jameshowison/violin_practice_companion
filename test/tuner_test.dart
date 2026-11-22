@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pitch_tuner/pitch_tuner.dart';
 import 'package:violin_practice_companion/debug/screenshot_mode.dart';
+import 'package:violin_practice_companion/screens/chromatic_tuner_screen.dart';
 import 'package:violin_practice_companion/screens/tuner_screen.dart';
 import 'package:violin_practice_companion/ui/stringlings/mandolin_headstock.dart';
 import 'package:violin_practice_companion/services/drone_player.dart';
@@ -826,6 +827,71 @@ void main() {
       await tester.tap(find.text('Back to playing'));
       await tester.pump();
       expect(find.byKey(const ValueKey('tuner_play_hint')), findsOneWidget);
+    });
+  });
+
+  group('ChromaticTunerScreen (Windlings, the recorder)', () {
+    Future<FakeTunerInput> pumpChromatic(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final sp = await SharedPreferences.getInstance();
+      final fake = FakeTunerInput();
+      tester.view.physicalSize = const Size(375, 667) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(sp),
+          tunerInputFactoryProvider.overrideWithValue(() => fake),
+          appEditionProvider.overrideWithValue(AppEdition.windlings),
+        ],
+        child: const MaterialApp(home: ChromaticTunerScreen()),
+      ));
+      await tester.pump();
+      return fake;
+    }
+
+    var clock = 0;
+    Future<void> play(WidgetTester tester, FakeTunerInput fake, double hz) async {
+      for (var i = 0; i < 45; i++) {
+        fake.ctl!.add(frame(clock++, null));
+      }
+      for (var i = 0; i < 120; i++) {
+        fake.ctl!.add(frame(clock++, hz));
+      }
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    String text(WidgetTester tester, String key) =>
+        tester.widget<Text>(find.byKey(ValueKey(key))).data!;
+
+    testWidgets('names the written note: a sounding C5 is C', (tester) async {
+      final fake = await pumpChromatic(tester);
+      expect(fake.starts, 0, reason: 'the microphone waits for Listen');
+      expect(find.byType(StringlingClimber), findsNothing);
+      expect(find.byType(MandolinHeadstock), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('tuner_listen')));
+      await tester.pump();
+      expect(fake.starts, 1);
+      // The recorder's whole sounding range, C5 to D7, is in the band.
+      expect(fake.range!.minHz, lessThan(523));
+      expect(fake.range!.maxHz, greaterThan(2350));
+
+      await play(tester, fake, midiToHz(72)); // C5
+      expect(text(tester, 'tuner_note'), 'C');
+      expect(text(tester, 'tuner_written'), 'C4 as written · sounds C5');
+      expect(text(tester, 'tuner_status'), 'In tune');
+
+      await play(tester, fake, off(midiToHz(81), -20)); // A5, 20 cents flat
+      expect(text(tester, 'tuner_note'), 'A');
+      expect(text(tester, 'tuner_written'), 'A4 as written · sounds A5');
+      expect(text(tester, 'tuner_status'), '20 cents flat');
+
+      // No string letters anywhere.
+      for (final s in ['G', 'D', 'E']) {
+        expect(find.text(s), findsNothing);
+      }
+      await tester.tap(find.byKey(const ValueKey('tuner_listen')));
+      await tester.pump();
     });
   });
 }

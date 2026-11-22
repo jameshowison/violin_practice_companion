@@ -16,12 +16,20 @@ class NotationSwitcher extends StatelessWidget {
   /// mandolin ([InstrumentFeatures.tabView]).
   final bool showTab;
 
+  /// Whether to offer the views built on string fingering, Fingering and
+  /// Combined: off for a wind ([InstrumentFeatures.stringFingering]).
+  final bool showStringViews;
+
   const NotationSwitcher({
     super.key,
     required this.current,
     required this.onChanged,
     this.showTab = true,
+    this.showStringViews = true,
   });
+
+  static bool _onString(DisplayMode m) =>
+      m == DisplayMode.fingering || m == DisplayMode.combined;
 
   static const _modes = [
     (DisplayMode.staff, Icons.music_note, 'Staff'),
@@ -39,7 +47,8 @@ class NotationSwitcher extends StatelessWidget {
       runSpacing: 4,
       children: [
         for (final (mode, icon, label) in _modes)
-          if (showTab || mode != DisplayMode.tab)
+          if ((showTab || mode != DisplayMode.tab) &&
+              (showStringViews || !_onString(mode)))
           ChoiceChip(
             avatar: Icon(icon, size: 16),
             // The avatar carries the identity; the tick would displace it.

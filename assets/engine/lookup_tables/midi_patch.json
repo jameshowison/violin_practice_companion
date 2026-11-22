@@ -1,7 +1,8 @@
 {
-  "comment": "General MIDI patch assignments, by instrument profile id (an instrument not listed plays the violin's). Violin = program 40, viola = 41 (0-indexed). ticksPerQuarterNote controls timing resolution. soundfontAsset is the Flutter asset path to the .sf2 file used on mobile/desktop; it is GeneralUser GS cut down to these programs and the woodblocks by scripts/subset_soundfont.py, so changing the program here means rerunning that.",
+  "comment": "General MIDI patch assignments, by instrument profile id (an instrument not listed plays the violin's). Violin = program 40, viola = 41, recorder = 73 (0-indexed; GM 41, 42, 74). ticksPerQuarterNote controls timing resolution. soundfontAsset is the Flutter asset path to the .sf2 file used on mobile/desktop; it is GeneralUser GS cut down to these programs and the woodblocks by scripts/subset_soundfont.py, so changing the program here means rerunning that.",
   "violin": 40,
   "viola": 41,
+  "recorder": 73,
   "ticksPerQuarterNote": 480,
   "soundfontAsset": "assets/engine/soundfonts/generaluser_gs.sf2",
   "noteVelocity": 90

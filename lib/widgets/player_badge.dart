@@ -124,6 +124,7 @@ String _instrumentName(WidgetRef ref, Player player, List<Player> players) {
     InstrumentSet.violin => 'Violin',
     InstrumentSet.viola => 'Viola',
     InstrumentSet.mandolin => 'Mandolin',
+    InstrumentSet.recorder => 'Recorder',
   };
 }
 
@@ -140,6 +141,7 @@ List<Widget> instrumentChoiceTiles(List<InstrumentSet> offered, {String keyPrefi
             InstrumentSet.violin => 'Violin',
             InstrumentSet.viola => 'Viola: alto clef, C G D A',
             InstrumentSet.mandolin => 'Mandolin: frets, tab, chords',
+            InstrumentSet.recorder => 'Recorder',
           }),
         ),
     ];
