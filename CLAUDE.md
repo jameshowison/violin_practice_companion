@@ -584,8 +584,13 @@ looked like a timing or loop bug, and none shows on a simulator (no AirPlay):
    cured it. Apple gives an app no way to reconnect a route, so `itemFailed`
    in `VideoTransportPlugin.swift` tries a fresh item, then a new AVPlayer,
    then gives up and the tray offers the speaker picker
-   (`MediaTransport.speakerFailures`). Which step wins was unknown when this
-   was written: read the trace's "item failed" lines the next time it happens.
+   (`MediaTransport.speakerFailures`). Neither retry wins when the receiver
+   has closed the session (Jamz + the Pi receiver, 2026-11-23: shairport-sync
+   dropped it after ~1¾ h idle, the phone kept the route). The fresh item and
+   the new AVPlayer each failed within ~50 ms (`-11800 <- -71830`), and only
+   re-picking cured it. The picker is the real cure; the retries stay for
+   faults they might fix. To reproduce: leave the phone on the Pi for 2 h, or
+   run the harness without `REPICK`.
 
 7. **AVPlayer can stop itself on AirPlay with no error at all.** A receiver
    that refused or had dropped the connection (the Mac's own receiver, Jamz,

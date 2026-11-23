@@ -13,8 +13,10 @@ import XCTest
 ///   SECTION   section chip to loop, or "All" (default "A")
 ///   MINUTES   how long testLoopOnAirPlay plays (default 5)
 ///   SKIP_ROUTE  set to skip picking the receiver (a simulator smoke run)
-///   REPICK    set to pick the phone's speaker, then the receiver, even when
-///             the receiver is already the route (a fresh connection)
+///   REPICK    "0" to keep the route when it already shows the receiver.
+///             By default the test picks the phone's speaker, then the
+///             receiver: a fresh connection, since a route that shows the
+///             receiver can be dead (CLAUDE.md, "Audio on iOS" 6)
 ///   VOLUME_UP "0" to leave the volume alone (default: 16 presses up)
 final class AirPlayHarnessTests: XCTestCase {
   private let env = ProcessInfo.processInfo.environment
@@ -47,21 +49,24 @@ final class AirPlayHarnessTests: XCTestCase {
   /// which shows once the route is known: the piece is open and ready.
   private func openPiece() {
     app.launch()
+    // Search for the title rather than scrolling: the library is long, and
+    // swiping through it is slow and flaky (30 swipes weren't past "D").
+    let search = app.textFields.firstMatch
+    XCTAssertTrue(search.waitForExistence(timeout: 20), "no search field on the piece list")
+    search.tap()
+    search.typeText(piece)
+    // Close the keyboard so it doesn't cover the row.
+    let close = app.keyboards.buttons.matching(
+      NSPredicate(format: "label IN %@", ["Done", "done", "Search", "search", "Return", "return"])
+    ).firstMatch
+    if close.waitForExistence(timeout: 2) { close.tap() }
     let row = app.staticTexts.matching(beginning(piece)).firstMatch
     // Flutter keeps off-screen rows in the tree with empty frames, so
-    // "exists" isn't enough: scroll until the row is really on screen.
+    // "exists" isn't enough: the row must really be on screen.
     func onScreen() -> Bool {
       row.exists && row.frame.height > 40 && row.frame.maxY < app.frame.maxY - 80
     }
-    if !(row.waitForExistence(timeout: 20) && onScreen()) {
-      app.buttons["All Pieces"].tap()
-      sleep(1)
-      var tries = 0
-      while !onScreen() && tries < 30 {
-        app.swipeUp(velocity: .slow)
-        tries += 1
-      }
-    }
+    _ = row.waitForExistence(timeout: 10)
     XCTAssertTrue(onScreen(), "no piece titled \(piece) on screen")
     // The list can take a moment after launch to accept taps (seen on the
     // simulator: a tap at ~5s did nothing), so retry until the piece opens.
@@ -106,7 +111,7 @@ final class AirPlayHarnessTests: XCTestCase {
 
   private func pickReceiver() {
     if env["SKIP_ROUTE"] != nil { return }  // simulator smoke run: no AirPlay there
-    let repick = env["REPICK"] != nil
+    let repick = env["REPICK"] != "0"
     if outputButton.label.contains(receiver) && !repick {
       log("already on \(receiver)")
       return
@@ -115,10 +120,11 @@ final class AirPlayHarnessTests: XCTestCase {
     let change = app.buttons.matching(beginning("Change")).firstMatch
     XCTAssertTrue(change.waitForExistence(timeout: 5))
     change.tap()
-    // REPICK: away to the phone's own speaker and back, for a fresh
-    // connection. The cure for a stale speaker (CLAUDE.md, "Audio on iOS"
-    // 6), reproduced with the Mac's receiver on 2026-11-22: the Mac
-    // cancelled the session, the phone kept the route, every Play failed.
+    // Away to the phone's own speaker and back, for a fresh connection.
+    // The cure for a stale speaker (CLAUDE.md, "Audio on iOS" 6): the
+    // receiver (the Mac's, 2026-11-22; the Pi's after ~1¾ h idle,
+    // 2026-11-23) closed the session, the phone kept the route, and every
+    // Play failed.
     if repick, let phone = routeRow("iPhone", timeout: 10) {
       log("re-pick: tapping '\(phone.label)' first")
       phone.tap()

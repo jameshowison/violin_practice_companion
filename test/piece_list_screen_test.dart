@@ -171,6 +171,33 @@ void main() {
     expect(find.byKey(const ValueKey('piece_row_lr')), findsOneWidget);
   });
 
+  testWidgets('a search that finds nothing on Recents carries on in All', (tester) async {
+    await pumpList(tester, phone, prefs: {
+      'flutter.$pieceActivityKey':
+          '{"tw":{"openedAt":${DateTime.now().millisecondsSinceEpoch}}}',
+    });
+    // Found on Recents: stays there.
+    await tester.enterText(find.byKey(const ValueKey('piece_search_field')), 'Twin');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('piece_row_tw')), findsOneWidget);
+    expect(find.text('No pieces match.'), findsNothing);
+    final tabs = find.byKey(const ValueKey('piece_tab_switch'));
+    expect(tester.widget<SegmentedButton<PieceTab>>(tabs).selected, {PieceTab.recent});
+
+    // Not played lately: All, with the same words.
+    await tester.enterText(find.byKey(const ValueKey('piece_search_field')), 'Lightly');
+    await tester.pumpAndSettle();
+    expect(tester.widget<SegmentedButton<PieceTab>>(tabs).selected, {PieceTab.all});
+    expect(find.byKey(const ValueKey('piece_row_lr')), findsOneWidget);
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('piece_search_field')));
+    expect(field.controller!.text, 'Lightly');
+
+    // Going back to Recents by hand stays put.
+    await tester.tap(find.byKey(const ValueKey('piece_tab_recent')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SegmentedButton<PieceTab>>(tabs).selected, {PieceTab.recent});
+  });
+
   testWidgets('the app icon puts the list back where it started', (tester) async {
     final now = DateTime.now();
     await pumpList(tester, phone, prefs: {

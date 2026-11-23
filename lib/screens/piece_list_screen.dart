@@ -548,6 +548,9 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
     n.state = f(n.state);
   }
 
+  /// The query the Recents-to-All fallback last looked at (see [build]).
+  late String _searched = ref.read(pieceSearchProvider);
+
   Future<void> _open(Piece piece) async {
     VerovioEngraver.openClock..reset()..start();
     // Seed the rows the detail screen would otherwise push after its first
@@ -568,6 +571,23 @@ class _PieceListBodyState extends ConsumerState<_PieceListBody> {
 
   @override
   Widget build(BuildContext context) {
+    // A search on Recents that finds nothing there carries on in All Pieces
+    // with the same words, rather than showing "No pieces match" for a piece
+    // that's in the library but not played lately. Only when the words
+    // change, so going back to Recents by hand stays put. Listens to the
+    // result, not the query: a query listener still reads the old result.
+    ref.listen<AsyncValue<PieceListResult>>(pieceListProvider, (_, next) {
+      final query = ref.read(pieceSearchProvider);
+      if (query == _searched) return;
+      _searched = query;
+      final result = next.valueOrNull;
+      if (result != null &&
+          result.rows.isEmpty &&
+          query.trim().isNotEmpty &&
+          ref.read(pieceFilterProvider).tab == PieceTab.recent) {
+        _update((f) => f.copyWith(tab: PieceTab.all));
+      }
+    });
     final async = ref.watch(pieceListProvider);
     return async.when(
       data: (result) {

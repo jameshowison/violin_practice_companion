@@ -145,35 +145,38 @@ Receiver (it played nothing, then refused even YouTube), and not an
 AirPlay-1-only receiver (iOS 27 refuses one).
 
 **Hands: `ios/RunnerUITests/AirPlayHarnessTests.swift`** (a UI-test target).
-It opens a piece, picks the receiver in the system route sheet, closes the
+It opens a piece by searching for its title, picks the phone's speaker and
+then the receiver in the system route sheet (a fresh connection: a route
+that shows the receiver can be dead, CLAUDE.md "Audio on iOS" 6), closes the
 sheets, sets Loop on a section, plays for MINUTES, and turns the media volume
 up after Play (a newly picked receiver starts near zero). The route sheet's
 rows are reachable through the app's own tree, as "<name>, volume high".
-Never query `com.apple.MediaRemoteUI`: that fails the test outright. Settings
-come in as `TEST_RUNNER_PIECE`, `_RECEIVER` (the receiver's name as the sheet
-lists it), `_SECTION`, `_MINUTES`, `_REPICK` (the phone's speaker first, then
-the receiver: a fresh connection), `_VOLUME_UP=0`, and `_SKIP_ROUTE` for a
-simulator smoke run. On the phone:
+Never query `com.apple.MediaRemoteUI`: that fails the test outright. Settings:
+`PIECE`, `RECEIVER` (the receiver's name as the sheet lists it), `SECTION`,
+`MINUTES`, `REPICK=0` (keep a route that already shows the receiver),
+`VOLUME_UP=0`, and `SKIP_ROUTE` for a simulator smoke run.
+`scripts/airplay_harness.sh` builds and runs it on the phone and takes them as
+arguments:
 
 ```bash
-flutter build ios --release --config-only --dart-define=TUNER_RECORDING=true
-cd ios && xcodebuild build-for-testing -workspace Runner.xcworkspace \
-  -scheme stringlings -configuration Release-stringlings \
-  -destination "platform=iOS,name=JamzJamzJamzz" -only-testing:RunnerUITests \
-  -allowProvisioningUpdates DEVELOPMENT_TEAM=V8MB2893V6
-TEST_RUNNER_RECEIVER="<receiver name>" TEST_RUNNER_MINUTES=5 \
-  xcodebuild test-without-building … \
-  -only-testing:RunnerUITests/AirPlayHarnessTests/testLoopOnAirPlay
+bash scripts/airplay_harness.sh --build "RECEIVER=<receiver name>" \
+  "PIECE=May Song" SECTION=B MINUTES=5     # output: airplay_harness.log
 ```
 
-- `DEVELOPMENT_TEAM` on the command line because `RunnerTests` has no team.
+For loop seams, loop a section with **no rests**, or the capture's silences
+mix the music's own rests with the seam. May Song B (4 bars) has none, and
+neither do Lightly Row, Minuet in G and Old Joe Clark. Long, Long Ago A ends
+on a rest.
+
+- The script passes `DEVELOPMENT_TEAM` because `RunnerTests` has no team.
 - This installs a release build over the top, like `device_install.sh`,
-  without killing anyone's `flutter run`.
+  without killing anyone's `flutter run`. Its build products go in
+  `build/harness_dd`; `--build` is needed after any app or test change.
 - First run on a device: Settings ▸ Developer ▸ **Enable UI Automation**,
   phone unlocked, someone present to approve the passcode prompt. Otherwise
   "Timed out while enabling automation mode".
-- The test runner can hang after a failure: put a time limit on it (macOS
-  has no `timeout`: background it and `kill` it after a few minutes).
+- The test runner can hang after a failure; the script kills it after
+  MINUTES + 7 min (macOS has no `timeout`).
 - **Check the phone's media volume first.** At 0 (the trace's `vol=`) every
   run is silent. Before Play, the volume buttons set the ringer.
 - Flutter keeps off-screen list rows in the tree with empty frames, so a
