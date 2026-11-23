@@ -18,6 +18,8 @@ import XCTest
 ///             receiver: a fresh connection, since a route that shows the
 ///             receiver can be dead (CLAUDE.md, "Audio on iOS" 6)
 ///   VOLUME_UP "0" to leave the volume alone (default: 16 presses up)
+///   AFTER_STEPS set by the script for the long loop: the steps just made
+///             the connection fresh, so keep it
 final class AirPlayHarnessTests: XCTestCase {
   private let env = ProcessInfo.processInfo.environment
   private var piece: String { env["PIECE"] ?? "Long, Long Ago" }
@@ -109,9 +111,11 @@ final class AirPlayHarnessTests: XCTestCase {
     return nil
   }
 
-  private func pickReceiver() {
+  /// [fresh]: re-pick even when the route already shows the receiver. The
+  /// later steps pass false, since step 2 has just made the connection.
+  private func pickReceiver(fresh: Bool = true) {
     if env["SKIP_ROUTE"] != nil { return }  // simulator smoke run: no AirPlay there
-    let repick = env["REPICK"] != "0"
+    let repick = fresh && env["REPICK"] != "0"
     if outputButton.label.contains(receiver) && !repick {
       log("already on \(receiver)")
       return
@@ -201,16 +205,31 @@ final class AirPlayHarnessTests: XCTestCase {
     }
     // The mode is a popup (compact) or a segmented button (wide).
     let loopSeg = app.buttons["Loop"]
+    let loopShown = app.descendants(matching: .any).matching(beginning("Loop")).firstMatch
     if loopSeg.exists {
       loopSeg.tap()
+      log("mode: tapped the Loop segment")
     } else {
       let pill = app.staticTexts.matching(beginning("Play once")).firstMatch
       if pill.exists {
         pill.tap()
-        let item = app.descendants(matching: .any).matching(beginning("Loop")).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5))
-        item.tap()
+        XCTAssertTrue(loopShown.waitForExistence(timeout: 5), "no Loop item in the mode popup")
+        loopShown.tap()
+        log("mode: picked Loop from the popup")
+      } else if loopShown.exists {
+        log("mode: already Loop ('\(loopShown.label)')")
+      } else {
+        print("=== tree (no mode control)\n\(app.debugDescription)")
+        XCTFail("found neither a Loop segment nor a Play once / Loop pill")
+        return
       }
+    }
+    sleep(1)
+    // App belief: the mode control now reads Loop.
+    if !(loopSeg.exists && loopSeg.isSelected) && !loopShown.waitForExistence(timeout: 3) {
+      print("=== tree (mode not Loop)\n\(app.debugDescription)")
+      XCTFail("the mode control doesn't show Loop")
+      return
     }
     if section != "All" {
       // Never skip a missing chip: the loop would then run over the whole
@@ -233,24 +252,67 @@ final class AirPlayHarnessTests: XCTestCase {
     app.buttons.matching(NSPredicate(format: "label IN {'Pause', 'Stop'}")).firstMatch
   }
 
-  /// Route only: AirPlay receiver selected, and the app says so.
-  func testPickReceiver() {
+  // The steps. Each checks one more stage, in well under a minute, so a UI
+  // quirk shows before a long recording rather than at its end.
+  // `scripts/airplay_harness.sh` runs them in order and stops at the first
+  // failure; each relaunches the app and redoes the stages before its own.
+
+  /// Step 1: the piece opens (search, tap, the transport appears).
+  func testStep1OpenPiece() {
+    openPiece()
+  }
+
+  /// Step 2: the receiver is picked fresh, and the app says so.
+  func testStep2PickReceiver() {
     openPiece()
     pickReceiver()
   }
 
-  /// Loops a section on the receiver for MINUTES, logging the transport once
-  /// every 10s, then stops (Stop is when the app writes its trace). Compare
-  /// the receiver's log for gaps against the `[harness]` lines' times.
-  func testLoopOnAirPlay() {
+  /// Step 3: Loop mode and the section, without playing.
+  func testStep3SetLoop() {
     openPiece()
-    pickReceiver()
+    pickReceiver(fresh: false)
     setLoop()
-    XCTAssertTrue(playButton.waitForExistence(timeout: 5))
+  }
+
+  /// Step 4: ~15 s of play that stays playing on the receiver. The script
+  /// checks the receiver got data meanwhile.
+  func testStep4PlayBrief() {
+    openPiece()
+    pickReceiver(fresh: false)
+    setLoop()
+    startPlay()
+    for _ in 0..<3 {
+      sleep(5)
+      let snack = app.buttons["Choose speaker"].exists
+      let playing = pauseButton.exists
+      log("state \(playing ? "playing" : "stopped") snackbar=\(snack) route=\(outputButton.label)")
+      XCTAssertFalse(snack, "the app offered the speaker picker: the route is dead")
+      XCTAssertTrue(playing, "playback stopped on its own")
+      if snack || !playing { break }
+    }
+    if pauseButton.exists { pauseButton.tap() }
+    log("STOP")
+    sleep(3)
+  }
+
+  private func startPlay() {
+    XCTAssertTrue(playButton.waitForExistence(timeout: 5), "no Play button")
     playButton.tap()
     log("PLAY")
     sleep(1)
     turnVolumeUp()
+  }
+
+  /// Loops a section on the receiver for MINUTES, logging the transport once
+  /// every 10s, then stops (Stop is when the app writes its trace). Compare
+  /// the receiver's log for gaps against the `[harness]` lines' times. Run
+  /// after the steps (the script's --long), which made the connection fresh.
+  func testLoopOnAirPlay() {
+    openPiece()
+    pickReceiver(fresh: env["AFTER_STEPS"] == nil)
+    setLoop()
+    startPlay()
     let end = Date().addingTimeInterval(minutes * 60)
     var lastState = ""
     while Date() < end {

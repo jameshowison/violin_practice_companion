@@ -155,13 +155,21 @@ Never query `com.apple.MediaRemoteUI`: that fails the test outright. Settings:
 `PIECE`, `RECEIVER` (the receiver's name as the sheet lists it), `SECTION`,
 `MINUTES`, `REPICK=0` (keep a route that already shows the receiver),
 `VOLUME_UP=0`, and `SKIP_ROUTE` for a simulator smoke run.
-`scripts/airplay_harness.sh` builds and runs it on the phone and takes them as
-arguments:
+`scripts/airplay_harness.sh` builds and runs it on the phone, takes them as
+arguments, and works **a step at a time**, stopping at the first failure, so
+a UI quirk shows in seconds and not at the end of a long recording:
+preflight (phone unlocked, receiver up), 1 open the piece, 2 pick the
+receiver fresh, 3 set Loop and the section, 4 play ~15 s and check the
+receiver got audio, then with `--long` the MINUTES-long loop, captured and
+pulled. When adding to the harness, add a step that checks the new stage
+on its own, before the long run depends on it.
 
 ```bash
 bash scripts/airplay_harness.sh --build "RECEIVER=<receiver name>" \
-  "PIECE=May Song" SECTION=B MINUTES=5     # output: airplay_harness.log
+  "PIECE=May Song" SECTION=B --long MINUTES=5   # logs: airplay_harness_<step>.log
 ```
+`--from N` skips steps that passed a moment ago; `--only <test>` runs one
+test alone.
 
 For loop seams, loop a section with **no rests**, or the capture's silences
 mix the music's own rests with the seam. May Song B (4 bars) has none, and
