@@ -661,6 +661,10 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
 /// view is the mirror image: `<harmony>` but no `<fingering>`, so a bar and no
 /// channel.
 ///
+/// [withSecondBar]: the chord bar and the note-name row each want a row of the
+/// bar's height (they used to share one, the chord winning). Only meaningful
+/// with [withChordBar].
+///
 /// [budgetPx] is the room the tightest system has between the previous system's
 /// ink and its own annotation register. [minShare] floors the shrink so a
 /// pathologically tight score gets small labels rather than invisible ones; past
@@ -672,6 +676,7 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
   required double typeShare,
   bool withChordBar = true,
   bool withFingeringRow = true,
+  bool withSecondBar = false,
   double gapShare = 0.12,
   double minShare = 0.55,
 }) {
@@ -680,11 +685,13 @@ double annotationFontSizeFor(double staffSpacePx) => staffSpacePx <= 0
     return (barHeight: 0, channelHeight: 0, gap: 0);
   }
   final bar = withChordBar ? font / labelShare : 0.0;
+  final bars = withChordBar ? (withSecondBar ? 2 : 1) : 0;
   final channel = withFingeringRow ? font / typeShare : 0.0;
-  // The gap exists to keep the bar off the row below it, so it is only wanted
-  // when both are there.
-  final gap = withChordBar && withFingeringRow ? bar * gapShare : 0.0;
-  final want = bar + channel + gap;
+  // The gap exists to keep one row off the row below it, so it is only wanted
+  // between rows: one fewer than there are.
+  final rows = bars + (withFingeringRow ? 1 : 0);
+  final gap = rows >= 2 ? bar * gapShare : 0.0;
+  final want = bar * bars + channel + gap * (rows - 1);
   if (want <= 0) return (barHeight: 0, channelHeight: 0, gap: 0);
   final k = budgetPx <= 0 || budgetPx >= want
       ? 1.0

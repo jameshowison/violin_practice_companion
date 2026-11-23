@@ -95,14 +95,23 @@ fi
 [[ -n "$OWN" ]] && kill $OWN 2>/dev/null
 sleep 1
 
-# Ensure the simulator is booted and the Simulator app is open.
+# Ensure the simulator is booted, then show it.
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
-open -a Simulator 2>/dev/null || true
 # Give the device a moment to reach Booted.
 for _ in $(seq 1 20); do
   xcrun simctl list devices | grep "$DEVICE" | grep -q "Booted" && break
   sleep 1
 done
+# Xcode 27 replaced Simulator.app with Device Hub, which brings one device to
+# the front through a devices:// link (by UDID, so resolve the name first;
+# the trailing " (" keeps dev-iphone from matching dev-iphone-se). Older
+# Xcodes still have Simulator.app.
+UDID=$(xcrun simctl list devices | grep -F "    $DEVICE (" | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | head -1)
+if [[ -n "$UDID" ]] && open "devices://device/open?id=$UDID" 2>/dev/null; then
+  :
+else
+  open -a Simulator 2>/dev/null || true
+fi
 
 if [[ -n "$SYNC" ]]; then
   LIBDIR="${DEV_LIBRARY:-$(dirname "$0")/../../violin_dev_library}"

@@ -114,6 +114,11 @@ abstract class PlaybackServiceBase {
   /// Drives the "1 .. 2 .. 3" display above the time signature.
   final ValueNotifier<CountInTick?> countInNotifier = ValueNotifier(null);
 
+  /// Counts the times a looped play-through has gone round. Practice mode
+  /// fades a support on each (see `practice_mode.dart`); nothing else in the
+  /// playback state says a pass is over, since looping stays [PlaybackState.playing].
+  final ValueNotifier<int> loopPassNotifier = ValueNotifier(0);
+
   final _stateCtrl = StreamController<PlaybackState>.broadcast();
 
   Stream<PlaybackState> get state => _stateCtrl.stream;
@@ -650,6 +655,7 @@ abstract class PlaybackServiceBase {
   void endReached() {
     if (_state != PlaybackState.playing) return;
     if (loopEnabled) {
+      loopPassNotifier.value++;
       play(
           fromMeasure: _fromMeasure,
           fromNote: _fromNote,
@@ -807,6 +813,7 @@ abstract class PlaybackServiceBase {
     currentMeasureNotifier.dispose();
     currentHighlightNotifier.dispose();
     countInNotifier.dispose();
+    loopPassNotifier.dispose();
     _stateCtrl.close();
   }
 }

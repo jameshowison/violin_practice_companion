@@ -334,10 +334,35 @@ void main() {
       expect(named.gap, greaterThan(0));
       expect(annotationWantSpaces(noChords, 1, withNameRow: true),
           greaterThan(bare));
-      // A score that has chords already reserves the row: names change nothing.
-      final withChords = annotationStackOf(score, 1, withNameRow: true);
-      expect(withChords.barHeight,
-          closeTo(annotationStackOf(score, 1).barHeight, 1e-9));
+      // On a score with chords the names no longer share the chord row: they
+      // stack under it in a row of their own, so the room asked for grows.
+      expect(annotationWantSpaces(score, 1, withNameRow: true),
+          greaterThan(annotationWantSpaces(score, 1)));
+    });
+
+    test('drawn rows stack from the notes up: fingerings, names, chords', () {
+      const w = 1000.0;
+      ({Rect? fingering, Rect? names, Rect? chords}) rows(
+              bool f, bool n, bool c) =>
+          annotationRowsOn(score, 0, 1, w,
+              drawn: (fingering: f, names: n, chords: c), withNameRow: true);
+      final channel = fingeringChannelOn(score, 0, 1, w, withNameRow: true)!;
+
+      // Alone, the names take the fingerings' place, right over the notes.
+      final namesOnly = rows(false, true, false);
+      expect(namesOnly.names!.bottom, closeTo(channel.bottom, 1e-9));
+      expect(namesOnly.fingering, isNull);
+      // Chords alone do the same.
+      expect(rows(false, false, true).chords!.bottom,
+          closeTo(channel.bottom, 1e-9));
+
+      // All three: each stands on the one below it.
+      final all = rows(true, true, true);
+      expect(all.fingering, channel);
+      expect(all.names!.bottom, lessThan(channel.top));
+      expect(all.chords!.bottom, lessThan(all.names!.top));
+      // And a row's height never depends on what else is drawn.
+      expect(all.names!.height, closeTo(namesOnly.names!.height, 1e-9));
     });
 
     test('every system has room for the full stack — nothing shrinks', () {

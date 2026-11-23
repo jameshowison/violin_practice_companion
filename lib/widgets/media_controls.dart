@@ -19,6 +19,7 @@ import '../services/sync_calibrator.dart';
 import '../services/teacher_recording_capture.dart';
 import '../services/video_shrinker.dart';
 import 'alignment_rating.dart';
+import 'practice_bar.dart' show PracticeToggleButton;
 import 'tempo_controls.dart';
 import 'video_window_mode.dart';
 
@@ -890,6 +891,7 @@ class _SynthesizedTransportState extends ConsumerState<_SynthesizedTransport> {
             child: TempoPresetPicker(),
           ),
         ),
+        const PracticeToggleButton(),
         // The rendered score plays through the recording player, so it shows
         // (and calibrates) the recording delay.
         const _OutputPickerButton(
@@ -1157,6 +1159,7 @@ class _MediaTransportState extends ConsumerState<_MediaTransport> {
                   onPressed: () => shown ? hideVideo(ref) : showVideo(ref),
                 );
               }),
+            const PracticeToggleButton(),
             const _OutputPickerButton(source: AudioSyncSource.recording),
           ],
         );

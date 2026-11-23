@@ -228,13 +228,13 @@ Future<PrintLayout> layoutScoreForPrint(
     // Each system's slice: its ink, plus the lanes drawn above it (which sit
     // above the ink top — the chord bar hangs over the chord register), never
     // reaching back into the system before.
-    final stack = annotationStackOf(
-      score,
-      scale,
-      withNameRow: job.overlays.showNoteNames,
-    );
     final space = score.staffSpaceViewBox * scale;
-    final above = stack.barHeight + stack.channelHeight + stack.gap + space;
+    final above = annotationStackHeightOf(
+          score,
+          scale,
+          withNameRow: job.overlays.showNoteNames,
+        ) +
+        space;
     final lines = <({double top, double bottom})>[];
     for (var l = 0; l < score.lineContent.length; l++) {
       final c = score.lineContent[l];

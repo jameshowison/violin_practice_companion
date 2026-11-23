@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/app_edition.dart';
 import '../services/instrument_setting.dart';
 import '../services/players.dart';
+import '../services/practice_mode.dart';
 import '../widgets/player_badge.dart';
 import '../theme/app_skin.dart';
 import '../theme/skins.dart';
@@ -180,6 +181,35 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          // Practice mode's own settings (it is switched on per piece, from
+          // the piece's drawer). Per player, like the rest of this screen.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text('Practice mode', style: theme.textTheme.titleSmall),
+          ),
+          SwitchListTile.adaptive(
+            key: const ValueKey('practice_auto_fade'),
+            title: const Text('Fade on each loop pass'),
+            subtitle: const Text(
+                'Each time a looped passage comes round, one more support goes'),
+            value: ref.watch(practiceAutoFadeProvider),
+            onChanged: (v) =>
+                ref.read(practiceAutoFadeProvider.notifier).state = v,
+          ),
+          SwitchListTile.adaptive(
+            key: const ValueKey('practice_refade'),
+            title: const Text('Keep fading after a peek'),
+            subtitle: const Text('Off: tapping the score to bring a support '
+                'back stops the fading until you press Fade'),
+            value: ref.watch(practiceRefadeAfterPeekProvider),
+            onChanged: ref.watch(practiceAutoFadeProvider)
+                ? (v) => ref
+                    .read(practiceRefadeAfterPeekProvider.notifier)
+                    .state = v
+                : null,
+          ),
           const SizedBox(height: 8),
           const Divider(height: 1),
           ListTile(

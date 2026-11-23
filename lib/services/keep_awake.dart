@@ -34,6 +34,7 @@ abstract final class KeepAwake {
 
   static int _holders = 0;
   static bool _busy = false;
+  static bool _sleepNow = false;
   static bool _idle = false;
   static bool _locked = false;
   static Timer? _timer;
@@ -71,6 +72,15 @@ abstract final class KeepAwake {
     _activity();
   }
 
+  /// Practice mode's black screen: let the phone sleep on its own auto-lock
+  /// straight away instead of after [idleTimeout], unless something is
+  /// playing ([busy] still holds the lock, so the music goes on).
+  static set sleepWhenIdle(bool value) {
+    if (value == _sleepNow) return;
+    _sleepNow = value;
+    _apply();
+  }
+
   /// A touch (or the end of playback): restarts the countdown.
   static void _activity() {
     _idle = false;
@@ -85,7 +95,7 @@ abstract final class KeepAwake {
   }
 
   static void _apply() {
-    final want = _holders > 0 && (_busy || !_idle);
+    final want = _holders > 0 && (_busy || (!_idle && !_sleepNow));
     if (want == _locked) return;
     _locked = want;
     _attempt(want);
@@ -109,6 +119,7 @@ abstract final class KeepAwake {
     _timer = null;
     _holders = 0;
     _busy = false;
+    _sleepNow = false;
     _idle = false;
     _locked = false;
     if (_routed) {

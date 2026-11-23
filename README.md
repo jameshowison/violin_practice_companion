@@ -175,7 +175,9 @@ only lists *booted* ones — so this comes before anything Flutter-side:
 
 ```bash
 xcrun simctl boot dev-ipad
-open -a Simulator          # bring the simulator window up
+# bring its window up: Xcode 27 replaced Simulator.app with Device Hub
+open "devices://device/open?id=$(xcrun simctl list devices | grep -F '    dev-ipad (' | grep -oE '[0-9A-F-]{36}')"
+# (Xcode 26 and earlier: open -a Simulator)
 ```
 
 Wait for it to reach `Booted` (the first boot after a restart is the slow one):

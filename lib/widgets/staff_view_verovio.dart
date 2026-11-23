@@ -121,6 +121,16 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// chord-less score, so changing it re-engraves (the reserve moves).
   final bool showNoteNames;
 
+  /// Whether the engraving leaves room for the name row, when that is not
+  /// [showNoteNames]: practice mode shows and hides the names without ever
+  /// changing the layout the player chose, so it passes the player's own
+  /// setting here. With no row reserved, names take the fingering channel's
+  /// place (see [annotationRowsOn]).
+  final bool? reserveNameRow;
+
+  /// Whether the engraving leaves the name row (see [reserveNameRow]).
+  bool get withNameRow => reserveNameRow ?? showNoteNames;
+
   /// Tint each notehead with its string's colour. A re-parse of the cached
   /// engrave, never a re-layout.
   final bool colourNoteheads;
@@ -152,6 +162,15 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
   /// render a single-measure preview at a fraction of its box.
   final bool zoomable;
 
+  /// Practice mode: any tap on the page calls this instead of selecting a bar
+  /// (and [onMeasureTapped] is not called).
+  final VoidCallback? onPageTap;
+
+  /// Practice mode's bowing step: every bar dims except these (model measure
+  /// numbers). Null dims nothing. The playback cursor stays at full strength,
+  /// so the player can see a lit bar coming. A repaint, never a re-engrave.
+  final Set<int>? litMeasures;
+
   /// Told the height the engraved page draws at, whenever it changes — for a
   /// preview that sizes its box to its content (the note palette) rather than
   /// scrolling inside a fixed one.
@@ -181,6 +200,7 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.stringRuns = const [],
     this.noteNames = const [],
     this.showNoteNames = false,
+    this.reserveNameRow,
     this.colourNoteheads = false,
     this.laneDashes = const [],
     this.keySignatureLabel,
@@ -189,6 +209,8 @@ class StaffViewVerovio extends ConsumerStatefulWidget {
     this.tabFingerLabels,
     this.zoomable = true,
     this.onContentHeight,
+    this.onPageTap,
+    this.litMeasures,
   });
 
   @override
@@ -372,7 +394,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
         old.sectionLayout != widget.sectionLayout ||
         old.printedLines != widget.printedLines ||
         !mapEquals(old.sectionLabels, widget.sectionLabels) ||
-        old.showNoteNames != widget.showNoteNames ||
+        old.withNameRow != widget.withNameRow ||
         !listEquals(old.tabFingerLabels, widget.tabFingerLabels)) {
       _reservesAnnotationRoom = scoreReservesAnnotationRoom(widget.musicXml);
       _engravedWidth = 0;
@@ -417,7 +439,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// width, which is the very thing the calibration measures.
   String _calibrationKeyFor(int spacingUnits) =>
       '${widget.musicXml.hashCode}|${widget.tabMode}|$spacingUnits'
-      '|${widget.showNoteNames}|$_spacingLinear';
+      '|${widget.withNameRow}|$_spacingLinear';
 
   /// Natural (unjustified) width of every engraved measure in MEI units, for
   /// the section layout — measured once per calibration from a one-line
@@ -444,10 +466,21 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   /// own ([spacingLinearForSize]), or what Fit squeezed to ([_fitSpacing]).
   double _spacingLinear = spacingLinearDefault;
 
+  /// The fingering channel has something in it: chips, or the underline's
+  /// string runs. Names and chords stand on it only then.
+  bool get _fingeringDrawn =>
+      widget.fingeringAnnotations.isNotEmpty || widget.stringRuns.isNotEmpty;
+
+  AnnotationRowsDrawn get _rowsDrawn => (
+        fingering: _fingeringDrawn,
+        names: widget.showNoteNames && widget.noteNames.isNotEmpty,
+        chords: widget.chordRuns.isNotEmpty,
+      );
+
   /// The annotated view: fingering chips and note names need room across the
   /// line, so the spacing never goes below [spacingLinearMinAnnotated].
   bool get _annotated =>
-      widget.fingeringAnnotations.isNotEmpty || widget.showNoteNames;
+      widget.fingeringAnnotations.isNotEmpty || widget.withNameRow;
 
   // ── Engrave queue ──────────────────────────────────────────────────────
   //
@@ -683,7 +716,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
           wantSpaces: annotationWantSpaces(
             probe,
             staffScaleProbe,
-            withNameRow: widget.showNoteNames,
+            withNameRow: widget.withNameRow,
           ),
         );
         _reserveSpacingUnits = reserve.spacingUnits;
@@ -1234,6 +1267,11 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
   }
 
   void _onTapUp(Offset local) {
+    final pageTap = widget.onPageTap;
+    if (pageTap != null) {
+      pageTap();
+      return;
+    }
     _lastBarTap = DateTime.now();
     final m = _measureAt(local);
     if (m != null) widget.onMeasureTapped?.call(m, _noteAt(local));
@@ -1463,20 +1501,40 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: CustomPaint(
-                          painter: _UnderlayPainter(
-                            score: score,
-                            scale: scale,
-                            sectionTints: widget.sectionTints,
+                        child: _Receding(
+                          receded: widget.litMeasures != null,
+                          child: Stack(children: [
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _UnderlayPainter(
+                                  score: score,
+                                  scale: scale,
+                                  sectionTints: widget.sectionTints,
+                                ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: ScalableImageWidget(
+                                si: image,
+                                fit: BoxFit.fitWidth,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                      // The bowing step's lit bars: the same engraving again,
+                      // at full strength, clipped to their bands.
+                      if (widget.litMeasures case final lit?)
+                        Positioned.fill(
+                          child: ClipPath(
+                            clipper: _RectsClipper(
+                                _litRectsFor(score, scale, widget.measureMap, lit)),
+                            child: ScalableImageWidget(
+                              si: image,
+                              fit: BoxFit.fitWidth,
+                            ),
                           ),
                         ),
-                      ),
-                      Positioned.fill(
-                        child: ScalableImageWidget(
-                          si: image,
-                          fit: BoxFit.fitWidth,
-                        ),
-                      ),
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
@@ -1519,7 +1577,7 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               annotations: widget.fingeringAnnotations,
                               stringRuns: widget.stringRuns,
                               style: widget.stringColourStyle,
-                              withNameRow: widget.showNoteNames,
+                              withNameRow: widget.withNameRow,
                               strings: ref
                                   .watch(instrumentProfileProvider)
                                   .strings,
@@ -1537,7 +1595,8 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                               noteNames: widget.showNoteNames
                                   ? widget.noteNames
                                   : const [],
-                              withNameRow: widget.showNoteNames,
+                              withNameRow: widget.withNameRow,
+                              fingeringDrawn: _fingeringDrawn,
                               keySignature: widget.keySignatureLabel,
                             ),
                           ),
@@ -1545,11 +1604,15 @@ class _StaffViewVerovioState extends ConsumerState<StaffViewVerovio> {
                       ),
                       Positioned.fill(
                         child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _EndingPainter(
-                              score: score,
-                              scale: scale,
-                              withNameRow: widget.showNoteNames,
+                          child: _Receding(
+                            receded: widget.litMeasures != null,
+                            child: CustomPaint(
+                              painter: _EndingPainter(
+                                score: score,
+                                scale: scale,
+                                withNameRow: widget.withNameRow,
+                                drawn: _rowsDrawn,
+                              ),
                             ),
                           ),
                         ),
@@ -1684,15 +1747,26 @@ void paintStaffScore(
     monochromeRules: monochromeRules,
     withNameRow: showNoteNames,
   ).paint(canvas, size);
+  final fingeringDrawn =
+      fingeringAnnotations.isNotEmpty || stringRuns.isNotEmpty;
   _ChordLanePainter(
     score: score,
     scale: scale,
     runs: chordRuns,
     noteNames: showNoteNames ? noteNames : const [],
     withNameRow: showNoteNames,
+    fingeringDrawn: fingeringDrawn,
   ).paint(canvas, size);
-  _EndingPainter(score: score, scale: scale, withNameRow: showNoteNames)
-      .paint(canvas, size);
+  _EndingPainter(
+    score: score,
+    scale: scale,
+    withNameRow: showNoteNames,
+    drawn: (
+      fingering: fingeringDrawn,
+      names: showNoteNames && noteNames.isNotEmpty,
+      chords: chordRuns.isNotEmpty,
+    ),
+  ).paint(canvas, size);
 }
 
 /// SVG note id → notehead fill (`#rrggbb`) for every entry in [noteNames] with a
@@ -1727,6 +1801,53 @@ Map<String, String> noteheadFillsFor(
 /// measure's left and a partial last measure's right are clipped to notes
 /// (mid-measure section edges). The range is [EngravedMeasureMap.range]'s
 /// shape: [endNote] is exclusive, `-1` for the whole of [endIndex].
+/// The bands of the engraved slices of [numbers] (model measure numbers):
+/// what the bowing step leaves lit.
+List<Rect> _litRectsFor(EngravedScore score, double scale,
+    EngravedMeasureMap map, Set<int> numbers) {
+  if (numbers.isEmpty) return const [];
+  return [
+    for (var i = 0; i < map.slices.length; i++)
+      if (numbers.contains(map.numberAt(i)))
+        ..._rangeRowRects(score, scale, i, 0, i, -1),
+  ];
+}
+
+/// Practice mode's dimming of everything but the lit bars.
+class _Receding extends StatelessWidget {
+  const _Receding({required this.receded, required this.child});
+  final bool receded;
+  final Widget child;
+
+  /// Low enough that a squint can't read the notes, high enough that the
+  /// page's shape (where the lines are) still shows.
+  static const opacity = 0.12;
+
+  @override
+  Widget build(BuildContext context) => AnimatedOpacity(
+        opacity: receded ? opacity : 1,
+        duration: const Duration(milliseconds: 300),
+        child: child,
+      );
+}
+
+class _RectsClipper extends CustomClipper<Path> {
+  _RectsClipper(this.rects);
+  final List<Rect> rects;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    for (final r in rects) {
+      path.addRect(r);
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(_RectsClipper old) => !listEquals(old.rects, rects);
+}
+
 List<Rect> _rangeRowRects(EngravedScore score, double scale, int startIndex,
     int startNote, int endIndex, int endNote) {
   final r = (
@@ -1906,9 +2027,41 @@ double annotationWantSpaces(
     typeShare: underlineTextFraction,
     withChordBar: score.harmAnchors.isNotEmpty || withNameRow,
     withFingeringRow: score.fingAnchors.isNotEmpty,
+    withSecondBar: score.harmAnchors.isNotEmpty && withNameRow,
   );
-  return (full.barHeight + full.channelHeight + full.gap) / space;
+  return _stackHeight(full, _reservedRows(score, withNameRow)) / space;
 }
+
+/// The rows the room is reserved for: what the SCORE carries (and the
+/// note-name switch), never what happens to be drawn this frame — so the type
+/// keeps its size while rows come and go above the staff.
+({int bars, bool fingering}) _reservedRows(
+        EngravedScore score, bool withNameRow) =>
+    (
+      bars: (score.harmAnchors.isNotEmpty ? 1 : 0) + (withNameRow ? 1 : 0),
+      fingering: score.fingAnchors.isNotEmpty,
+    );
+
+double _stackHeight(
+  ({double barHeight, double channelHeight, double gap}) stack,
+  ({int bars, bool fingering}) rows,
+) {
+  final n = rows.bars + (rows.fingering ? 1 : 0);
+  if (n == 0) return 0;
+  return stack.barHeight * rows.bars +
+      (rows.fingering ? stack.channelHeight : 0) +
+      stack.gap * (n - 1);
+}
+
+/// The whole reserved stack's height in screen px: every row the score can
+/// draw, and the gaps between them. What print leaves above each system.
+double annotationStackHeightOf(
+  EngravedScore score,
+  double scale, {
+  bool withNameRow = false,
+}) =>
+    _stackHeight(annotationStackOf(score, scale, withNameRow: withNameRow),
+        _reservedRows(score, withNameRow));
 
 /// The room the tightest system offers for the annotation stack, in screen px:
 /// from the previous system's ink down to that system's own annotation register.
@@ -1928,11 +2081,12 @@ double _annotationBudget(EngravedScore score, double scale) {
   return budget.isFinite ? budget : 0;
 }
 
-/// The annotation stack for [score] — one chord-bar height and one fingering
-/// channel height, used on every system. See [annotationStackFor].
+/// The annotation stack for [score] — one bar height (the chord row and the
+/// note-name row are each one of these) and one fingering channel height, used
+/// on every system. See [annotationStackFor].
 ///
-/// [withNameRow]: the note names share the chord bar's row, so turning them on
-/// claims that row even on a score with no chords.
+/// [withNameRow]: the note names get a row of their own, so turning them on
+/// claims one more bar's room.
 ({double barHeight, double channelHeight, double gap}) annotationStackOf(
   EngravedScore score,
   double scale, {
@@ -1947,7 +2101,64 @@ double _annotationBudget(EngravedScore score, double scale) {
   // ever painted, and the same for the channel in the tab view.
   withChordBar: score.harmAnchors.isNotEmpty || withNameRow,
   withFingeringRow: score.fingAnchors.isNotEmpty,
+  withSecondBar: score.harmAnchors.isNotEmpty && withNameRow,
 );
+
+/// Which of the rows above the staff are drawn this frame: the fingering
+/// channel, the note names, the chord bars.
+typedef AnnotationRowsDrawn = ({bool fingering, bool names, bool chords});
+
+/// Where each drawn row sits on system [line], in screen px. Null for a row
+/// not drawn, or a system with nothing to hang the stack on.
+///
+/// The rows STACK, bottom up in that order — fingerings, names, chords — each
+/// drawn row on the one below it, so whatever is shown sits as close to the
+/// notes as it can: names alone take the place the fingerings would have had,
+/// not the row above an empty channel. The heights stay the reserved ones
+/// ([annotationStackOf]), so a row coming or going never resizes the others or
+/// moves a note.
+///
+/// The stack stands on [EngravedScore.fingRegister] where Verovio engraved
+/// fingerings (the row that clears every notehead), else on the chord register.
+({Rect? fingering, Rect? names, Rect? chords}) annotationRowsOn(
+  EngravedScore score,
+  int line,
+  double scale,
+  double width, {
+  required AnnotationRowsDrawn drawn,
+  bool withNameRow = false,
+}) {
+  final stack = annotationStackOf(score, scale, withNameRow: withNameRow);
+  final channel =
+      fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
+  double bottom;
+  Rect? fingering;
+  if (channel != null && drawn.fingering) {
+    fingering = channel;
+    bottom = channel.top - stack.gap;
+  } else if (channel != null) {
+    bottom = channel.bottom;
+  } else {
+    // chordRegister, not harmRegister: a chord run carrying across a system
+    // break leaves the continuation system with no engraved symbol, and the
+    // bar has to be drawn anyway. See EngravedScore.chordRegister.
+    final register = score.chordRegister(line);
+    if (register == null) return (fingering: null, names: null, chords: null);
+    bottom = register * scale - stack.gap;
+  }
+  Rect? names, chords;
+  // With no name row reserved, names shown anyway (practice mode's letters
+  // step) borrow the fingering channel's height: they stand where it would.
+  final nameH = stack.barHeight > 0 ? stack.barHeight : stack.channelHeight;
+  if (nameH > 0 && drawn.names) {
+    names = Rect.fromLTRB(0, bottom - nameH, width, bottom);
+    bottom = names.top - stack.gap;
+  }
+  if (stack.barHeight > 0 && drawn.chords) {
+    chords = Rect.fromLTRB(0, bottom - stack.barHeight, width, bottom);
+  }
+  return (fingering: fingering, names: names, chords: chords);
+}
 
 /// The fingering channel on system [line], in screen px — or null when that
 /// system carries no engraved fingering.
@@ -2380,6 +2591,7 @@ class _ChordLanePainter extends CustomPainter {
     required this.runs,
     this.noteNames = const [],
     this.withNameRow = false,
+    this.fingeringDrawn = false,
     this.keySignature,
   });
 
@@ -2387,11 +2599,26 @@ class _ChordLanePainter extends CustomPainter {
   final double scale;
   final List<ChordRunRegion> runs;
 
+  /// The fingering channel below is drawn, so the names (or the chords) stand
+  /// on it; otherwise they take its place. See [annotationRowsOn].
+  final bool fingeringDrawn;
+
+  AnnotationRowsDrawn get _drawn => (
+        fingering: fingeringDrawn,
+        names: noteNames.isNotEmpty,
+        chords: runs.isNotEmpty,
+      );
+
+  ({Rect? fingering, Rect? names, Rect? chords}) _rowsOn(
+          int line, double width, AnnotationRowsDrawn drawn) =>
+      annotationRowsOn(score, line, scale, width,
+          drawn: drawn, withNameRow: withNameRow);
+
   /// See [StaffViewVerovio.keySignatureLabel].
   final KeySignatureLabel? keySignature;
 
-  /// Note names, drawn in this same row wherever no chord bar covers the note —
-  /// a score with names and chords on both is rare, so the chord wins the space.
+  /// Note names, in their own row: on the fingering channel when it is drawn,
+  /// under the chord bars when they are (see [annotationRowsOn]).
   final List<NoteNameLabel> noteNames;
 
   /// The row exists for the names even without chords — see [annotationStackOf].
@@ -2411,15 +2638,12 @@ class _ChordLanePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Per system, the x-extents the chord bars took, so the names can stay out.
-    final taken = <int, List<({double left, double right})>>{};
     for (final run in runs) {
       for (final seg in _runRowRects(run, size.width)) {
         _paintSegment(canvas, seg, run);
-        (taken[seg.line] ??= []).add((left: seg.rect.left, right: seg.rect.right));
       }
     }
-    if (noteNames.isNotEmpty) _paintNoteNames(canvas, size.width, taken);
+    if (noteNames.isNotEmpty) _paintNoteNames(canvas, size.width);
     final key = keySignature;
     if (key != null) _paintKeySignature(canvas, size.width, key);
   }
@@ -2453,8 +2677,14 @@ class _ChordLanePainter extends CustomPainter {
     double width,
     KeySignatureLabel key,
   ) {
-    final bar = _barFor(0, width);
-    if (bar == null) return;
+    // The key's name goes where a note name would: the name row, drawn or not.
+    final nameRow = _rowsOn(0, width, (
+      fingering: fingeringDrawn,
+      names: true,
+      chords: false,
+    )).names;
+    if (nameRow == null) return;
+    final bar = (top: nameRow.top, bottom: nameRow.bottom);
     final size = (bar.bottom - bar.top) * chordLabelSizeFraction;
     if (size <= 0) return;
     final accids = score.keyAccidsOnLine(0);
@@ -2556,11 +2786,7 @@ class _ChordLanePainter extends CustomPainter {
   /// shrinking the type on that system — down to [_nameMinShrink] — and only
   /// past that by dropping a name that merely repeats the one before it. A tie
   /// continuation is never named: it is the same note still sounding.
-  void _paintNoteNames(
-    Canvas canvas,
-    double width,
-    Map<int, List<({double left, double right})>> taken,
-  ) {
+  void _paintNoteNames(Canvas canvas, double width) {
     final byLine = <int, List<({double cx, String name})>>{};
     for (final n in noteNames) {
       if (n.held) continue;
@@ -2569,16 +2795,19 @@ class _ChordLanePainter extends CustomPainter {
       final note = score.noteAt(n.measureIndex, n.noteIndex);
       if (note == null) continue;
       final cx = note.rect.center.dx * scale;
-      final blocked = taken[line]?.any((r) => cx >= r.left && cx <= r.right);
-      if (blocked ?? false) continue;
       (byLine[line] ??= []).add((cx: cx, name: n.name));
     }
 
     for (final entry in byLine.entries) {
-      final bar = _barFor(entry.key, width);
-      if (bar == null) continue;
+      final row = _rowsOn(entry.key, width, _drawn).names;
+      if (row == null) continue;
+      final bar = (top: row.top, bottom: row.bottom);
       final items = entry.value..sort((p, q) => p.cx.compareTo(q.cx));
-      final full = (bar.bottom - bar.top) * chordLabelSizeFraction;
+      // The label's share of the row, but never past the one annotation size:
+      // a borrowed fingering channel is taller than a name row.
+      final full = math.min(
+          (bar.bottom - bar.top) * chordLabelSizeFraction,
+          annotationFontSizeFor(score.staffSpaceViewBox * scale));
       if (full <= 0) continue;
 
       TextPainter layout(String text, double size) => _nameText(text, size);
@@ -2658,26 +2887,10 @@ class _ChordLanePainter extends CustomPainter {
   /// A foot clearance is kept, still shortening from the BOTTOM only, so the
   /// fingering row below has somewhere to come up to.
   ({double top, double bottom})? _barFor(int line, double width) {
-    final stack = annotationStackOf(score, scale, withNameRow: withNameRow);
-    if (stack.barHeight <= 0) return null;
-    // The bar sits directly on the fingering row where there is one, so the two
-    // read as a stack rather than as two independently placed things; otherwise
-    // it hangs off its own register.
-    final channel =
-        fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
-    final double bottom;
-    if (channel != null) {
-      bottom = channel.top - stack.gap;
-    } else {
-      // chordRegister, not harmRegister: a chord run carrying across a system
-      // break leaves the continuation system with no engraved symbol, and the bar
-      // has to be drawn anyway. See EngravedScore.chordRegister.
-      final register = score.chordRegister(line);
-      if (register == null) return null;
-      bottom = register * scale - stack.gap;
-    }
-    return (top: bottom - stack.barHeight, bottom: bottom);
+    final r = _rowsOn(line, width, _drawn).chords;
+    return r == null ? null : (top: r.top, bottom: r.bottom);
   }
+
 
   /// One segment per system line the run touches, in line order.
   List<_LaneSegment> _runRowRects(ChordRunRegion r, double width) {
@@ -2715,36 +2928,27 @@ class _ChordLanePainter extends CustomPainter {
       old.runs != runs ||
       old.noteNames != noteNames ||
       old.withNameRow != withNameRow ||
+      old.fingeringDrawn != fingeringDrawn ||
       old.keySignature != keySignature;
 }
 
 /// The top of the drawn annotation rows on system [line], in screen px: the
-/// chord/name bar where the score has that row, else the fingering channel.
-/// Null when the system carries neither — nothing drawn to clear.
+/// highest of the rows [drawn] puts there (see [annotationRowsOn]). Null when
+/// none is — nothing drawn to clear.
 ///
-/// The chord bar's placement mirrors [_ChordLanePainter._barFor]; the bar row
-/// is claimed on every system once the score has one, so this clears it even
-/// on a system whose chords happen to carry over from the one before.
+/// The rows are placed alike on every system, so this clears the chord row
+/// even on a system whose chords happen to carry over from the one before.
 double? annotationTopOn(
   EngravedScore score,
   int line,
   double scale,
   double width, {
+  required AnnotationRowsDrawn drawn,
   bool withNameRow = false,
 }) {
-  final stack = annotationStackOf(score, scale, withNameRow: withNameRow);
-  final channel =
-      fingeringChannelOn(score, line, scale, width, withNameRow: withNameRow);
-  if (stack.barHeight > 0) {
-    final register = score.chordRegister(line);
-    final double? barBottom = channel != null
-        ? channel.top - stack.gap
-        : register == null
-            ? null
-            : register * scale - stack.gap;
-    if (barBottom != null) return barBottom - stack.barHeight;
-  }
-  return channel?.top;
+  final rows = annotationRowsOn(score, line, scale, width,
+      drawn: drawn, withNameRow: withNameRow);
+  return (rows.chords ?? rows.names ?? rows.fingering)?.top;
 }
 
 /// First/second-ending brackets, redrawn above the annotation rows.
@@ -2762,11 +2966,15 @@ class _EndingPainter extends CustomPainter {
     required this.score,
     required this.scale,
     this.withNameRow = false,
+    this.drawn = (fingering: true, names: true, chords: true),
   });
 
   final EngravedScore score;
   final double scale;
   final bool withNameRow;
+
+  /// The rows drawn this frame, which the brackets clear.
+  final AnnotationRowsDrawn drawn;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2782,7 +2990,7 @@ class _EndingPainter extends CustomPainter {
       final r = Rect.fromLTRB(e.rect.left * scale, e.rect.top * scale,
           e.rect.right * scale, e.rect.bottom * scale);
       final rowTop = annotationTopOn(score, e.line, scale, size.width,
-          withNameRow: withNameRow);
+          drawn: drawn, withNameRow: withNameRow);
       final lift =
           rowTop == null ? 0.0 : math.max(0.0, r.bottom - (rowTop - gap));
       final box = r.translate(0, -lift);
@@ -2819,7 +3027,8 @@ class _EndingPainter extends CustomPainter {
   bool shouldRepaint(_EndingPainter old) =>
       old.score != score ||
       old.scale != scale ||
-      old.withNameRow != withNameRow;
+      old.withNameRow != withNameRow ||
+      old.drawn != drawn;
 }
 
 /// The horizontal extent of a note-level run, split per system line.

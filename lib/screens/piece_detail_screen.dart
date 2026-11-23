@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart'
+    show SystemChrome, SystemUiMode, SystemUiOverlay;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../build_info.dart';
 import '../models/section_run_groups.dart';
@@ -23,6 +25,11 @@ import '../models/piece_media.dart';
 import '../services/abc_converter.dart';
 import '../services/fingering_annotation_builder.dart';
 import '../services/keep_awake.dart';
+import '../services/practice_mode.dart';
+import '../services/screen_dim.dart';
+import '../models/support_level.dart';
+import '../widgets/practice_bar.dart';
+import '../ui/adaptive/adaptive.dart';
 import '../services/midi_generator.dart';
 import '../services/nonstandard_fingerings.dart';
 import '../services/playback_service_base.dart';
@@ -126,10 +133,34 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     final id = _pieceId;
     // Deferred: a provider must not change while the tree is building.
     if (id != null) Future.microtask(() => _activity.opened(id, DateTime.now()));
+    // Practice mode is per visit: every opening starts with the full score,
+    // even of the piece just left.
+    Future.microtask(() {
+      if (mounted) PracticeMode.exit(ref);
+    });
+  }
+
+  /// Practice mode's black step: the screen at minimum brightness, the phone
+  /// free to sleep once nothing is playing, and the system bars hidden so
+  /// nothing on the screen is lit.
+  static void _blackScreen(bool on) {
+    ScreenDim.dimmed = on;
+    KeepAwake.sleepWhenIdle = on;
+    if (on) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      // Straight from immersive to edge-to-edge left Android's status bar
+      // hidden (dev-android, 2026-11-23): show the bars first, then hand the
+      // edges back to the app as before.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+          overlays: SystemUiOverlay.values);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
   }
 
   @override
   void dispose() {
+    if (ScreenDim.isDimmed) _blackScreen(false);
     KeepAwake.busy = false;
     KeepAwake.disable();
     final id = _pieceId;
@@ -228,6 +259,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       KeepAwake.busy = next.valueOrNull == PlaybackState.playing;
     });
 
+    final practiceLevel = ref.watch(practiceLevelProvider);
+    ref.listen(practiceLevelProvider, (prev, next) {
+      final black = next == SupportLevel.black;
+      if (black != (prev == SupportLevel.black)) _blackScreen(black);
+    });
+
     // The one service every view reads its highlight from: whatever is
     // actually playing, so every view (staff, jianpu, fingering, minimap)
     // follows the same clock. The players take the piece and the tempo from
@@ -252,6 +289,9 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       // Over the whole Scaffold, not the body: while playing, the video docks
       // over the app bar's right-hand actions. Any medium with a video gets
       // it: a recorded demo, or an imported mp4.
+      child: LoopPassWatcher(
+      passes: activeService.loopPassNotifier,
+      onPass: () => PracticeMode.loopPassed(ref),
       child: Stack(children: [
       Scaffold(
       // The count-off takes over the whole bar while it runs — back arrow,
@@ -381,6 +421,28 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                     onChanged: (mode) =>
                         ref.read(displayModePrefProvider.notifier).state = mode,
                   ),
+                  // Practice mode: the supports fade a step at a time. The
+                  // engraved staff views only.
+                  if (practiceModeAppliesTo(displayMode))
+                    SwitchListTile.adaptive(
+                      key: const ValueKey('practice_mode_switch'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      secondary: const Icon(Icons.blur_on),
+                      title: const Text('Practice mode'),
+                      subtitle: const Text(
+                          'Fade the help on the score a step at a time; '
+                          'tap the score to bring a step back'),
+                      value: ref.watch(practiceModeProvider).active,
+                      onChanged: (on) {
+                        if (on) {
+                          PracticeMode.enter(ref);
+                          Navigator.of(context).pop(); // the drawer
+                        } else {
+                          PracticeMode.exit(ref);
+                        }
+                      },
+                    ),
                   // A scanned piece can be checked against the page it was
                   // read from. Beside the view picker because it is another
                   // way of looking at the piece; absent for one never scanned.
@@ -804,6 +866,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // No section pills here: the minimap down the right-hand edge
                   // shows the same sections, unfolded and in proportion, and
                   // selects the same practice range on a tap.
+                  const PracticeBar(),
                   MediaControls(
                     piece: piece,
                     media: mediaList,
@@ -828,7 +891,24 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
           startNote: ref.watch(playbackStartNoteProvider),
           startIndex: ref.watch(measureSelectionProvider)?.startPerf ?? -1,
         ),
+      // Practice mode's last step: everything black, app bar and tray
+      // included. A tap brings back the dimmed step.
+      if (practiceLevel == SupportLevel.black)
+        Positioned.fill(
+          child: GestureDetector(
+            key: const ValueKey('practice_black'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () => PracticeMode.peek(ref),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 600),
+              builder: (_, t, _) => ColoredBox(
+                  color: Colors.black.withValues(alpha: t)),
+            ),
+          ),
+        ),
     ]),
+    ),
     );
   }
 
@@ -1566,6 +1646,14 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
         if (mounted) _setTray(true);
       });
     });
+    // Practice mode's Fade button lives in the tray, so entering the mode
+    // brings the tray up.
+    ref.listen(practiceModeProvider.select((s) => s.active), (prev, next) {
+      if (!next || prev == true) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _setTray(true);
+      });
+    });
 
     // What the chord drawer holds is only the chord diagrams, and they aren't
     // always there: the wrong view, the chord toggle off, or a tune whose
@@ -1674,6 +1762,7 @@ class _CompactPieceLayoutState extends ConsumerState<_CompactPieceLayout> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  const PracticeBar(),
                                   ?widget.sectionRow,
                                   MediaControls(
                                     piece: widget.piece,
@@ -2245,6 +2334,49 @@ class _NotationView extends ConsumerWidget {
         ? const <NoteLaneDash>[]
         : windLaneDashes(measureMap, parsed, chart,
             (g) => fingeringGroupColor(g, brightness));
+    // Practice mode takes supports away a step at a time (see
+    // [SupportLevel]). Every step is a repaint: the rows the supports use stay
+    // reserved, so no note moves between steps.
+    final practice =
+        practiceModeAppliesTo(mode) ? ref.watch(practiceLevelProvider) : null;
+    var drawChords = chordRuns;
+    var drawAnnotations = annotations;
+    var drawStringRuns = stringRuns;
+    var drawLaneDashes = laneDashes;
+    var drawColourNoteheads = overlays.colourNoteheads;
+    var drawNoteNames = overlays.noteNames;
+    var drawShowNoteNames = overlays.showNoteNames;
+    // The layout is the player's own throughout: the name row is reserved
+    // only if their note-names setting asks for it, whatever step is shown.
+    bool? reserveNameRow;
+    if (practice != null) {
+      reserveNameRow = overlays.showNoteNames;
+      if (practice != SupportLevel.full) {
+        drawChords = const [];
+        drawAnnotations = const [];
+        drawStringRuns = const [];
+        drawLaneDashes = const [];
+        drawColourNoteheads = false;
+        drawShowNoteNames = practice == SupportLevel.letters;
+        // The player's own view may not have named the notes.
+        if (drawShowNoteNames && drawNoteNames.isEmpty && parsed != null) {
+          drawNoteNames = noteNameLabels(
+            measureMap,
+            parsed,
+            numberMode: ref.watch(noteNumberModeProvider),
+            fretStyle: ref.watch(fretStyleProvider),
+          );
+        }
+      }
+    }
+    final litMeasures = practice == SupportLevel.bowings
+        ? ref.watch(practiceCueBarsProvider)
+        : null;
+    void practiceTap() {
+      appSelectionHaptic();
+      PracticeMode.peek(ref);
+    }
+
     // Minimap tap → scroll the staff to the (folded) run's first measure index.
     // Guard the index against a stale navTarget (e.g. after switching pieces).
     final staffNav = (navTarget == null || navTarget.run >= layout.runs.length)
@@ -2269,15 +2401,20 @@ class _NotationView extends ConsumerWidget {
       // `activeService`. A recording's own service carries a permanently null
       // count-in notifier (there is nothing to count off into a fixed
       // recording), so the staff view needs no special case for it.
-      return StaffViewVerovio(
+      final inPractice = practice != null;
+      final staff = StaffViewVerovio(
         musicXml: xml,
         highlightNotifier: service.currentHighlightNotifier,
         selection: selection,
         onMeasureTapped: (m, note) => _selectMeasure(ref, m, note: note),
-        onMeasureRange: onRange,
+        // In practice mode the score's taps are the mode's, and the loop
+        // chosen before it stays put: no ranges, no end handles.
+        onPageTap: inPractice ? practiceTap : null,
+        onMeasureRange: inPractice ? null : onRange,
         onMeasureDragging: onDragging,
-        onNudgeSelection: onNudge,
-        onMoveSelectionEdge: onMoveEdge,
+        onNudgeSelection: inPractice ? null : onNudge,
+        onMoveSelectionEdge: inPractice ? null : onMoveEdge,
+        litMeasures: litMeasures,
         flaggedMeasures: flaggedMeasures,
         measureMap: measureMap,
         // The printed page's lines engrave the section layout's way: each
@@ -2287,15 +2424,37 @@ class _NotationView extends ConsumerWidget {
         holding: holding,
         sectionTints: sectionTints,
         sectionLabels: overlays.sectionLabels,
-        chordRuns: chordRuns,
-        fingeringAnnotations: annotations,
+        chordRuns: drawChords,
+        fingeringAnnotations: drawAnnotations,
         stringColourStyle: colourStyle,
-        stringRuns: stringRuns,
-        noteNames: overlays.noteNames,
-        showNoteNames: overlays.showNoteNames,
-        colourNoteheads: overlays.colourNoteheads,
-        laneDashes: laneDashes,
+        stringRuns: drawStringRuns,
+        noteNames: drawNoteNames,
+        showNoteNames: drawShowNoteNames,
+        reserveNameRow: reserveNameRow,
+        colourNoteheads: drawColourNoteheads,
+        laneDashes: drawLaneDashes,
         scrollNav: staffNav,
+      );
+      if (!inPractice) return staff;
+      // A tap anywhere in the view counts, below the last line included (the
+      // page's own detector covers only the engraving). The dimmed step's veil
+      // lets taps through to them.
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: practiceTap,
+        child: Stack(children: [
+          Positioned.fill(child: staff),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: practice.index >= SupportLevel.dimmed.index ? 0.94 : 0,
+                duration: const Duration(milliseconds: 400),
+                child: ColoredBox(
+                    color: Theme.of(context).scaffoldBackgroundColor),
+              ),
+            ),
+          ),
+        ]),
       );
     }
 

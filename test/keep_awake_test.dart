@@ -63,4 +63,17 @@ void main() {
     KeepAwake.disable(); // extra disable is harmless
     expect(calls, [true, false]);
   });
+
+  testWidgets('practice black: sleeps at once unless playing', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.expand()));
+    KeepAwake.enable();
+    KeepAwake.busy = true;
+    KeepAwake.sleepWhenIdle = true;
+    expect(KeepAwake.isLocked, isTrue); // the music goes on
+    KeepAwake.busy = false;
+    expect(KeepAwake.isLocked, isFalse); // stopped: the phone may sleep
+    KeepAwake.sleepWhenIdle = false;
+    expect(KeepAwake.isLocked, isTrue); // back from black: the usual countdown
+    KeepAwake.disable();
+  });
 }
