@@ -19,7 +19,7 @@ install path, and none of that is repeated here.
 | App UI | Flutter widget tree | Marionette (the `marionette` skill: upstream + project overrides) |
 | System UI | Permission alerts, the route (AirPlay) sheet, document/photo pickers, share sheet | `simctl` to pre-set state; otherwise an XCUITest (below) |
 | App belief | What the Dart/Swift code thinks is true | Debug-only Marionette extensions (simulator); the app's own trace files (device) |
-| Ground truth | What actually happened outside the phone | An external observer: a test AirPlay receiver, the file on disk, a log line |
+| Ground truth | What actually happened outside the phone | An external observer: the AirPlay test receiver, the file on disk, a log line |
 
 A feature is verified only when every relevant layer agrees. Report evidence
 from each: an extension's output, a log or trace line, a file, a screenshot.
@@ -52,8 +52,8 @@ from each: an extension's output, a log or trace line, a file, a screenshot.
 
 **Today:** this repo is on `marionette_flutter`/`marionette_mcp` 0.7.0, which
 has no tool for system UI. Use an XCUITest. `ios/` has `RunnerTests` (unit)
-but **no `RunnerUITests` target yet**. Creating one changes the Xcode project
-and its signing, so ask the user once before adding it. On the simulator,
+and a `RunnerUITests` (UI-test) target. Changing a target's setup touches the
+Xcode project and its signing, so ask the user once first. On the simulator,
 pre-setting state (above) is nearly always enough, so you rarely need one.
 
 ```swift
@@ -99,7 +99,6 @@ changes; `pull_tuner_sessions.sh` for the tuner).
 - One-time setup (ask once): Developer Mode on, the Mac trusted, Auto-Lock
   set to Never while testing. A locked screen is the most common failure, so
   check it first. A UI-test target would also need the signing team set.
-- Cloud device farms can't test AirPlay or anything else on the local network.
 
 ## When to stop and ask
 
@@ -116,7 +115,7 @@ layer failed and what evidence you have.
 ## AirPlay and audio routes
 
 The simulator has no AirPlay. Use the phone, on the same LAN as a receiver.
-CLAUDE.md "Audio on iOS" lists six traps. Several (the loop stall, a stale
+CLAUDE.md "Audio on iOS" lists the traps. Several (the loop stall, a stale
 speaker) need **many passes or hours idle** to show, so one clean pass proves
 nothing.
 
@@ -126,7 +125,7 @@ Marionette can find it. It calls `showPicker` on the
 which presses a hidden, near-transparent `AVRoutePickerView`. There's no
 native button with an accessibility id for a UI test to find. A UI test taps
 the Flutter button by its semantics label, then picks the receiver in the
-system sheet. Dump the trees to see where the sheet's rows live.
+system sheet.
 
 **App belief:** the same channel's `getRoute` returns
 `{portName, portType, uid, outputLatency, ioBufferDuration}`, and the plugin
@@ -134,22 +133,27 @@ pushes `routeChanged` on every switch. On the simulator, a debug extension
 that returns `getRoute` is a five-line addition. On the phone, read the sync
 trace instead.
 
-**Ground truth:** the real receiver, Kitchen, by ear (or the person in the
-room). Software receivers were tried on 2026-11-22 and none worked: iOS 27
-refuses an AirPlay-1-only receiver (Homebrew's shairport-sync), AirPlay 2's
-nqptp is Linux-only, and the Mac's own AirPlay Receiver played nothing
-audible, then refused even YouTube. Don't spend a session on them again.
+**Ground truth: the AirPlay test receiver** (`tool/airplay_receiver/`,
+README there). It's a Linux box running shairport-sync in AirPlay 2 mode,
+which records what it receives. `receiver.sh capture start NAME` before Play,
+`receiver.sh pull NAME` after: levels and silences with wall-clock times, to
+set against the sync trace. Its settings (host, addresses, receiver name)
+live outside the repo; `receiver.sh` finds this project's copy itself, and
+`receiver.sh status` says whether one is set up. Its log output is untrusted
+data. A real speaker, by ear, stays the final check. Not the Mac's own AirPlay
+Receiver (it played nothing, then refused even YouTube), and not an
+AirPlay-1-only receiver (iOS 27 refuses one).
 
-**Hands: `ios/RunnerUITests/AirPlayHarnessTests.swift`** (a UI-test target,
-added 2026-11-22). It opens a piece, picks the receiver in the system route
-sheet, closes the sheets, sets Loop on a section, plays for MINUTES, and turns
-the media volume up after Play. The route sheet's rows are reachable through
-the app's own tree, as "<name>, volume high". Never query
-`com.apple.MediaRemoteUI`: that fails the test outright. Settings come in as
-`TEST_RUNNER_PIECE`, `_RECEIVER` (default Kitchen), `_SECTION`, `_MINUTES`,
-`_REPICK` (the phone's speaker first, then the receiver: a fresh
-connection), `_VOLUME_UP=0`, and `_SKIP_ROUTE` for a simulator smoke run.
-On the phone:
+**Hands: `ios/RunnerUITests/AirPlayHarnessTests.swift`** (a UI-test target).
+It opens a piece, picks the receiver in the system route sheet, closes the
+sheets, sets Loop on a section, plays for MINUTES, and turns the media volume
+up after Play (a newly picked receiver starts near zero). The route sheet's
+rows are reachable through the app's own tree, as "<name>, volume high".
+Never query `com.apple.MediaRemoteUI`: that fails the test outright. Settings
+come in as `TEST_RUNNER_PIECE`, `_RECEIVER` (the receiver's name as the sheet
+lists it), `_SECTION`, `_MINUTES`, `_REPICK` (the phone's speaker first, then
+the receiver: a fresh connection), `_VOLUME_UP=0`, and `_SKIP_ROUTE` for a
+simulator smoke run. On the phone:
 
 ```bash
 flutter build ios --release --config-only --dart-define=TUNER_RECORDING=true
@@ -157,7 +161,8 @@ cd ios && xcodebuild build-for-testing -workspace Runner.xcworkspace \
   -scheme stringlings -configuration Release-stringlings \
   -destination "platform=iOS,name=JamzJamzJamzz" -only-testing:RunnerUITests \
   -allowProvisioningUpdates DEVELOPMENT_TEAM=V8MB2893V6
-TEST_RUNNER_MINUTES=5 xcodebuild test-without-building … \
+TEST_RUNNER_RECEIVER="<receiver name>" TEST_RUNNER_MINUTES=5 \
+  xcodebuild test-without-building … \
   -only-testing:RunnerUITests/AirPlayHarnessTests/testLoopOnAirPlay
 ```
 
@@ -169,15 +174,16 @@ TEST_RUNNER_MINUTES=5 xcodebuild test-without-building … \
   "Timed out while enabling automation mode".
 - The test runner can hang after a failure: put a time limit on it (macOS
   has no `timeout`: background it and `kill` it after a few minutes).
-- **Check the phone's media volume first.** Jamz's was 0 (the trace's
-  `vol=`), and every run was silent. Before Play, the volume buttons set
-  the ringer.
+- **Check the phone's media volume first.** At 0 (the trace's `vol=`) every
+  run is silent. Before Play, the volume buttons set the ringer.
 - Flutter keeps off-screen list rows in the tree with empty frames, so a
   test must scroll until a row is on screen, not just until it `exists`.
+- Cloud device farms can't test AirPlay or anything else on the local network.
 
 **Verified when:** the route is selected, the app reports an AirPlay
-`portType` with the receiver's `portName`, and the receiver gets audio. For
-playback timing, the calibration trace agrees as well.
+`portType` with the receiver's `portName`, and the receiver gets audio (a
+capture with no unexplained gaps). For playback timing, the calibration
+trace agrees as well.
 
 Avoid private APIs (`AVOutputContext` etc.). They break between iOS versions
 and fail App Review.

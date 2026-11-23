@@ -1,0 +1,52 @@
+#!/bin/bash -p
+# Forced command for the agent's key (sshd ForceCommand + authorized_keys
+# command=). Whatever the client asks for arrives in SSH_ORIGINAL_COMMAND;
+# only the verbs below are honoured. Names are [A-Za-z0-9_-]{1,48}, so no
+# paths get through. sshd starts it as `sh -c` (dash reads no startup files),
+# and a non-interactive `bash -p` reads none either (not even BASH_ENV).
+set -euo pipefail
+umask 007
+CAP=/var/lib/airplay-capture
+MIN_FREE_MB=300                       # refuse a new capture below this
+req=${SSH_ORIGINAL_COMMAND:-status}
+req=${req:0:200}
+logger -t airplay-ctl -- "$(printf '%s' "$req" | LC_ALL=C tr -cd '\40-\176')" || true
+read -r -a a <<< "$req"
+cmd=${a[0]:-status}
+
+name() {
+  [[ ${1:-} =~ ^[A-Za-z0-9_-]{1,48}$ ]] || { echo "bad name: '${1:-}'" >&2; exit 2; }
+  printf '%s' "$1"
+}
+free_mb() { df -Pm "$CAP" | awk 'NR==2 {print $4}'; }
+
+case $cmd in
+  status)
+    for s in nqptp shairport-sync airplay-capture airplay-firewall; do
+      printf '%-17s %s\n' "$s" "$(systemctl is-active "$s" || true)"
+    done
+    if [[ -f $CAP/control ]]; then echo "capturing: $(head -c 64 "$CAP/control")"; else echo "capturing: no"; fi
+    df -Ph "$CAP" | tail -1 ;;
+  logs)    n=${a[1]:-100}; [[ $n =~ ^[0-9]{1,4}$ ]] || exit 2
+           sudo -n /usr/local/sbin/airplay-root logs "$n" ;;
+  restart) sudo -n /usr/local/sbin/airplay-root restart ;;
+  capture)
+    case ${a[1]:-} in
+      start) n=$(name "${a[2]:-}")
+             [[ -e $CAP/control ]] && { echo "already capturing: $(head -c 64 "$CAP/control")" >&2; exit 3; }
+             for s in .wav .json .wav.part; do
+               [[ -e $CAP/captures/$n$s || -L $CAP/captures/$n$s ]] && { echo "name taken: $n" >&2; exit 3; }
+             done
+             f=$(free_mb); (( f >= MIN_FREE_MB )) || { echo "only ${f} MB free; delete captures first" >&2; exit 3; }
+             printf '%s\n' "$n" > "$CAP/control.tmp" && mv -f "$CAP/control.tmp" "$CAP/control"
+             echo "capturing to $n (${f} MB free)" ;;
+      stop)  rm -f "$CAP/control"; sleep 1.5; echo "stopped" ;;
+      *)     echo "capture start NAME | capture stop" >&2; exit 2 ;;
+    esac ;;
+  list)    ls -l --time-style=+%FT%T "$CAP/captures" ;;
+  fetch)   n=$(name "${a[1]:-}"); cat "$CAP/captures/$n.wav" ;;
+  meta)    n=$(name "${a[1]:-}"); cat "$CAP/captures/$n.json" ;;
+  delete)  n=$(name "${a[1]:-}"); rm -f "$CAP/captures/$n.wav" "$CAP/captures/$n.json"; echo "deleted $n" ;;
+  *)       echo "airplay-ctl: status | logs [N] | restart | capture start NAME | capture stop | list | fetch NAME | meta NAME | delete NAME" >&2
+           exit 2 ;;
+esac

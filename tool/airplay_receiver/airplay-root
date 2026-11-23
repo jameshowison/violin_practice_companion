@@ -1,0 +1,16 @@
+#!/bin/sh
+# The only thing the airplay user may run as root (see /etc/sudoers.d/airplay).
+# Logs are flattened to printable ASCII and cut to 240 chars a line: device
+# names in them are chosen by whatever connects, so the reader treats them as data.
+set -eu
+case "${1:-}" in
+  restart) exec systemctl restart airplay-capture nqptp shairport-sync ;;
+  logs)
+    n=${2:-}
+    case $n in ''|*[!0-9]*) exit 2 ;; esac
+    [ ${#n} -le 4 ] || exit 2
+    journalctl -u nqptp -u shairport-sync -u airplay-capture -n "$n" \
+        --no-pager -o short-iso-precise \
+      | LC_ALL=C tr -cd '\11\12\40-\176' | cut -c1-240 ;;
+  *) echo "airplay-root: restart | logs N" >&2; exit 2 ;;
+esac

@@ -1,0 +1,12 @@
+[Unit]
+Description=Limit the AirPlay test receiver's ports to the test phones
+Before=nqptp.service shairport-sync.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/airplay.nft
+ExecStop=/usr/sbin/nft delete table inet airplay_pi
+
+[Install]
+WantedBy=multi-user.target

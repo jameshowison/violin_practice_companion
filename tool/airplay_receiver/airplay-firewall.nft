@@ -1,0 +1,23 @@
+#!/usr/sbin/nft -f
+# Installed by setup_receiver.sh as /etc/nftables.d/airplay.nft (loaded by
+# airplay-firewall.service). Its own table: it drops only the receiver's fixed
+# ports from anyone but the test phones, and leaves every other port (printing,
+# ssh, mDNS) alone. Without RTSP on 7000 no session can start, so the
+# dynamic ports AirPlay 2 opens later are unreachable for everyone else.
+# @ALLOW@ is replaced with the phones' addresses.
+table inet airplay_pi
+delete table inet airplay_pi
+table inet airplay_pi {
+  set phones {
+    type ipv4_addr
+    elements = { @ALLOW@ }
+  }
+  chain input {
+    type filter hook input priority -10; policy accept;
+    iif "lo" accept
+    tcp dport { 5000, 7000 } ip saddr != @phones drop
+    udp dport { 319, 320, 6001-6011 } ip saddr != @phones drop
+    meta nfproto ipv6 tcp dport { 5000, 7000 } drop
+    meta nfproto ipv6 udp dport { 319, 320, 6001-6011 } drop
+  }
+}

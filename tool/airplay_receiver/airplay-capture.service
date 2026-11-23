@@ -1,0 +1,24 @@
+[Unit]
+Description=Drain the shairport-sync FIFO; record it to WAV on request
+Before=shairport-sync.service
+RequiresMountsFor=/var/lib/airplay-capture
+
+[Service]
+# Its own principal, not the ssh user: the two share only the capture dir.
+User=airplay-cap
+Group=airplay-cap
+UMask=0007
+ExecStart=/usr/bin/python3 -I /usr/local/lib/airplay_capture.py
+Restart=always
+RestartSec=1
+NoNewPrivileges=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/airplay-capture /var/lib/airplay-fifo
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
