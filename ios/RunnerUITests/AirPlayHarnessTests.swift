@@ -213,8 +213,17 @@ final class AirPlayHarnessTests: XCTestCase {
       }
     }
     if section != "All" {
-      let chip = app.staticTexts[section]
-      if chip.exists { chip.tap() }
+      // Never skip a missing chip: the loop would then run over the whole
+      // piece and look like a passing section loop (it did, 2026-11-23).
+      let chip = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "label == %@", section)).firstMatch
+      if !chip.waitForExistence(timeout: 10) {
+        print("=== tree (no section chip \(section))\n\(app.debugDescription)")
+        XCTFail("no section chip labelled \(section)")
+        return
+      }
+      log("section chip: \(chip.elementType.rawValue) '\(chip.label)' at \(chip.frame)")
+      chip.tap()
     }
     log("mode set; section \(section)")
   }
