@@ -43,6 +43,7 @@ $R logs 200                     # journal: printable ASCII, 240 chars a line
 $R capture start loop_test1     # before Play; refuses a used name or <300 MB free
 $R capture stop
 $R pull loop_test1              # → $CAPTURES, then lists silences ≥1 s
+$R gaps loop_test1 --min 0.3 --summary   # seams while playing + the stream's own pauses
 $R list | meta NAME | delete NAME | restart
 ```
 

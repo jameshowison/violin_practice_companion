@@ -5,6 +5,7 @@
 #   receiver.sh status | logs [N] | restart | list | meta NAME | delete NAME
 #   receiver.sh capture start NAME | capture stop
 #   receiver.sh pull NAME     fetch NAME.wav + .json into $CAPTURES, list silences
+#   receiver.sh gaps NAME [--min S] [--db D] [--summary]   re-analyse a pulled one
 #
 # One-time, run by a person (they prompt):
 #   receiver.sh keygen        make the agent's key ($AGENT_KEY) if missing
@@ -92,6 +93,17 @@ case ${1:-} in
     mv "$tmp/$n.json" "$tmp/$n.wav" "$CAPTURES/"
     ls -l "$CAPTURES/$n.wav"
     uv run "$HERE/gaps.py" "$CAPTURES/$n.wav" ;;
+  gaps)
+    # Analysis of a pulled capture, through this script, so an agent never
+    # needs to read $CAPTURES (outside the repo) itself.
+    n=${2:?name}
+    [[ $n =~ ^[A-Za-z0-9_-]{1,48}$ ]] || { echo "bad name: '$n'" >&2; exit 2; }
+    [[ -f $CAPTURES/$n.wav ]] || { echo "not pulled: receiver.sh pull $n" >&2; exit 3; }
+    opts=("${@:3}")
+    for o in "${opts[@]}"; do
+      [[ $o =~ ^(--min|--db|--summary|-?[0-9]+(\.[0-9]+)?)$ ]] || { echo "bad option: '$o'" >&2; exit 2; }
+    done
+    uv run "$HERE/gaps.py" "$CAPTURES/$n.wav" "${opts[@]}" ;;
   *)
     agent "$@" ;;
 esac

@@ -146,6 +146,7 @@ if (( LONG )); then
   if [[ -z ${TEST_RUNNER_SKIP_ROUTE:-} ]]; then
     "$RECV" capture stop >/dev/null
     "$RECV" pull "$name"
+    "$RECV" gaps "$name" --min 0.3 --summary | tail -n +2
   fi
   exit "$ok"
 fi
