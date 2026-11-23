@@ -161,7 +161,7 @@ void _workerMain((SendPort, double, double, double) args) {
   final (toMain, sampleRate, minHz, maxHz) = args;
   final tracker = PitchTracker(
     YinDetector(sampleRate: sampleRate, minHz: minHz, maxHz: maxHz),
-    frameSize: 2048,
+    // 2048, or longer for a cello's range (PitchTracker.frameSizeFor).
     hopSize: 512,
   );
   final inbox = ReceivePort();

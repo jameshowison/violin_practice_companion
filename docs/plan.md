@@ -461,8 +461,15 @@ and a clef of its own are already built.
 - **Fingering:** first position spans 1–2–3–4 over a minor third, with
   backward and forward extensions, so the finger mapper needs a cello rule.
   Labels keep the same form (`D1`, `A3`), suffixes verbatim as ever.
-- **Tuner:** has to reach C2 (65 Hz). Check the pitch detector's floor
-  before building anything.
+- **Tuner:** has to reach C2 (65 Hz). **Checked 2026-11-23:** YIN hears it
+  (no octave errors, a clean tone within a cent), but the floor a fifth
+  under C2 (43 Hz) needs a longer frame than the 2048 samples every tuner
+  used, which threw. The frame now follows the range
+  (`PitchTracker.frameSizeFor`): 4096 for the cello, as bass tuners do,
+  2048 for everything else. That reads C2 within 0.3 cents (p90) at
+  about 34 dB SNR; at 20 dB it reads 1–3 cents sharp, against 6–8 at
+  2048 (`packages/pitch_tuner/tool/low_register_probe.dart`). Still to try
+  on a real cello's C string, whose fundamental may be weak.
 - **Alignment profile:** a low-register band, tuned on a real recording.
 - **Sound:** the soundfont's cello (GM 43).
 - **The picker:** it joins the Strings row (`familyOf`).

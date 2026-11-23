@@ -40,7 +40,7 @@ import 'dart:typed_data';
 
 import 'package:pitch_tuner/pitch_tuner.dart';
 
-const _hop = 512, _frame = 2048;
+const _hop = 512; // the frame follows the range (PitchTracker.frameSizeFor)
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.first.startsWith('-')) {
@@ -312,7 +312,6 @@ _Run _track(_Take take, _Audio a) {
   final range = take.tuning.detectionRange;
   final tracker = PitchTracker(
     YinDetector(sampleRate: a.sampleRate, minHz: range.minHz, maxHz: range.maxHz),
-    frameSize: _frame,
     hopSize: _hop,
   );
   final rs = tracker.addSamples(a.samples);

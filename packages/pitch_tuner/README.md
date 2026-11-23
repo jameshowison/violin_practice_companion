@@ -48,8 +48,9 @@ final tuning = InstrumentTuning.violin(a4: 442);
 final range = tuning.detectionRange;
 final tracker = PitchTracker(
   YinDetector(sampleRate: 48000, minHz: range.minHz, maxHz: range.maxHz),
-  frameSize: 2048, // ~43 ms at 48 kHz
-  hopSize: 512,    // a reading every ~11 ms
+  // frameSize follows the range: 2048 (~43 ms at 48 kHz), 4096 for a cello
+  // (PitchTracker.frameSizeFor).
+  hopSize: 512, // a reading every ~11 ms
 );
 final follower = StringFollower(tuning);
 

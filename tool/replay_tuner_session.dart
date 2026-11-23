@@ -81,8 +81,7 @@ void main(List<String> args) {
   final range = tuning.detectionRange;
   final tracker = PitchTracker(
       YinDetector(sampleRate: rate.toDouble(), minHz: range.minHz, maxHz: range.maxHz),
-      frameSize: 2048,
-      hopSize: 512);
+      hopSize: 512); // the frame follows the range, as on the device
   final replayed = <_Row>[];
   final unison = UnisonMeter(), every = UnisonMeter();
   final verdicts = <(double, String, double?, UnisonVerdict?)>[];

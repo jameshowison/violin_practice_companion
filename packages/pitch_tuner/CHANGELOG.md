@@ -1,3 +1,10 @@
+## Unreleased
+
+- `PitchTracker`'s frame size defaults to `PitchTracker.frameSizeFor` its
+  detector: 2048 samples, doubled until the detector's range fits, so a cello
+  (C2, a 43 Hz floor) gets 4096 instead of an `ArgumentError`.
+  `tool/low_register_probe.dart` measures the choice.
+
 ## 0.2.0
 
 - Renamed from `string_tuner`: it is growing beyond strings (chromatic

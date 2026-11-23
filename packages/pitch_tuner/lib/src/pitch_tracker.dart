@@ -25,13 +25,36 @@ class PitchReading {
 ///
 /// Accepts samples in chunks of any size, as microphone plugins deliver them.
 class PitchTracker {
-  PitchTracker(this.detector, {this.frameSize = 2048, this.hopSize = 512})
-      : assert(hopSize > 0 && hopSize <= frameSize),
-        _frame = Float32List(frameSize) {
-    if (frameSize < detector.minFrameLength) {
-      throw ArgumentError.value(frameSize, 'frameSize',
+  /// [frameSize] defaults to [frameSizeFor] the [detector].
+  PitchTracker(this.detector, {int? frameSize, this.hopSize = 512})
+      : frameSize = frameSize ?? frameSizeFor(detector) {
+    assert(hopSize > 0 && hopSize <= this.frameSize);
+    if (this.frameSize < detector.minFrameLength) {
+      throw ArgumentError.value(this.frameSize, 'frameSize',
           'must be at least the detector\'s minFrameLength (${detector.minFrameLength})');
     }
+  }
+
+  /// The frame a [detector] wants: 2048 samples (43 ms at 48 kHz), doubled
+  /// until it holds the detector's [YinDetector.minFrameLength].
+  ///
+  /// So a violin, viola, mandolin or recorder range reads 2048-sample frames,
+  /// and a cello's, which searches down to 43 Hz (a fifth under its C2), 4096.
+  /// That is what bass tuners do too: a frame long enough for the lowest
+  /// string, at the cost of a slower first reading (85 ms against 43 ms).
+  ///
+  /// Measured with `tool/low_register_probe.dart` (a harmonic C2 under white
+  /// noise, the median over a second of readings): at about 34 dB SNR, 4096
+  /// samples read C2 within 0.3 cents (p90), as 2048 do a violin's G3. At
+  /// 20 dB a short window reads low notes sharp: +6 to +8 cents on C2 with a
+  /// 2048-sample frame (and the floor raised to fit it), +1.4 to +3 at 4096,
+  /// under half a cent on G3. 6144 or 8192 gain little more there.
+  static int frameSizeFor(YinDetector detector) {
+    var n = 2048;
+    while (n < detector.minFrameLength) {
+      n *= 2;
+    }
+    return n;
   }
 
   final YinDetector detector;
@@ -82,7 +105,7 @@ class PitchTracker {
     return out;
   }
 
-  final Float32List _frame;
+  late final Float32List _frame = Float32List(frameSize);
   int _filled = 0; // samples in _frame, up to frameSize
   int _sinceLast = 0; // samples slid in since the last reading
   int _total = 0;
