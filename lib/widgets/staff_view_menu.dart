@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/display_mode.dart';
+import '../screens/settings_screen.dart';
+import '../services/players.dart';
 import '../services/providers.dart';
+import 'player_badge.dart';
 import 'package:score_view/score_view.dart';
 
 /// Whether [mode] is one the size and layout menu speaks for: the engraved
@@ -68,6 +71,124 @@ class _StaffViewMenuButtonState extends State<StaffViewMenuButton> {
         onPressed: () => controller.isOpen
             ? controller.close()
             : _open(controller, context),
+      ),
+    );
+  }
+}
+
+/// Width of [PieceBarMenuButton]'s first level, the three rows.
+const double _barMenuWidth = 240;
+
+/// Where a menu [width] wide must sit, below the button in [buttonContext], to
+/// keep [_edgeMargin] from the screen's right edge.
+Offset _menuOffset(BuildContext buttonContext, double width) {
+  final box = buttonContext.findRenderObject() as RenderBox?;
+  if (box == null || !box.hasSize) return const Offset(0, 4);
+  final left = box.localToGlobal(Offset.zero).dx;
+  final screenWidth = MediaQuery.sizeOf(buttonContext).width;
+  final dx = screenWidth - _edgeMargin - width - left;
+  return Offset(dx < 0 ? dx : 0, 4);
+}
+
+/// On a portrait phone the piece's title bar keeps one button: the player,
+/// size and layout, and settings share a menu, so the title gets the width
+/// the three buttons took (130pt of an SE's 375). A tablet keeps the three.
+///
+/// "Size and layout" doesn't open a second menu: the same menu turns into the
+/// [StaffViewMenuButton]'s panel, non-modal as that is, so the score still
+/// re-engraves under it as each choice is made. Who's playing opens the
+/// player switcher, and Settings the end drawer, as their buttons did.
+class PieceBarMenuButton extends ConsumerStatefulWidget {
+  const PieceBarMenuButton({super.key, required this.mode});
+
+  final DisplayMode mode;
+
+  @override
+  ConsumerState<PieceBarMenuButton> createState() => _PieceBarMenuButtonState();
+}
+
+class _PieceBarMenuButtonState extends ConsumerState<PieceBarMenuButton> {
+  Offset _offset = const Offset(0, 4);
+  bool _showSize = false;
+
+  void _open(MenuController controller) {
+    setState(() {
+      _showSize = false;
+      _offset = _menuOffset(context, _barMenuWidth);
+    });
+    controller.open();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = ref.watch(multiplePlayersProvider)
+        ? ref.watch(currentPlayerProvider)
+        : null;
+    final sizeApplies = staffViewMenuAppliesTo(widget.mode);
+    final sub = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+
+    final rows = SizedBox(
+      width: _barMenuWidth,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (player != null)
+            MenuItemButton(
+              key: const ValueKey('bar_menu_player'),
+              leadingIcon: PlayerAvatar(player, size: 26),
+              onPressed: () => showPlayerSwitcher(context,
+                  onManage: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                          builder: (_) => const SettingsScreen()))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("Who's playing"),
+                  Text(player.name, style: sub),
+                ],
+              ),
+            ),
+          if (sizeApplies)
+            MenuItemButton(
+              key: const ValueKey('bar_menu_size'),
+              leadingIcon: const Icon(Icons.zoom_in),
+              trailingIcon: const Icon(Icons.chevron_right),
+              closeOnActivate: false,
+              onPressed: () => setState(() {
+                _showSize = true;
+                _offset = _menuOffset(context, _panelWidth);
+              }),
+              child: const Text('Size and layout'),
+            ),
+          MenuItemButton(
+            key: const ValueKey('bar_menu_settings'),
+            leadingIcon: const Icon(Icons.settings),
+            onPressed: () => Scaffold.of(context).openEndDrawer(),
+            child: const Text('Settings'),
+          ),
+        ],
+      ),
+    );
+
+    return MenuAnchor(
+      alignmentOffset: _offset,
+      style: const MenuStyle(
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+      ),
+      menuChildren: [
+        _showSize ? _StaffViewPanel(mode: widget.mode) : rows,
+      ],
+      builder: (context, controller, _) => IconButton(
+        key: const ValueKey('piece_bar_menu'),
+        tooltip: 'Player, size and settings',
+        isSelected: controller.isOpen,
+        icon: const Icon(Icons.more_vert),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : _open(controller),
       ),
     );
   }

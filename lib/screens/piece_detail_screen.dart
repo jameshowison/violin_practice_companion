@@ -76,7 +76,7 @@ class PieceDetailScreen extends ConsumerStatefulWidget {
   // "Amix" → "A mixolydian", "F#m" → "F♯ minor", "Bb" → "B♭ major". The suffix
   // is whatever MusicXmlParser.keyName appended for the mode.
   //
-  // On the widget rather than its State because _KeyMeterButton calls it by
+  // On the widget rather than its State because _KeySummary calls it by
   // name from outside, and a State class is private to the screen.
   static const _modeWords = {
     'dor': 'dorian', 'phr': 'phrygian', 'lyd': 'lydian',
@@ -277,6 +277,12 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
     // is outside it — reaches the same verdict as the layout beneath it.
     final screen = MediaQuery.sizeOf(context);
     final useCompact = screen.width < 600 || screen.height < 600;
+    // A portrait phone: the title bar folds its buttons into one menu (see the
+    // app bar's actions). A landscape phone and a tablet have the width.
+    final thin = screen.width < 600;
+    // The bar's height in every build: the dev stamp runs on after the title
+    // rather than taking a line of its own (see [_FoldingTitle]).
+    const barHeight = 56.0;
 
     final mascots = SkinStyle.of(context).mascots;
     // Back closes an open measure edit first (asking if it would lose work),
@@ -299,9 +305,11 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       appBar: _CountInOverBar(
         service: activeService,
         bar: AppBar(
-        toolbarHeight: kShowDevChrome ? 64 : 56,
-        titleSpacing: 8,
-        centerTitle: true,
+        toolbarHeight: barHeight,
+        // The title row runs from the back arrow to the buttons: the clef and
+        // key on the left, the title centred in what they leave it.
+        titleSpacing: 0,
+        centerTitle: false,
         // The title line does triple duty on a tablet: what the piece is, what
         // key and meter it's in, and the handle on the note vocabulary. All
         // three used to own a strip of their own below the bar; none of them
@@ -316,20 +324,13 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
             // widget and there's no other content competing for that space.
             // The key's name, and the fingerings off the hand's basic shape,
             // ride just ahead of it — see [_KeySummary].
+            // The clef comes first, against the back arrow, and the key's
+            // hints sit to the right of it.
+            PreamblePreview(height: barHeight),
+            const SizedBox(width: 4),
             const _KeySummary(),
-            const SizedBox(width: 6),
-            const PreamblePreview(height: kShowDevChrome ? 64 : 56),
             const SizedBox(width: 8),
-            // An invisible copy of the key block on the left, so the title
-            // lands on the true centre instead of being shoved off it by the
-            // key's width. The width has to be mirrored rather than guessed:
-            // it's as long as the key name, and "C♯ minor · 6/8" is half again
-            // "G · 4/4".
-            if (!useCompact) ...[
-              const _KeyMeterButton(mirror: true),
-              const SizedBox(width: 12),
-            ],
-            Flexible(
+            Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -337,35 +338,17 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
                   // it, not beside: the row has no width to spare, and beside
                   // the title they squeezed it to "A…" on an iPad.
                   if (mascots) const StringlingPeekers(height: 14),
-                  Text(piece.title,
-                      style: const TextStyle(fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  if (kShowDevChrome)
-                    Text(kBuildRef,
-                        style: TextStyle(
-                            fontSize: 9,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45))),
+                  _FoldingTitle(piece.title,
+                      stamp: kShowDevChrome ? kBuildRef : null,
+                      maxHeight: barHeight - (mascots ? 14 : 0) - 4),
                 ],
               ),
             ),
-            if (!useCompact) ...[
-              const SizedBox(width: 12),
-              const _KeyMeterButton(),
-            ],
-            // Mirrors the leading preview, same reasoning as the key block's
-            // own mirror above. Not on a phone: there the title can't afford
-            // to give up the preview's width twice, and centring the group
-            // rather than the title alone is a fair price for reading it.
-            if (!useCompact) ...[
-              const SizedBox(width: 8),
-              const PreamblePreview(mirror: true, height: kShowDevChrome ? 64 : 56),
-              const SizedBox(width: 6),
-              const _KeySummary(mirror: true),
-            ],
           ],
         ),
         actions: [
+          // A portrait phone: the player, size and settings share one menu.
+          if (thin) PieceBarMenuButton(mode: displayMode) else ...[
           // No vocabulary button: the key's name on the left of the title
           // opens it (see [_KeySummary]), which gives the title the width.
           // Size and layout of the engraved staff. Print gave up its place
@@ -385,6 +368,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
               onPressed: () => Scaffold.of(ctx).openEndDrawer(),
             ),
           ),
+          ],
         ],
       ),
       ),
@@ -886,7 +870,7 @@ class _PieceDetailScreenState extends ConsumerState<PieceDetailScreen> {
       if (selectedMedia.video != null && mediaService != null)
         FloatingVideoOverlay(
           service: mediaService,
-          toolbarHeight: kShowDevChrome ? 64 : 56,
+          toolbarHeight: barHeight,
           startMeasure: ref.watch(playbackStartMeasureProvider),
           startNote: ref.watch(playbackStartNoteProvider),
           startIndex: ref.watch(measureSelectionProvider)?.startPerf ?? -1,
@@ -1936,41 +1920,63 @@ class _DrawerTab extends StatelessWidget {
 
 // ── Piece identity + note vocabulary (app bar controls, palette staff below) ──
 
-/// The meter, on the title line — only for a piece in one meter. A piece
-/// that changes meter has none here: its opening time signature is engraved
-/// on bar 1, where the later changes read against it. A label only — the
-/// meter is edited bar by bar from
-/// the measure editor's time-signature card, which is where a change belongs
-/// once a piece can move between 3/4 and 4/4.
+/// The piece's title, centred in what the clef and key leave it, and on two lines when one
+/// won't hold it. Only if two lines at 14pt won't fit the width, or won't fit
+/// [maxHeight] (the bar never grows for it), does it get smaller, a point at
+/// a time down to 10pt, which still ellipsizes as a last resort.
 ///
-/// It used to carry the key's name too; that now leads the title line, in
-/// [_KeySummary], beside the fingerings it implies.
-class _KeyMeterButton extends ConsumerWidget {
-  const _KeyMeterButton({this.mirror = false});
+/// A debug build's [stamp] runs on after the title, small and grey, rather
+/// than taking a line of its own under it.
+class _FoldingTitle extends StatelessWidget {
+  const _FoldingTitle(this.text, {this.stamp, required this.maxHeight});
 
-  /// Lay out and take up space, but draw nothing — the counterweight that
-  /// centres the title. See the app bar's `title`.
-  final bool mirror;
+  final String text;
+  final String? stamp;
+  final double maxHeight;
+
+  static const _sizes = [14.0, 13.0, 12.0, 11.0, 10.0];
+
+  TextSpan _span(double size, Color stampColour) => TextSpan(
+        style: TextStyle(fontSize: size, height: 1.15),
+        children: [
+          TextSpan(text: text),
+          if (stamp != null)
+            TextSpan(
+                text: '  $stamp',
+                style: TextStyle(fontSize: 9, color: stampColour)),
+        ],
+      );
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final parsed = ref.watch(parsedPieceProvider).valueOrNull;
-    if (parsed == null || parsed.hasMeterChanges) return const SizedBox.shrink();
-    final body = Padding(
-      key: mirror ? null : const ValueKey('piece_meter_label'),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      child: Text(
-        '${parsed.openingMeter}',
-        style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
-      ),
-    );
-
-    if (mirror) {
-      return ExcludeSemantics(
-        child: IgnorePointer(child: Opacity(opacity: 0, child: body)),
-      );
-    }
-    return body;
+  Widget build(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style;
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final stampColour =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
+    return LayoutBuilder(builder: (context, constraints) {
+      var size = _sizes.last;
+      for (final s in _sizes) {
+        final painter = TextPainter(
+          text: TextSpan(style: base, children: [_span(s, stampColour)]),
+          textDirection: direction,
+          textScaler: scaler,
+          maxLines: 2,
+        )..layout(maxWidth: constraints.maxWidth);
+        final fits =
+            !painter.didExceedMaxLines && painter.height <= maxHeight;
+        painter.dispose();
+        if (fits) {
+          size = s;
+          break;
+        }
+      }
+      return Text.rich(_span(size, stampColour),
+          key: const ValueKey('piece_title'),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis);
+    });
   }
 }
 
@@ -1982,11 +1988,7 @@ class _KeyMeterButton extends ConsumerWidget {
 /// the home pattern on every string, in grey (`All: 1 2H 3`, frets
 /// `All: 2 4 5`), so "nothing unusual" is said rather than left blank.
 class _KeySummary extends ConsumerWidget {
-  const _KeySummary({this.mirror = false});
-
-  /// Lay out and take up space but draw nothing — the counterweight that
-  /// centres the title on a tablet. See the app bar's `title`.
-  final bool mirror;
+  const _KeySummary();
 
   /// The colour the palette gives an L/H note, darkened to read as text.
   static const _lhText = Color(0xFFC86A00);
@@ -2002,9 +2004,10 @@ class _KeySummary extends ConsumerWidget {
         fretStyle: ref.watch(fretStyleProvider));
 
     final body = Column(
-      key: mirror ? null : const ValueKey('key_summary'),
+      key: const ValueKey('key_summary'),
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
+      // Left-aligned: it sits right of the clef, by the back arrow.
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -2035,32 +2038,20 @@ class _KeySummary extends ConsumerWidget {
                       .withValues(alpha: 0.6))),
       ],
     );
-    if (!mirror) {
-      // Tapping the key folds the note vocabulary in and out — the panel of
-      // every note the piece uses, which is what the key summary previews.
-      return Tooltip(
-        message: expanded ? 'Hide vocabulary' : 'Show vocabulary',
-        child: InkWell(
-          key: const ValueKey('vocabulary_toggle'),
-          borderRadius: BorderRadius.circular(6),
-          onTap: () =>
-              ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-            child: body,
-          ),
+    // Tapping the key folds the note vocabulary in and out — the panel of
+    // every note the piece uses, which is what the key summary previews.
+    return Tooltip(
+      message: expanded ? 'Hide vocabulary' : 'Show vocabulary',
+      child: InkWell(
+        key: const ValueKey('vocabulary_toggle'),
+        borderRadius: BorderRadius.circular(6),
+        onTap: () =>
+            ref.read(notePaletteExpandedProvider.notifier).state = !expanded,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: body,
         ),
-      );
-    }
-    // Padded as the real one is, so the title stays centred.
-    return ExcludeSemantics(
-      child: IgnorePointer(
-          child: Opacity(
-              opacity: 0,
-              child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                  child: body))),
+      ),
     );
   }
 }

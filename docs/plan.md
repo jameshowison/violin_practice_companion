@@ -379,7 +379,6 @@ instrument moves into its own app:
 - **(decision) A chromatic mode in the string tuner:** `pitch_tuner` has
   it; there is no UI. The drone is done.
 - **Players:**
-  - the badge squeezes the title on 375-pt screens
   - the tray collapsed once after a player switch
   - there is no way to change a take's "only this player" limit after
     recording
@@ -401,4 +400,50 @@ instrument moves into its own app:
   out a doubled anchor span.
 - **The bigger soundfont** (recorder included) ships in every flavor.
   Flavor-specific assets would need a split bundle.
+
+### 7.5 More instruments: Irish flute and cello (proposed 2026-11-23)
+
+Asked for by a tester (the flute) and by the owner (the cello). Not started.
+**(decision) Timing:** each adds an instrument no real player has tried yet,
+like the recorder, so probably after the next TestFlight build, each in its
+own worktree.
+
+**Irish flute.** Builds on the recorder's wind path: `InstrumentSet`, the
+chromatic tuner, the hole diagram (`hole_diagram.dart`), the fingering panel
+and the colour lane (`wind_fingering.dart`). The recorder took about 2,100
+lines over three commits (Windlings 2, 4 and 5); this should be under half.
+- **(decision) Which flute:** a keyless six-hole flute in D is the common one.
+  A keyed flute changes the fingering chart. Ask the tester.
+- **Fingering chart:** six holes, no thumb hole, two octaves by overblowing,
+  cross-fingered C natural. Check it against a real player.
+- **Range:** D4–D6, a beginner's, for the octave search.
+- **Sound:** the soundfont's flute (GM 74), added to `midi_patch.json` and
+  `subset_soundfont.py`.
+- **Alignment profile:** a first guess, like the recorder's; tune it on a real
+  recording.
+- **Ornaments** (cuts, taps, rolls): out of scope at first.
+
+**Tunes for the flute.** Transcribe from O'Neill's *Music of Ireland* (1903),
+which is public domain, and give each a catalog entry with that source.
+Don't take settings from thesession.org, where the copyright of each user's
+setting is unclear. Candidates, all in D or G and within D4–D6:
+- **Beginner:** Britches Full of Stitches (polka), The Rakes of Mallow,
+  Egan's Polka, Lannigan's Ball, Londonderry Air.
+- **Next step:** The Kesh (jig), Out on the Ocean, The Butterfly (slip jig),
+  Drowsy Maggie (reel), The Silver Spear, Planxty Irwin (Carolan).
+- **Leave out:** Inisheer. It sounds traditional but was composed in the
+  1970s and is in copyright.
+- **(decision)** Which three or four to start with.
+
+**Cello.** Follows the viola (Viola 3a–3c): transcription by any interval
+and a clef of its own are already built.
+- **Strings and clef:** C2 G2 D3 A3, bass clef, an octave below the viola.
+  Violin pieces transcribe down an octave and a fifth.
+- **Fingering:** first position spans 1–2–3–4 over a minor third, with
+  backward and forward extensions, so the finger mapper needs a cello rule.
+  Labels keep the same form (`D1`, `A3`), suffixes verbatim as ever.
+- **Tuner:** has to reach C2 (65 Hz). Check the pitch detector's floor
+  before building anything.
+- **Alignment profile:** a low-register band, tuned on a real recording.
+- **Sound:** the soundfont's cello (GM 43).
 

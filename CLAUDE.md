@@ -65,8 +65,9 @@ tail -n 5 flutter_run.log        # want "Restarted application"
 ```
 
 Then read the stamp back off the device. `kBuildRef` renders as a plain `Text` in the
-AppBar of the piece list and the piece detail screen (debug only), so Marionette can
-read it without a screenshot:
+AppBar of the piece list and the piece detail screen (debug only; on a portrait phone
+the piece screen runs it on after the title, inside the `piece_title` text), so
+Marionette can read it without a screenshot:
 ```
 mcp__marionette__get_interactive_elements   # look for Text: "1271eba* 11:06:21"
 ```
