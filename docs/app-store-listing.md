@@ -1,6 +1,6 @@
 # Stringlings — App Description
 
-Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-15; edit here, then `uv run scripts/push_listing.py` (offline preview), `--compare` (vs. live) and `--apply`.
+Source of truth for the App Store Connect and TestFlight fields. Last updated 2026-11-23; edit here, then `uv run scripts/push_listing.py` (offline preview), `--compare` (vs. live) and `--apply`.
 
 ## Name, subtitle and promotional text
 
@@ -59,32 +59,39 @@ Playback uses the GeneralUser GS soundfont under its free license. The microphon
 
 ## TestFlight beta app description
 
-Stringlings helps with learning violin. Designed by and for parents helping their kids through the early stages.
+Stringlings helps with learning violin and other beginner instruments. Designed by and for parents helping their kids through the early stages.
 
 - **Photo to fingerings.** Take a photo of a page of music. Stringlings reads it and writes the fingering above each note (or even without the notes, like A1, A3 ...)
+- **More than violin.** Choose violin, viola, cello, mandolin, recorder or Irish flute. Fingerings, the tuner and the sound follow the instrument.
 - **Practice sections.** The piece can be reflowed into short sections that follow the music's own phrases, so you can work on one at a time.
 - **Hear it played.** Play the music out loud, the whole piece or just a few bars. Each note lights up as it plays.
 - **The teacher's recording.** Record your teacher playing the piece. Stringlings lines the recording up with the written music, so you can hear the teacher play just the section you've selected.
+- **Players.** Add each child who practises, each with their own instrument, settings and recordings.
 - **Numbered notation.** Show any piece in jianpu, where the numbers 1 to 7 stand for the notes of the scale. Handy if numbers are easier to follow than the staff.
 
-Stringlings also has a tuner for getting strings in tune. It's an early version, so feedback on it is especially welcome.
+Stringlings also has a tuner for getting strings in tune, now with a drone to tune by ear.
+
+Violin is the instrument we have tested most. Viola, cello, mandolin and the woodwinds are new and have not yet been tried with real instruments or real players, so feedback from anyone who plays them is especially welcome.
 
 This is a beta. Use the screenshot-and-feedback option in TestFlight, and tell us what you expected to see.
 
-## What to Test (build 1.0.0+6)
+## What to Test (build 1.1.0+7)
 
-Thank you for trying Stringlings. Please try these with music your child is actually learning:
+Thank you for trying Stringlings. This is version 1.1, a big step: the app now does more than violin.
 
-1. Photograph a page of music. Are the notes right? Are the fingerings where you'd expect them? New in this build: pieces that change time signature, triplets, and first and second endings should come through as printed. If a note or key signature is wrong, fix it right on the piece.
-2. Choose a short section and play it. Does the highlighting keep up with the sound? Try the new play modes (Once, Loop, Through) and the speed control.
-3. Record your teacher playing a piece, then play a section of that recording. Does it start and stop on the right notes? Repeated notes and rests should line up better in this build. The video can now sit in the title bar, float, or be hidden.
-4. New: share a piece and its recordings with another device using AirDrop (Share piece and recordings… in the piece's menu).
-5. New: add bowing marks. Select a bar, tap the pencil to edit it, and mark notes down-bow or up-bow. Do the marks show up where you expect, and do slurs and other markings stay put when you edit a bar?
-6. Anything confusing, slow or broken: send a screenshot from TestFlight and say what you were trying to do.
+PLEASE READ FIRST
+Viola, cello and the woodwinds (recorder and Irish flute) are new in this build. They have NOT yet been tested with real instruments or by real players. Fingerings, the tuner and the playback sound may be wrong in ways only a player would notice. If you or your child plays one of them, we would love to hear what works and what doesn't. Mandolin is also new, and has had some testing.
 
-Also try the tuner. It's been reworked in this build: does it settle on the note quickly, and does it agree with the tuner you normally use?
+1. New instruments. In Settings, choose your instrument (Strings, Strumming, Woodwinds). Open a piece: are the fingerings what your teacher would use? On cello and viola, is the clef and the key right? On recorder and Irish flute, does the fingering chart match your instrument? Does it sound like the instrument when it plays?
+2. The tuner, on your instrument. Does it hear every string, including the low ones on cello and viola? Try the new Drone button to tune by ear.
+3. Players. Add a player for each child (Settings). Each can have their own instrument and settings. Recordings are shared by default; a new recording asks if it should stay with just one player.
+4. Practice mode (the blur icon in the toolbar). It takes the supports away one step at a time (letters, then the staff, then bowings, down to a black screen) to help play from memory. Tap the score to bring a step back. Is it useful? Are the steps in a sensible order?
+5. Selecting bars. A tap now selects one bar; hold and drag for a range.
+6. Size and layout. The magnifier by the gear sets the size (Fit whole piece, Small, Medium, Large) and layout (Flowing, Sections, Page). It replaces pinch to zoom.
+7. Playing aloud. The score now plays as a recording, which should be steadier on AirPlay and Bluetooth speakers. If a speaker stops working, the app offers to pick it again.
+8. Anything confusing, slow or broken: send a screenshot from TestFlight and say what you were trying to do.
 
-Also welcome feedback on additional features that could help.
+Also welcome: feedback on additional features or instruments that could help.
 
 ## Screenshots
 
