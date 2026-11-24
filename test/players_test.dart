@@ -125,7 +125,7 @@ void main() {
     await tester.enterText(
         find.byKey(const ValueKey('add_player_name')), 'Theo');
     await tester.pump();
-    await tester.tap(find.text('Viola: alto clef, C G D A').last);
+    await tester.tap(find.byKey(const ValueKey('add_player_instrument_viola')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('add_player_confirm')));
     await tester.pumpAndSettle();

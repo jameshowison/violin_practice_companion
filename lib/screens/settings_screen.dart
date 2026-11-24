@@ -129,15 +129,15 @@ class SettingsScreen extends ConsumerWidget {
                   current == null ? 'Instrument' : "${current.name}'s instrument",
                   style: theme.textTheme.titleSmall),
             ),
-            RadioGroup<InstrumentSet>(
-              groupValue: set,
-              onChanged: (v) {
-                if (v != null) ref.read(instrumentSetProvider.notifier).state = v;
-              },
-              child: Column(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: InstrumentPicker(
                 key: const ValueKey('instrument_setting'),
-                children: instrumentChoiceTiles(offered,
-                    keyPrefix: 'instrument_setting_'),
+                offered: offered,
+                selected: set,
+                keyPrefix: 'instrument_setting_',
+                onChanged: (v) =>
+                    ref.read(instrumentSetProvider.notifier).state = v,
               ),
             ),
           ],

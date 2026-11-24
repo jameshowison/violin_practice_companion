@@ -28,7 +28,32 @@ enum InstrumentSet {
   /// fingering; the score is its written part, sounding an octave higher;
   /// a chromatic tuner (docs/family/windlings-app.md).
   recorder,
+
+  /// The keyless Irish flute in D (docs/plan.md §7.5): the recorder's wind
+  /// path, at sounding pitch, with its own six-hole chart.
+  irishFlute,
 }
+
+/// The kinds of instrument the picker groups its rows by, in the order it
+/// shows them (decided 2026-11-23: one row per kind).
+enum InstrumentFamily {
+  strings('Strings'),
+  strummed('Strumming'),
+  woodwinds('Woodwinds');
+
+  const InstrumentFamily(this.label);
+  final String label;
+}
+
+/// The row [set] is picked from. The cello will join the strings
+/// (docs/plan.md §7.5).
+InstrumentFamily familyOf(InstrumentSet set) => switch (set) {
+      InstrumentSet.violin || InstrumentSet.viola => InstrumentFamily.strings,
+      InstrumentSet.mandolin => InstrumentFamily.strummed,
+      InstrumentSet.recorder ||
+      InstrumentSet.irishFlute =>
+        InstrumentFamily.woodwinds,
+    };
 
 /// The stored name of the setting from before the instruments were separate
 /// (violin, with a per-piece Violin / Mandolin picker). It turned the
@@ -68,7 +93,8 @@ class InstrumentFeatures {
     InstrumentSet.violin || InstrumentSet.viola =>
       const InstrumentFeatures(tabView: false, chords: false),
     InstrumentSet.mandolin => const InstrumentFeatures(tabView: true, chords: true),
-    InstrumentSet.recorder => const InstrumentFeatures(
+    InstrumentSet.recorder || InstrumentSet.irishFlute =>
+      const InstrumentFeatures(
         tabView: false, chords: false, stringFingering: false, stringTuner: false),
   };
 }
@@ -88,6 +114,7 @@ List<InstrumentSet> instrumentsOffered(AppEdition edition) => switch (edition) {
           InstrumentSet.viola,
           InstrumentSet.mandolin,
           InstrumentSet.recorder,
+          InstrumentSet.irishFlute,
         ],
       AppEdition.mandolin => const [InstrumentSet.mandolin],
       AppEdition.windlings => const [InstrumentSet.recorder],

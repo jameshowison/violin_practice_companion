@@ -14,6 +14,7 @@ import 'package:violin_practice_companion/models/instrument_profile.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/string_label_style.dart';
 import 'package:violin_practice_companion/screens/settings_screen.dart';
+import 'package:violin_practice_companion/widgets/player_badge.dart' show InstrumentPicker;
 import 'package:violin_practice_companion/services/fingering_annotation_builder.dart';
 import 'package:violin_practice_companion/services/fingering_mapper.dart';
 import 'package:violin_practice_companion/services/instrument_setting.dart';
@@ -108,7 +109,7 @@ void main() {
           find.byKey(const ValueKey('add_player')), 200,
           scrollable: find.byType(Scrollable).first);
       expect(find.byKey(const ValueKey('instrument_setting')), findsNothing);
-      expect(find.byType(RadioListTile<InstrumentSet>), findsNothing);
+      expect(find.byType(InstrumentPicker), findsNothing);
       expect(find.textContaining('Windlings collects no data'), findsOneWidget);
     });
   });

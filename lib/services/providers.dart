@@ -370,6 +370,7 @@ final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
       InstrumentSet.viola => InstrumentProfile.viola
           .withTranscription(ref.watch(violaTranscriptionProvider)),
       InstrumentSet.recorder => InstrumentProfile.recorder,
+      InstrumentSet.irishFlute => InstrumentProfile.irishFlute,
     });
 
 /// How the selected piece's source is shown for [instrumentProfileProvider].

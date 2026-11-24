@@ -1,8 +1,9 @@
 {
-  "comment": "General MIDI patch assignments, by instrument profile id (an instrument not listed plays the violin's). Violin = program 40, viola = 41, recorder = 73 (0-indexed; GM 41, 42, 74). An entry is a program in bank 0, or {bank, program} for a GS variation: the mandolin is GeneralUser GS bank 16 program 25 (GM has no mandolin; without bank 16 a synth falls back to program 25, Steel Guitar). ticksPerQuarterNote controls timing resolution. soundfontAsset is the Flutter asset path to the .sf2 file used on mobile/desktop; it is GeneralUser GS cut down to these programs and the woodblocks by scripts/subset_soundfont.py, so changing the program here means rerunning that.",
+  "comment": "General MIDI patch assignments, by instrument profile id (an instrument not listed plays the violin's). Violin = program 40, viola = 41, recorder = 73 and Irish flute = 73 (0-indexed; GM 41, 42, 74). NB 73 is GeneralUser's Flute, so the recorder plays a flute sound; its Recorder is 74, which the subset does not keep yet. An entry is a program in bank 0, or {bank, program} for a GS variation: the mandolin is GeneralUser GS bank 16 program 25 (GM has no mandolin; without bank 16 a synth falls back to program 25, Steel Guitar). ticksPerQuarterNote controls timing resolution. soundfontAsset is the Flutter asset path to the .sf2 file used on mobile/desktop; it is GeneralUser GS cut down to these programs and the woodblocks by scripts/subset_soundfont.py, so changing the program here means rerunning that.",
   "violin": 40,
   "viola": 41,
   "recorder": 73,
+  "irishFlute": 73,
   "mandolin": {"bank": 16, "program": 25},
   "ticksPerQuarterNote": 480,
   "soundfontAsset": "assets/engine/soundfonts/generaluser_gs.sf2",

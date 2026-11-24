@@ -46,6 +46,7 @@ void main() {
         InstrumentSet.viola,
         InstrumentSet.mandolin,
         InstrumentSet.recorder,
+        InstrumentSet.irishFlute,
       ]);
       expect(c.read(instrumentSetProvider), InstrumentSet.violin);
     });
@@ -65,13 +66,13 @@ void main() {
       expect(prefs.getString(instrumentSetKey), InstrumentSet.mandolin.name);
     });
 
-    testWidgets('Settings offers all four instruments', (tester) async {
+    testWidgets('Settings offers every instrument', (tester) async {
       final c = await containerWith(AppEdition.stringlings, {});
       await tester.pumpWidget(UncontrolledProviderScope(
           container: c, child: const MaterialApp(home: SettingsScreen())));
       final list = find.byType(Scrollable).first;
       await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('instrument_setting_recorder')), 200,
+          find.byKey(const ValueKey('instrument_setting_irishFlute')), 200,
           scrollable: list);
       for (final s in InstrumentSet.values) {
         expect(find.byKey(ValueKey('instrument_setting_${s.name}')),
@@ -81,6 +82,33 @@ void main() {
           find.textContaining('Stringlings collects no data'), 200,
           scrollable: list);
       expect(find.textContaining('Stringlings collects no data'), findsOneWidget);
+    });
+
+    testWidgets('the picker: one row per family, in order; a tap picks',
+        (tester) async {
+      InstrumentSet? picked;
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: InstrumentPicker(
+        offered: instrumentsOffered(AppEdition.stringlings),
+        selected: InstrumentSet.viola,
+        onChanged: (s) => picked = s,
+      ))));
+      double y(Finder f) => tester.getCenter(f).dy;
+      Finder chip(InstrumentSet s) => find.byKey(ValueKey('instrument_${s.name}'));
+      final strings = y(find.text('Strings'));
+      final strummed = y(find.text('Strumming'));
+      final winds = y(find.text('Woodwinds'));
+      expect(strings < strummed && strummed < winds, isTrue);
+      expect(y(chip(InstrumentSet.violin)), closeTo(strings, 2));
+      expect(y(chip(InstrumentSet.viola)), closeTo(strings, 2));
+      expect(y(chip(InstrumentSet.mandolin)), closeTo(strummed, 2));
+      expect(y(chip(InstrumentSet.recorder)), closeTo(winds, 2));
+      expect(y(chip(InstrumentSet.irishFlute)), closeTo(winds, 2));
+      expect(tester.widget<ChoiceChip>(chip(InstrumentSet.viola)).selected, isTrue);
+      expect(find.text('Alto clef, C G D A'), findsOneWidget);
+      await tester.tap(chip(InstrumentSet.irishFlute));
+      expect(picked, InstrumentSet.irishFlute);
     });
   });
 
@@ -110,7 +138,7 @@ void main() {
           find.byKey(const ValueKey('add_player')), 200,
           scrollable: find.byType(Scrollable).first);
       expect(find.byKey(const ValueKey('instrument_setting')), findsNothing);
-      expect(find.byType(RadioListTile<InstrumentSet>), findsNothing);
+      expect(find.byType(InstrumentPicker), findsNothing);
       expect(find.textContaining('Mandolings collects no data'), findsOneWidget);
     });
 

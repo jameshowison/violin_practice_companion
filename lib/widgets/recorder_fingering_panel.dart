@@ -14,7 +14,8 @@ import 'hole_diagram.dart';
 const double fingeringPanelWidth = 132;
 
 /// [child] (the score) with the fingering side panel on its right — in
-/// landscape, for an instrument with a fingering chart (the recorder). For
+/// landscape, for an instrument with a fingering chart (the recorder, the
+/// Irish flute). For
 /// every other instrument, and in portrait, [child] exactly as it was.
 class FingeringPanelSlot extends ConsumerWidget {
   final Widget child;
@@ -138,11 +139,17 @@ class _PanelBody extends StatelessWidget {
         previous == null ? null : chart.fingeringFor(previous!.midi);
     final nextFingering = next == null ? null : chart.fingeringFor(next!.midi);
     final name = noteNameOf(current.pitch);
+    final breath = entry == null || previous == null
+        ? null
+        : breathChangeLine(chart[previous!.midi], entry);
     final lines = entry == null
         ? const <String>['Not on the chart']
         : previous != null && prevFingering == null
             ? const <String>[]
-            : fingeringChangeLines(prevFingering, entry.fingering);
+            : [
+                ...fingeringChangeLines(prevFingering, entry.fingering),
+                ?breath,
+              ];
     final muted = scheme.onSurfaceVariant;
 
     return Padding(
@@ -153,7 +160,7 @@ class _PanelBody extends StatelessWidget {
               key: const ValueKey('fingering_panel_note'),
               style: theme.textTheme.headlineMedium
                   ?.copyWith(fontWeight: FontWeight.w800, height: 1.0)),
-          Text(registerWord(current.midi),
+          Text(registerWord(current.midi, highFrom: chart.highFrom),
               style: theme.textTheme.labelMedium?.copyWith(color: muted)),
           const SizedBox(height: 3),
           if (entry != null)

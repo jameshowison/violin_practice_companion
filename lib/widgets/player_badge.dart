@@ -125,26 +125,103 @@ String _instrumentName(WidgetRef ref, Player player, List<Player> players) {
     InstrumentSet.viola => 'Viola',
     InstrumentSet.mandolin => 'Mandolin',
     InstrumentSet.recorder => 'Recorder',
+    InstrumentSet.irishFlute => 'Irish flute',
   };
 }
 
+/// The short name on an instrument's chip.
+String instrumentLabel(InstrumentSet set) => switch (set) {
+      InstrumentSet.violin => 'Violin',
+      InstrumentSet.viola => 'Viola',
+      InstrumentSet.mandolin => 'Mandolin',
+      InstrumentSet.recorder => 'Recorder',
+      InstrumentSet.irishFlute => 'Irish flute',
+    };
+
+/// What the chosen instrument turns on, under the rows; null says nothing.
+String? instrumentDetail(InstrumentSet set) => switch (set) {
+      InstrumentSet.violin => null,
+      InstrumentSet.viola => 'Alto clef, C G D A',
+      InstrumentSet.mandolin => 'Frets, tab and chords',
+      InstrumentSet.recorder => 'Soprano, baroque fingering',
+      InstrumentSet.irishFlute => 'Keyless, in D',
+    };
+
 /// The instrument choices (Settings, a new player): the edition's
-/// [instrumentsOfferedProvider], each with what it turns on. With only one on
-/// offer (the mandolin app) there is nothing to choose, and callers hide it.
-List<Widget> instrumentChoiceTiles(List<InstrumentSet> offered, {String keyPrefix = ''}) => [
-      for (final set in offered)
-        RadioListTile<InstrumentSet>(
-          key: keyPrefix.isEmpty ? null : ValueKey('$keyPrefix${set.name}'),
-          value: set,
-          dense: true,
-          title: Text(switch (set) {
-            InstrumentSet.violin => 'Violin',
-            InstrumentSet.viola => 'Viola: alto clef, C G D A',
-            InstrumentSet.mandolin => 'Mandolin: frets, tab, chords',
-            InstrumentSet.recorder => 'Recorder',
-          }),
-        ),
-    ];
+/// [instrumentsOfferedProvider], one row per [InstrumentFamily] (strings,
+/// strumming, woodwinds), each a row of chips, and under them what the
+/// chosen one turns on. A family with nothing on offer has no row. With only
+/// one instrument on offer (the mandolin app) there is nothing to choose,
+/// and callers hide it.
+///
+/// Each chip is keyed `'$keyPrefix<instrument name>'`.
+class InstrumentPicker extends StatelessWidget {
+  final List<InstrumentSet> offered;
+  final InstrumentSet selected;
+  final ValueChanged<InstrumentSet> onChanged;
+  final String keyPrefix;
+
+  const InstrumentPicker({
+    super.key,
+    required this.offered,
+    required this.selected,
+    required this.onChanged,
+    this.keyPrefix = 'instrument_',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final detail = instrumentDetail(selected);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final family in InstrumentFamily.values)
+          if (offered.any((s) => familyOf(s) == family))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 86,
+                    child: Text(family.label,
+                        style: theme.textTheme.labelMedium
+                            ?.copyWith(color: muted)),
+                  ),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final set in offered)
+                          if (familyOf(set) == family)
+                            ChoiceChip(
+                              key: ValueKey('$keyPrefix${set.name}'),
+                              label: Text(instrumentLabel(set)),
+                              selected: set == selected,
+                              showCheckmark: false,
+                              visualDensity: VisualDensity.compact,
+                              onSelected: (_) => onChanged(set),
+                            ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        if (detail != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 86),
+            child: Text(detail,
+                key: ValueKey('${keyPrefix}detail'),
+                style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+          ),
+      ],
+    );
+  }
+}
 
 /// Public for Settings' list.
 String instrumentNameOf(WidgetRef ref, Player player, List<Player> players) =>
@@ -277,14 +354,13 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
           if (offered.length > 1) ...[
             const SizedBox(height: 16),
             Text('Instrument', style: theme.textTheme.labelLarge),
-            RadioGroup<InstrumentSet>(
-              groupValue: _instrument,
-              onChanged: (v) {
-                if (v != null) setState(() => _instrument = v);
-              },
-              child: Column(
-                  key: const ValueKey('add_player_instrument'),
-                  children: instrumentChoiceTiles(offered)),
+            const SizedBox(height: 8),
+            InstrumentPicker(
+              key: const ValueKey('add_player_instrument'),
+              offered: offered,
+              selected: _instrument,
+              keyPrefix: 'add_player_instrument_',
+              onChanged: (v) => setState(() => _instrument = v),
             ),
           ],
           const SizedBox(height: 8),

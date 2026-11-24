@@ -29,10 +29,17 @@ void main() {
     expect(tester.getTopLeft(note).dy,
         lessThan(tester.getTopLeft(find.text('Appearance')).dy));
 
+    // Thanks comes after the instruments. On an SE the header can scroll away
+    // before Thanks comes into view, and the lazy list's offsets move as it
+    // lays out, so: with the header on screen, Thanks is not built yet or is
+    // below it; then scrolling on down reaches it.
     final entry = find.byKey(const ValueKey('thanks_entry'));
+    await tester.scrollUntilVisible(find.text('Instrument'), 200);
+    if (entry.evaluate().isNotEmpty) {
+      expect(tester.getTopLeft(entry).dy,
+          greaterThan(tester.getTopLeft(find.text('Instrument')).dy));
+    }
     await tester.scrollUntilVisible(entry, 200);
-    expect(tester.getTopLeft(entry).dy,
-        greaterThan(tester.getTopLeft(find.text('Instrument')).dy));
     await tester.ensureVisible(entry);
     await tester.pumpAndSettle();
 

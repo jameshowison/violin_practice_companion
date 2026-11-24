@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 
 import '../models/recorder_fingering.dart';
 
-/// A recorder drawn upright, its holes showing one [HoleFingering]: the wind
-/// equivalent of `ChordDiagram`.
+/// A recorder or a flute drawn upright, its holes showing one
+/// [HoleFingering]: the wind equivalent of `ChordDiagram`.
 ///
-/// The thumb hole is at the back, drawn to the left of hole 1; holes 1–3 are
-/// the left hand, a gap, then 4–7 the right, with 6 and 7 each a double hole
-/// (a larger and a smaller one side by side). Closed is filled, open a ring,
-/// half is half filled (the pinched thumb) or the larger of a pair filled.
+/// The recorder: the thumb hole is at the back, drawn to the left of hole 1;
+/// holes 1–3 are the left hand, a gap, then 4–7 the right, with 6 and 7 each
+/// a double hole (a larger and a smaller one side by side). The flute (no
+/// thumb hole): its embouchure hole at the top, then holes 1–3 and 4–6 a
+/// place lower, drawn upright as an Irish flute or whistle chart draws them.
+/// Closed is filled, open a ring, half is half filled (the pinched thumb, a
+/// flute's half-hole) or the larger of a pair filled.
 ///
 /// With [changedFrom], the holes that differ from it are ringed: a solid ring
 /// in the theme's primary colour for a hole going down (or half), a dashed
@@ -112,11 +115,23 @@ class HoleDiagramPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = stroke * 0.6);
 
+    final recorder = fingering.hasThumb;
+    if (!recorder) {
+      // The flute's embouchure hole: blown across, never covered.
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: const Offset(0, 1.0), width: 0.62, height: 0.4),
+          Paint()
+            ..color = outline
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke);
+    }
     final changed = changedHoles(changedFrom, fingering);
-    for (var i = 0; i < 8; i++) {
-      final c = centres[i];
+    for (var i = recorder ? 0 : 1; i < fingering.holeCount; i++) {
+      // The flute's holes sit a place lower, under its embouchure hole.
+      final c = centres[recorder ? i : i + 1];
       final state = fingering.hole(i);
-      if (i >= 6) {
+      if (recorder && i >= 6) {
         _doubleHole(canvas, c, state, stroke);
       } else {
         _hole(canvas, c, _r, state, stroke);
@@ -138,14 +153,17 @@ class HoleDiagramPainter extends CustomPainter {
     // The numbers in screen units: text laid out at a fraction of a point
     // inside the scaled canvas is placed unreliably.
     if (showNumbers) {
-      for (var i = 1; i < 8; i++) {
+      final shift = fingering.hasThumb ? 0 : 1;
+      for (var i = 1; i < fingering.holeCount; i++) {
         final tp = TextPainter(
           text: TextSpan(
               text: '$i',
               style: TextStyle(color: outline, fontSize: 0.42 * k, height: 1)),
           textDirection: TextDirection.ltr,
         )..layout();
-        final c = (centres[i] + const Offset(-viewLeft + 0.68, -viewTop)) * k;
+        final c = (centres[i + shift] +
+                const Offset(-viewLeft + 0.68, -viewTop)) *
+            k;
         tp.paint(canvas, c - Offset(0, tp.height / 2));
       }
     }

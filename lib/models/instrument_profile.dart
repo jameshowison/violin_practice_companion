@@ -120,8 +120,11 @@ class InstrumentProfile {
 
   /// A wind's fingering chart, keyed on written pitch: the hole diagram, the
   /// side panel and the colour lane read it. Null for the strings.
-  HoleFingeringChart? get fingeringChart =>
-      id == 'recorder' ? HoleFingeringChart.sopranoBaroque : null;
+  HoleFingeringChart? get fingeringChart => switch (id) {
+        'recorder' => HoleFingeringChart.sopranoBaroque,
+        'irishFlute' => HoleFingeringChart.irishFluteKeyless,
+        _ => null,
+      };
 
   /// Whether [midi] is both an open string and a 4th finger on the string
   /// below: the notes where the fingering is a choice (violin D4, A4, E5;
@@ -210,5 +213,27 @@ class InstrumentProfile {
     transposition: Transposition.octaveUp,
     alignment: AlignmentProfile(
         minFrequencyHz: 400, maxFrequencyHz: 4000, ringSeconds: 0.15),
+  );
+
+  /// The keyless six-hole Irish flute in D (docs/plan.md §7.5): treble, at
+  /// sounding pitch, D4 to D6, the two octaves a beginner plays and the
+  /// third's D. No strings. A violin tune that dips below D4 is moved up an
+  /// octave (`InstrumentView`), as for the recorder.
+  ///
+  /// Its [AlignmentProfile] is a first guess like the recorder's, with no
+  /// flute recording to measure it on: little ring, a band from 250 Hz (D4
+  /// is 294 Hz, with room for a flat one) to 4 kHz, over the top D's
+  /// 1175 Hz and the breathy tone's upper partials.
+  static const irishFlute = InstrumentProfile(
+    id: 'irishFlute',
+    displayName: 'Irish flute',
+    layerId: 'irishFlute',
+    clef: trebleClef,
+    lowestMidi: 62,
+    highestMidi: 86,
+    strings: [],
+    openMidi: [],
+    alignment: AlignmentProfile(
+        minFrequencyHz: 250, maxFrequencyHz: 4000, ringSeconds: 0.15),
   );
 }
