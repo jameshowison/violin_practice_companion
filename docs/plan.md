@@ -366,12 +366,20 @@ instrument moves into its own app:
 - **Mini diagrams above each note, and note-name labels:** not built.
 - **The lane's room:** with tight system spacing, a dash can crowd the next
   system.
-- **Real audio:** listen to the recorder sound on a device. Try the
-  chromatic tuner, and the alignment profile (400–4000 Hz, first guesses),
-  on a real recorder.
+- **The recorder plays a flute sound.** `midi_patch.json` gives it
+  program 73, which is GeneralUser GS's Flute; its Recorder is 74 (read
+  from the .sf2's preset headers, 2026-11-23). The fix: `"recorder": 74`,
+  add `--keep 0:74` to `subset_soundfont.py`, regenerate the subset in the
+  main checkout (the .sf2 is gitignored, so each worktree copies it), and
+  listen. The Irish flute stays on 73, so keep that too.
+- **Real audio:** listen to the recorder sound on a device (after the fix
+  above). Try the chromatic tuner, and the alignment profile (400–4000 Hz,
+  first guesses), on a real recorder.
 - **Range:** the octave search aims at C4–D6, a beginner's range.
-- **The picker now lists all four instruments.** Check that the Settings
-  instrument list still reads well on the 375-pt phone.
+- **The picker is in rows by family** (2026-11-23): Strings, Strumming,
+  Woodwinds, a row of chips each, with a line under them on the chosen
+  instrument (`InstrumentPicker`, `familyOf`). Checked on `dev-iphone`;
+  check it on the 375-pt SE.
 
 ### 7.3 Stringlings UI (mock first)
 
@@ -403,24 +411,35 @@ instrument moves into its own app:
 
 ### 7.5 More instruments: Irish flute and cello (proposed 2026-11-23)
 
-Asked for by a tester (the flute) and by the owner (the cello). Not started.
-**(decision) Timing:** each adds an instrument no real player has tried yet,
-like the recorder, so probably after the next TestFlight build, each in its
-own worktree.
+Asked for by a tester (the flute) and by the owner (the cello). The flute
+is built (2026-11-23); the cello is not started. Each adds an instrument no
+real player has tried yet, like the recorder.
 
-**Irish flute.** Builds on the recorder's wind path: `InstrumentSet`, the
-chromatic tuner, the hole diagram (`hole_diagram.dart`), the fingering panel
-and the colour lane (`wind_fingering.dart`). The recorder took about 2,100
-lines over three commits (Windlings 2, 4 and 5); this should be under half.
-- **(decision) Which flute:** a keyless six-hole flute in D is the common one.
-  A keyed flute changes the fingering chart. Ask the tester.
-- **Fingering chart:** six holes, no thumb hole, two octaves by overblowing,
-  cross-fingered C natural. Check it against a real player.
-- **Range:** D4–D6, a beginner's, for the octave search.
-- **Sound:** the soundfont's flute (GM 74), added to `midi_patch.json` and
-  `subset_soundfont.py`.
-- **Alignment profile:** a first guess, like the recorder's; tune it on a real
-  recording.
+**Irish flute: built, in Stringlings** (not Windlings, whose tests assume
+the recorder alone). On the recorder's wind path, about 400 lines with the
+tests (`test/irish_flute_test.dart`).
+- **Which flute (decided):** the keyless six-hole flute in D, the most common.
+  A keyed flute would need its own chart.
+- **Fingering chart:** `HoleFingeringChart.irishFluteKeyless`, D4–D6, checked
+  against Margaret Fleck's two keyless charts
+  (mfleck.cs.illinois.edu/flute-fingerings.html and -simple.html), which
+  agree on the D scale, D♯ and F. G♯, B♭ and C natural differ between them
+  and are `verified: false` with alternates. C natural is cross-fingered
+  (`oxx ooo`). **Still to do:** check the chart with a real player, the
+  tester first.
+- **Octaves:** the same fingers blown harder, so `ChartEntry.overblown`, a
+  "High octave" lane group (the thumb-off magenta), and "Blow harder" /
+  "Blow softer" in the panel on an octave leap.
+- **Hole diagram:** six holes, the embouchure hole on top. The landscape
+  panel is widget-tested only; look at it on a device.
+- **Sound:** program 73, GeneralUser's Flute, already in the subset (it is
+  what the recorder has been playing too, §7.2). Listen on a device.
+- **Alignment profile:** 250–4000 Hz, little ring, a first guess; tune it on
+  a real recording.
+- **Violin tunes below D4** (the Gavotte's last line goes down to G3) show
+  with no lane dash. The octave search keeps 95% of every bundled tune in
+  range, but the low notes are unplayable. Decide whether to move such a
+  tune up, or leave it to the flute's own tunes below.
 - **Ornaments** (cuts, taps, rolls): out of scope at first.
 
 **Tunes for the flute.** Transcribe from O'Neill's *Music of Ireland* (1903),
@@ -446,4 +465,5 @@ and a clef of its own are already built.
   before building anything.
 - **Alignment profile:** a low-register band, tuned on a real recording.
 - **Sound:** the soundfont's cello (GM 43).
+- **The picker:** it joins the Strings row (`familyOf`).
 
