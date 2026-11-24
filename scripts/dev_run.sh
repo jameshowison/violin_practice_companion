@@ -61,18 +61,10 @@ if [[ $(ls "$(dirname "$0")/../assets/engine/omr_models/"*.onnx 2>/dev/null | wc
 fi
 
 # Kill only what belongs to this pipe: the flutter run reading it and the
-# `sleep 86400` holding its write end. Matched by inode (lsof can't look a fifo
-# up by path), so a run on another session's pipe is never touched.
-fifo_pids() {
-  [[ -p "$FIFO" ]] || return 0
-  local inode pid
-  inode=$(stat -f '%i' "$FIFO")
-  for pid in $(pgrep -f 'flutter_tools.snapshot run') $(pgrep -fx 'sleep 86400'); do
-    lsof -p "$pid" -a -d 0,1 2>/dev/null | awk -v n="$inode" '$(NF-1)==n {f=1} END {exit !f}' \
-      && echo "$pid"
-  done
-}
-OWN=$(fifo_pids)
+# `sleep 86400` holding its write end (fifo_pids, in dev_claims.sh). The same
+# file records this launch against the Claude session, for its SessionEnd hook.
+. "$(dirname "$0")/dev_claims.sh"
+OWN=$(fifo_pids "$FIFO")
 
 # Another flutter run on the same device that isn't ours: two runs would fight
 # over the install, so stop rather than kill another session's dev server.
@@ -95,7 +87,10 @@ fi
 [[ -n "$OWN" ]] && kill $OWN 2>/dev/null
 sleep 1
 
-# Ensure the simulator is booted, then show it.
+# Ensure the simulator is booted, then show it. Whether this launch booted it
+# decides whether the session's SessionEnd hook shuts it down (dev_stop.sh).
+BOOTED_HERE=1
+xcrun simctl list devices | grep -F "    $DEVICE (" | grep -q "Booted" && BOOTED_HERE=0
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 # Give the device a moment to reach Booted.
 for _ in $(seq 1 20); do
@@ -137,6 +132,8 @@ flutter run -d "$DEVICE" ${FLUTTER_ARGS[@]+"${FLUTTER_ARGS[@]}"} < "$FIFO" > "$L
 # moment the script exits — and every later `echo "r" > $FIFO` would be shouting into
 # a closed pipe.
 nohup sleep 86400 > "$FIFO" 2>/dev/null &
+
+claim_record "$FIFO" "$DEVICE" "$BOOTED_HERE"
 
 echo "launched (device=$DEVICE, pipe=$FIFO, log=$LOG${FLUTTER_ARGS[@]+, ${FLUTTER_ARGS[*]}})"
 echo "$STAMP"

@@ -128,7 +128,17 @@ echo r > /tmp/flutter_ctl_ipad                                     # B reloads i
 `dev_run.sh` kills only the run and pipe holder on its own `FLUTTER_FIFO`, and
 refuses if another run already holds the device (`--takeover` overrides). The log
 is per-worktree (`flutter_run.log` is relative), and Marionette connects per VM
-Service URL, so both are fine. Still global, and still one session at a time:
+Service URL, so both are fine.
+
+**`/clear` and exit clean up after the session.** `dev_run.sh` records each
+launch against `$CLAUDE_CODE_SESSION_ID` in `/tmp/vpc_sim_claims/<id>.tsv`; a
+`SessionEnd` hook (`.claude/hooks/session_end_sims.sh`) then runs
+`scripts/dev_stop.sh`, which kills that session's `flutter run` and pipe holder
+and shuts down any simulator its launches booted. A simulator is left up if it was
+already booted before the session launched on it, if another live session claims
+it, or if some other `flutter run` is on it. Log: `/tmp/vpc_sim_claims/stop.log`.
+`bash scripts/dev_stop.sh --list` shows every claim; with no flags it stops
+this session's runs by hand. Android runs aren't tracked (`dev_run.sh` is iOS-only). Still global, and still one session at a time:
 `device_install.sh` and `sim_add_media.sh` (both kill every `flutter run`),
 dev-library sync of a device the other session is on, and
 `pkill -f flutter_tools.snapshot` by hand.

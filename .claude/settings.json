@@ -20,6 +20,18 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "clear|prompt_input_exit|logout",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session_end_sims.sh",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
