@@ -286,7 +286,8 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
         playerKey(instrumentSetKeyBase, added, players), _instrument.name);
     if (transcriptionKeyBaseOf(_instrument) case final keyBase?) {
       prefs?.setString(
-          playerKey(keyBase, added, players), Transcription.none.name);
+          playerKey(keyBase, added, players),
+          defaultTranscriptionOf(_instrument).name);
     }
     ref.read(currentPlayerIdProvider.notifier).state = added.id;
     Navigator.of(context).pop();

@@ -189,11 +189,11 @@ const violaTranscriptionKeyBase = 'app.violaTranscription';
 /// The same for the cello.
 const celloTranscriptionKeyBase = 'app.celloTranscription';
 
-/// A [Transcription] kept per player under [keyBase], [Transcription.none]
-/// until one is chosen.
-StateProvider<Transcription> _transcriptionPref(String keyBase) =>
+/// A [Transcription] kept per player under [keyBase], [fallback] until one
+/// is chosen.
+StateProvider<Transcription> _transcriptionPref(
+        String keyBase, Transcription fallback) =>
     StateProvider<Transcription>((ref) {
-      const fallback = Transcription.none;
       final prefs = ref.watch(sharedPreferencesProvider);
       if (prefs == null) return fallback;
       final key = ref.watch(playerKeyProvider)(keyBase);
@@ -209,14 +209,26 @@ StateProvider<Transcription> _transcriptionPref(String keyBase) =>
 
 /// How a part written for another clef is transcribed for the viola
 /// (decided 2026-11-21: configurable). App-wide, like [instrumentSetProvider].
-final violaTranscriptionProvider =
-    _transcriptionPref(violaTranscriptionKeyBase);
+final violaTranscriptionProvider = _transcriptionPref(
+    violaTranscriptionKeyBase, defaultTranscriptionOf(InstrumentSet.viola));
 
 /// How a part written for another clef is transcribed for the cello: the
 /// same choice as the viola's, kept apart so a player switching between the
 /// two keeps each.
-final celloTranscriptionProvider =
-    _transcriptionPref(celloTranscriptionKeyBase);
+final celloTranscriptionProvider = _transcriptionPref(
+    celloTranscriptionKeyBase, defaultTranscriptionOf(InstrumentSet.cello));
+
+/// The transcription a player starts with. The viola keeps the violin's key
+/// (Transcription.none). The cello starts a fifth lower (decided 2026-11-23):
+/// the violin's first pieces are mostly in A and D, which come out in D and
+/// G, the keys cello books start in and that fit first position with no
+/// extension; kept in A, every C sharp on the G string needs one. The cost,
+/// a key that no longer matches a recording of the violin part, matters
+/// little: players mostly record their own teacher.
+Transcription defaultTranscriptionOf(InstrumentSet set) => switch (set) {
+      InstrumentSet.cello => Transcription.fifthDown,
+      _ => Transcription.none,
+    };
 
 /// The preference key of [set]'s transcription, or null for an instrument
 /// that reads a violin part as written.

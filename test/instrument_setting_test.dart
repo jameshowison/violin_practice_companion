@@ -141,7 +141,8 @@ void main() {
       expect((p.id, p.layerId, p.clef), ('cello', 'cello', bassClef));
       expect(p.openMidi, [36, 43, 50, 57]);
       expect(p.handFrame, HandFrame.minorThird);
-      expect(p.transcription, Transcription.none);
+      // A fifth lower until chosen otherwise; the viola keeps the key.
+      expect(p.transcription, Transcription.fifthDown);
       final f = c.read(instrumentFeaturesProvider);
       expect((f.tabView, f.chords, f.stringFingering, f.stringTuner),
           (false, false, true, true));
