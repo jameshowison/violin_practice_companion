@@ -13,6 +13,7 @@ import '../models/section_run_groups.dart';
 import 'package:score_sync/score_sync.dart';
 import 'package:score_view/score_view.dart';
 import '../models/fingering_density.dart';
+import '../models/instrument_profile.dart' show HandFrame;
 import 'package:musicxml_tools/musicxml_tools.dart';
 import '../models/display_mode.dart';
 import '../models/note_number_mode.dart';
@@ -1985,8 +1986,9 @@ class _FoldingTitle extends StatelessWidget {
 /// opening the vocabulary. On every screen size: it is the warning a phone
 /// needs most. On the violin the labels are shown exactly as stored (`A2L`,
 /// never `A2♭`); on the mandolin the same notes by string and fret. With none,
-/// the home pattern on every string, in grey (`All: 1 2H 3`, frets
-/// `All: 2 4 5`), so "nothing unusual" is said rather than left blank.
+/// the home pattern on every string, in grey (`All: 1 2H 3`, a cello's
+/// `All: 1 3 4`, frets `All: 2 4 5`), so "nothing unusual" is said rather
+/// than left blank.
 class _KeySummary extends ConsumerWidget {
   const _KeySummary();
 
@@ -2026,9 +2028,12 @@ class _KeySummary extends ConsumerWidget {
         // The finger vocabulary is the strings'; a wind shows the key alone.
         else if (ref.watch(instrumentFeaturesProvider).stringFingering)
           Text(
-              numberMode == NoteNumberMode.violinFingering
-                  ? 'All: 1 2H 3'
-                  : 'All: 2 4 5',
+              numberMode != NoteNumberMode.violinFingering
+                  ? 'All: 2 4 5'
+                  : ref.watch(instrumentProfileProvider).handFrame ==
+                          HandFrame.minorThird
+                      ? 'All: 1 3 4'
+                      : 'All: 1 2H 3',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -2109,7 +2114,10 @@ class _PalettePanelState extends ConsumerState<_PalettePanel> {
         stringLabelStyle: ref.watch(stringLabelStyleProvider),
         numberMode: numberMode,
         fretStyle: fretStyle,
-        showImpliedHigh: true,
+        // The violin's 2 is a high 2; a cello's fingers have no low or high
+        // but the extensions, which are labelled.
+        showImpliedHigh:
+            ref.watch(instrumentProfileProvider).handFrame == HandFrame.fourth,
       ),
       stringColourStyle: style,
       stringRuns: style == StringColourStyle.underline

@@ -1,0 +1,173 @@
+{
+  "comment": "First-position cello fingering. MIDI note -> fingering. Fingers 1-2-3-4 a semitone apart over a minor third; 1L is the 1st finger's backward extension (a semitone under 1), 4H the 4th's forward extension (a semitone over 4). No note is both an open string and a 4th finger, so there are no alternates. Edit finger labels here; do not change logic in fingering_mapper.dart.",
+  "notes": {
+    "36": {
+      "string": "C",
+      "note_name": "C2",
+      "finger": "0",
+      "alt": null
+    },
+    "37": {
+      "string": "C",
+      "note_name": "C#2",
+      "finger": "1L",
+      "alt": null
+    },
+    "38": {
+      "string": "C",
+      "note_name": "D2",
+      "finger": "1",
+      "alt": null
+    },
+    "39": {
+      "string": "C",
+      "note_name": "D#2",
+      "finger": "2",
+      "alt": null
+    },
+    "40": {
+      "string": "C",
+      "note_name": "E2",
+      "finger": "3",
+      "alt": null
+    },
+    "41": {
+      "string": "C",
+      "note_name": "F2",
+      "finger": "4",
+      "alt": null
+    },
+    "42": {
+      "string": "C",
+      "note_name": "F#2",
+      "finger": "4H",
+      "alt": null
+    },
+    "43": {
+      "string": "G",
+      "note_name": "G2",
+      "finger": "0",
+      "alt": null
+    },
+    "44": {
+      "string": "G",
+      "note_name": "G#2",
+      "finger": "1L",
+      "alt": null
+    },
+    "45": {
+      "string": "G",
+      "note_name": "A2",
+      "finger": "1",
+      "alt": null
+    },
+    "46": {
+      "string": "G",
+      "note_name": "A#2",
+      "finger": "2",
+      "alt": null
+    },
+    "47": {
+      "string": "G",
+      "note_name": "B2",
+      "finger": "3",
+      "alt": null
+    },
+    "48": {
+      "string": "G",
+      "note_name": "C3",
+      "finger": "4",
+      "alt": null
+    },
+    "49": {
+      "string": "G",
+      "note_name": "C#3",
+      "finger": "4H",
+      "alt": null
+    },
+    "50": {
+      "string": "D",
+      "note_name": "D3",
+      "finger": "0",
+      "alt": null
+    },
+    "51": {
+      "string": "D",
+      "note_name": "D#3",
+      "finger": "1L",
+      "alt": null
+    },
+    "52": {
+      "string": "D",
+      "note_name": "E3",
+      "finger": "1",
+      "alt": null
+    },
+    "53": {
+      "string": "D",
+      "note_name": "F3",
+      "finger": "2",
+      "alt": null
+    },
+    "54": {
+      "string": "D",
+      "note_name": "F#3",
+      "finger": "3",
+      "alt": null
+    },
+    "55": {
+      "string": "D",
+      "note_name": "G3",
+      "finger": "4",
+      "alt": null
+    },
+    "56": {
+      "string": "D",
+      "note_name": "G#3",
+      "finger": "4H",
+      "alt": null
+    },
+    "57": {
+      "string": "A",
+      "note_name": "A3",
+      "finger": "0",
+      "alt": null
+    },
+    "58": {
+      "string": "A",
+      "note_name": "A#3",
+      "finger": "1L",
+      "alt": null
+    },
+    "59": {
+      "string": "A",
+      "note_name": "B3",
+      "finger": "1",
+      "alt": null
+    },
+    "60": {
+      "string": "A",
+      "note_name": "C4",
+      "finger": "2",
+      "alt": null
+    },
+    "61": {
+      "string": "A",
+      "note_name": "C#4",
+      "finger": "3",
+      "alt": null
+    },
+    "62": {
+      "string": "A",
+      "note_name": "D4",
+      "finger": "4",
+      "alt": null
+    },
+    "63": {
+      "string": "A",
+      "note_name": "D#4",
+      "finger": "4H",
+      "alt": null
+    }
+  }
+}

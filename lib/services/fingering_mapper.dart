@@ -7,11 +7,15 @@ import '../models/note_number_mode.dart';
 
 class FingeringMapper {
   Map<String, dynamic>? _fingeringTable;
+  Map<String, dynamic>? _celloTable;
 
   Future<void> init() async {
-    final rawFingering = await rootBundle
-        .loadString('assets/engine/lookup_tables/fingering_first_position.json');
-    _fingeringTable = json.decode(rawFingering) as Map<String, dynamic>;
+    Future<Map<String, dynamic>> load(String name) async =>
+        json.decode(await rootBundle
+                .loadString('assets/engine/lookup_tables/$name.json'))
+            as Map<String, dynamic>;
+    _fingeringTable = await load('fingering_first_position');
+    _celloTable = await load('fingering_first_position_cello');
   }
 
   /// Whether [midi] is both an open string and a 4th finger on the string
@@ -43,6 +47,10 @@ class FingeringMapper {
   /// the matching string, and the string renamed (violin G D A E to viola
   /// C G D A). The finger labels, L/H included, carry over verbatim.
   ///
+  /// A cello ([HandFrame.minorThird]) reads a table of its own, with its
+  /// strings' own names: its fingers are a semitone apart, so no note of the
+  /// violin's table would be fingered right.
+  ///
   /// An instrument without strings (the recorder) gets no string fingering:
   /// [piece] is returned as it is, with no `fingerString`/`fingerNumber`, so
   /// no view draws a string label. A wind's chart fingering is step W2.
@@ -52,11 +60,13 @@ class FingeringMapper {
       InstrumentProfile profile = InstrumentProfile.violin}) {
     assert(_fingeringTable != null, 'Call init() before map()');
     if (!profile.hasStrings) return piece;
-    final notes = _fingeringTable!['notes'] as Map<String, dynamic>;
-    const violin = InstrumentProfile.violin;
-    final offset = violin.openMidi.first - profile.openMidi.first;
+    final cello = profile.handFrame == HandFrame.minorThird;
+    final notes =
+        (cello ? _celloTable! : _fingeringTable!)['notes'] as Map<String, dynamic>;
+    final tableFor = cello ? InstrumentProfile.cello : InstrumentProfile.violin;
+    final offset = tableFor.openMidi.first - profile.openMidi.first;
     String rename(String s) {
-      final i = violin.strings.indexOf(s);
+      final i = tableFor.strings.indexOf(s);
       return i < 0 || i >= profile.strings.length ? s : profile.strings[i];
     }
     final byContext = preference == ViolinStringPreference.auto

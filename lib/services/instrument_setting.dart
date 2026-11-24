@@ -20,6 +20,10 @@ enum InstrumentSet {
   /// sound and tuning (docs/family/layers.md).
   viola,
 
+  /// The cello: bass clef, C G D A an octave below the viola, its own
+  /// fingering (fingers a semitone apart), sound and tuning.
+  cello,
+
   /// The mandolin: fret numbers on every piece, the tab view and chords, and
   /// an instrument layer of its own.
   mandolin,
@@ -45,10 +49,12 @@ enum InstrumentFamily {
   final String label;
 }
 
-/// The row [set] is picked from. The cello will join the strings
-/// (docs/plan.md §7.5).
+/// The row [set] is picked from.
 InstrumentFamily familyOf(InstrumentSet set) => switch (set) {
-      InstrumentSet.violin || InstrumentSet.viola => InstrumentFamily.strings,
+      InstrumentSet.violin ||
+      InstrumentSet.viola ||
+      InstrumentSet.cello =>
+        InstrumentFamily.strings,
       InstrumentSet.mandolin => InstrumentFamily.strummed,
       InstrumentSet.recorder ||
       InstrumentSet.irishFlute =>
@@ -90,7 +96,7 @@ class InstrumentFeatures {
   });
 
   factory InstrumentFeatures.of(InstrumentSet set) => switch (set) {
-    InstrumentSet.violin || InstrumentSet.viola =>
+    InstrumentSet.violin || InstrumentSet.viola || InstrumentSet.cello =>
       const InstrumentFeatures(tabView: false, chords: false),
     InstrumentSet.mandolin => const InstrumentFeatures(tabView: true, chords: true),
     InstrumentSet.recorder || InstrumentSet.irishFlute =>
@@ -112,6 +118,7 @@ List<InstrumentSet> instrumentsOffered(AppEdition edition) => switch (edition) {
       AppEdition.stringlings => const [
           InstrumentSet.violin,
           InstrumentSet.viola,
+          InstrumentSet.cello,
           InstrumentSet.mandolin,
           InstrumentSet.recorder,
           InstrumentSet.irishFlute,
@@ -179,23 +186,53 @@ final instrumentSetProvider = StateProvider<InstrumentSet>((ref) {
 /// [Transcription]'s name.
 const violaTranscriptionKeyBase = 'app.violaTranscription';
 
+/// The same for the cello.
+const celloTranscriptionKeyBase = 'app.celloTranscription';
+
+/// A [Transcription] kept per player under [keyBase], [Transcription.none]
+/// until one is chosen.
+StateProvider<Transcription> _transcriptionPref(String keyBase) =>
+    StateProvider<Transcription>((ref) {
+      const fallback = Transcription.none;
+      final prefs = ref.watch(sharedPreferencesProvider);
+      if (prefs == null) return fallback;
+      final key = ref.watch(playerKeyProvider)(keyBase);
+      ref.listenSelf((_, next) {
+        if (prefs.getString(key) != next.name) {
+          prefs.setString(key, next.name);
+        }
+      });
+      final stored = prefs.getString(key);
+      return Transcription.values.where((t) => t.name == stored).firstOrNull ??
+          fallback;
+    });
+
 /// How a part written for another clef is transcribed for the viola
 /// (decided 2026-11-21: configurable). App-wide, like [instrumentSetProvider].
-final violaTranscriptionProvider = StateProvider<Transcription>((ref) {
-  const fallback = Transcription.none;
-  final prefs = ref.watch(sharedPreferencesProvider);
-  if (prefs == null) return fallback;
-  final violaTranscriptionKey =
-      ref.watch(playerKeyProvider)(violaTranscriptionKeyBase);
-  ref.listenSelf((_, next) {
-    if (prefs.getString(violaTranscriptionKey) != next.name) {
-      prefs.setString(violaTranscriptionKey, next.name);
-    }
-  });
-  final stored = prefs.getString(violaTranscriptionKey);
-  return Transcription.values.where((t) => t.name == stored).firstOrNull ??
-      fallback;
-});
+final violaTranscriptionProvider =
+    _transcriptionPref(violaTranscriptionKeyBase);
+
+/// How a part written for another clef is transcribed for the cello: the
+/// same choice as the viola's, kept apart so a player switching between the
+/// two keeps each.
+final celloTranscriptionProvider =
+    _transcriptionPref(celloTranscriptionKeyBase);
+
+/// The preference key of [set]'s transcription, or null for an instrument
+/// that reads a violin part as written.
+String? transcriptionKeyBaseOf(InstrumentSet set) => switch (set) {
+      InstrumentSet.viola => violaTranscriptionKeyBase,
+      InstrumentSet.cello => celloTranscriptionKeyBase,
+      _ => null,
+    };
+
+/// [set]'s transcription preference, or null ([transcriptionKeyBaseOf]).
+StateProvider<Transcription>? transcriptionProviderOf(InstrumentSet set) =>
+    switch (set) {
+      InstrumentSet.viola => violaTranscriptionProvider,
+      InstrumentSet.cello => celloTranscriptionProvider,
+      _ => null,
+    };
 
 /// The capabilities of the current [instrumentSetProvider].
 final instrumentFeaturesProvider = Provider<InstrumentFeatures>(

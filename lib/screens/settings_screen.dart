@@ -141,46 +141,52 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ],
-          if (set == InstrumentSet.viola)
+          if (transcriptionProviderOf(set) case final transcription?) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(32, 4, 16, 0),
               child: Text('Music written for violin',
                   style: theme.textTheme.labelLarge),
             ),
-          if (set == InstrumentSet.viola)
             RadioGroup<Transcription>(
-              groupValue: ref.watch(violaTranscriptionProvider),
+              groupValue: ref.watch(transcription),
               onChanged: (v) {
-                if (v != null) {
-                  ref.read(violaTranscriptionProvider.notifier).state = v;
-                }
+                if (v != null) ref.read(transcription.notifier).state = v;
               },
-              child: const Padding(
-                padding: EdgeInsets.only(left: 16),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16),
                 child: Column(
-                  key: ValueKey('viola_transcription'),
+                  // The viola's keys predate the cello's; both kept.
+                  key: ValueKey('${set.name}_transcription'),
                   children: [
                     RadioListTile<Transcription>(
-                      key: ValueKey('viola_transcription_none'),
+                      key: ValueKey('${set.name}_transcription_none'),
                       value: Transcription.none,
                       dense: true,
-                      title: Text('Same key, in alto clef'),
-                      subtitle: Text('An octave lower when that suits the '
-                          'viola; recordings of the violin part still match'),
+                      title: Text(set == InstrumentSet.cello
+                          ? 'Same key, in bass clef'
+                          : 'Same key, in alto clef'),
+                      subtitle: Text(set == InstrumentSet.cello
+                          ? 'An octave or two lower, to suit the cello; '
+                              'recordings of the violin part still match'
+                          : 'An octave lower when that suits the '
+                              'viola; recordings of the violin part still match'),
                     ),
                     RadioListTile<Transcription>(
-                      key: ValueKey('viola_transcription_fifth'),
+                      key: ValueKey('${set.name}_transcription_fifth'),
                       value: Transcription.fifthDown,
                       dense: true,
-                      title: Text('A fifth lower'),
-                      subtitle: Text(
-                          'The violin\'s finger patterns, a string lower; '
-                          'a different key from violin recordings'),
+                      title: const Text('A fifth lower'),
+                      subtitle: Text(set == InstrumentSet.cello
+                          ? 'In the keys cello books use, a string lower; '
+                              'a different key from violin recordings'
+                          : 'The violin\'s finger patterns, a string lower; '
+                              'a different key from violin recordings'),
                     ),
                   ],
                 ),
               ),
             ),
+          ],
           const SizedBox(height: 8),
           const Divider(height: 1),
           // Practice mode's own settings (it is switched on per piece, from

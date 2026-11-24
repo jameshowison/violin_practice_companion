@@ -369,6 +369,8 @@ final instrumentProfileProvider = Provider<InstrumentProfile>((ref) =>
       InstrumentSet.mandolin => InstrumentProfile.mandolin,
       InstrumentSet.viola => InstrumentProfile.viola
           .withTranscription(ref.watch(violaTranscriptionProvider)),
+      InstrumentSet.cello => InstrumentProfile.cello
+          .withTranscription(ref.watch(celloTranscriptionProvider)),
       InstrumentSet.recorder => InstrumentProfile.recorder,
       InstrumentSet.irishFlute => InstrumentProfile.irishFlute,
     });
@@ -1176,7 +1178,7 @@ final staffFingeringXmlProvider = FutureProvider<String?>(
 );
 
 /// The numbers in effect, from the instrument setting: frets for the
-/// mandolin, fingering for the violin and the viola.
+/// mandolin, fingering for the violin, viola and cello.
 final noteNumberModeProvider = Provider<NoteNumberMode>(
   (ref) => ref.watch(instrumentSetProvider) == InstrumentSet.mandolin
       ? NoteNumberMode.mandolinFret

@@ -133,6 +133,34 @@ void main() {
       expect(prefs.getString('app.violaTranscription'), 'none');
     });
 
+    test('the cello fingers on its own strings, in the cello layer', () async {
+      final c = await containerWith({'app.instruments': 'cello'});
+      c.read(selectedPieceProvider.notifier).state = _piece('a');
+      expect(c.read(noteNumberModeProvider), NoteNumberMode.violinFingering);
+      final p = c.read(instrumentProfileProvider);
+      expect((p.id, p.layerId, p.clef), ('cello', 'cello', bassClef));
+      expect(p.openMidi, [36, 43, 50, 57]);
+      expect(p.handFrame, HandFrame.minorThird);
+      expect(p.transcription, Transcription.none);
+      final f = c.read(instrumentFeaturesProvider);
+      expect((f.tabView, f.chords, f.stringFingering, f.stringTuner),
+          (false, false, true, true));
+    });
+
+    test('the cello keeps its own transcription, apart from the viola\'s',
+        () async {
+      final c = await containerWith({
+        'app.instruments': 'cello',
+        'app.violaTranscription': 'none',
+        'app.celloTranscription': 'fifthDown',
+      });
+      expect(c.read(instrumentProfileProvider).transcription,
+          Transcription.fifthDown);
+      c.read(celloTranscriptionProvider.notifier).state = Transcription.none;
+      expect(prefs.getString('app.celloTranscription'), 'none');
+      expect(transcriptionProviderOf(InstrumentSet.violin), isNull);
+    });
+
     test('the old combined setting becomes the mandolin, and is rewritten',
         () async {
       final c = await containerWith({'app.instruments': 'violinAndMandolin'},

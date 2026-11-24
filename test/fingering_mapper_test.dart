@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicxml_tools/musicxml_tools.dart';
+import 'package:violin_practice_companion/models/instrument_profile.dart';
 import 'package:violin_practice_companion/models/note_annotation.dart';
 import 'package:violin_practice_companion/models/note_number_mode.dart';
 import 'package:violin_practice_companion/services/fingering_mapper.dart';
@@ -239,6 +240,43 @@ void _realMapperTests() {
       ]);
       expect(labels(mapper.map(p, preference: ViolinStringPreference.openStrings)),
           ['D4', 'D4', 'A0']);
+    });
+  });
+
+  group('the cello', () {
+    const cello = InstrumentProfile.cello;
+
+    test('first position: fingers a semitone apart, with both extensions', () {
+      // The A string, open to the forward extension.
+      expect(labels(mapper.map(piece([57, 58, 59, 60, 61, 62, 63]), profile: cello)),
+          ['A0', 'A1L', 'A1', 'A2', 'A3', 'A4', 'A4H']);
+      // D major on the D and A strings: the home pattern 1 3 4.
+      expect(labels(mapper.map(piece([50, 52, 54, 55, 57, 59, 61, 62]), profile: cello)),
+          ['D0', 'D1', 'D3', 'D4', 'A0', 'A1', 'A3', 'A4']);
+      // The C string, which the violin's table has no notes for.
+      expect(labels(mapper.map(piece([36, 38, 40, 41]), profile: cello)),
+          ['C0', 'C1', 'C3', 'C4']);
+    });
+
+    test('no note is a choice, so no preference changes anything', () {
+      final midis = [43, 50, 57, 48, 55, 62];
+      for (final m in midis) {
+        expect(cello.hasFourthFingerChoice(m), isFalse, reason: '$m');
+      }
+      final open = labels(mapper.map(piece(midis), profile: cello));
+      expect(open, ['G0', 'D0', 'A0', 'G4', 'D4', 'A4']);
+      for (final pref in ViolinStringPreference.values) {
+        expect(labels(mapper.map(piece(midis), preference: pref, profile: cello)),
+            open, reason: pref.name);
+      }
+      expect(
+          labels(mapper.map(piece(midis), choices: {'1:0': 4}, profile: cello)),
+          open);
+    });
+
+    test('outside first position a note is left unfingered', () {
+      final p = mapper.map(piece([35, 64]), profile: cello);
+      expect(p.measures.single.notes.map((n) => n.fingerNumber), [null, null]);
     });
   });
 }

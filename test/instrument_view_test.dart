@@ -128,4 +128,46 @@ void main() {
       }
     });
   });
+
+  group('the cello', () {
+    for (final t in Transcription.values) {
+      final cello = InstrumentProfile.cello.withTranscription(t);
+      test('${t.name}: every bundled score in bass clef, mostly in first '
+          'position, and back to its exact source', () {
+        for (final f in bundledScoreFiles()) {
+          final xml = f.readAsStringSync();
+          final view = InstrumentView.of(cello, xml);
+          final shown = view.apply(xml);
+          for (final c in XmlDocument.parse(shown).findAllElements('clef')) {
+            expect((c.getElement('sign')!.innerText, c.getElement('line')!.innerText),
+                ('F', '4'), reason: f.path);
+          }
+          final notes = _notes(shown).where((n) => !n.isRest).toList();
+          final inRange = notes
+              .where((n) => n.midiNumber >= 36 && n.midiNumber <= 63)
+              .length;
+          // A whole octave of headroom either side would be a bad octave.
+          expect(notes.every((n) => n.midiNumber >= 24 && n.midiNumber <= 76),
+              isTrue, reason: f.path);
+          expect(inRange / notes.length, greaterThan(0.75), reason: f.path);
+          final back = view.toSource(_notes(shown));
+          final source = _notes(xml);
+          for (var i = 0; i < source.length; i++) {
+            expect((back[i].pitch, back[i].midiNumber, back[i].octave),
+                (source[i].pitch, source[i].midiNumber, source[i].octave),
+                reason: '${f.path} note $i');
+          }
+        }
+      });
+    }
+
+    test('a fifth down puts a violin tune in A into D, as cello books have it',
+        () {
+      final xml = File(scorePath('lightly_row')).readAsStringSync();
+      final view = InstrumentView.of(
+          InstrumentProfile.cello.withTranscription(Transcription.fifthDown), xml);
+      // A fifth and an octave down.
+      expect(view.interval, (steps: -11, semitones: -19));
+    });
+  });
 }

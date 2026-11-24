@@ -89,6 +89,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
 
   /// The viola's C G D A, when the instrument setting is the viola.
   bool _viola = false;
+
+  /// The cello's C G D A, an octave below the viola's.
+  bool _cello = false;
   bool _leftHanded = false;
 
   /// Which string of the picked mandolin course is being tuned: 0 the lower
@@ -303,6 +306,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
     _a4 = (prefs?.getInt(ref.read(playerKeyProvider)(tunerA4Key)) ?? 440) == 442 ? 442 : 440;
     final set = ref.read(instrumentSetProvider);
     _viola = set == InstrumentSet.viola;
+    _cello = set == InstrumentSet.cello;
     // The tuner tunes the instrument the app is set up for.
     _mandolin = set == InstrumentSet.mandolin;
     _auto = prefs?.getBool(ref.read(playerKeyProvider)(tunerAutoStringKey)) ?? false;
@@ -354,7 +358,9 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
           ? InstrumentTuning.mandolin(a4: _a4)
           : _viola
               ? InstrumentTuning.viola(a4: _a4)
-              : InstrumentTuning.violin(a4: _a4);
+              : _cello
+                  ? InstrumentTuning.cello(a4: _a4)
+                  : InstrumentTuning.violin(a4: _a4);
 
   Future<void> _start() async {
     if (!_input.isSupported) {

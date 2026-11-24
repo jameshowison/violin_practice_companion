@@ -123,6 +123,7 @@ String _instrumentName(WidgetRef ref, Player player, List<Player> players) {
   return switch (instrumentFromStored(stored, ref.read(instrumentsOfferedProvider))) {
     InstrumentSet.violin => 'Violin',
     InstrumentSet.viola => 'Viola',
+    InstrumentSet.cello => 'Cello',
     InstrumentSet.mandolin => 'Mandolin',
     InstrumentSet.recorder => 'Recorder',
     InstrumentSet.irishFlute => 'Irish flute',
@@ -133,6 +134,7 @@ String _instrumentName(WidgetRef ref, Player player, List<Player> players) {
 String instrumentLabel(InstrumentSet set) => switch (set) {
       InstrumentSet.violin => 'Violin',
       InstrumentSet.viola => 'Viola',
+      InstrumentSet.cello => 'Cello',
       InstrumentSet.mandolin => 'Mandolin',
       InstrumentSet.recorder => 'Recorder',
       InstrumentSet.irishFlute => 'Irish flute',
@@ -142,6 +144,7 @@ String instrumentLabel(InstrumentSet set) => switch (set) {
 String? instrumentDetail(InstrumentSet set) => switch (set) {
       InstrumentSet.violin => null,
       InstrumentSet.viola => 'Alto clef, C G D A',
+      InstrumentSet.cello => 'Bass clef, C G D A',
       InstrumentSet.mandolin => 'Frets, tab and chords',
       InstrumentSet.recorder => 'Soprano, baroque fingering',
       InstrumentSet.irishFlute => 'Keyless, in D',
@@ -281,9 +284,9 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
     final prefs = ref.read(sharedPreferencesProvider);
     prefs?.setString(
         playerKey(instrumentSetKeyBase, added, players), _instrument.name);
-    if (_instrument == InstrumentSet.viola) {
-      prefs?.setString(playerKey(violaTranscriptionKeyBase, added, players),
-          Transcription.none.name);
+    if (transcriptionKeyBaseOf(_instrument) case final keyBase?) {
+      prefs?.setString(
+          playerKey(keyBase, added, players), Transcription.none.name);
     }
     ref.read(currentPlayerIdProvider.notifier).state = added.id;
     Navigator.of(context).pop();

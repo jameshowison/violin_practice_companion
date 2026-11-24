@@ -412,7 +412,7 @@ instrument moves into its own app:
 ### 7.5 More instruments: Irish flute and cello (proposed 2026-11-23)
 
 Asked for by a tester (the flute) and by the owner (the cello). The flute
-is built (2026-11-23); the cello is not started. Each adds an instrument no
+is built (2026-11-23); the cello is under way (below). Each adds an instrument no
 real player has tried yet, like the recorder.
 
 **Irish flute: built, in Stringlings** (not Windlings, whose tests assume
@@ -455,7 +455,10 @@ setting is unclear. Candidates, all in D or G and within D4–D6:
 - **(decision)** Which three or four to start with.
 
 **Cello.** Follows the viola (Viola 3a–3c): transcription by any interval
-and a clef of its own are already built.
+and a clef of its own are already built. **Started 2026-11-23** (Cello 1,
+the tuner's frame; Cello 2, the instrument: profile, Settings, fingering
+table, tuner, sound). Not yet seen on a device, and no real cellist or
+cello recording has checked any of it.
 - **Strings and clef:** C2 G2 D3 A3, bass clef, an octave below the viola.
   Violin pieces transcribe down an octave and a fifth.
 - **Fingering:** first position spans 1–2–3–4 over a minor third, with

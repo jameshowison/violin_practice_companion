@@ -23,6 +23,21 @@ enum Transcription {
   fifthDown,
 }
 
+/// How a string player's hand covers one string in first position, which
+/// decides the fingering table and the notes where a finger is a choice.
+enum HandFrame {
+  /// Four fingers over a perfect fourth: the 4th finger reaches the next
+  /// string's open note (violin, viola, mandolin). Its 2 and 3 move low or
+  /// high (`2L`, `3H`) with the key.
+  fourth,
+
+  /// Four fingers a semitone apart, over a minor third (the cello). A
+  /// backward extension of the 1st (`1L`) reaches a semitone under it, a
+  /// forward one of the 4th (`4H`) a semitone over; the next open string is
+  /// a tone beyond that, so no note is both an open string and a 4th finger.
+  minorThird,
+}
+
 /// What the instrument layer needs to know about an instrument to show a
 /// piece for it (docs/family/layers.md): the clef it reads and the range a
 /// beginner plays in, which decides the octave a piece written in another
@@ -86,6 +101,9 @@ class InstrumentProfile {
   /// `MediaAlignmentStore.alignerVersion` is bumped).
   final AlignmentProfile alignment;
 
+  /// How the hand covers a string ([HandFrame]); meaningless without strings.
+  final HandFrame handFrame;
+
   const InstrumentProfile({
     required this.id,
     required this.displayName,
@@ -98,6 +116,7 @@ class InstrumentProfile {
     this.transcription = Transcription.none,
     this.transposition = Transposition.concert,
     this.alignment = AlignmentProfile.bowedStrings,
+    this.handFrame = HandFrame.fourth,
   });
 
   InstrumentProfile withTranscription(Transcription t) => InstrumentProfile(
@@ -112,6 +131,7 @@ class InstrumentProfile {
         transcription: t,
         transposition: transposition,
         alignment: alignment,
+        handFrame: handFrame,
       );
 
   /// Whether the instrument is fingered on strings: the string fingering,
@@ -128,9 +148,13 @@ class InstrumentProfile {
 
   /// Whether [midi] is both an open string and a 4th finger on the string
   /// below: the notes where the fingering is a choice (violin D4, A4, E5;
-  /// viola G3, D4, A4). Never, without strings.
+  /// viola G3, D4, A4). Never without strings, and never on a cello, whose
+  /// 4th finger stops a fourth short of the next string ([HandFrame]).
   bool hasFourthFingerChoice(int midi) =>
-      hasStrings && midi != openMidi.first && openMidi.contains(midi);
+      hasStrings &&
+      handFrame == HandFrame.fourth &&
+      midi != openMidi.first &&
+      openMidi.contains(midi);
 
   /// G3 to B5.
   static const violin = InstrumentProfile(
@@ -182,6 +206,29 @@ class InstrumentProfile {
     strings: ['C', 'G', 'D', 'A'],
     openMidi: [48, 55, 62, 69],
     alignment: AlignmentProfile(minFrequencyHz: 120),
+  );
+
+  /// An octave below the viola (C G D A), read in bass clef. First position
+  /// runs C2 to D4, the 4th finger on the A string; its fingering is its own
+  /// ([HandFrame.minorThird]).
+  ///
+  /// Its alignment band starts at 120 Hz, like the viola's, not under its
+  /// open C (65 Hz). The chroma's bins are about 11 Hz wide, wider than a
+  /// semitone below about 180 Hz, so a fundamental down there smears across
+  /// pitch classes; a cello note's 2nd harmonic, the same pitch class an
+  /// octave up, is at 130.8 Hz or more and so always in the band. A first
+  /// guess, with no cello recording to tune it on.
+  static const cello = InstrumentProfile(
+    id: 'cello',
+    displayName: 'Cello',
+    layerId: 'cello',
+    clef: bassClef,
+    lowestMidi: 36,
+    highestMidi: 62,
+    strings: ['C', 'G', 'D', 'A'],
+    openMidi: [36, 43, 50, 57],
+    alignment: AlignmentProfile(minFrequencyHz: 120),
+    handFrame: HandFrame.minorThird,
   );
 
   /// The soprano (descant) recorder: read in treble, written C4 to D6, and

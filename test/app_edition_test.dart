@@ -44,6 +44,7 @@ void main() {
       expect(c.read(instrumentsOfferedProvider), [
         InstrumentSet.violin,
         InstrumentSet.viola,
+        InstrumentSet.cello,
         InstrumentSet.mandolin,
         InstrumentSet.recorder,
         InstrumentSet.irishFlute,

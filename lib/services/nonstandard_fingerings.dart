@@ -8,7 +8,7 @@ import 'fingering_annotation_builder.dart';
 ///
 /// These are the fingerings that leave the hand's basic shape, so they are what
 /// a player most needs warning of before starting a tune. Ordered by string,
-/// low to high (G D A E), then by number, so the list reads across the
+/// low to high (C G D A E), then by number, so the list reads across the
 /// fingerboard.
 ///
 /// On the violin ([NoteNumberMode.violinFingering]) the labels are as stored and
@@ -47,4 +47,4 @@ List<String> nonStandardFingerings(
   return [for (final (s, f) in sorted) '$s$f'];
 }
 
-const _stringOrder = ['G', 'D', 'A', 'E'];
+const _stringOrder = ['C', 'G', 'D', 'A', 'E'];
